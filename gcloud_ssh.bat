@@ -1,0 +1,1 @@
+gcloud compute ssh ryry013@centos

@@ -1,0 +1,1 @@
+call gcloud compute scp ./math.py ryry013@centos:/home/ryry013/bot/cogs/math.py
