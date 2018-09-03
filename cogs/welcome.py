@@ -22,7 +22,7 @@ random_walk1 = 447875990333685762
 random_walk2 = 447876530710904832
 
 
-class welcome:
+class Welcome:
     """Welcomes people"""
 
     def __init__(self, bot):
@@ -66,9 +66,9 @@ class welcome:
                 with open(f'{dir_path}/inviteLog/{m.name}.log', 'w') as file:
                     for i in range(len(newNewList) + 2):
                         try:
-                            file.write(f'{oldList[i].code}, {oldList[i].uses}')
-                            file.write(f'{newList[i].code}, {newList[i].uses}')
-                            file.write(f'{newNewList[i].code}, {newNewList[i].uses}')
+                            file.write(f'1) {oldList[i].code}, {oldList[i].uses}\n')
+                            file.write(f'2) {newList[i].code}, {newList[i].uses}\n')
+                            file.write(f'3) {newNewList[i].code}, {newNewList[i].uses}\n')
                         except IndexError:
                             pass
 
@@ -92,23 +92,23 @@ class welcome:
                     icon_url=m.avatar_url_as(static_format="png")
                 )
 
-                t1 = time.perf_counter()
+                # t1 = time.perf_counter()
                 await self.bot.jpEverything.send(embed=emb)
-                t2 = time.perf_counter()
+                # t2 = time.perf_counter()
 
-                try:
-                    oldInviteVal = oldList[oldList.index(usedInvite)].uses
-                    newInviteVal = newList[newList.index(usedInvite)].uses
-                except ValueError:
-                    oldInviteVal = 0
-                    newInviteVal = newList[newList.index(usedInvite)].uses
+                # try:
+                #     oldInviteVal = oldList[oldList.index(usedInvite)].uses
+                #     newInviteVal = newList[newList.index(usedInvite)].uses
+                # except ValueError:
+                #     oldInviteVal = 0
+                #     newInviteVal = newList[newList.index(usedInvite)].uses
 
-                await self.bot.testChan.send(content=f'Time to get to before posting embeds: {t1-t0}\n'
-                                                     f'Time to post embeds: {t2-t1}\n'
-                                                     f'Member: {m.name} -- '
-                                                     f'Invite: {usedInvite.code} -- '
-                                                     f'({oldInviteVal}->{newInviteVal})',
-                                             embed=emb)
+                # await self.bot.testChan.send(content=f'Time to get to before posting embeds: {t1-t0}\n'
+                #                                      f'Time to post embeds: {t2-t1}\n'
+                #                                      f'Member: {m.name} -- '
+                #                                      f'Invite: {usedInvite.code} -- '
+                #                                      f'({oldInviteVal}->{newInviteVal})',
+                #                              embed=emb)
 
                 japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
                 if str(usedInvite.code) in japanese_links:
@@ -143,14 +143,15 @@ class welcome:
                 await self.bot.get_channel(243838819743432704).send(
                     'Welcome to the server.  Nadeko is currently down, '
                     'so please state your roles and someone in welcoming party will come to'
-                    ' assign your role as soon as possible.  If no one comes, feel free to tag the mods.  Thanks!'
+                    ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
+                    'Thanks! '
+                    '(<@&470364944479813635>)'
                 )
 
     async def on_member_update(self, bef, af):
         """Nadeko updates"""
-        if bef == self.bot.spanServ.get_member(nadeko) and bef.guild == self.bot.spanServ:
-            nadObj = self.bot.spanServ.get_member(116275390695079945)
-            # await self.bot.nadLog.send('Something happened with Nadeko')
+        if bef == self.bot.spanServ.get_member(116275390695079945) and bef.guild == self.bot.spanServ:
+            # await self.bot.nadLog.send('Something happened with Nadeko') nadeko: 116275390695079945
             # await self.bot.nadLog.send(f'Nadeko went from {bef.status} to {af.status}')
 
             # if str(bef.status) == 'online' and str(af.status) == 'online':
@@ -160,33 +161,37 @@ class welcome:
             #     )
 
             if str(bef.status) == 'online' and str(af.status) == 'offline':
-                await self.bot.nadLog.send('----------------------------------------------\n'
-                                           'Nadeko went offline')
+                # await self.bot.nadLog.send('----------------------------------------------\n'
+                #                           f'{datetime.now()} - Nadeko went offline')
 
-                self.bot.waited = await asyncio.sleep(  # wait to see if nadeko is offline for 20 mins
-                    1200,
-                    str(nadObj.status) == 'offline'
-                )
-                await self.bot.nadLog.send(f'Just finished waiting 20 mins, bot.waited should be ('
-                                           f'offline:True, online:False) --> {self.bot.waited}.\n'
-                                           f'Nadeko is {self.bot.spanServ.get_member(nadeko).status}\n'
-                                           f'asyncio.sleep should return (offline:True, online:False): '
-                                           f"{str(nadObj.status) == 'offline'}")
+                def check(befcheck, afcheck):
+                    return af.id == befcheck.id and str(befcheck.status) == 'offline' and str(afcheck.status) == 'online'
 
+                try:
+                    print('Waiting')
+                    await self.bot.wait_for('member_update', check=check, timeout=1200)
+                    self.bot.waited = False
+                except asyncio.TimeoutError:
+                    self.bot.waited = True
                 if self.bot.waited:
-                    await self.bot.nadLog.send(  # nadeko was offline for 10 mins
+                    await self.bot.nadLog.send(  # nadeko was offline for 20 mins
+                        "Nadeko has gone offline.  New users won't be able to tag themselves, "
+                        "and therefore will not be able to join the server.  Please be careful of this."
+                    )
+                    await self.bot.spanSP.send(  # nadeko was offline for 20 mins
                         "Nadeko has gone offline.  New users won't be able to tag themselves, "
                         "and therefore will not be able to join the server.  Please be careful of this."
                     )
 
             if str(bef.status) == 'offline' and str(af.status) == 'online':
-                await self.bot.nadLog.send('----------------------------------------------\n'
-                                           'Nadeko came online')
+                # await self.bot.nadLog.send(f'----------------------------------------------\n'
+                #                            f'{datetime.now()} - Nadeko came online')
                 if self.bot.waited:
                     self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
                     await self.bot.nadLog.send(
                         'Nadeko is back online now and was previously offline for more than 20 minutes\n'
                         f'bot.waited is now {self.bot.waited}.')
+                    await self.bot.spanSP.send('Nadeko is back online now.')
 
     async def on_member_remove(self, m):
         localtime = reference.LocalTimezone()
@@ -208,4 +213,4 @@ class welcome:
 
 
 def setup(bot):
-    bot.add_cog(welcome(bot))
+    bot.add_cog(Welcome(bot))

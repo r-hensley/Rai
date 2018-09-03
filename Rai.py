@@ -25,7 +25,7 @@ logger.addHandler(handler)
 
 tStart = datetime.now()
 
-initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math']
+initial_extensions = ['cogs.Main', 'cogs.Owner', 'cogs.Welcome', 'cogs.Math']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", pm_help = False, owner_id=202995638860906496)
 
@@ -54,17 +54,21 @@ async def on_ready():
     bot.jpServ = bot.get_guild(189571157446492161)
     bot.jpEverything = bot.get_channel(277384105245802497)
     bot.jpJHO = bot.get_channel(189571157446492161)
+    bot.jpJHO2 = bot.get_channel(326263874770829313)
     
     bot.spanServ = bot.get_guild(243838819743432704)
     bot.spanSP = bot.get_channel(277511392972636161)
 
     bot.invitesOld = await bot.jpServ.invites() # for use in welcome cog for checking invites
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
-    await bot.nadLog.send(f'bot.waited is now {bot.waited}.')
     bot.selfMute = False
 
     bot.pos1 = 0
     bot.pos2 = 0
+
+    bot.currentReportRoomUser = None
+    bot.reportRoom = bot.get_channel(485391894356951050)
+    bot.reportRoomWaitingList = []
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
@@ -73,7 +77,7 @@ async def on_ready():
 @commands.command()
 async def close():
     await super().close()
-    
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 

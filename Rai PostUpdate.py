@@ -28,6 +28,8 @@ async def on_ready():
 
     client.spanServ = client.get_guild(243838819743432704)
 
+    client.linglang = client.get_channel(460557284653662219)
+
     print('Updating posts')
 
     def is_me(m):

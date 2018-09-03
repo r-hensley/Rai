@@ -1,0 +1,1 @@
+call gcloud components update
