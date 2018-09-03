@@ -14,9 +14,7 @@ import datetime
 from collections import Counter
 
 
-class owner:
-
-
+class Owner:
 
     def __init__(self, bot):
         self.bot = bot
@@ -253,4 +251,4 @@ class owner:
 
                 
 def setup(bot):
-    bot.add_cog(owner(bot))
+    bot.add_cog(Owner(bot))

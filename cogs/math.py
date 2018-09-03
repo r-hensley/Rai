@@ -9,7 +9,7 @@ import random
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-class math:
+class Math:
     """Fun math games"""
 
     def __init__(self,bot):
@@ -78,4 +78,4 @@ class math:
         plt.cla()
 
 def setup(bot):
-    bot.add_cog(math(bot))
+    bot.add_cog(Math(bot))
