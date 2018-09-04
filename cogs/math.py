@@ -12,7 +12,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 class Math:
     """Fun math games"""
 
-    def __init__(self,bot):
+    def __init__(self, bot):
         self.bot = bot
 
 
