@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
 import json
-
+from urllib.parse import urlparse
 
 
 
@@ -12,6 +12,89 @@ class Main:
 
     def __init__(self, bot):
         self.bot = bot
+
+    def jpenratio(self, msg):
+        text = msg.content
+
+        noURLtext = []
+        text = text.split(' ')
+        for word in text:
+            if not bool(urlparse(word).netloc):  # if the word is not a URL
+                noURLtext.append(word)  # add to the new list
+        text = ' '.join(noURLtext)
+        text = text.replace('w', '')
+        text = text.replace('ｗ', '')
+        numAsian = sum([self.is_asian(x) for x in text])  # number of asian characters
+        numEng = len(text) - numAsian
+        print(numEng, numAsian)
+        if numEng + numAsian:
+            return numEng / (numEng + numAsian)  # tells me what percentage of the message was English
+        else:
+            return "w"
+
+    def is_asian(self, char):
+        IDEOGRAPHIC_SPACE = 0x3000
+        return ord(char) > IDEOGRAPHIC_SPACE
+
+    async def on_message(self, msg):
+        """Message as the bot"""
+        if str(msg.channel) == 'Direct Message with Ryry013#9234' \
+                and int(msg.author.id) == self.bot.owner_id \
+                and str(msg.content[0:3]) == 'msg':
+            print('hello')
+            await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
+
+        """Ping me if someone says my name"""
+        cont = str(msg.content)
+        if (
+                (
+                        'ryry' in cont.casefold()
+                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
+                        or 'らいらい' in cont.casefold()
+                        or 'ライライ' in cont.casefold()
+                ) and
+                not msg.author.bot  # checks to see if account is a bot account
+        ):  # random sad face
+            await self.bot.spamChan.send(
+                '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id, msg.content))
+
+        if msg.author.id == self.bot.owner_id and self.bot.selfMute == True:
+            await msg.delete()
+
+        """Ultra Hardcore"""
+        if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+            jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
+            engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
+            jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+            ratio = self.jpenratio(msg)
+            if msg.guild == jpServ:
+                if ratio == 'w':
+                    pass
+                else:
+                    if jpRole in msg.author.roles:
+                        if ratio < 0.8:
+                            await msg.delete()
+                    else:
+                        if ratio > 0.2:
+                            await msg.delete()
+
+    @commands.command()
+    async def ultraHardcore(self, ctx, id : int = None):
+        """Irreversible hardcore mode.  Must talk to Ryry to have this undone."""
+        if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+            self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
+            with open('database.json', 'w') as write_file:
+                json.dump(self.bot.db, write_file)
+            await ctx.send("You've chosen to enable ultra hardcore mode.  It works the same as normal hardcore mode"
+                           "except that you can't undo it and asterisks don't change anything.  Talk to Ryan "
+                           "to undo this.")
+        else:
+            if ctx.author.id == self.bot.owner_id:
+                self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(int(id))
+                with open('database.json', 'w') as write_file:
+                    json.dump(self.bot.db, write_file)
+                await ctx.send(f'Undid ultra hardcore mode for {self.bot.get_user(id).name}')
+
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -56,30 +139,7 @@ class Main:
         x = await asyncio.sleep(2, str(me.status) == 'offline')
         print(f'I have ran x = await asyncio.sleep(=="offline").  If I\'m offline, x should be True: {x}.')
 
-    waited = False
 
-    async def on_message(self, msg):
-        if str(msg.channel) == 'Direct Message with Ryry013#9234' \
-                and int(msg.author.id) == self.bot.owner_id \
-                and str(msg.content[0:3]) == 'msg':
-            print('hello')
-            await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
-
-        cont = str(msg.content)
-        if (
-                (
-                        'ryry' in cont.casefold()
-                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
-                        or 'らいらい' in cont.casefold()
-                        or 'ライライ' in cont.casefold()
-                ) and
-                not msg.author.bot  # checks to see if account is a bot account
-        ):  # random sad face
-            await self.bot.spamChan.send(
-                '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id, msg.content))
-
-        if msg.author.id == self.bot.owner_id and self.bot.selfMute == True:
-            await msg.delete()
 
     # async def on_command_error(self, ctx, error):
     #     """Reduces 'command not found' error to a single line in console"""
@@ -222,8 +282,6 @@ class Main:
         else:
             await option2(ctx.author)
 
-
-
     @commands.command()
     async def done(self, ctx):
         if ctx.channel == self.bot.reportRoom:
@@ -258,6 +316,7 @@ class Main:
             else:
                 await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
+
 
 
 

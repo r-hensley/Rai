@@ -5,6 +5,7 @@ from discord.ext.commands import Bot
 from discord.ext import commands
 import platform
 import sys, traceback
+import json
 
 from datetime import datetime,timedelta
 from pytz import reference
@@ -63,12 +64,13 @@ async def on_ready():
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
-    bot.pos1 = 0
-    bot.pos2 = 0
-
     bot.currentReportRoomUser = None
     bot.reportRoom = bot.get_channel(485391894356951050)
     bot.reportRoomWaitingList = []
+
+    with open("database.json", "r") as read_file:
+        bot.db = json.load(read_file)
+    bot.ID = bot.db["ID"]
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
@@ -77,9 +79,6 @@ async def on_ready():
 @commands.command()
 async def close():
     await super().close()
-
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
 def getAPIKey(filename):
