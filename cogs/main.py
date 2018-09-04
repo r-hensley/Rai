@@ -6,7 +6,6 @@ import json
 from urllib.parse import urlparse
 
 
-
 class Main:
     """My custom cog that does stuff!"""
 
@@ -26,7 +25,6 @@ class Main:
         text = text.replace('ｗ', '')
         numAsian = sum([self.is_asian(x) for x in text])  # number of asian characters
         numEng = len(text) - numAsian
-        print(numEng, numAsian)
         if numEng + numAsian:
             return numEng / (numEng + numAsian)  # tells me what percentage of the message was English
         else:
@@ -95,7 +93,6 @@ class Main:
                     json.dump(self.bot.db, write_file)
                 await ctx.send(f'Undid ultra hardcore mode for {self.bot.get_user(id).name}')
 
-
     @commands.command()
     async def kawaii(self, ctx):
         """Try it"""
@@ -109,7 +106,6 @@ class Main:
     async def punch(self, ctx, user: discord.Member):
         """A punch command I made as a test"""
 
-        # Your code will go here
         await ctx.send("ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
 
     @commands.command()
@@ -138,8 +134,6 @@ class Main:
         me = self.bot.get_guild(275146036178059265).get_member(self.bot.owner_id)
         x = await asyncio.sleep(2, str(me.status) == 'offline')
         print(f'I have ran x = await asyncio.sleep(=="offline").  If I\'m offline, x should be True: {x}.')
-
-
 
     # async def on_command_error(self, ctx, error):
     #     """Reduces 'command not found' error to a single line in console"""
@@ -316,9 +310,6 @@ class Main:
             else:
                 await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
-
-
-
 
 def setup(bot):
     bot.add_cog(Main(bot))

@@ -26,7 +26,7 @@ logger.addHandler(handler)
 
 tStart = datetime.now()
 
-initial_extensions = ['cogs.Main', 'cogs.Owner', 'cogs.Welcome', 'cogs.Math']
+initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", pm_help = False, owner_id=202995638860906496)
 
