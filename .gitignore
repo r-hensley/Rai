@@ -13,3 +13,6 @@ cogs/__pycache__
 cogs/inviteLog
 cogs/randomwalk.png
 gcloud g*
+how_to_git.txt
+.gitignore
+database.json
