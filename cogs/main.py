@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 import json
 from urllib.parse import urlparse
 
+import os
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
 
 class Main:
     """My custom cog that does stuff!"""
@@ -24,7 +27,8 @@ class Main:
         text = text.replace('w', '')
         text = text.replace('ｗ', '')
         numAsian = sum([self.is_asian(x) for x in text])  # number of asian characters
-        numEng = len(text) - numAsian
+        numEng = sum([self.is_western(x) for x in text])  # number of westerm characters
+        print(numEng, numAsian)
         if numEng + numAsian:
             return numEng / (numEng + numAsian)  # tells me what percentage of the message was English
         else:
@@ -32,7 +36,10 @@ class Main:
 
     def is_asian(self, char):
         IDEOGRAPHIC_SPACE = 0x3000
-        return ord(char) > IDEOGRAPHIC_SPACE
+        return 0x1F004 > ord(char) > IDEOGRAPHIC_SPACE
+
+    def is_western(self, char):
+        return 0x3000 > ord(char)
 
     async def on_message(self, msg):
         """Message as the bot"""
@@ -66,8 +73,14 @@ class Main:
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
             if msg.guild == jpServ:
+                emojimsg = msg.content.split(':')
                 if ratio == 'w':
-                    pass
+                    return
+                elif emojimsg[0][0] == '<' and \
+                        emojimsg[2][-1] == '>' and \
+                        not bool(set(emojimsg[2][:-1]) & set('abcdefghijklmnopqrstuvwxyz')):
+                    # REGEX_ID = /<(@[!&]?|#|a?:[\S]+:)\d+>/g; don't know regex though lol
+                    return
                 else:
                     if jpRole in msg.author.roles:
                         if ratio < .55:
@@ -81,7 +94,7 @@ class Main:
         """Irreversible hardcore mode.  Must talk to Ryry to have this undone."""
         if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
             self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-            with open('database.json', 'w') as write_file:
+            with open(f'{dir_path}/database.json', 'w') as write_file:
                 json.dump(self.bot.db, write_file)
             await ctx.send("You've chosen to enable ultra hardcore mode.  It works the same as normal hardcore mode"
                            "except that you can't undo it and asterisks don't change anything.  Talk to Ryan "
@@ -89,7 +102,7 @@ class Main:
         else:
             if ctx.author.id == self.bot.owner_id:
                 self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(int(id))
-                with open('database.json', 'w') as write_file:
+                with open(f'{dir_path}/database.json', 'w') as write_file:
                     json.dump(self.bot.db, write_file)
                 await ctx.send(f'Undid ultra hardcore mode for {self.bot.get_user(id).name}')
 

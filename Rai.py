@@ -68,7 +68,7 @@ async def on_ready():
     bot.reportRoom = bot.get_channel(485391894356951050)
     bot.reportRoomWaitingList = []
 
-    with open("database.json", "r") as read_file:
+    with open(f"{dir_path}/database.json", "r") as read_file:
         bot.db = json.load(read_file)
     bot.ID = bot.db["ID"]
 
