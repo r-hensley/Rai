@@ -50,10 +50,12 @@ class Main:
             (?:[/?#]\S*)?
         """, re.VERBOSE | re.I)
 
+        self._emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
+
     def jpenratio(self, msg):
-        text = self._url.sub('', msg.content)
+        text = self._emoji.sub('', self._url.sub('', msg.content))
         en, jp, total = self.get_character_spread(text)
-        return en / total if total else 'w'
+        return en / total if total else None
 
     def get_character_spread(self, text):
         english = 0
@@ -119,15 +121,7 @@ class Main:
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
             if msg.guild == jpServ:
-                emojimsg = msg.content.split(':')
-                if ratio == 'w':
-                    return
-                elif emojimsg[0][0] == '<' and \
-                        emojimsg[2][-1] == '>' and \
-                        not bool(set(emojimsg[2][:-1]) & set('abcdefghijklmnopqrstuvwxyz')):
-                    # REGEX_ID = /<(@[!&]?|#|a?:[\S]+:)\d+>/g; don't know regex though lol
-                    return
-                else:
+                if ratio is not None:
                     if jpRole in msg.author.roles:
                         if ratio < .55:
                             await msg.delete()
