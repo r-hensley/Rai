@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-
 class Main:
     """My custom cog that does stuff!"""
 
@@ -26,7 +25,7 @@ class Main:
         text = ' '.join(noURLtext)
         text = text.replace('w', '')
         text = text.replace('ｗ', '')
-        numAsian = sum([self.is_asian(x) for x in text])  # number of asian characters
+        numAsian = sum([self.is_cjk(x) for x in text])  # number of asian characters
         numEng = sum([self.is_western(x) for x in text])  # number of westerm characters
         print(numEng, numAsian)
         if numEng + numAsian:
@@ -34,12 +33,16 @@ class Main:
         else:
             return "w"
 
-    def is_asian(self, char):
-        IDEOGRAPHIC_SPACE = 0x3000
-        return 0x1F004 > ord(char) > IDEOGRAPHIC_SPACE
-
     def is_western(self, char):
         return 0x3000 > ord(char)
+
+    def is_cjk(self, char):
+        CJK_MAPPING = (
+            (0x3040, 0x30FF),
+            (0xFF66, 0xFF9D),
+            (0x4E00, 0x9FAF)
+        )
+        return any(start <= ord(char) <= end for start, end in CJK_MAPPING)
 
     async def on_message(self, msg):
         """Message as the bot"""
