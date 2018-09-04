@@ -15,6 +15,7 @@ from collections import Counter
 
 
 class Owner:
+    # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
     def __init__(self, bot):
         self.bot = bot
