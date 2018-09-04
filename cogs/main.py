@@ -70,10 +70,10 @@ class Main:
                     pass
                 else:
                     if jpRole in msg.author.roles:
-                        if ratio < 0.8:
+                        if ratio < .55:
                             await msg.delete()
                     else:
-                        if ratio > 0.2:
+                        if ratio > .45:
                             await msg.delete()
 
     @commands.command()
