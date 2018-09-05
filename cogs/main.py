@@ -130,21 +130,50 @@ class Main:
                             await msg.delete()
 
     @commands.command()
-    async def ultraHardcore(self, ctx, id : int = None):
+    async def ultrahardcore(self, ctx, id : int = None):
         """Irreversible hardcore mode.  Must talk to Ryry to have this undone."""
-        if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-            self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-            with open(f'{dir_path}/database.json', 'w') as write_file:
-                json.dump(self.bot.db, write_file)
-            await ctx.send("You've chosen to enable ultra hardcore mode.  It works the same as normal hardcore mode"
-                           "except that you can't undo it and asterisks don't change anything.  Talk to Ryan "
-                           "to undo this.")
-        else:
-            if ctx.author.id == self.bot.owner_id:
-                self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(int(id))
+        for i in ctx.guild.roles:
+            if i.id == 486851965121331200:
+                role = i
+                break
+        if not id:
+            if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+                self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
                 with open(f'{dir_path}/database.json', 'w') as write_file:
                     json.dump(self.bot.db, write_file)
-                await ctx.send(f'Undid ultra hardcore mode for {self.bot.get_user(id).name}')
+                try:
+                    await ctx.author.add_roles(role)
+                except discord.errors.Forbidden:
+                    await ctx.send("I couldn't add the ultra hardcore role")
+                await ctx.send("You've chosen to enable ultra hardcore mode.  It works the same as normal hardcore mode"
+                               "except that you can't undo it and asterisks don't change anything.  Talk to a mod "
+                               "to undo this.")
+        else:
+            if self.bot.jpJHO.permissions_for(ctx.author).administrator:
+                if ctx.author.id != 135643814139396105:
+                    self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(int(id))
+                    with open(f'{dir_path}/database.json', 'w') as write_file:
+                        json.dump(self.bot.db, write_file)
+                    try:
+                        await ctx.guild.get_member(id).remove_roles(role)
+                    except discord.errors.Forbidden:
+                        await ctx.send("I couldn't remove the ultra hardcore role")
+                    await ctx.send(f'Undid ultra hardcore mode for {self.bot.get_user(id).name}')
+
+    @commands.command()
+    async def ultrahardcorelist(self, ctx):
+        """Lists the people currently in ultra hardcore mode"""
+        string = 'The members in ultra hardcore mode right now are '
+        for member in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+            mem = self.bot.get_guild(189571157446492161).get_member(int(member))
+            string = string + f'{mem.name}, '
+        await ctx.send(string)
+
+    @commands.command()
+    async def ultrahardcoreexplanation(self, ctx):
+        """Explains ultra hardcore mode for those who are using it and can't explain it"""
+        await ctx.send('I am currently using ultra hardcore mode.  In this mode, I can not speak any English, '
+                       'and I also can not undo this mode easily.')
 
     @commands.command()
     async def kawaii(self, ctx):
