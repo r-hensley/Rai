@@ -4,42 +4,90 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 from urllib.parse import urlparse
+import re
 
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
 
 class Main:
     """My custom cog that does stuff!"""
 
     def __init__(self, bot):
         self.bot = bot
+        # credit: https://gist.github.com/dperini/729294
+        self._url = re.compile("""
+            # protocol identifier
+            (?:(?:https?|ftp)://)
+            # user:pass authentication
+            (?:\S+(?::\S*)?@)?
+            (?:
+              # IP address exclusion
+              # private & local networks
+              (?!(?:10|127)(?:\.\d{1,3}){3})
+              (?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})
+              (?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})
+              # IP address dotted notation octets
+              # excludes loopback network 0.0.0.0
+              # excludes reserved space >= 224.0.0.0
+              # excludes network & broacast addresses
+              # (first & last IP address of each class)
+              (?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])
+              (?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}
+              (?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))
+            |
+              # host name
+              (?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
+              # domain name
+              (?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*
+              # TLD identifier
+              (?:\.(?:[a-z\u00a1-\uffff]{2,}))
+              # TLD may end with dot
+              \.?
+            )
+            # port number
+            (?::\d{2,5})?
+            # resource path
+            (?:[/?#]\S*)?
+        """, re.VERBOSE | re.I)
+
+        self._emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
     def jpenratio(self, msg):
-        text = msg.content
+        text = self._emoji.sub('', self._url.sub('', msg.content))
+        en, jp, total = self.get_character_spread(text)
+        return en / total if total else None
 
-        noURLtext = []
-        text = text.split(' ')
-        for word in text:
-            if not bool(urlparse(word).netloc):  # if the word is not a URL
-                noURLtext.append(word)  # add to the new list
-        text = ' '.join(noURLtext)
-        text = text.replace('w', '')
-        text = text.replace('ｗ', '')
-        numAsian = sum([self.is_asian(x) for x in text])  # number of asian characters
-        numEng = sum([self.is_western(x) for x in text])  # number of westerm characters
-        print(numEng, numAsian)
-        if numEng + numAsian:
-            return numEng / (numEng + numAsian)  # tells me what percentage of the message was English
-        else:
-            return "w"
+    def get_character_spread(self, text):
+        english = 0
+        japanese = 0
+        for ch in text:
+            if self.is_cjk(ch):
+                japanese += 1
+            elif self.is_english(ch):
+                english += 1
+        return english, japanese, english + japanese
 
-    def is_asian(self, char):
-        IDEOGRAPHIC_SPACE = 0x3000
-        return 0x1F004 > ord(char) > IDEOGRAPHIC_SPACE
+    def is_cjk(self, char):
+        CJK_MAPPING = (
+            (0x3040, 0x30FF), # Hiragana + Katakana
+            (0xFF66, 0xFF9D), # Half-Width Katakana
+            (0x4E00, 0x9FAF)  # Common/Uncommon Kanji
+        )
+        return any(start <= ord(char) <= end for start, end in CJK_MAPPING)
 
-    def is_western(self, char):
-        return 0x3000 > ord(char)
+    def is_english(self, char):
+        # basically English characters save for w because of laughter
+        RANGE_CHECK = (
+            (0x61, 0x76),      # a to v
+            (0x78, 0x7a),      # x to z
+            (0x41, 0x56),      # A to V
+            (0x58, 0x5a),      # X to Z
+            (0xFF41, 0xFF56),  # ａ to ｖ
+            (0xFF58, 0xFF5A),  # ｘ to ｚ
+            (0xFF21, 0xFF36),  # Ａ to Ｖ
+            (0xFF58, 0xFF3A),  # Ｘ to Ｚ
+        )
+        return any(start <= ord(char) <= end for start, end in RANGE_CHECK)
 
     async def on_message(self, msg):
         """Message as the bot"""
@@ -73,15 +121,7 @@ class Main:
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
             if msg.guild == jpServ:
-                emojimsg = msg.content.split(':')
-                if ratio == 'w':
-                    return
-                elif emojimsg[0][0] == '<' and \
-                        emojimsg[2][-1] == '>' and \
-                        not bool(set(emojimsg[2][:-1]) & set('abcdefghijklmnopqrstuvwxyz')):
-                    # REGEX_ID = /<(@[!&]?|#|a?:[\S]+:)\d+>/g; don't know regex though lol
-                    return
-                else:
+                if ratio is not None:
                     if jpRole in msg.author.roles:
                         if ratio < .55:
                             await msg.delete()
