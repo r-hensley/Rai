@@ -32,19 +32,18 @@ bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", pm_help = False
 
 
 
-
 @bot.event
 async def on_ready():
-    
-    if __name__ == '__main__':
+
+    if __name__ == '__main__':  # in on_ready because if not I get tons of errors from on_message before bot loads
         for extension in initial_extensions:
             try:
                 bot.load_extension(extension)
                 print('Loaded {}'.format(extension))
             except Exception as e:
-                print('Failed to load extension {}.'.format(extension),file=sys.stderr)
+                print('Failed to load extension {}.'.format(extension), file=sys.stderr)
                 traceback.print_exc()
-    
+
     print("Bot loaded")
     
     bot.ryryServ = bot.get_guild(275146036178059265)
@@ -75,15 +74,9 @@ async def on_ready():
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
 
-
-@commands.command()
-async def close():
-    await super().close()
-
-
 def getAPIKey(filename):
-    f = open(filename)
-    return(f.read())
+    with open(filename) as f:
+        return f.read()
 
 
 bot.run(getAPIKey(dir_path+'/BasicBotAPIKey.txt'))
