@@ -8,7 +8,7 @@ import re
 
 import os
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 class Main:
@@ -160,7 +160,7 @@ class Main:
                 await ctx.send("You're already in ultra hardcore mode.")
         else:  # if you specified someone else's ID, then remove UHC from them
             if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-                if ctx.author.id != 135643814139396105:
+                if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
                     with open(f'{dir_path}/database.json', 'w') as write_file:
                         json.dump(self.bot.db, write_file)

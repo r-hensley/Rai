@@ -15,7 +15,7 @@ import datetime
 from collections import Counter
 
 import os
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 class Owner:
@@ -44,11 +44,15 @@ class Owner:
         sys.stdout.flush()
         await ctx.message.add_reaction('🚽')
 
-    @commands.command()
+    @commands.command(aliases=['sdb'])
     async def savedatabase(self, ctx):
         """Saves the database"""
-        with open(f'{dir_path}/database.json', 'w') as write_file:
+        print(f"{dir_path}/database.json")
+        with open(f"{dir_path}/database.json", "w") as write_file:
             json.dump(self.bot.db, write_file)
+        # with open(f'{dir_path}/database.json', 'w') as write_file:
+        #     json.dump(self.bot.db, write_file)
+        await ctx.message.add_reaction('\u2705')
 
     @commands.command()
     async def saveMessages(self, ctx):
