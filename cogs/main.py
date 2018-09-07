@@ -129,6 +129,13 @@ class Main:
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
             if msg.guild == jpServ:
+                if msg.author.id == self.bot.owner_id:
+                    print(msg.content)
+                    print(msg.content[0:2])
+                    print(len(msg.content.split(' ')))
+                if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
+                    if len(msg.content.split(' ')) == 1:  # if people abuse this, they must use no spaces
+                        return  # please don't abuse this
                 if ratio is not None:
                     if jpRole in msg.author.roles:
                         if ratio < .55:
