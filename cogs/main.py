@@ -129,12 +129,8 @@ class Main:
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
             if msg.guild == jpServ:
-                if msg.author.id == self.bot.owner_id:
-                    print(msg.content)
-                    print(msg.content[0:2])
-                    print(len(msg.content.split(' ')))
                 if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
-                    if len(msg.content.split(' ')) == 1:  # if people abuse this, they must use no spaces
+                    if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
                         return  # please don't abuse this
                 if ratio is not None:
                     if jpRole in msg.author.roles:
@@ -181,10 +177,18 @@ class Main:
     async def list(self, ctx):
         """Lists the people currently in ultra hardcore mode"""
         string = 'The members in ultra hardcore mode right now are '
-        for member in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-            mem = self.bot.get_guild(189571157446492161).get_member(int(member))
-            string = string + f'{mem.name}, '
-        await ctx.send(string)
+        guild = self.bot.get_guild(189571157446492161)
+        members = []
+
+        for member_id in self.bot.db['ultraHardcore'][str(guild.id)]:
+            member = guild.get_member(int(member_id))
+            if member is not None:  # in case a member leaves
+                members.append(str(member))
+            else:
+                self.bot.db['ultraHardcore'][str(guild.id)].remove(member)
+                await ctx.send(f'Removed {member.name} from the list, as they seem to have left the server')
+
+        await ctx.send(string + ', '.join(members))
 
     @ultrahardcore.command()
     async def explanation(self, ctx):
