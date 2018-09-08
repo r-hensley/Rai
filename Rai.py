@@ -28,21 +28,18 @@ tStart = datetime.now()
 
 initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math']
 
-bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", pm_help = False, owner_id=202995638860906496)
-
+bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
 
 
 @bot.event
 async def on_ready():
-
-    if __name__ == '__main__':  # in on_ready because if not I get tons of errors from on_message before bot loads
-        for extension in initial_extensions:
-            try:
-                bot.load_extension(extension)
-                print('Loaded {}'.format(extension))
-            except Exception as e:
-                print('Failed to load extension {}.'.format(extension), file=sys.stderr)
-                traceback.print_exc()
+    for extension in initial_extensions:
+        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
+            bot.load_extension(extension)
+            print('Loaded {}'.format(extension))
+        except Exception as e:
+            print('Failed to load extension {}.'.format(extension), file=sys.stderr)
+            traceback.print_exc()
 
     print("Bot loaded")
     
