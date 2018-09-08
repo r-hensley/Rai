@@ -185,8 +185,8 @@ class Main:
             if member is not None:  # in case a member leaves
                 members.append(str(member))
             else:
-                self.bot.db['ultraHardcore'][str(guild.id)].remove(member)
-                await ctx.send(f'Removed {member.name} from the list, as they seem to have left the server')
+                self.bot.db['ultraHardcore'][str(guild.id)].remove(member_id)
+                await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')
 
         await ctx.send(string + ', '.join(members))
 
