@@ -128,17 +128,46 @@ class Main:
             engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
             jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
             ratio = self.jpenratio(msg)
+
             if msg.guild == jpServ:
+                # if I delete a long message
+                async def msg_user():
+                    try:
+                        notification = 'I may have deleted a message of yours that was long.  Here it was:'
+                        if len(msg.content) < 2000 - len(notification):
+                            await msg.author.send(notification + '\n' + msg.content)
+                        else:
+                            await msg.author.send(notification)
+                            await msg.author.send(msg.content)
+                    except discord.errors.Forbidden:
+                        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
+                                               f"but you seem to have DMs disabled so I couldn't send it to you.")
+                        notification = "I deleted someone's message but they had DMs disabled"
+                        me = self.bot.get_user(self.bot.owner_id)
+                        if len(msg.content) < 2000 - len(notification):
+                            await me.send(notification + '\n' + msg.content)
+                        else:
+                            await me.send(notification)
+                            await me.send(msg.content)
+
+                # allow Kotoba bot commands
                 if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
                     if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
                         return  # please don't abuse this
+
+                # delete the messages
                 if ratio is not None:
+                    msg_content = msg.content
                     if jpRole in msg.author.roles:
                         if ratio < .55:
                             await msg.delete()
+                            if len(msg_content) > 60:
+                                await msg_user()
                     else:
                         if ratio > .45:
                             await msg.delete()
+                            if len(msg_content) > 60:
+                                await msg_user()
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
     async def ultrahardcore(self, ctx, member: discord.Member = None):
@@ -163,7 +192,7 @@ class Main:
                 await ctx.send("You're already in ultra hardcore mode.")
         else:  # if you specified someone else's ID, then remove UHC from them
             if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-                if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+                if ctx.author.id != member.idf:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
                     with open(f'{dir_path}/database.json', 'w') as write_file:
                         json.dump(self.bot.db, write_file)
@@ -227,8 +256,10 @@ class Main:
         self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
 
     @commands.command()
+    @commands.is_owner()
     async def echo(self, ctx, *, content: str):
         """sends back whatever you send"""
+        await ctx.message.delete()
         await ctx.send(f"{content}")
 
     # @commands.command()
@@ -503,7 +534,6 @@ class Main:
                 else:
                     await user.send("You aren't on the waiting list.")
 
-
     @commands.command()
     @is_admin()
     async def swap(self, ctx):
@@ -514,6 +544,21 @@ class Main:
             else:
                 await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
+
+    @commands.command()
+    @is_admin()
+    async def count_emoji(self, ctx):
+        pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
+        channel_list = bot.spanServ.channels
+        for channel in channel_list:
+            if isinstance(channel, discord.TextChannel):
+                try:
+                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(hours=1)):
+                        list = pattern.findall(message.content)
+                        if list:
+                            print(list)
+                except discord.errors.Forbidden:
+                    pass
 
 
 def setup(bot):
