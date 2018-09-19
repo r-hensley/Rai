@@ -33,6 +33,7 @@ bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995
 
 @bot.event
 async def on_ready():
+    # await asyncio.sleep(1)
     for extension in initial_extensions:
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             bot.load_extension(extension)
