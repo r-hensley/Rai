@@ -54,6 +54,14 @@ class Main:
 
         self._emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
+    def dump_json(self):
+        with open(f'{dir_path}/database2.json', 'w') as write_file:
+            json.dump(self.bot.db, write_file)
+            write_file.flush()
+            os.fsync(write_file.fileno())
+        os.remove(f'{dir_path}/database.json')
+        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
+
     def jpenratio(self, msg):
         text = self._emoji.sub('', self._url.sub('', msg.content))
         en, jp, total = self.get_character_spread(text)
@@ -102,7 +110,6 @@ class Main:
         if str(msg.channel) == 'Direct Message with Ryry013#9234' \
                 and int(msg.author.id) == self.bot.owner_id \
                 and str(msg.content[0:3]) == 'msg':
-            print('hello')
             await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
 
         """Ping me if someone says my name"""
@@ -179,8 +186,7 @@ class Main:
         if not member:  # if no ID specified in command
             if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
                 self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-                with open(f'{dir_path}/database.json', 'w') as write_file:
-                    json.dump(self.bot.db, write_file)
+                self.dump_json()
                 try:
                     await ctx.author.add_roles(role)
                 except discord.errors.Forbidden:
@@ -192,10 +198,9 @@ class Main:
                 await ctx.send("You're already in ultra hardcore mode.")
         else:  # if you specified someone else's ID, then remove UHC from them
             if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-                if ctx.author.id != member.idf:
+                if ctx.author.id != member.id:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
-                    with open(f'{dir_path}/database.json', 'w') as write_file:
-                        json.dump(self.bot.db, write_file)
+                    self.dump_json()
                     try:
                         await member.remove_roles(role)
                     except discord.errors.Forbidden:
@@ -297,22 +302,19 @@ class Main:
             mCount[memberTuple[0].id] = [memberTuple[0].name, memberTuple[1]]
         with open("sorted_members.json", "w") as write_file:
             json.dump(mCount, write_file)
+        
+        ping_party_role = next(role for role in JHO.guild.roles if role.id == 357449148405907456)
+        welcoming_party_role = next(role for role in JHO.guild.roles if role.id == 250907197075226625)
 
-        for i in JHO.guild.roles:
-            if i.id == 357449148405907456:  # ping party
-                pingparty = i
-            if i.id == 250907197075226625:  # welcoming party
-                welcomingparty = i
-
-        pingpartylist = ''
+        ping_party_list = ''
         for member in mSorted:
             # print(member[0].name)
             try:
-                if pingparty in member[0].roles and welcomingparty not in member[0].roles:
-                    pingpartylist += f'{member[0].name}: {member[1]}\n'
+                if ping_party_role in member[0].roles and welcoming_party_role not in member[0].roles:
+                    ping_party_list += f'{member[0].name}: {member[1]}\n'
             except AttributeError:
                 print(f'This user left: {member[0].name}: {member[1]}')
-        await ctx.send(pingpartylist)
+        await ctx.send(ping_party_list)
 
     @commands.group(invoke_without_command=True)
     async def report(self, ctx, user: discord.Member = None):
@@ -324,32 +326,71 @@ class Main:
 
         conversation = ctx.author
 
-        msg1Text = ["Welcome to the reporting module.  You're about to make a report to the mods of the "
+        msg1Text = ["Please use the reactions to select your `(Language) Server`:\n"
+                    "1) (English) English-Japanese Language Exchange\n"
+                    "2) (日本語）English-Japanese Language Exchange\n"
+                    "3) (English) English-Spanish Learning Server\n"
+                    "4) (Español) English-Spanish Learning Server"]
+
+        msg2Text = ["Welcome to the reporting module.  You're about to make a report to the mods of the "
                     "English-Japanese Exchange Server.  Please select one of the following options for your "
                     "report.\n\n"
                     "1) Send an anonymous report to the mods.\n"
                     "2) Request an audience with the mods to have a conversation with them (choose "
                     "this if you want a response to your report).\n"
-                    "3) 日本語での説明\n"
-                    "4) Cancel the report and leave this menu.",
+                    "3) Cancel the report and leave this menu.",
+
                     "レポート機能へようこそ。あなたは 、English Japanese Language Exchange サーバーのモデレーター"
                     "に報告（レポート）しようとしています。レポートをするためには次のいずれかのオプションを"
                     "選択してください。\n\n"
                     "1) モデレーターに匿名のレポートを送ります\n"
                     "2) モデレーターと一緒にこのことについて会話ができるようにリクエストします"
                     "（あなたのレポートへの回答を希望する場合はこれを選択します）\n"
-                    "3) レポートをキャンセルしてこのメ​​ニューを終了します"]
-        msg2Text = ['Please type your report in one message below.  Make sure to include any relevant information, '
+                    "3) レポートをキャンセルしてこのメ​​ニューを終了します",
+
+                    '',
+
+                    'Please someone help me make a Spanish translation']
+        msg2Text[2] = msg2Text[0].replace('English-Japanese Exchange Server', 'English-Spanish Learning Server')
+
+        msg3Text = ['Please type your report in one message below.  Make sure to include any relevant information, '
                     "such as who the report is about, which channel they did whatever you're reporting about was in, "
                     "and other users involved.",
-                    "レポートは１つのメッセージで以下に書いてください。"
-                    "レポートの対象者、対象のチャンネル、関係した他のユーザーなど、関連する情報を必ず含めてください。"]
-        msg3Text = ['Thank you for your report.  The mods have been notified, and your name '
-                    'will remain anonymous.',
-                    'レポートはありがとうございます。管理者に匿名に送りました。']
 
-        wasJapaneseRequested = False
-        fromMod = False
+                    "レポートは１つのメッセージで以下に書いてください。"
+                    "レポートの対象者、対象のチャンネル、関係した他のユーザーなど、関連する情報を必ず含めてください。",
+
+                    '',
+
+                    'Please someone help me make a Spanish translation']
+        msg3Text[2] = msg3Text[0]
+
+        msg4Text = ['Thank you for your report.  The mods have been notified, and your name '
+                    'will remain anonymous.',
+
+                    'レポートはありがとうございます。管理者に匿名に送りました。',
+
+                    '',
+
+                    'Please someone help me make a Spanish translation']
+        msg4Text[2] = msg4Text[0]
+
+        msg5Text = ['.\n\n\n\n\n__'
+                    'Please go here__: <#485391894356951050>\n'
+                    "In ten seconds, I'll send a welcome message there.",
+
+                    '.\n\n\n\n\n__'
+                    'ここに行ってください__：<#485391894356951050>\n'
+                    'そこに10秒後に歓迎のメッセージを送ります。',
+
+                    '.\n\n\n\n\n__'
+                    'Please go here__: <#491985321664184321>\n'
+                    "In ten seconds, I'll send a welcome message there.",
+
+                    'Please help me translate to Spanish'
+                    ]
+
+        fromMod = None
 
         def check(reaction, user):
             return user == ctx.author and (str(reaction.emoji) in "1⃣2⃣3⃣4⃣")
@@ -357,12 +398,9 @@ class Main:
         def check2(m):
             return m.author == conversation and m.channel == m.author.dm_channel
 
-        async def option1():  # anonymous report
+        async def option1(language_requested: int):  # anonymous report
             # "please type your report below"
-            if wasJapaneseRequested:  # 0: Eng      1: Jp       2: Span
-                await conversation.send(msg2Text[1])
-            else:
-                await conversation.send(msg2Text[0])
+            await conversation.send(msg3Text[language_requested])  # 0: Eng      1: Jp       2: Eng         3: Span
 
             # wait for them to type
             try:
@@ -371,113 +409,149 @@ class Main:
                 await conversation.send('Reporting module closed')
 
             # "thank you for the report"
-            if wasJapaneseRequested:
-                await conversation.send(msg3Text[1])
-            else:
-                await conversation.send(msg3Text[0])
+            await conversation.send(msg4Text[language_requested])
 
             # send to spam and eggs
-            await self.bot.get_channel(206230443413078016).send(f'Received report from a user: \n\n')
-            await self.bot.get_channel(206230443413078016).send(f'{reportMessage.content}')
+            if str(language_requested) in '01':
+                await self.bot.get_channel(206230443413078016).send(f'Received report from a user: \n\n')
+                await self.bot.get_channel(206230443413078016).send(f'{reportMessage.content}')
+            elif str(language_requested) in '23':
+                await self.bot.get_channel(296013414755598346).send(f'Received report from a user: \n\n')
+                await self.bot.get_channel(296013414755598346).send(f'{reportMessage.content}')
 
-        async def option2(userIn):  # get into report room
-            if not self.bot.currentReportRoomUser:  # if no one is in the room
-                if userIn in self.bot.reportRoomWaitingList:  # if the user is in the waiting list
-                    self.bot.reportRoomWaitingList.remove(userIn)  # remove from the waiting list
-                self.bot.currentReportRoomUser = userIn  # set the current user
-                await self.bot.reportRoom.set_permissions(userIn, read_messages=True)
+        async def option2(userIn: discord.Member, language_requested: int, report_guild: str):  # get into report room
+            REPORT_ROOM_ID = int(self.bot.db['report_room'][report_guild])
+            report_room = self.bot.get_channel(REPORT_ROOM_ID)
+            if not self.bot.db['current_report_member'][report_guild]:  # if no one is in the room
+                if userIn.id in self.bot.db['report_room_waiting_list'][report_guild]:  # if user is in the waiting list
+                    self.bot.db['report_room_waiting_list'][report_guild].remove(userIn.id)  # remove from waiting list
+                self.bot.db['current_report_member'][report_guild] = userIn.id  # set the current user
+                self.dump_json()
+                await report_room.set_permissions(userIn, read_messages=True)
                 if not fromMod:  # set below on "if user:", about 17 lines below
-                    if wasJapaneseRequested:
-                        await self.bot.currentReportRoomUser.send('.\n\n\n\n\n__ここに行ってください__：<#485391894356951050>\n'
-                                                                  'そこに10秒後に歓迎のメッセージを送ります。')
-                    else:
-                        await self.bot.currentReportRoomUser.send('.\n\n\n\n\n__'
-                                                                  'Please go here__: <#485391894356951050>\n'
-                                                                  "In ten seconds, I'll send a welcome message there.")
+                    await userIn.send(msg5Text[language_requested])  # Please go to <#ID> channel
 
-                await self.bot.reportRoom.send(f'<@{self.bot.currentReportRoomUser.id}>')
+                await report_room.send(f'<@{userIn.id}>')
                 await asyncio.sleep(10)
-                msg4Text = [f"Welcome to the report room <@{self.bot.currentReportRoomUser.id}>.  Only the mods can "
+
+                msg6Text = [f"Welcome to the report room <@{userIn.id}>.  Only the mods can "
                             f"read your messages here, so you can now make your report.  When you are finished, "
                             f"type `;done` and a log of this conversation will be sent to you.  Please ping one of "
                             f"the mods you see online or `@Active Staff` if no one responds to you within a minute.",
-                            f"レポートルームへようこそ<@{self.bot.currentReportRoomUser.id}>。あなたのメッセージは"
+
+                            f"レポートルームへようこそ<@{userIn.id}>。あなたのメッセージは"
                             "モデレーターだけが読むことができます。では（安心して）レポートを作成してください。"
                             "終わったら、`;done`と入力すると、この会話のログが送信されます。もし応答が返ってこなければ、"
-                            "オンラインのモデレーターまたは`@Active Staff`にpingをしても構いません。"]
+                            "オンラインのモデレーターまたは`@Active Staff`にpingをしても構いません。",
 
-                if wasJapaneseRequested:
-                    self.bot.entryMessage = await self.bot.reportRoom.send(msg4Text[1])
-                else:
-                    self.bot.entryMessage = await self.bot.reportRoom.send(msg4Text[0])
+                            f"Welcome to the report room <@{userIn.id}>.  Only the mods can "
+                            f"read your messages here, so you can now make your report.  When you are finished, "
+                            f"type `;done` and a log of this conversation will be sent to you.  Please ping one of "
+                            f"the mods you see online or `@Mods` if no one responds to you within a minute.",
+
+                            'Please help me translate to Spanish'
+                            ]
+
+                report_room_entry_message = await report_room.send(msg6Text[language_requested])
+                self.bot.db["report_room_entry_message"][str(report_room.guild.id)] = report_room_entry_message.id
 
             else:
-                if userIn not in self.bot.reportRoomWaitingList:
-                    self.bot.reportRoomWaitingList.append(userIn)
-                await userIn.send(f"Sorry but someone else is using the room right now.  "
-                                  f"I'll message you when it's open in the order that I received requests.  "
-                                  f"You are position {self.bot.reportRoomWaitingList.index(userIn)+1} on the list")
-                await self.bot.get_channel(206230443413078016).send(f'The user {userIn.name} has tried to access '
-                                                                    f'the report room, but was put on the wait list '
-                                                                    f'because someone else is currently using it.')
+                if str(userIn.id) not in self.bot.db['report_room_waiting_list'][report_guild]:
+                    self.bot.db['report_room_waiting_list'][report_guild].append(userIn.id)  # add to waiting list
+                    self.dump_json()
+                await userIn.send(f"Sorry but someone else is using the room right now.  I'll message you when it's ope"
+                                  f"n in the order that I received requests.  You are position "
+                                  f"{self.bot.db['report_room_waiting_list'][report_guild].index(userIn.id)+1} "
+                                  f"on the list")
+                if report_guild == '189571157446492161':
+                    mod_channel = self.bot.get_channel(206230443413078016)  # spam and eggs
+                else:
+                    mod_channel = self.bot.get_channel(296013414755598346)  # sp. mod channel
+                await mod_channel.send(f'The user {userIn.name} has tried to access the report room, but was put on '
+                                       f'the wait list because someone else is currently using it.')
 
         if user:  # if the mod specified a user
             fromMod = True  # this will stop the bot from PMing the user
-            await option2(user)
+            if ctx.guild == self.bot.jpServ:
+                await option2(user, 0, '189571157446492161')
+            elif ctx.guild == self.bot.spanServ:
+                await option2(user, 2, '243838819743432704')
             return
 
-        async def options_menu(wasJapaneseRequested):
-            if ctx.author not in self.bot.reportRoomWaitingList:  # if the user is not in the waiting list
-                if wasJapaneseRequested:
-                    msg1 = await conversation.send(msg1Text[1])
-                else:
-                    msg1 = await conversation.send(msg1Text[0])  # then give them the full menu
-                await msg1.add_reaction("1⃣")
-                await msg1.add_reaction('2⃣')
-                await msg1.add_reaction('3⃣')
-                if not wasJapaneseRequested:
-                    await msg1.add_reaction('4⃣')
+        async def options_menu():
+            waiting_list_set = self.bot.db['report_room_waiting_list']
+            full_waiting_list = waiting_list_set['189571157446492161'] + waiting_list_set['243838819743432704']
+            if ctx.author.id not in full_waiting_list:
+                msg1 = await conversation.send(msg1Text[0])  # select langauge and server
+                await msg1.add_reaction("1⃣")  # ENG - japanese server
+                await msg1.add_reaction('2⃣')  # JP - japanese server
+                await msg1.add_reaction('3⃣')  # ENG - spanish server
+                await msg1.add_reaction('4⃣')  # SP - spanish server
 
                 try:
                     reaction, user = await self.bot.wait_for('reaction_add', timeout=300.0, check=check)
                 except asyncio.TimeoutError:
                     await conversation.send('Reporting module closed')
+                    return
 
-                else:
-                    if str(reaction.emoji) == "1⃣":  # requested to send a single message
-                        await option1()
+                language_requested = int(reaction.emoji[0]) - 1
 
-                    if str(reaction.emoji) == '2⃣':  # requested audience with mods
-                        await option2(ctx.author)
+                if reaction.emoji[0] in '12':
+                    report_guild = "189571157446492161"
+                else:  # reacted with 3 or 4
+                    report_guild = "243838819743432704"
 
-                    if str(reaction.emoji) == '3⃣':  # requested Japanese
-                        if not wasJapaneseRequested:
-                            wasJapaneseRequested = True
-                            await msg1.delete()
-                            return wasJapaneseRequested
-                        else:
-                            await conversation.send('わかりました。お元気で!')
-                            return
+                msg2 = await conversation.send(msg2Text[language_requested])  # introduction to reporting
 
-                    if str(reaction.emoji) == '4⃣':  # requested cancel
-                        await conversation.send('Understood.  Have a nice day!')
-                        return
+                await msg2.add_reaction("1⃣")  # anonymous report
+                await msg2.add_reaction('2⃣')  # report room
+                await msg2.add_reaction('3⃣')  # cancel
+
+                try:
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=300.0, check=check)
+                except asyncio.TimeoutError:
+                    await conversation.send('Reporting module closed')
+                    return
+
+                if str(reaction.emoji) == "1⃣":  # requested to send a single message
+                    await option1(language_requested)
+
+                if str(reaction.emoji) == '2⃣':  # requested audience with mods
+                    await option2(ctx.author, language_requested, report_guild)
+
+                if str(reaction.emoji) == '3⃣':  # cancel
+                    msg7Text = ['Understood.  Have a nice day!',
+                                'わかりました。お元気で!',
+                                'Understood.  Have a nice day!',
+                                'Please help me translate Spanish']
+                    await conversation.send(msg7Text[language_requested])
+                    return
 
             else:  # if the user was on the waiting list, put them straight into the room
-                await option2(ctx.author)
+                if ctx.guild == self.bot.jpServ:
+                    await option2(ctx.author, 0, '189571157446492161')
+                elif ctx.guild == self.bot.spanServ:
+                    await option2(ctx.author, 2, '243838819743432704')
+                else:
+                    for server_id in waiting_list_set:
+                        if ctx.author.id in waiting_list_set[server_id]:
+                            if server_id == '189571157446492161':
+                                await option2(ctx.author, 0, server_id)  # english --> japanese server
+                            else:
+                                await option2(ctx.author, 2, server_id)  # english --> spanish server
 
-        if not wasJapaneseRequested:
-            wasJapaneseRequested = await options_menu(wasJapaneseRequested)
-        if wasJapaneseRequested:  # the inside of options_menu might set this to be true, and then I want it to go again
-            await options_menu(wasJapaneseRequested)
+        await options_menu()
 
     @report.command()
     @is_admin()
     async def check_waiting_list(self, ctx):
         message = 'List of users on the waiting list: '
-        if self.bot.reportRoomWaitingList:
-            for user in self.bot.reportRoomWaitingList:
-                message = message + f'{user.name}, '
+        report_guild = str(ctx.guild.id)
+        members = []
+        if self.bot.db['report_room_waiting_list'][report_guild]:
+            for user in self.bot.db['report_room_waiting_list'][str(ctx.guild.id)]:
+                members.append(user.name)
+                message = message + ', '.join(members)
         else:
             message = 'There are no users on the waiting list'
         await ctx.send(message)
@@ -485,21 +559,22 @@ class Main:
     @report.command()
     @is_admin()
     async def clear_waiting_list(self, ctx):
-        if self.bot.reportRoomWaitingList:
-            for user in self.bot.reportRoomWaitingList:
-                message = message + f'{user.name}, '
-            self.bot.reportRoomWaitingList = []
+        report_guild = str(ctx.guild.id)
+        if self.bot.db['report_room_waiting_list'][report_guild]:
+            self.bot.db['report_room_waiting_list'][report_guild] = []
             await ctx.send('Waiting list cleared')
         else:
             await ctx.send('There was no one on the waiting list.')
 
     @commands.command()
     async def done(self, ctx):
-        if ctx.channel == self.bot.reportRoom:
-            await self.bot.reportRoom.set_permissions(self.bot.currentReportRoomUser, overwrite=None)
-            self.bot.finalMessage = ctx.message
+        report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
+        if ctx.channel == report_room:
+            report_member = ctx.guild.get_member(self.bot.db["current_report_member"][str(ctx.guild.id)])
+            await report_room.set_permissions(report_member, overwrite=None)
             messages = []
-            async for message in self.bot.reportRoom.history(after=self.bot.entryMessage):
+            entryMessage = await report_room.get_message(self.bot.db["report_room_entry_message"][str(ctx.guild.id)])
+            async for message in report_room.history(after=entryMessage):
                 messages.append(message)
             messageLog = 'Start of log:\n'
             for i in messages:
@@ -509,29 +584,39 @@ class Main:
                 for i in range((len(messageLog) // 2000) + 1):
                     listOfMessages.append(messageLog[i * 2000:(i + 1) * 2000])
                 for i in listOfMessages:
-                    await self.bot.currentReportRoomUser.send(i)
+                    await report_member.send(i)
             else:
-                await self.bot.currentReportRoomUser.send(messageLog)
-            self.bot.currentReportRoomUser = None
-            await self.bot.reportRoom.send('Session closed, and a log has been sent to the user')
-            for member in self.bot.reportRoomWaitingList:
+                await report_member.send(messageLog)
+            self.bot.db["current_report_member"][str(report_room.guild.id)] = ""
+            await report_room.send('Session closed, and a log has been sent to the user')
+            for member_id in self.bot.db["report_room_waiting_list"][str(report_room.guild.id)]:
+                member = report_room.guild.get_member(member_id)
                 waiting_msg = await member.send('The report room is now open.  Try sending `;report` to me again.  '
                                                 'If you wish to be removed from the waiting list, '
                                                 'please react with the below emoji.')
                 await waiting_msg.add_reaction('🚫')
                 asyncio.sleep(10)
+            self.dump_json()
 
     # removes people from the waiting list for ;report if they react with '🚫' to a certain message
-    async def on_reaction_add(self, reaction, user):
+    async def on_reaction_add(self, reaction, user: discord.User):
         if reaction.emoji == '🚫':
             if reaction.message.channel == user.dm_channel:
-                if user in self.bot.reportRoomWaitingList:
-                    self.bot.reportRoomWaitingList.remove(user)
-                    await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
-                    await self.bot.get_channel(206230443413078016).send(f"The user {user.name} was previously on the "
-                                                                        f"wait list for the report room but just "
-                                                                        f"removed themselves.")
-                else:
+                waiting_list_dict = self.bot.db["report_room_waiting_list"]
+                was_on_waiting_list = False
+                for guild_id in waiting_list_dict:
+                    if user.id in waiting_list_dict[guild_id]:
+                        self.bot.db["report_room_waiting_list"][guild_id].remove(user.id)
+                        self.dump_json()
+                        await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
+
+                        mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
+                        msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
+                                             f"report room but just removed themselves."
+                        await mod_channel.send(msg_to_mod_channel)
+                        was_on_waiting_list = True
+                        break
+                if not was_on_waiting_list:
                     await user.send("You aren't on the waiting list.")
 
     @commands.command()
@@ -549,14 +634,14 @@ class Main:
     @is_admin()
     async def count_emoji(self, ctx):
         pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
-        channel_list = bot.spanServ.channels
+        channel_list = self.bot.spanServ.channels
         for channel in channel_list:
             if isinstance(channel, discord.TextChannel):
                 try:
-                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(hours=1)):
-                        list = pattern.findall(message.content)
-                        if list:
-                            print(list)
+                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=7)):
+                        emoji_list = pattern.findall(message.content)
+                        if emoji_list:
+                            print(emoji_list)
                 except discord.errors.Forbidden:
                     pass
 
