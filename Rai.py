@@ -61,16 +61,13 @@ async def on_ready():
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
-    bot.currentReportRoomUser = None
-    bot.reportRoom = bot.get_channel(485391894356951050)
-    bot.reportRoomWaitingList = []
-
     with open(f"{dir_path}/database.json", "r") as read_file:
         bot.db = json.load(read_file)
     bot.ID = bot.db["ID"]
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
+
 
 def getAPIKey(filename):
     with open(filename) as f:

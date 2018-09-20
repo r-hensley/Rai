@@ -44,7 +44,7 @@ class Owner:
         sys.stdout.flush()
         await ctx.message.add_reaction('🚽')
 
-    @commands.command(aliases=['sdb'])
+    @commands.command(aliases=['sdb', 'dump'])
     async def savedatabase(self, ctx):
         """Saves the database"""
         print(f"{dir_path}/database.json")
@@ -78,8 +78,6 @@ class Owner:
             await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
             await ctx.send('**`SUCCESS`**')
-        
-
 
     @commands.command()
     @commands.is_owner()
