@@ -13,6 +13,7 @@ import json
 # to expose to the eval command
 import datetime
 from collections import Counter
+from datetime import datetime
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -44,6 +45,33 @@ class Owner:
         sys.stdout.flush()
         await ctx.message.add_reaction('🚽')
 
+    # @commands.command(aliases=['elt'])
+    # async def embed_len_test(self, ctx, length: int):
+    #     author = ctx.author
+    #     time_dif = '3.5'
+    #     emb = discord.Embed(
+    #         description=f'**{author.name}#{author.discriminator}** ({author.id})'
+    #                     f'\n**Message edited after {time_dif} seconds.**',
+    #         colour=0xFF9933,
+    #         timestamp=datetime.utcnow()
+    #     )
+    #     x = 'a'*length
+    #
+    #     emb.add_field(name='**Before:**', value=f'{x}')
+    #     emb.add_field(name='**After:**', value=f'{x}')
+    #     emb.add_field(name='**After again!**', value=f'{x}')
+    #     emb.add_field(name='**After again!**', value=f'{x}')
+    #     emb.add_field(name='**After again!**', value=f'{x}')
+    #     emb.add_field(name='**After again!**', value=f'{x}')
+    #     emb.add_field(name='**After again!**', value=f'{x}')
+    #
+    #     emb.set_footer(text=f'#{ctx.channel.name}', icon_url=ctx.author.avatar_url_as(static_format="png"))
+    #     await ctx.send(embed=emb)
+    #     y = 5 * x + \
+    #         f'**{author.name}#{author.discriminator}** ({author.id})\n**Message edited after ' \
+    #         f'{time_dif} seconds.****Before:****After:**#{ctx.channel.name}'
+    #     await ctx.send(f'Possibly about {len(y)}')
+
     @commands.command(aliases=['sdb', 'dump'])
     async def savedatabase(self, ctx):
         """Saves the database"""
@@ -53,6 +81,14 @@ class Owner:
         # with open(f'{dir_path}/database.json', 'w') as write_file:
         #     json.dump(self.bot.db, write_file)
         await ctx.message.add_reaction('\u2705')
+
+    @commands.command(aliases=['rdb'])
+    async def reload_database(self, ctx):
+        """Reloads the database"""
+        with open(f"{dir_path}/database.json", "r") as read_file:
+            self.bot.db = json.load(read_file)
+        self.bot.ID = self.bot.db["ID"]
+        await ctx.message.add_reaction('♻')
 
     @commands.command()
     async def saveMessages(self, ctx):
@@ -66,18 +102,16 @@ class Owner:
                 except UnicodeEncodeError:
                     file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {self.BMP(msg.content)}\n')
 
-
     @commands.command(aliases=['quit'])
     @commands.is_owner()
     async def kill(self, ctx):
         """Kills bot"""
         try:
+            await ctx.message.add_reaction('💀')
             await self.bot.logout()
             await self.bot.close()
         except Exception as e:
             await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
-        else:
-            await ctx.send('**`SUCCESS`**')
 
     @commands.command()
     @commands.is_owner()

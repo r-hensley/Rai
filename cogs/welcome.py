@@ -30,58 +30,48 @@ class Welcome:
 
     async def on_member_join(self, m):
         """Japanese Server welcome"""
-        usedInvite = None
-        oldList = self.bot.invitesOld
+        # usedInvite = None
+        # oldList = self.bot.invitesOld
+        #
+        # if m.guild == self.bot.jpServ:
+        #     newList = await self.bot.jpServ.invites()
+        #
+        #     for new in newList:
+        #         try:
+        #             old = oldList[oldList.index(new)]  # matches the invites
+        #             if new.uses != old.uses and new.code == old.code:
+        #                 usedInvite = new
+        #         except ValueError:  # if the new invite isn't in old invites
+        #             if new.uses != 0:
+        #                 usedInvite = new
+        #
+        #     def make_embed():
+        #         minutes_ago_created = int(((datetime.utcnow() - m.created_at).total_seconds()) // 60)
+        #         if minutes_ago_created < 60:
+        #             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
+        #         else:
+        #             time_str = ''
+        #
+        #         emb = discord.Embed(
+        #             description=f":inbox_tray: **{m.name}#{m.discriminator}** has `joined`. "
+        #                         f"({m.id}){time_str}",
+        #             colour=0x7BA600,
+        #             timestamp=datetime.utcnow()
+        #         )
+        #
+        #         if usedInvite:
+        #             invite_string = f'Used {usedInvite.inviter.name}\'s link {usedInvite.code}'
+        #             footer_text = f'User Join ({self.bot.jpServ.member_count}) {invite_string}'
+        #         else:
+        #             footer_text = f'User Join ({self.bot.jpServ.member_count})'
+        #
+        #         emb.set_footer(text=footer_text, icon_url=m.avatar_url_as(static_format="png"))
+        #
+        #         return emb
+        #
+        #     await self.bot.jpEverything.send(embed=make_embed())
 
-        if m.guild == self.bot.jpServ:
-            newList = await self.bot.jpServ.invites()
 
-            
-
-            for new in newList:
-                try:
-                    old = oldList[oldList.index(new)]  # matches the invites
-                    if new.uses != old.uses and new.code == old.code:
-                        usedInvite = new
-                except ValueError:  # if the new invite isn't in old invites
-                    if new.uses != 0:
-                        usedInvite = new
-                        
-            def make_embed():
-                minutes_ago_created = int(((datetime.utcnow() - m.created_at).total_seconds()) // 60)
-                if minutes_ago_created < 60:
-                    time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
-                else:
-                    time_str = ''
-                    
-                emb = discord.Embed(
-                    description=f":inbox_tray: **{m.name}#{m.discriminator}** has `joined`. "
-                                f"({m.id}){time_str}",
-                    colour=0x7BA600,
-                    timestamp=datetime.utcnow()
-                )
-                
-                if usedInvite:
-                    invite_string = f'Used {usedInvite.inviter.name}\'s link {usedInvite.code}'
-                    footer_text = f'User Join ({self.bot.jpServ.member_count}) {invite_string}'
-                else:
-                    footer_text = f'User Join ({self.bot.jpServ.member_count})'
-                    
-                emb.set_footer(text=footer_text, icon_url=m.avatar_url_as(static_format="png"))
-                
-                return emb
-                
-            await self.bot.jpEverything.send(embed=make_embed())
-
-            # check if they joined from a Japanese site or other
-            # the following links are specifically the ones we've used to advertise on japanese sites
-            japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
-            if str(usedInvite.code) in japanese_links:
-                await self.bot.jpJHO.send(f'{m.name}さん、サーバーへようこそ！')  # a japanese person possibly
-            elif m.id != 414873201349361664:
-                await self.bot.jpJHO.send(f'Welcome {m.name}!')  # probably not a japanese person
-
-            self.bot.invitesOld = newList
 
         # for i in range(5):
         #     rand = round(random.random(), 3)
@@ -99,17 +89,17 @@ class Welcome:
         #     n2 = abs(self.bot.pos2)+1
         #     await self.bot.get_channel(random_walk2).send('-'*n2)
 
-        """Spanish Server welcome"""
-        if m.guild == self.bot.spanServ:
-            nadeko_obj = self.bot.spanServ.get_member(116275390695079945)
-            if str(nadeko_obj.status) == 'offline':
-                await self.bot.get_channel(243838819743432704).send(
-                    'Welcome to the server.  Nadeko is currently down, '
-                    'so please state your roles and someone in welcoming party will come to'
-                    ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
-                    'Thanks! '
-                    '(<@&470364944479813635>)'
-                )
+        # """Spanish Server welcome"""
+        # if m.guild == self.bot.spanServ:
+        #     nadeko_obj = self.bot.spanServ.get_member(116275390695079945)
+        #     if str(nadeko_obj.status) == 'offline':
+        #         await self.bot.get_channel(243838819743432704).send(
+        #             'Welcome to the server.  Nadeko is currently down, '
+        #             'so please state your roles and someone in welcoming party will come to'
+        #             ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
+        #             'Thanks! '
+        #             '(<@&470364944479813635>)'
+        #         )
 
     async def on_member_update(self, bef, af):
         """Nadeko updates"""
@@ -137,22 +127,22 @@ class Welcome:
                     self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
                     await self.bot.spanSP.send('Nadeko is back online now.')
 
-    async def on_member_remove(self, m):
-        if m.guild == self.bot.jpServ:
-            emb = discord.Embed(
-                description=''
-                f":outbox_tray: **{m.name}#{m.discriminator}** has `left` the server. "
-                f"({m.id})",
-                colour=0xD12B2B,
-                timestamp=datetime.utcnow()
-            )
-
-            emb.set_footer(
-                text=f'User Leave ({self.bot.jpServ.member_count})',
-                icon_url=m.avatar_url_as(static_format="png")
-            )
-
-            await self.bot.jpEverything.send(embed=emb)
+    # async def on_member_remove(self, m):
+    #     if m.guild == self.bot.jpServ:
+    #         emb = discord.Embed(
+    #             description=''
+    #             f":outbox_tray: **{m.name}#{m.discriminator}** has `left` the server. "
+    #             f"({m.id})",
+    #             colour=0xD12B2B,
+    #             timestamp=datetime.utcnow()
+    #         )
+    #
+    #         emb.set_footer(
+    #             text=f'User Leave ({self.bot.jpServ.member_count})',
+    #             icon_url=m.avatar_url_as(static_format="png")
+    #         )
+    #
+    #         await self.bot.jpEverything.send(embed=emb)
 
 
 def setup(bot):

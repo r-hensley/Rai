@@ -26,7 +26,7 @@ logger.addHandler(handler)
 
 tStart = datetime.now()
 
-initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math']
+initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math', 'cogs.logger']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
 
@@ -57,7 +57,7 @@ async def on_ready():
     bot.spanServ = bot.get_guild(243838819743432704)
     bot.spanSP = bot.get_channel(277511392972636161)
 
-    bot.invitesOld = await bot.jpServ.invites() # for use in welcome cog for checking invites
+    # bot.invitesOld = await bot.jpServ.invites() # for use in welcome cog for checking invites
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
@@ -67,6 +67,7 @@ async def on_ready():
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
+    await bot.change_presence(activity=discord.Game(';help'))
 
 
 def getAPIKey(filename):

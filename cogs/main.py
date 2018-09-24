@@ -253,6 +253,11 @@ class Main:
         await ctx.send('hello')
 
     @commands.command()
+    async def invite(self, ctx):
+        """Gives an invite to bring this bot to your server"""
+        await ctx.send(discord.utils.oauth_url(self.bot.user.id))
+
+    @commands.command()
     @commands.is_owner()
     async def selfMute(self, ctx, hour: float, minute: float):
         """mutes ryry for x amount of minutes"""
@@ -302,7 +307,7 @@ class Main:
             mCount[memberTuple[0].id] = [memberTuple[0].name, memberTuple[1]]
         with open("sorted_members.json", "w") as write_file:
             json.dump(mCount, write_file)
-        
+
         ping_party_role = next(role for role in JHO.guild.roles if role.id == 357449148405907456)
         welcoming_party_role = next(role for role in JHO.guild.roles if role.id == 250907197075226625)
 
@@ -634,16 +639,102 @@ class Main:
     @is_admin()
     async def count_emoji(self, ctx):
         pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
-        channel_list = self.bot.spanServ.channels
+        channel_list = bot.spanServ.channels
+        emoji_dict = {}
+        print('counting')
         for channel in channel_list:
             if isinstance(channel, discord.TextChannel):
                 try:
-                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=7)):
+                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=31)):
                         emoji_list = pattern.findall(message.content)
                         if emoji_list:
-                            print(emoji_list)
+                            print(f'Message: {message.content}\nEmojis: {emoji_list}\n')
+                            for emoji in emoji_list:
+                                name = emoji.split(':')[1]  # this will strip the ID, and include emojis from other
+                                try:                  # servers with the same name, which are usually the same emoji too
+                                    emoji_dict[name] += 1
+                                except KeyError:
+                                    emoji_dict[name] = 1
                 except discord.errors.Forbidden:
                     pass
+        print(emoji_dict)
+        sorted_list = sorted(emoji_dict.items(), key=lambda x: x[1], reverse=True)
+        print(sorted_list)
+        msg1 = ''
+        msg2 = ''
+        emoji_list = [i.name for i in bot.spanServ.emojis]
+        print(emoji_list)
+        for i in sorted_list:
+            name = i[0]
+            if name in emoji_list:
+                msg1 += f':{name}:: {i[1]}\n'
+            else:
+                msg2 += f':{name}:: {i[1]}\n'
+        print(msg1)
+        print(emoji_dict)
+        print(emoji_list)
+
+    @commands.group(invoke_without_command=True)
+    async def captcha(self, ctx):
+        """Sets up a checkmark requirement to enter a server"""
+        await ctx.send('This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
+                       '\n1) First, do `;captcha toggle` to setup the module'
+                       '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
+                       '\n3) Then, do `;captcha set_role <role name>` '
+                       'to set the role you wish to remove upon them captchaing.')
+
+    @captcha.command()
+    async def toggle(self, ctx):
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['captcha']:
+            guild_config = self.bot.db['captcha'][guild]
+            if guild_config['enable']:
+                guild_config['enable'] = False
+                await ctx.send('Captcha module disabled')
+            else:
+                guild_config['enable'] = True
+                await ctx.send('Captcha module enabled')
+        else:
+            self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
+            await ctx.send('Captcha module setup and enabled.')
+        self.dump_json()
+
+    @captcha.command()
+    async def set_channel(self, ctx):
+        guild = str(ctx.guild.id)
+        if guild not in self.bot.db['captcha']:
+            await self.toggle
+        guild_config = self.bot.db['captcha'][guild]
+        guild_config['channel'] = ctx.channel.id
+        await ctx.send(f'Captcha channel set to {ctx.channel.name}')
+        self.dump_json()
+
+    @captcha.command()
+    async def set_role(self, ctx, *, role_input: str =None):
+        guild = str(ctx.guild.id)
+        if guild not in self.bot.db['captcha']:
+            await self.toggle
+        guild_config = self.bot.db['captcha'][guild]
+        role = discord.utils.find(lambda role: role.name == role_input, ctx.guild.roles)
+        if not role:
+            await ctx.send('Failed to find a role.  Please type the name of the role after the command, like '
+                           '`;captcha set_role New User`')
+        else:
+            guild_config['role'] = role.id
+            await ctx.send(f'Set role to {role.name} ({role.id})')
+        self.dump_json()
+
+    @captcha.command()
+    async def post_message(self, ctx):
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['captcha']:
+            guild_config = self.bot.db['captcha'][guild]
+            if guild_config['enable']:
+                msg = await ctx.send('Please react with the checkmark to enter the server')
+                await msg.add_reaction('✅')
+
+    async def on_guild_join(self, guild):
+        await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
 
 
 def setup(bot):
