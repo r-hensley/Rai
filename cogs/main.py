@@ -62,42 +62,7 @@ class Main:
         os.remove(f'{dir_path}/database.json')
         os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
 
-    def jpenratio(self, msg):
-        text = self._emoji.sub('', self._url.sub('', msg.content))
-        en, jp, total = self.get_character_spread(text)
-        return en / total if total else None
 
-    def get_character_spread(self, text):
-        english = 0
-        japanese = 0
-        for ch in text:
-            if self.is_cjk(ch):
-                japanese += 1
-            elif self.is_english(ch):
-                english += 1
-        return english, japanese, english + japanese
-
-    def is_cjk(self, char):
-        CJK_MAPPING = (
-            (0x3040, 0x30FF),  # Hiragana + Katakana
-            (0xFF66, 0xFF9D),  # Half-Width Katakana
-            (0x4E00, 0x9FAF)  # Common/Uncommon Kanji
-        )
-        return any(start <= ord(char) <= end for start, end in CJK_MAPPING)
-
-    def is_english(self, char):
-        # basically English characters save for w because of laughter
-        RANGE_CHECK = (
-            (0x61, 0x76),  # a to v
-            (0x78, 0x7a),  # x to z
-            (0x41, 0x56),  # A to V
-            (0x58, 0x5a),  # X to Z
-            (0xFF41, 0xFF56),  # ａ to ｖ
-            (0xFF58, 0xFF5A),  # ｘ to ｚ
-            (0xFF21, 0xFF36),  # Ａ to Ｖ
-            (0xFF58, 0xFF3A),  # Ｘ to Ｚ
-        )
-        return any(start <= ord(char) <= end for start, end in RANGE_CHECK)
 
     def is_admin():
         async def pred(ctx):
@@ -107,7 +72,7 @@ class Main:
 
     async def on_message(self, msg):
         """Message as the bot"""
-        if str(msg.channel) == 'Direct Message with Ryry013#9234' \
+        if msg.channel == 'Direct Message with Ryry013#9234' \
                 and int(msg.author.id) == self.bot.owner_id \
                 and str(msg.content[0:3]) == 'msg':
             await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
@@ -129,106 +94,8 @@ class Main:
         if msg.author.id == self.bot.owner_id and self.bot.selfMute == True:
             await msg.delete()
 
-        """Ultra Hardcore"""
-        if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-            jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
-            engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
-            jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
-            ratio = self.jpenratio(msg)
 
-            if msg.guild == jpServ:
-                # if I delete a long message
-                async def msg_user():
-                    try:
-                        notification = 'I may have deleted a message of yours that was long.  Here it was:'
-                        if len(msg.content) < 2000 - len(notification):
-                            await msg.author.send(notification + '\n' + msg.content)
-                        else:
-                            await msg.author.send(notification)
-                            await msg.author.send(msg.content)
-                    except discord.errors.Forbidden:
-                        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
-                                               f"but you seem to have DMs disabled so I couldn't send it to you.")
-                        notification = "I deleted someone's message but they had DMs disabled"
-                        me = self.bot.get_user(self.bot.owner_id)
-                        if len(msg.content) < 2000 - len(notification):
-                            await me.send(notification + '\n' + msg.content)
-                        else:
-                            await me.send(notification)
-                            await me.send(msg.content)
 
-                # allow Kotoba bot commands
-                if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
-                    if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
-                        return  # please don't abuse this
-
-                # delete the messages
-                if ratio is not None:
-                    msg_content = msg.content
-                    if jpRole in msg.author.roles:
-                        if ratio < .55:
-                            await msg.delete()
-                            if len(msg_content) > 60:
-                                await msg_user()
-                    else:
-                        if ratio > .45:
-                            await msg.delete()
-                            if len(msg_content) > 60:
-                                await msg_user()
-
-    @commands.group(invoke_without_command=True, aliases=['uhc'])
-    async def ultrahardcore(self, ctx, member: discord.Member = None):
-        """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
-        for i in ctx.guild.roles:
-            if i.id == 486851965121331200:
-                role = i
-                break
-        if not member:  # if no ID specified in command
-            if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
-                self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-                self.dump_json()
-                try:
-                    await ctx.author.add_roles(role)
-                except discord.errors.Forbidden:
-                    await ctx.send("I couldn't add the ultra hardcore role")
-                await ctx.send(f"{ctx.author.name} has chosen to enable ultra hardcore mode.  It works the same as "
-                               "normal hardcore mode except that you can't undo it and asterisks don't change "
-                               "anything.  Talk to a mod to undo this.")
-            else:  # already enabled
-                await ctx.send("You're already in ultra hardcore mode.")
-        else:  # if you specified someone else's ID, then remove UHC from them
-            if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-                if ctx.author.id != member.id:
-                    self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
-                    self.dump_json()
-                    try:
-                        await member.remove_roles(role)
-                    except discord.errors.Forbidden:
-                        await ctx.send("I couldn't remove the ultra hardcore role")
-                    await ctx.send(f'Undid ultra hardcore mode for {member.name}')
-
-    @ultrahardcore.command()
-    async def list(self, ctx):
-        """Lists the people currently in ultra hardcore mode"""
-        string = 'The members in ultra hardcore mode right now are '
-        guild = self.bot.get_guild(189571157446492161)
-        members = []
-
-        for member_id in self.bot.db['ultraHardcore'][str(guild.id)]:
-            member = guild.get_member(int(member_id))
-            if member is not None:  # in case a member leaves
-                members.append(str(member))
-            else:
-                self.bot.db['ultraHardcore'][str(guild.id)].remove(member_id)
-                await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')
-
-        await ctx.send(string + ', '.join(members))
-
-    @ultrahardcore.command()
-    async def explanation(self, ctx):
-        """Explains ultra hardcore mode for those who are using it and can't explain it"""
-        await ctx.send('I am currently using ultra hardcore mode.  In this mode, I can not speak any English, '
-                       'and I also can not undo this mode easily.')
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -257,21 +124,6 @@ class Main:
         """Gives an invite to bring this bot to your server"""
         await ctx.send(discord.utils.oauth_url(self.bot.user.id))
 
-    @commands.command()
-    @commands.is_owner()
-    async def selfMute(self, ctx, hour: float, minute: float):
-        """mutes ryry for x amount of minutes"""
-        self.bot.selfMute = True
-        await ctx.send(f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
-        self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
-
-    @commands.command()
-    @commands.is_owner()
-    async def echo(self, ctx, *, content: str):
-        """sends back whatever you send"""
-        await ctx.message.delete()
-        await ctx.send(f"{content}")
-
     # @commands.command()
     # async def at(self, ctx):
     #     """asyncio test"""
@@ -287,42 +139,11 @@ class Main:
     #     if isinstance(error, commands.CommandNotFound):
     #         print(error)
 
-    @commands.command()
-    @is_admin()
-    async def pp(self, ctx):
-        """Checks most active members who are in ping party but not welcoming party yet"""
-        print('Checking ping party members')
-        JHO = self.bot.get_channel(189571157446492161)
-        mCount = {}
-
-        async for m in JHO.history(limit=None, after=datetime.today() - timedelta(days=14)):
-            try:
-                mCount[m.author] += 1
-            except KeyError:
-                mCount[m.author] = 1
-        print('Done counting messages')
-        mSorted = sorted(list(mCount.items()), key=lambda x: x[1], reverse=True)
-        mCount = {}
-        for memberTuple in mSorted:
-            mCount[memberTuple[0].id] = [memberTuple[0].name, memberTuple[1]]
-        with open("sorted_members.json", "w") as write_file:
-            json.dump(mCount, write_file)
-
-        ping_party_role = next(role for role in JHO.guild.roles if role.id == 357449148405907456)
-        welcoming_party_role = next(role for role in JHO.guild.roles if role.id == 250907197075226625)
-
-        ping_party_list = ''
-        for member in mSorted:
-            # print(member[0].name)
-            try:
-                if ping_party_role in member[0].roles and welcoming_party_role not in member[0].roles:
-                    ping_party_list += f'{member[0].name}: {member[1]}\n'
-            except AttributeError:
-                print(f'This user left: {member[0].name}: {member[1]}')
-        await ctx.send(ping_party_list)
-
     @commands.group(invoke_without_command=True)
     async def report(self, ctx, user: discord.Member = None):
+        """Japanese/Spanish server, make an anonymous report to mods"""
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+            return
         try:
             if not user:
                 await ctx.message.delete()
@@ -550,6 +371,8 @@ class Main:
     @report.command()
     @is_admin()
     async def check_waiting_list(self, ctx):
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+            return
         message = 'List of users on the waiting list: '
         report_guild = str(ctx.guild.id)
         members = []
@@ -564,6 +387,8 @@ class Main:
     @report.command()
     @is_admin()
     async def clear_waiting_list(self, ctx):
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+            return
         report_guild = str(ctx.guild.id)
         if self.bot.db['report_room_waiting_list'][report_guild]:
             self.bot.db['report_room_waiting_list'][report_guild] = []
@@ -573,6 +398,9 @@ class Main:
 
     @commands.command()
     async def done(self, ctx):
+        """Only usable on Japanese/Spanish servers, finishes a report"""
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+            return
         report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
         if ctx.channel == report_room:
             report_member = ctx.guild.get_member(self.bot.db["current_report_member"][str(ctx.guild.id)])
@@ -623,56 +451,6 @@ class Main:
                         break
                 if not was_on_waiting_list:
                     await user.send("You aren't on the waiting list.")
-
-    @commands.command()
-    @is_admin()
-    async def swap(self, ctx):
-        if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-            if self.bot.jpJHO.position == 4:
-                await self.bot.jpJHO.edit(position=5, name='just_hanging_out_2')
-                await self.bot.jpJHO2.edit(position=4, name='just_hanging_out')
-            else:
-                await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
-                await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
-
-    @commands.command()
-    @is_admin()
-    async def count_emoji(self, ctx):
-        pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
-        channel_list = bot.spanServ.channels
-        emoji_dict = {}
-        print('counting')
-        for channel in channel_list:
-            if isinstance(channel, discord.TextChannel):
-                try:
-                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=31)):
-                        emoji_list = pattern.findall(message.content)
-                        if emoji_list:
-                            print(f'Message: {message.content}\nEmojis: {emoji_list}\n')
-                            for emoji in emoji_list:
-                                name = emoji.split(':')[1]  # this will strip the ID, and include emojis from other
-                                try:                  # servers with the same name, which are usually the same emoji too
-                                    emoji_dict[name] += 1
-                                except KeyError:
-                                    emoji_dict[name] = 1
-                except discord.errors.Forbidden:
-                    pass
-        print(emoji_dict)
-        sorted_list = sorted(emoji_dict.items(), key=lambda x: x[1], reverse=True)
-        print(sorted_list)
-        msg1 = ''
-        msg2 = ''
-        emoji_list = [i.name for i in bot.spanServ.emojis]
-        print(emoji_list)
-        for i in sorted_list:
-            name = i[0]
-            if name in emoji_list:
-                msg1 += f':{name}:: {i[1]}\n'
-            else:
-                msg2 += f':{name}:: {i[1]}\n'
-        print(msg1)
-        print(emoji_dict)
-        print(emoji_list)
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):

@@ -309,9 +309,9 @@ class Logger:
             # the following links are specifically the ones we've used to advertise on japanese sites
             japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
             if str(used_invite.code) in japanese_links:
-                await self.bot.jpJHO.send(f'{m.name}さん、サーバーへようこそ！')  # a japanese person possibly
-            elif m.id != 414873201349361664:
-                await self.bot.jpJHO.send(f'Welcome {m.name}!')  # probably not a japanese person
+                await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+            elif member.id != 414873201349361664:
+                await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -433,8 +433,6 @@ class Logger:
                     if before.nick and after.nick:
                         embed = self.make_nickname_embed(before, after)
                     await channel.send(embed=embed)
-                    
-                    
 
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):
@@ -486,7 +484,7 @@ class Logger:
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
                     await channel.send(embed=self.make_reaction_embed(reaction, member))
-
+                    
 
 def setup(bot):
     bot.add_cog(Logger(bot))
