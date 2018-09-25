@@ -26,7 +26,7 @@ logger.addHandler(handler)
 
 tStart = datetime.now()
 
-initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math', 'cogs.logger']
+initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
 

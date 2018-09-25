@@ -100,7 +100,9 @@ class Owner:
                 try:
                     file.write(f'    ({msg.created_at}) {msg.author.name} - {msg.content}\n')
                 except UnicodeEncodeError:
-                    file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {self.BMP(msg.content)}\n')
+                    def BMP(s):
+                        return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
+                    file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(aliases=['quit'])
     @commands.is_owner()
@@ -159,6 +161,38 @@ class Owner:
         # remove `single quotes`
         return content.strip('` \n')
 
+    @commands.command()
+    async def pp(self, ctx):
+        """Checks most active members who are in ping party but not welcoming party yet"""
+        print('Checking ping party members')
+        JHO = self.bot.get_channel(189571157446492161)
+        mCount = {}
+
+        async for m in JHO.history(limit=None, after=datetime.today() - timedelta(days=14)):
+            try:
+                mCount[m.author] += 1
+            except KeyError:
+                mCount[m.author] = 1
+        print('Done counting messages')
+        mSorted = sorted(list(mCount.items()), key=lambda x: x[1], reverse=True)
+        mCount = {}
+        for memberTuple in mSorted:
+            mCount[memberTuple[0].id] = [memberTuple[0].name, memberTuple[1]]
+        with open("sorted_members.json", "w") as write_file:
+            json.dump(mCount, write_file)
+
+        ping_party_role = next(role for role in JHO.guild.roles if role.id == 357449148405907456)
+        welcoming_party_role = next(role for role in JHO.guild.roles if role.id == 250907197075226625)
+
+        ping_party_list = ''
+        for member in mSorted:
+            # print(member[0].name)
+            try:
+                if ping_party_role in member[0].roles and welcoming_party_role not in member[0].roles:
+                    ping_party_list += f'{member[0].name}: {member[1]}\n'
+            except AttributeError:
+                print(f'This user left: {member[0].name}: {member[1]}')
+        await ctx.send(ping_party_list)
 
     @commands.command(pass_context=True, hidden=True, name='eval')
     async def _eval(self, ctx, *, body: str):
@@ -207,6 +241,57 @@ class Owner:
                 self._last_result = ret
                 await ctx.send(f'```py\n{value}{ret}\n```')
 
-                
+    @commands.command()
+    async def count_emoji(self, ctx):
+        pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
+        channel_list = ctx.guild.channels
+        emoji_dict = {}
+        print('counting')
+        for channel in channel_list:
+            if isinstance(channel, discord.TextChannel):
+                try:
+                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=31)):
+                        emoji_list = pattern.findall(message.content)
+                        if emoji_list:
+                            print(f'Message: {message.content}\nEmojis: {emoji_list}\n')
+                            for emoji in emoji_list:
+                                name = emoji.split(':')[1]  # this will strip the ID, and include emojis from other
+                                try:  # servers with the same name, which are usually the same emoji too
+                                    emoji_dict[name] += 1
+                                except KeyError:
+                                    emoji_dict[name] = 1
+                except discord.errors.Forbidden:
+                    pass
+        print(emoji_dict)
+        sorted_list = sorted(emoji_dict.items(), key=lambda x: x[1], reverse=True)
+        print(sorted_list)
+        msg1 = ''
+        msg2 = ''
+        emoji_list = [i.name for i in bot.spanServ.emojis]
+        print(emoji_list)
+        for i in sorted_list:
+            name = i[0]
+            if name in emoji_list:
+                msg1 += f':{name}:: {i[1]}\n'
+            else:
+                msg2 += f':{name}:: {i[1]}\n'
+        print(msg1)
+        print(emoji_dict)
+        print(emoji_list)
+
+        @commands.command()
+        async def selfMute(self, ctx, hour: float, minute: float):
+            """mutes ryry for x amount of minutes"""
+            self.bot.selfMute = True
+            await ctx.send(f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
+            self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
+
+        @commands.command()
+        async def echo(self, ctx, *, content: str):
+            """sends back whatever you send"""
+            await ctx.message.delete()
+            await ctx.send(f"{content}")
+
+
 def setup(bot):
     bot.add_cog(Owner(bot))
