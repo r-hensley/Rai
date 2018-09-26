@@ -484,7 +484,7 @@ class Logger:
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
                     await channel.send(embed=self.make_reaction_embed(reaction, member))
-                    
+
 
 def setup(bot):
     bot.add_cog(Logger(bot))
