@@ -279,18 +279,22 @@ class Owner:
         print(emoji_dict)
         print(emoji_list)
 
-        @commands.command()
-        async def selfMute(self, ctx, hour: float, minute: float):
-            """mutes ryry for x amount of minutes"""
-            self.bot.selfMute = True
-            await ctx.send(f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
-            self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
+    @commands.command()
+    async def selfMute(self, ctx, hour: float, minute: float):
+        """mutes ryry for x amount of minutes"""
+        self.bot.selfMute = True
+        await ctx.send(f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
+        self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
 
-        @commands.command()
-        async def echo(self, ctx, *, content: str):
-            """sends back whatever you send"""
+    @commands.command()
+    async def echo(self, ctx, *, content: str):
+        """sends back whatever you send"""
+        print(content)
+        try:
             await ctx.message.delete()
-            await ctx.send(f"{content}")
+        except discord.errors.NotFound:
+            pass
+        await ctx.send(f"{content}")
 
 
 def setup(bot):
