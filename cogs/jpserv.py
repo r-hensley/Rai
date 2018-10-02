@@ -8,8 +8,9 @@ import sys
 import os
 from .utils import characters
 import re
+import json
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace('\\', '/')
 
 
 class Jpserv:
@@ -17,42 +18,6 @@ class Jpserv:
 
     def __init__(self, bot):
         self.bot = bot
-        self._url = re.compile("""
-                    # protocol identifier
-                    (?:(?:https?|ftp)://)
-                    # user:pass authentication
-                    (?:\S+(?::\S*)?@)?
-                    (?:
-                      # IP address exclusion
-                      # private & local networks
-                      (?!(?:10|127)(?:\.\d{1,3}){3})
-                      (?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})
-                      (?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})
-                      # IP address dotted notation octets
-                      # excludes loopback network 0.0.0.0
-                      # excludes reserved space >= 224.0.0.0
-                      # excludes network & broacast addresses
-                      # (first & last IP address of each class)
-                      (?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])
-                      (?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}
-                      (?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))
-                    |
-                      # host name
-                      (?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
-                      # domain name
-                      (?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*
-                      # TLD identifier
-                      (?:\.(?:[a-z\u00a1-\uffff]{2,}))
-                      # TLD may end with dot
-                      \.?
-                    )
-                    # port number
-                    (?::\d{2,5})?
-                    # resource path
-                    (?:[/?#]\S*)?
-                """, re.VERBOSE | re.I)
-
-        self._emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
     async def __local_check(self, ctx):
         return ctx.guild.id == 189571157446492161 or ctx.guild.id == 275146036178059265
@@ -63,6 +28,14 @@ class Jpserv:
             return ctx.channel.permissions_for(ctx.author).administrator
 
         return commands.check(pred)
+
+    def dump_json(self):
+        with open(f'{dir_path}/database2.json', 'w') as write_file:
+            json.dump(self.bot.db, write_file)
+            write_file.flush()
+            os.fsync(write_file.fileno())
+        os.remove(f'{dir_path}/database.json')
+        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
 
     @commands.command()
     @is_admin()
@@ -78,10 +51,7 @@ class Jpserv:
     @commands.group(invoke_without_command=True, aliases=['uhc'])
     async def ultrahardcore(self, ctx, member: discord.Member = None):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
-        for i in ctx.guild.roles:
-            if i.id == 486851965121331200:
-                role = i
-                break
+        role = ctx.guild.get_role(486851965121331200)
         if not member:  # if no ID specified in command
             if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
                 self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
@@ -126,57 +96,23 @@ class Jpserv:
     @ultrahardcore.command()
     async def explanation(self, ctx):
         """Explains ultra hardcore mode for those who are using it and can't explain it"""
-        await ctx.send('I am currently using ultra hardcore mode.  In this mode, I can not speak any English, '
-                       'and I also can not undo this mode easily.')
+        await ctx.send("This user is currently using ultra hardcore mode.  In this mode, they can't speak any English, "
+                       'and they also cannot undo this mode themselves.')
 
-    async def on_message(self, msg):
-        """Ultra Hardcore"""
-        if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-            jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
-            engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
-            jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
-            ratio = characters.jpenratio(msg)
-
-            if msg.guild == jpServ:
-                # if I delete a long message
-                async def msg_user():
-                    try:
-                        notification = 'I may have deleted a message of yours that was long.  Here it was:'
-                        if len(msg.content) < 2000 - len(notification):
-                            await msg.author.send(notification + '\n' + msg.content)
-                        else:
-                            await msg.author.send(notification)
-                            await msg.author.send(msg.content)
-                    except discord.errors.Forbidden:
-                        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
-                                               f"but you seem to have DMs disabled so I couldn't send it to you.")
-                        notification = "I deleted someone's message but they had DMs disabled"
-                        me = self.bot.get_user(self.bot.owner_id)
-                        if len(msg.content) < 2000 - len(notification):
-                            await me.send(notification + '\n' + msg.content)
-                        else:
-                            await me.send(notification)
-                            await me.send(msg.content)
-
-                # allow Kotoba bot commands
-                if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
-                    if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
-                        return  # please don't abuse this
-
-                # delete the messages
-                if ratio is not None:
-                    msg_content = msg.content
-                    if jpRole in msg.author.roles:
-                        if ratio < .55:
-                            await msg.delete()
-                            if len(msg_content) > 60:
-                                await msg_user()
-                    else:
-                        if ratio > .45:
-                            await msg.delete()
-                            if len(msg_content) > 60:
-                                await msg_user()
-
+    @ultrahardcore.command()
+    async def ignore(self, ctx):
+        config = self.bot.db['ultraHardcore']
+        try:
+            if ctx.channel.id not in config['ignore']:
+                config['ignore'].append(ctx.channel.id)
+                await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
+            else:
+                config['ignore'].remove(ctx.channel.id)
+                await ctx.send(f"Removed {ctx.channel.name} from list of ignored channels for UHC")
+        except KeyError:
+            config['ignore'] = [ctx.channel.id]
+            await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
+        self.dump_json()
 
 def setup(bot):
     bot.add_cog(Jpserv(bot))

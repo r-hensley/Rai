@@ -3,8 +3,7 @@ import asyncio
 import os
 import re
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
+# credit: https://gist.github.com/dperini/729294
 _url = re.compile("""
             # protocol identifier
             (?:(?:https?|ftp)://)

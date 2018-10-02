@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 from imgurpython import ImgurClient
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError
@@ -10,6 +10,7 @@ import functools
 from Levenshtein import distance as LDist
 
 import os
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
@@ -21,11 +22,13 @@ with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
 
 imgur_client = ImgurClient(client_id, client_secret, access_token, refresh_token)
 
+
 class Logger:
     """Logs stuff"""
+
     def __init__(self, bot):
         self.bot = bot
-        
+
     async def __local_check(self, ctx):
         return ctx.channel.permissions_for(ctx.author).administrator
 
@@ -102,13 +105,14 @@ class Logger:
         guild_config['distance_limit'] = distance_limit
         await ctx.send(f'Successfully set Levenshtein Distance limit to {distance_limit}.')
         self.dump_json()
-            
-    def make_edit_embed(self, before, after):
+
+    def make_edit_embed(self, before, after, levenshtein_distance):
         author = before.author
         time_dif = round((after.edited_at - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** ({author.id})'
-                        f'\n**Message edited after {time_dif} seconds.**',
+                        f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
+                        f'(https://en.wikipedia.org/wiki/Levenshtein_distance)',
             colour=0xFF9933,
             timestamp=datetime.utcnow()
         )
@@ -127,10 +131,10 @@ class Logger:
             emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
             emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
 
-        emb.set_footer(text=f'<#{before.channel.id}>', icon_url=before.author.avatar_url_as(static_format="png"))
+        emb.set_footer(text=f'{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
 
         return emb
-    
+
     async def on_message_edit(self, before, after):
         guild = str(before.guild.id)
         if not before.author.bot:
@@ -146,16 +150,7 @@ class Logger:
                     levenshtein_distance = LDist(before.content, after.content)
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        emb = self.make_edit_embed(before, after)
-                        emb.add_field(name='Note:', value=f'Levenshtein Distance: {levenshtein_distance}')
-                        await channel.send(embed=emb)
-                    else:
-                        # channel = self.bot.get_channel(guild_config["channel"])
-                        # emb = self.make_edit_embed(before, after)
-                        # emb.add_field(name='Note:', value=f'Under Levenshtein Distance limit ({levenshtein_distance})')
-                        # await channel.send(embed=emb)
-                        pass
-
+                        await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
     async def delete_logging(self, ctx):
@@ -179,7 +174,7 @@ class Logger:
         elif result == 2:
             await ctx.send(f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;delete_logging`.')
-            
+
     async def make_delete_embed(self, message):
         author = message.author
         time_dif = round((datetime.utcnow() - message.created_at).total_seconds(), 1)
@@ -215,7 +210,7 @@ class Logger:
         emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
 
         return emb
-    
+
     async def on_message_delete(self, message):
         guild = str(message.guild.id)
         if not message.author.bot:
@@ -239,6 +234,8 @@ class Logger:
         elif result == 3:
             await ctx.send('You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
         elif result == 4:
+            server_config['invites_enable'] = False
+            self.dump_json()
             await ctx.send('Before doing this, set a channel for logging with `;welcome_logging set`.  '
                            'Then, enable/disable logging by typing `;welcome_logging`.')
 
@@ -249,10 +246,24 @@ class Logger:
             await ctx.send(f'Set the welcome logging channel as {ctx.channel.name}')
         elif result == 2:
             server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
+            server_config['invites_enable'] = False
             self.dump_json()
             await ctx.send(f'Enabled welcome logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;welcome_logging`.')
-            
+
+    @welcome_logging.command(aliases=['invites'])
+    async def invites_enable(self, ctx):
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['welcomes']:
+            server_config = self.bot.db['welcomes'][guild]
+            try:
+                server_config['invites_enable'] = not server_config['invites_enable']
+                await ctx.send(f"Set invite tracking to `{server_config['invites_enable']}`")
+            except KeyError:
+                server_config['invites_enable'] = True
+                await ctx.send('Enabled invites tracking')
+            self.dump_json()
+
     def make_welcome_embed(self, member, used_invite):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
@@ -282,26 +293,46 @@ class Logger:
         if guild in self.bot.db['welcomes']:
             if self.bot.db['welcomes'][guild]['enable']:
                 server_config = self.bot.db['welcomes'][guild]
-                old_invites = self.bot.db['welcomes'][str(member.guild.id)]['invites']
-                invites = await member.guild.invites()
-                new_invites = {invite.code: invite.uses for invite in invites}
-                used_invite = None
-                for invite in new_invites:
-                    try:
-                        if new_invites[invite] > old_invites[invite]:
-                            used_invite = next(i for i in invites if str(i.code) == invite)
-                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                            break
-                    except KeyError:  # new invite
-                        if new_invites[invite] == 1:
-                            used_invite = next(i for i in invites if str(i.code) == invite)
-                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                            break
-                if not used_invite:
-                    print('Was unable to find invite')
-                self.dump_json()
                 channel = self.bot.get_channel(server_config['channel'])
-                await channel.send(embed=self.make_welcome_embed(member, used_invite))
+                try:
+                    invites_enable = server_config['invites_enable']
+                    self.dump_json()
+                except KeyError:
+                    server_config['invites_enable'] = False
+                    invites_enable = server_config['invites_enable']
+                    self.dump_json()
+                    await channel.send("I've added a toggle for invite tracking since it requires `Manage Server` "
+                                       "permission.  If you wish Rai to track used invite links for joins, please type "
+                                       "`welcomes invites`.")
+                used_invite = None
+                if invites_enable:
+                    try:
+                        old_invites = self.bot.db['welcomes'][str(member.guild.id)]['invites']
+                        invites = await member.guild.invites()
+                        new_invites = {invite.code: invite.uses for invite in invites}
+                        for invite in new_invites:
+                            try:
+                                if new_invites[invite] > old_invites[invite]:
+                                    used_invite = next(i for i in invites if str(i.code) == invite)
+                                    self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
+                                    break
+                            except KeyError:  # new invite
+                                if new_invites[invite] == 1:
+                                    used_invite = next(i for i in invites if str(i.code) == invite)
+                                    self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
+                                    break
+                        if not used_invite:
+                            print('Was unable to find invite')
+                    except discord.errors.Forbidden:
+                        server_config['invites_enable'] = False
+                        await channel.send(
+                            "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
+                            "invite link tracking.  If you wish to reenable it, type `;welcomes invites`")
+                    self.dump_json()
+                try:
+                    await channel.send(embed=self.make_welcome_embed(member, used_invite))
+                except discord.errors.Forbidden:
+                    await channel.send('Rai needs permission to post embeds to track joins')
 
         """Japanese Server Welcome"""
         if guild == '189571157446492161':
@@ -347,7 +378,7 @@ class Logger:
         elif result == 2:
             await ctx.send(f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;leave_logging`.')
-            
+
     def make_leave_embed(self, member):
         emb = discord.Embed(
             description=''
@@ -357,7 +388,7 @@ class Logger:
             timestamp=datetime.utcnow()
         )
 
-        if len(member.roles) > 1:  # all users have the @everyone role
+        if len(member.roles) > 1:  # all members have the @everyone role
             emb.add_field(name='Roles:', value=', '.join(reversed([role.name for role in member.roles[1:]])))
 
         emb.set_footer(
@@ -373,6 +404,14 @@ class Logger:
                 server_config = self.bot.db['leaves'][guild]
                 channel = self.bot.get_channel(server_config['channel'])
                 await channel.send(embed=self.make_leave_embed(member))
+
+        if guild in self.bot.db['kicks']:
+            guild_config: dict = self.bot.db['kicks'][guild]
+            if guild_config['enable']:
+                channel = self.bot.get_channel(guild_config["channel"])
+                emb = await self.make_kick_embed(member)
+                if emb:
+                    await channel.send(embed=emb)
 
     @commands.group(invoke_without_command=True, aliases=['nickname', 'nicknames'])
     async def nickname_logging(self, ctx):
@@ -428,7 +467,7 @@ class Logger:
                     if before.name != after.name:
                         embed = self.make_nickname_embed(before, after)
                         embed.description = \
-                            f"**{before.name}#{before.discriminator}**'s username was set to " \
+                            f"**{before.name}#{before.discriminator}**'s membername was set to " \
                             f"**{after.name}#{after.discriminator}**"
                     if before.nick and after.nick:
                         embed = self.make_nickname_embed(before, after)
@@ -484,6 +523,112 @@ class Logger:
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
                     await channel.send(embed=self.make_reaction_embed(reaction, member))
+
+    @commands.group(invoke_without_command=True, aliases=['ban', 'bans'])
+    async def ban_logging(self, ctx):
+        """Logs deleted bans, aliases: 'ban', 'bans'"""
+        result = self.module_logging(ctx, self.bot.db['bans'])
+        if result == 1:
+            await ctx.send('Disabled ban logging for this server')
+        elif result == 2:
+            await ctx.send('Enabled ban logging for this server')
+        elif result == 3:
+            await ctx.send('You have not yet set a channel for ban logging yet. Run `;ban_logging set`')
+        elif result == 4:
+            await ctx.send('Before doing this, set a channel for logging with `;ban_logging set`.  '
+                           'Then, enable/disable logging by typing `;ban_logging`.')
+
+    @ban_logging.command(aliases=['set'])
+    async def bans_set(self, ctx):
+        result = self.module_set(ctx, self.bot.db['bans'])
+        if result == 1:
+            await ctx.send(f'Set the ban logging channel as {ctx.channel.name}')
+        elif result == 2:
+            await ctx.send(f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                           f'logging by typing `;ban_logging`.')
+
+    async def make_ban_embed(self, guild, member):
+        await asyncio.sleep(1)
+        log_channel = self.bot.get_channel(self.bot.db['bans'][str(guild.id)]['channel'])
+        try:
+            emb = None
+            async for entry in guild.audit_logs(limit=1, reverse=False,
+                                                action=discord.AuditLogAction.ban,
+                                                after=datetime.utcnow() - timedelta(seconds=10)):
+                if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
+                    ban_entry = entry
+                    reason = ban_entry.reason
+                    emb = True
+        except discord.errors.Forbidden:
+            await log_channel.send('Failed to post ban log due to lacking audit logs permissions')
+            return
+        if emb:
+            emb = discord.Embed(
+                description=f'❌ **{member.name}#{member.discriminator}** was `baned` ({member.id})\n\n'
+                            f'*by* {ban_entry.user.mention}\n**Reason**: {reason}',
+                colour=0x000000,
+                timestamp=datetime.utcnow()
+            )
+            emb.set_footer(text=f'User Banned',
+                           icon_url=member.avatar_url_as(static_format="png"))
+            return emb
+
+    async def on_member_ban(self, guild, member):
+        guild_id: str = str(guild.id)
+        if guild_id in self.bot.db['bans']:
+            guild_config: dict = self.bot.db['bans'][guild_id]
+            if guild_config['enable']:
+                channel = self.bot.get_channel(guild_config["channel"])
+                await channel.send(embed=await self.make_ban_embed(guild, member))
+
+    @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
+    async def kick_logging(self, ctx):
+        """Logs deleted kicks, aliases: 'kick', 'kicks'"""
+        result = self.module_logging(ctx, self.bot.db['kicks'])
+        if result == 1:
+            await ctx.send('Disabled kick logging for this server')
+        elif result == 2:
+            await ctx.send('Enabled kick logging for this server')
+        elif result == 3:
+            await ctx.send('You have not yet set a channel for kick logging yet. Run `;kick_logging set`')
+        elif result == 4:
+            await ctx.send('Before doing this, set a channel for logging with `;kick_logging set`.  '
+                           'Then, enable/disable logging by typing `;kick_logging`.')
+
+    @kick_logging.command(aliases=['set'])
+    async def kicks_set(self, ctx):
+        result = self.module_set(ctx, self.bot.db['kicks'])
+        if result == 1:
+            await ctx.send(f'Set the kick logging channel as {ctx.channel.name}')
+        elif result == 2:
+            await ctx.send(f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                           f'logging by typing `;kick_logging`.')
+
+    async def make_kick_embed(self, member):
+        # await asyncio.sleep(1)
+        log_channel = self.bot.get_channel(self.bot.db['kicks'][str(member.guild.id)]['channel'])
+        try:
+            emb = None
+            async for entry in member.guild.audit_logs(limit=1, reverse=False,
+                                                       action=discord.AuditLogAction.kick,
+                                                       after=datetime.utcnow() - timedelta(seconds=10)):
+                if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
+                    kick_entry = entry
+                    reason = kick_entry.reason
+                    emb = True
+        except discord.errors.Forbidden:
+            await log_channel.send('Failed to post kick log due to lacking audit logs or embed permissions')
+            return
+        if emb:
+            emb = discord.Embed(
+                description=f'❌ **{member.name}#{member.discriminator}** was `kicked` ({member.id})\n\n'
+                            f'*by* {kick_entry.user.mention}\n**Reason**: {reason}',
+                colour=0x4C4C4C,
+                timestamp=datetime.utcnow()
+            )
+            emb.set_footer(text=f'User Kicked',
+                           icon_url=member.avatar_url_as(static_format="png"))
+            return emb
 
 
 def setup(bot):
