@@ -6,8 +6,6 @@ import time
 import sys
 import os
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
 jpServ = 189571157446492161
 
 spServ = 243838819743432704

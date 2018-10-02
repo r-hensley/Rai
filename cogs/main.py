@@ -1,10 +1,11 @@
 import discord
 from discord.ext import commands
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 from urllib.parse import urlparse
 import re
+from .utils import characters
 
 import os
 
@@ -16,43 +17,6 @@ class Main:
 
     def __init__(self, bot):
         self.bot = bot
-        # credit: https://gist.github.com/dperini/729294
-        self._url = re.compile("""
-            # protocol identifier
-            (?:(?:https?|ftp)://)
-            # user:pass authentication
-            (?:\S+(?::\S*)?@)?
-            (?:
-              # IP address exclusion
-              # private & local networks
-              (?!(?:10|127)(?:\.\d{1,3}){3})
-              (?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})
-              (?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})
-              # IP address dotted notation octets
-              # excludes loopback network 0.0.0.0
-              # excludes reserved space >= 224.0.0.0
-              # excludes network & broacast addresses
-              # (first & last IP address of each class)
-              (?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])
-              (?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}
-              (?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))
-            |
-              # host name
-              (?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
-              # domain name
-              (?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*
-              # TLD identifier
-              (?:\.(?:[a-z\u00a1-\uffff]{2,}))
-              # TLD may end with dot
-              \.?
-            )
-            # port number
-            (?::\d{2,5})?
-            # resource path
-            (?:[/?#]\S*)?
-        """, re.VERBOSE | re.I)
-
-        self._emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
     def dump_json(self):
         with open(f'{dir_path}/database2.json', 'w') as write_file:
@@ -63,12 +27,24 @@ class Main:
         os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
 
 
-
     def is_admin():
         async def pred(ctx):
             return ctx.channel.permissions_for(ctx.author).administrator
 
         return commands.check(pred)
+
+    async def msg_user(self, msg):
+        try:
+            notification = 'I may have deleted a message of yours that was long.  Here it was:'
+            await msg.author.send(notification)
+            await msg.author.send(msg.content)
+        except discord.errors.Forbidden:
+            await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
+                                   f"but you seem to have DMs disabled so I couldn't send it to you.")
+            notification = "I deleted someone's message but they had DMs disabled"
+            me = self.bot.get_user(self.bot.owner_id)
+            await me.send(notification)
+            await me.send(msg.author.name, msg.content)
 
     async def on_message(self, msg):
         """Message as the bot"""
@@ -88,14 +64,85 @@ class Main:
                 ) and
                 not msg.author.bot  # checks to see if account is a bot account
         ):  # random sad face
-            await self.bot.spamChan.send(
-                '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id, msg.content))
+            if 'aryan' in msg.content:  # why do people say this so often...
+                return
+            else:
+                await self.bot.spamChan.send(
+                    '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id, msg.content))
 
-        if msg.author.id == self.bot.owner_id and self.bot.selfMute == True:
+        """Self mute"""
+        if msg.author.id == self.bot.owner_id and self.bot.selfMute:
             await msg.delete()
 
+        """Ultra Hardcore"""
+        if msg.guild.id == 189571157446492161:
+            if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+                jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
+                learning_engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
+                # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+                jpRole = msg.guild.get_role(196765998706196480)
+                ratio = characters.jpenratio(msg)
+                # if I delete a long message
+                
 
+                # allow Kotoba bot commands
+                if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
+                    if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
+                        return  # please don't abuse this
 
+                # delete the messages
+                if ratio:
+                    if msg.channel.id not in self.bot.db['ultraHardcore']['ignore']:
+                        msg_content = msg.content
+                        if jpRole in msg.author.roles:
+                            if ratio < .55:
+                                await msg.delete()
+                                if len(msg_content) > 60:
+                                    await self.msg_user(msg)
+                        else:
+                            if ratio > .45:
+                                await msg.delete()
+                                if len(msg_content) > 60:
+                                    await self.msg_user(msg)
+
+        """Hardcore mode"""
+        if msg.author.id == 202995638860906496:
+            if '*' not in msg.content:
+
+                try:
+                    ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
+                    role = msg.guild.get_role(ROLE_ID)
+                except KeyError:
+                    return
+                if role in msg.author.roles:
+                    learning_eng = msg.guild.get_role(266778623631949826)
+                    ratio = characters.jpenratio(msg)
+                    if ratio is not None:
+                        if learning_eng in msg.author.roles:
+                            if ratio < .55:
+                                await msg.delete()
+                                if len(msg.content) > 60:
+                                    await self.msg_user(msg)
+                        else:
+                            if ratio > .45:
+                                await msg.delete()
+                                if len(msg.content) > 60:
+                                    await self.msg_user(msg)
+
+    @commands.group()
+    @is_admin()
+    async def hardcore(self, ctx):
+        msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
+                             "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
+                             " wish to correct a learner, attach a `*` to your message, and it will not be deleted.  "
+                             "\n\nUse the below reaction to enable/disable hardcore mode.")
+        try:
+            self.bot.db['hardcore'][str(ctx.guild.id)]['message'] = msg.id
+        except KeyError:
+            role = await ctx.guild.create_role(name='🔥Hardcore🔥')
+            self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
+        await msg.add_reaction("🔥")
+        self.dump_json()
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -142,7 +189,7 @@ class Main:
     @commands.group(invoke_without_command=True)
     async def report(self, ctx, user: discord.Member = None):
         """Japanese/Spanish server, make an anonymous report to mods"""
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
             return
         try:
             if not user:
@@ -297,12 +344,22 @@ class Main:
                                        f'the wait list because someone else is currently using it.')
 
         if user:  # if the mod specified a user
-            fromMod = True  # this will stop the bot from PMing the user
-            if ctx.guild == self.bot.jpServ:
-                await option2(user, 0, '189571157446492161')
-            elif ctx.guild == self.bot.spanServ:
-                await option2(user, 2, '243838819743432704')
-            return
+            if ctx.channel.permissions_for(ctx.author).administrator:
+                fromMod = True  # this will stop the bot from PMing the user
+                REPORT_ROOM_ID = int(self.bot.db['report_room'][str(ctx.guild.id)])
+                await user.send(f"Your presence has been requested in <#{REPORT_ROOM_ID}>.  There should be a "
+                                f"welcome message there explaining what is happening, but you might not see it so "
+                                f"it might be a blank channel.  In this channel, only the mods can see your messages, "
+                                f"and no other users will ever be able to see what you have typed in the past"
+                                f"if they too join the channel.  At the end, a log of the chat will be sent to you")
+                if ctx.guild == self.bot.jpServ:
+                    await option2(user, 0, '189571157446492161')
+                elif ctx.guild == self.bot.spanServ:
+                    await option2(user, 2, '243838819743432704')
+                return
+            else:
+                await ctx.message.add_reaction('❌')
+                return
 
         async def options_menu():
             waiting_list_set = self.bot.db['report_room_waiting_list']
@@ -362,16 +419,16 @@ class Main:
                     for server_id in waiting_list_set:
                         if ctx.author.id in waiting_list_set[server_id]:
                             if server_id == '189571157446492161':
-                                await option2(ctx.author, 0, server_id)  # english --> japanese server
+                                await option2(ctx.author, 0, server_id)  # learning_english --> japanese server
                             else:
-                                await option2(ctx.author, 2, server_id)  # english --> spanish server
+                                await option2(ctx.author, 2, server_id)  # learning_english --> spanish server
 
         await options_menu()
 
     @report.command()
     @is_admin()
     async def check_waiting_list(self, ctx):
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
             return
         message = 'List of users on the waiting list: '
         report_guild = str(ctx.guild.id)
@@ -387,7 +444,7 @@ class Main:
     @report.command()
     @is_admin()
     async def clear_waiting_list(self, ctx):
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
             return
         report_guild = str(ctx.guild.id)
         if self.bot.db['report_room_waiting_list'][report_guild]:
@@ -399,7 +456,7 @@ class Main:
     @commands.command()
     async def done(self, ctx):
         """Only usable on Japanese/Spanish servers, finishes a report"""
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spServ.members:
+        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
             return
         report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
         if ctx.channel == report_room:
@@ -432,7 +489,8 @@ class Main:
             self.dump_json()
 
     # removes people from the waiting list for ;report if they react with '🚫' to a certain message
-    async def on_reaction_add(self, reaction, user: discord.User):
+    # add/remove hardcore role from people
+    async def on_reaction_add(self, reaction, user: discord.Member):
         if reaction.emoji == '🚫':
             if reaction.message.channel == user.dm_channel:
                 waiting_list_dict = self.bot.db["report_room_waiting_list"]
@@ -451,6 +509,34 @@ class Main:
                         break
                 if not was_on_waiting_list:
                     await user.send("You aren't on the waiting list.")
+
+        if reaction.emoji == '🔥':
+            if not user.bot:
+                msg = reaction.message
+                try:
+                    config = self.bot.db['hardcore'][str(msg.guild.id)]
+                except KeyError:
+                    return
+                if reaction.message.id == config['message']:
+                    role = msg.guild.get_role(int(config['role']))
+                    try:
+                        await user.add_roles(role)
+                    except discord.errors.Forbidden:
+                        await msg.channel.send('Lacking `Manage Roles` permission')
+
+    async def on_reaction_remove(self, reaction, user: discord.Member):
+        if reaction.emoji == '🔥':
+            msg = reaction.message
+            try:
+                config = self.bot.db['hardcore'][str(msg.guild.id)]
+            except KeyError:
+                return
+            if reaction.message.id == config['message']:
+                role = msg.guild.get_role(int(config['role']))
+                try:
+                    await user.remove_roles(role)
+                except discord.errors.Forbidden:
+                    await msg.channel.send('Lacking `Manage Roles` permission')
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):

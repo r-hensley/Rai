@@ -75,11 +75,12 @@ class Owner:
     @commands.command(aliases=['sdb', 'dump'])
     async def savedatabase(self, ctx):
         """Saves the database"""
-        print(f"{dir_path}/database.json")
-        with open(f"{dir_path}/database.json", "w") as write_file:
+        with open(f'{dir_path}/database2.json', 'w') as write_file:
             json.dump(self.bot.db, write_file)
-        # with open(f'{dir_path}/database.json', 'w') as write_file:
-        #     json.dump(self.bot.db, write_file)
+            write_file.flush()
+            os.fsync(write_file.fileno())
+        os.remove(f'{dir_path}/database.json')
+        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
         await ctx.message.add_reaction('\u2705')
 
     @commands.command(aliases=['rdb'])
@@ -236,7 +237,12 @@ class Owner:
 
             if ret is None:
                 if value:
-                    await ctx.send(f'```py\n{value}\n```')
+                    try:
+                        await ctx.send(f'```py\n{value}\n```')
+                    except discord.errors.HTTPException:
+                        st = f'```py\n{value}\n```'
+                        await ctx.send('Result over 2000 characters')
+                        await ctx.send(st[0:1996]+'\n```')
             else:
                 self._last_result = ret
                 await ctx.send(f'```py\n{value}{ret}\n```')
