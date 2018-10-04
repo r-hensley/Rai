@@ -106,30 +106,28 @@ class Main:
                                     await self.msg_user(msg)
 
         """Hardcore mode"""
-        if msg.author.id == 202995638860906496:
-            if '*' not in msg.content:
+        if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"]['ignore']:
+            try:
+                ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
+                role = msg.guild.get_role(ROLE_ID)
+            except KeyError:
+                return
+            if role in msg.author.roles:
+                learning_eng = msg.guild.get_role(266778623631949826)
+                ratio = characters.jpenratio(msg)
+                if ratio is not None:
+                    if learning_eng in msg.author.roles:
+                        if ratio < .55:
+                            await msg.delete()
+                            if len(msg.content) > 60:
+                                await self.msg_user(msg)
+                    else:
+                        if ratio > .45:
+                            await msg.delete()
+                            if len(msg.content) > 60:
+                                await self.msg_user(msg)
 
-                try:
-                    ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
-                    role = msg.guild.get_role(ROLE_ID)
-                except KeyError:
-                    return
-                if role in msg.author.roles:
-                    learning_eng = msg.guild.get_role(266778623631949826)
-                    ratio = characters.jpenratio(msg)
-                    if ratio is not None:
-                        if learning_eng in msg.author.roles:
-                            if ratio < .55:
-                                await msg.delete()
-                                if len(msg.content) > 60:
-                                    await self.msg_user(msg)
-                        else:
-                            if ratio > .45:
-                                await msg.delete()
-                                if len(msg.content) > 60:
-                                    await self.msg_user(msg)
-
-    @commands.group()
+    @commands.group(invoke_without_command=True)
     @is_admin()
     async def hardcore(self, ctx):
         msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
@@ -142,6 +140,22 @@ class Main:
             role = await ctx.guild.create_role(name='🔥Hardcore🔥')
             self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
         await msg.add_reaction("🔥")
+        self.dump_json()
+
+    @hardcore.command()
+    @is_admin()
+    async def ignore(self, ctx):
+        config = self.bot.db['hardcore']["266695661670367232"]
+        try:
+            if ctx.channel.id not in config['ignore']:
+                config['ignore'].append(ctx.channel.id)
+                await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+            else:
+                config['ignore'].remove(ctx.channel.id)
+                await ctx.send(f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
+        except KeyError:
+            config['ignore'] = [ctx.channel.id]
+            await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
         self.dump_json()
 
     @commands.command()
@@ -510,33 +524,37 @@ class Main:
                 if not was_on_waiting_list:
                     await user.send("You aren't on the waiting list.")
 
-        if reaction.emoji == '🔥':
+    async def on_raw_reaction_add(self, payload):
+        if payload.emoji.name == '🔥':
+            guild = self.bot.get_guild(payload.guild_id)
+            user = guild.get_member(payload.user_id)
             if not user.bot:
-                msg = reaction.message
                 try:
-                    config = self.bot.db['hardcore'][str(msg.guild.id)]
+                    config = self.bot.db['hardcore'][str(payload.guild_id)]
                 except KeyError:
                     return
-                if reaction.message.id == config['message']:
-                    role = msg.guild.get_role(int(config['role']))
+                if payload.message_id == config['message']:
+                    role = guild.get_role(int(config['role']))
                     try:
                         await user.add_roles(role)
                     except discord.errors.Forbidden:
-                        await msg.channel.send('Lacking `Manage Roles` permission')
+                        print('Lacking `Manage Roles` permission')
 
-    async def on_reaction_remove(self, reaction, user: discord.Member):
-        if reaction.emoji == '🔥':
-            msg = reaction.message
-            try:
-                config = self.bot.db['hardcore'][str(msg.guild.id)]
-            except KeyError:
-                return
-            if reaction.message.id == config['message']:
-                role = msg.guild.get_role(int(config['role']))
+    async def on_raw_reaction_remove(self, payload):
+        if payload.emoji.name == '🔥':
+            guild = self.bot.get_guild(payload.guild_id)
+            user = guild.get_member(payload.user_id)
+            if not user.bot:
                 try:
-                    await user.remove_roles(role)
-                except discord.errors.Forbidden:
-                    await msg.channel.send('Lacking `Manage Roles` permission')
+                    config = self.bot.db['hardcore'][str(payload.guild_id)]
+                except KeyError:
+                    return
+                if payload.message_id == config['message']:
+                    role = guild.get_role(int(config['role']))
+                    try:
+                        await user.remove_roles(role)
+                    except discord.errors.Forbidden:
+                        print('Lacking `Manage Roles` permission')
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):

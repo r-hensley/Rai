@@ -8,6 +8,7 @@ import platform
 import codecs
 from datetime import datetime, timedelta
 import os
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 # Here you can modify the bot's prefix and description and whether it sends help in direct messages or not.
@@ -59,7 +60,7 @@ async def on_ready():
                 print('Deleting message {} from {}, {}'.format(iterator, channel.guild, channel.name))
                 await message.delete()
                 # await asyncio.sleep(0.2)
-
+     
     listFull = []
     listMob = []
     iterator = 0
@@ -81,13 +82,13 @@ async def on_ready():
             print('Posting message {}/{} to {},{}'.format(iterator, listMobLen, channel.guild, channel.name))
             await channel.send(listMob[i])
 
-    print("Hello everyone, I'm a mod in a couple of the servers of the Discord Language Learning Network, \
-    run inside a web app called Discord (like Skype, but better).  Discord is a great service for communication with \
-    people all over the world, and I think more people should know about it.\n I've decided to compile a master list \
-    of servers for everyone to explore around all the available servers.  I've put it all in one central hub server (\
-    https://discord.gg/DxSgKdP), but I'll put all the links below too.  These are all the discord servers for \
-    learning languages that I've managed to find anywhere, if anyone knows of any more, please tell me and I'll add \
-    it to my list!\n")  # Makes the Reddit post
+    print("Hello everyone, I'm a mod in a couple of the servers of the Discord Language Learning Network, "
+          "run inside a web app called Discord (like Skype, but better).  Discord is a great service for "
+          "communication with people all over the world, and I think more people should know about it.\n I've "
+          "decided to compile a master list of servers for everyone to explore around all the available servers.  "
+          "I've put it all in one central hub server (https://discord.gg/DxSgKdP), but I'll put all the links below "
+          "too.  These are all the discord servers for learning languages that I've managed to find anywhere, if "
+          "anyone knows of any more, please tell me and I'll add it to my list!\n")  # Makes the Reddit post
     for i in range(len(listMob)):
         if listMob[i][0:4] != '**__' and listMob[i][0:2] == '**':
             listMob[i] = listMob[i].replace('**', '* **', 1)
@@ -96,15 +97,14 @@ async def on_ready():
         if listMob[i][0] == '.':
             listMob[i] = listMob[i].replace('.', ' ')
         print(listMob[i][0:-1])
-    print("\n--------------------------\n**If you ever notice anything wrong with any of the servers, anything from \
-    a dead link to abusive administration, please tell me through Reddit or here: https://discord.gg/DxSgKdP (\
-    additionally, I'm in all the above servers, Ryry013#9234)**")
+    print("\n--------------------------\n**If you ever notice anything wrong with any of the servers, anything from "
+          "a dead link to abusive administration, please tell me through Reddit or here: https://discord.gg/DxSgKdP ("
+          "additionally, I'm in all the above servers, Ryry013#9234)**")
 
 
 def getAPIKey(filename):
     f = open(filename)
     return f.read()
-
 
 
 client.run(getAPIKey(f'{dir_path}/BasicBotAPIKey.txt'))
