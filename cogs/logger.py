@@ -120,14 +120,12 @@ class Logger:
         if len(before.content) < 1025:
             emb.add_field(name='**Before:**', value=before.content)
         else:
-            print(len(before.content[:1000]), len(before.content[1000:]))
             emb.add_field(name='**Before:** (Part 1):', value=before.content[:1000])
             emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:])
 
         if len(after.content) < 1025:
             emb.add_field(name='**After:**', value=after.content)
         else:
-            print(len(after.content[:1000]), len(after.content[1000:]))
             emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
             emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
 
@@ -184,8 +182,12 @@ class Logger:
             colour=0xDB3C3C,
             timestamp=datetime.utcnow()
         )
-        if message.content:
-            emb.add_field(name='**Message:**', value=f'{message.content}')
+            
+        if len(message.content) < 1025:
+            emb.add_field(name='**Message:**', value=message.content)
+        else:
+            emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
+            emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:])
 
         if message.attachments:
             list_of_attachments = []

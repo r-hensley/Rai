@@ -75,35 +75,38 @@ class Main:
             await msg.delete()
 
         """Ultra Hardcore"""
-        if msg.guild.id == 189571157446492161:
-            if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-                jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
-                learning_engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
-                # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
-                jpRole = msg.guild.get_role(196765998706196480)
-                ratio = characters.jpenratio(msg)
-                # if I delete a long message
-                
+        try:
+            if msg.guild.id == 189571157446492161:
+                if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+                    jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
+                    learning_engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
+                    # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+                    jpRole = msg.guild.get_role(196765998706196480)
+                    ratio = characters.jpenratio(msg)
+                    # if I delete a long message
 
-                # allow Kotoba bot commands
-                if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
-                    if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
-                        return  # please don't abuse this
 
-                # delete the messages
-                if ratio:
-                    if msg.channel.id not in self.bot.db['ultraHardcore']['ignore']:
-                        msg_content = msg.content
-                        if jpRole in msg.author.roles:
-                            if ratio < .55:
-                                await msg.delete()
-                                if len(msg_content) > 60:
-                                    await self.msg_user(msg)
-                        else:
-                            if ratio > .45:
-                                await msg.delete()
-                                if len(msg_content) > 60:
-                                    await self.msg_user(msg)
+                    # allow Kotoba bot commands
+                    if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
+                        if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
+                            return  # please don't abuse this
+
+                    # delete the messages
+                    if ratio:
+                        if msg.channel.id not in self.bot.db['ultraHardcore']['ignore']:
+                            msg_content = msg.content
+                            if jpRole in msg.author.roles:
+                                if ratio < .55:
+                                    await msg.delete()
+                                    if len(msg_content) > 30:
+                                        await self.msg_user(msg)
+                            else:
+                                if ratio > .45:
+                                    await msg.delete()
+                                    if len(msg_content) > 60:
+                                        await self.msg_user(msg)
+        except AttributeError:
+            pass
 
         """Hardcore mode"""
         if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"]['ignore']:
@@ -119,7 +122,7 @@ class Main:
                     if learning_eng in msg.author.roles:
                         if ratio < .55:
                             await msg.delete()
-                            if len(msg.content) > 60:
+                            if len(msg.content) > 30:
                                 await self.msg_user(msg)
                     else:
                         if ratio > .45:
