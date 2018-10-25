@@ -8,6 +8,7 @@ from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError
 import functools
 from Levenshtein import distance as LDist
+import re
 
 import os
 
@@ -220,7 +221,12 @@ class Logger:
                 guild_config: dict = self.bot.db['deletes'][guild]
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
-                    await channel.send(embed=await self.make_delete_embed(message))
+                    try:
+                        await channel.send(embed=await self.make_delete_embed(message))
+                    except discord.errors.HTTPException as e:
+                        print('Error in on_message_delete, ')
+                        print(e)
+                        print(message)
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -230,14 +236,21 @@ class Logger:
         if result == 1:
             await ctx.send('Disabled welcome logging for this server')
         elif result == 2:
-            server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
-            self.dump_json()
-            await ctx.send('Enabled welcome logging for this server')
+            try:
+                server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
+                server_config['invites_enable'] = True
+                self.dump_json()
+                await ctx.send('Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
+                               ' invite tracking)')
+            except discord.errors.Forbidden:
+                await ctx.send("I lack permissions to get invite codes.  Give me `Manage Server` and then type "
+                               "`;invites` to enable invite tracking for future joins.")
+                server_config['invites_enable'] = False
+                self.dump_json()
+
         elif result == 3:
             await ctx.send('You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
         elif result == 4:
-            server_config['invites_enable'] = False
-            self.dump_json()
             await ctx.send('Before doing this, set a channel for logging with `;welcome_logging set`.  '
                            'Then, enable/disable logging by typing `;welcome_logging`.')
 
@@ -248,10 +261,10 @@ class Logger:
             await ctx.send(f'Set the welcome logging channel as {ctx.channel.name}')
         elif result == 2:
             server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
-            server_config['invites_enable'] = False
+            server_config['invites_enable'] = True
             self.dump_json()
-            await ctx.send(f'Enabled welcome logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;welcome_logging`.')
+            await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
+                           f'Enable/disable logging by typing `;welcome_logging`.')
 
     @welcome_logging.command(aliases=['invites'])
     async def invites_enable(self, ctx):
@@ -290,7 +303,72 @@ class Logger:
 
         return emb
 
+    @commands.command()
+    async def invite_names(self, ctx):
+        """Enables bans for invite link names"""
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['invite_name_bans']:
+            config = self.bot.db['invite_name_bans'][guild]
+            try:
+                config['enable'] = not config['enable']
+                x = config['enable']
+                await ctx.send(f'Set bans for invite names to {x}')
+            except KeyError:
+                config['enable'] = True
+                x = config['enable']
+                await ctx.send(f'Set bans for invite names to {x}')
+        else:
+            self.bot.db['invite_name_bans'][guild] = {}
+            config = self.bot.db['invite_name_bans'][guild]
+            config['enable'] = True
+            x = config['enable']
+            await ctx.send(f'Set bans for invite names to {x}')
+        self.dump_json()
+
+    @commands.group(invoke_without_command=True)
+    async def welcome_message(self, ctx):
+        """enable welcome messages"""
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['welcome_message']:
+            config = self.bot.db['welcome_message'][guild]
+            try:
+                config['enable'] = not config['enable']
+                x = config['enable']
+                await ctx.send(f'Set welcome message posting to {x}')
+            except KeyError:
+                config['enable'] = True
+                x = config['enable']
+                await ctx.send(f'Set welcome message posting to {x}')
+        else:
+            self.bot.db['welcome_message'][guild] = {}
+            config = self.bot.db['welcome_message'][guild]
+            config['enable'] = True
+            x = config['enable']
+            await ctx.send(f'Set welcome message posting to {x}')
+        self.dump_json()
+
+    @welcome_message.command()
+    async def set_message(self, ctx, *, message: str = None):
+        if not message:
+            await ctx.send('Please put your welcome message after the command invocation.  For example: \n'
+                           '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
+                           "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
+                           "the user\n`$SERVER$` = The name of the server")
+        else:
+            config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+            config['message'] = message
+            await ctx.send(f"Set welcome message to ```{message}```")
+            self.dump_json()
+
+    @welcome_message.command()
+    async def set_channel(self, ctx):
+        config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+        config['channel'] = ctx.channel.id
+        await ctx.send(f"Set welcome message channel to {ctx.channel.mention}")
+        self.dump_json()
+
     async def on_member_join(self, member):
+        """Join logging"""
         guild = str(member.guild.id)
         if guild in self.bot.db['welcomes']:
             if self.bot.db['welcomes'][guild]['enable']:
@@ -335,6 +413,38 @@ class Logger:
                     await channel.send(embed=self.make_welcome_embed(member, used_invite))
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
+
+        """ban invite link names"""
+        pat = re.compile(r'.*(discord|discordapp).(gg|com\/invite)\/[A-Z0-9]{1,7}.*', re.I)
+        if re.match(pat, member.name):
+            print(f'{member.name} was a match')
+            try:
+                guild = str(member.guild.id)
+                if self.bot.db['invite_name_bans'][guild]['enable']:
+                    await member.ban()
+                    await self.bot.get_channel(329576845949534208).send(f"Banned user `{member.name}` "
+                                                                        f"for being an invite link name\n"
+                                                                        f"({member.id} {member.mention})")
+                    return  # stops execution of the rest of the code if was invite link name
+            except KeyError:
+                pass
+        else:
+            print(f'{member.name} did not match')
+
+        """welcome message"""
+        try:
+            guild = str(member.guild.id)
+            if self.bot.db['welcome_message'][guild]['enable']:
+                config = self.bot.db['welcome_message'][guild]
+                channel = self.bot.get_channel(config['channel'])
+                message = config['message']
+                message = message. \
+                    replace('$NAME$', member.name). \
+                    replace('$USERMENTION$', member.mention). \
+                    replace('$SERVER$', member.guild.name)
+                await channel.send(message)
+        except KeyError:
+            pass
 
         """Japanese Server Welcome"""
         if guild == '189571157446492161':
@@ -405,7 +515,11 @@ class Logger:
             if self.bot.db['leaves'][guild]['enable']:
                 server_config = self.bot.db['leaves'][guild]
                 channel = self.bot.get_channel(server_config['channel'])
-                await channel.send(embed=self.make_leave_embed(member))
+                try:
+                    await channel.send(embed=self.make_leave_embed(member))
+                except AttributeError as e:
+                    await self.bot.testChan.send("Error on on_member_remove"
+                                                 f"{member.guild}, {e}")
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
@@ -566,7 +680,7 @@ class Logger:
             return
         if emb:
             emb = discord.Embed(
-                description=f'❌ **{member.name}#{member.discriminator}** was `baned` ({member.id})\n\n'
+                description=f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
                             f'*by* {ban_entry.user.mention}\n**Reason**: {reason}',
                 colour=0x000000,
                 timestamp=datetime.utcnow()

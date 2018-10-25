@@ -15,8 +15,7 @@ class Math:
     def __init__(self, bot):
         self.bot = bot
 
-
-    @commands.command()
+    @commands.command(aliases=['randomwalk', 'rw'])
     async def randomWalk(self, ctx, n=None):
         """A random walk game, usage: ;randomWalk [length(number)]"""
 
@@ -26,7 +25,6 @@ class Math:
             )
             return
 
-        print(type(n))
         try:
             n = int(n)
         except ValueError:
@@ -43,22 +41,24 @@ class Math:
             flipped = True
             n = -n
         
-        if n > 1000:
+        if n > 1000 and ctx.author.id != self.bot.owner_id:
             n = 1000
             await ctx.send('Setting n to 1000')
         n += 1
+        if n > 1000:
+            await ctx.message.add_reaction('\u2705')
         for i in range(n):
-            rand = round(random.random(),3)
-            if rand > 0.5:
-                position += 1
-                posList.append(position)
-                probList.append(rand)
-            else:
+            rand = round(random.random(), 3)
+            if rand < 0.5:  # from [0.000, 0.499]
                 position -= 1
                 posList.append(position)
                 probList.append(rand)
+            else:  # from [0.500, 0.999]
+                position += 1
+                posList.append(position)
+                probList.append(rand)
 
-        if flipped == True:
+        if flipped:
             posList = [ -x for x in posList ]
             x = range(0,-n-1,-1)
         else:

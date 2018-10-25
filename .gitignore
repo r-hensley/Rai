@@ -22,3 +22,6 @@ gcloud_download_database.bat
 gcloud_gitpull.bat
 gcloud_send_database.bat
 gitignore/
+cogs/test.py
+messages.json
+Rai Test.py
