@@ -90,7 +90,7 @@ class Main:
                 ) and
                 not msg.author.bot  # checks to see if account is a bot account
         ):  # random sad face
-            if 'aryan' in msg.content:  # why do people say this so often...
+            if 'aryan' in cont.casefold():  # why do people say this so often...
                 return
             else:
                 await self.bot.spamChan.send(

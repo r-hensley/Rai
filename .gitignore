@@ -11,9 +11,7 @@ Watch Channel.py
 log/
 cogs/__pycache__
 cogs/inviteLog
-cogs/randomwalk.png
 gcloud g*
-gitignore/
 __pycache__/
 database2.json
 how_to_git.txt
@@ -25,3 +23,4 @@ gitignore/
 cogs/test.py
 messages.json
 Rai Test.py
+cogs/randomwalk.png
