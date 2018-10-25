@@ -91,6 +91,13 @@ class Owner:
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
 
+    @commands.command(aliases=['rmdb'])
+    async def reload_messages(self, ctx):
+        """Reloads the messages"""
+        with open(f"{dir_path}/messages.json", "r") as read_file:
+            self.bot.messages = json.load(read_file)
+        await ctx.message.add_reaction('♻')
+
     @commands.command()
     async def saveMessages(self, ctx):
         """Saves all messages in a channel to a text file"""

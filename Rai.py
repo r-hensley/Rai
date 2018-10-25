@@ -7,7 +7,7 @@ import platform
 import sys, traceback
 import json
 
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 from pytz import reference
 
 import os
@@ -26,6 +26,7 @@ logger.addHandler(handler)
 
 tStart = datetime.now()
 
+#initial_extensions = ['cogs.math']
 initial_extensions = ['cogs.main', 'cogs.owner', 'cogs.welcome', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
@@ -64,6 +65,9 @@ async def on_ready():
     with open(f"{dir_path}/database.json", "r") as read_file:
         bot.db = json.load(read_file)
     bot.ID = bot.db["ID"]
+
+    with open(f"{dir_path}/messages.json", "r") as read_file:
+        bot.messages = json.load(read_file)
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
