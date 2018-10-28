@@ -183,12 +183,13 @@ class Logger:
             colour=0xDB3C3C,
             timestamp=datetime.utcnow()
         )
-            
-        if len(message.content) < 1025:
-            emb.add_field(name='**Message:**', value=message.content)
-        else:
-            emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
-            emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:])
+
+        if message.content:
+            if len(message.content) < 1025:
+                emb.add_field(name='**Message:**', value=message.content)
+            else:
+                emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
+                emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:])
 
         if message.attachments:
             list_of_attachments = []
