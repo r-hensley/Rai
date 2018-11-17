@@ -28,7 +28,7 @@ class Main:
             os.fsync(write_file.fileno())
         os.remove(f'{dir_path}/database.json')
         os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
-        
+
     def dump_messages(self):
         with open(f'{dir_path}/messages2.json', 'w') as write_file:
             json.dump(self.bot.messages, write_file)
@@ -36,7 +36,6 @@ class Main:
             os.fsync(write_file.fileno())
         os.remove(f'{dir_path}/messages.json')
         os.rename(f'{dir_path}/messages2.json', f'{dir_path}/messages.json')
-
 
     def is_admin():
         async def pred(ctx):
@@ -61,31 +60,83 @@ class Main:
     @is_admin()
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese server"""
-        if ctx.channel.id in [511097200030384158, 266785836467617794]:
+        if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
             download_link = 'https://docs.google.com/document/u/0/export?format=txt' \
                             '&id=159L5Z1UEv7tJs_RurM1-GkoZeYAxTpvF5D4n6enqMuE' \
                             '&token=AC4w5VjkHYH7R7lINNiyXXfX29PlhW8qfg%3A1541923812297' \
                             '&includes_info_params=true'
-            async for message in ctx.channel.history(limit=11):
-                await message.delete()
-            rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig').replace('__', '').split('########')
-            for page in rules:
-                if page[0:6] == '!image':
-                    print(page)
-                    url = page.split(' ')[1].replace('\r', '').replace('\n', '')
-                    print(url)
-                    with open('image', 'wb') as f:
-                        urllib.request.urlretrieve(url, "image_file.png")
-                    await ctx.send(file=discord.File('image_file.png'))
-                else:
-                    await ctx.send(page)
+            channel = 0
+        elif ctx.channel.id in [243859172268048385, 513222365581410314]:  # english rules
+            download_link = 'https://docs.google.com/document/export?format=txt' \
+                            '&id=1kOML72CfGMtdSl2tNNtFdQiAOGMCN2kZedVvIHQIrw8' \
+                            '&token=AC4w5Vjrirj8E-5sNyCUvJOAEoQqTGJLcA%3A1542430650712' \
+                            '&includes_info_params=true'
+            channel = 1
+        elif ctx.channel.id in [499544213466120192, 513222453313667082]:  # spanish rules
+            download_link = 'https://docs.google.com/document/export?format=txt' \
+                            '&id=12Ydx_5M6KuO5NCfUrSD1P_eseR6VJDVAgMfOntJYRkM' \
+                            '&token=AC4w5ViCHzxJBaDe7nEOyBL75Tud06QVow%3A1542432513956' \
+                            '&includes_info_params=true'
+            channel = 2
+        else:
+            return
 
-    @commands.command()
-    @is_admin()
-    async def reactions_post(self, ctx):
-        """Posts the reactions for roles post on the Chinese server"""
-        pass
-
+        async for message in ctx.channel.history(limit=12):
+            await message.delete()
+        rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig')
+        rules = rules.replace('__', '').replace('{und}', '__')  # google uses '__' page breaks so this gets around that
+        rules = rules.split('########')
+        for page in rules:
+            if page[0:6] == '!image':
+                url = page.split(' ')[1].replace('\r', '').replace('\n', '')
+                with open('image', 'wb') as f:
+                    urllib.request.urlretrieve(url, "image_file.png")
+                msg = await ctx.send(file=discord.File('image_file.png'))
+            elif page[0:8].replace('\r', '').replace('\n', '') == '!roles':
+                if channel == 0:  # chinese
+                    emoji = self.bot.get_emoji(358529029579603969)  # blobflags
+                    post = page[8:].replace('{emoji}', str(emoji))
+                    msg = await ctx.send(post)
+                    self.bot.db['roles'][str(ctx.guild.id)]['message'] = msg.id
+                    await msg.add_reaction("🔥")  # hardcore
+                    await msg.add_reaction("📝")  # correct me
+                    await msg.add_reaction("🗣")  # debate
+                    await msg.add_reaction("🖋")  # handwriting
+                    await msg.add_reaction("🎙")  # VC all
+                elif channel == 1 or channel == 2:  # english/spanish
+                    emoji = self.bot.get_emoji(513211476790738954)
+                    emojispanish = self.bot.get_emoji(441439850466639885)
+                    emojienglish = self.bot.get_emoji(441439850449862656)
+                    emojiother = self.bot.get_emoji(441439850462183434)
+                    emojimod = self.bot.get_emoji(441439850571235328)
+                    post = page[8:].replace('{emojispanish}', str(emojispanish)). \
+                        replace('{emojienglish}', str(emojienglish)). \
+                        replace('{emojiother}', str(emojiother)). \
+                        replace('{emojimod}', str(emojimod)). \
+                        replace('{table}', str(emoji))
+                    msg = await ctx.send(post)
+                    await msg.add_reaction("🎨")
+                    await msg.add_reaction("🐱")
+                    await msg.add_reaction("🐶")
+                    await msg.add_reaction("🎮")
+                    await msg.add_reaction(emoji)  # table
+                    await msg.add_reaction("👪")
+                    await msg.add_reaction("🎥")
+                    await msg.add_reaction("🎵")
+                    await msg.add_reaction("❗")
+                    await msg.add_reaction("👚")
+                    await msg.add_reaction("💻")
+                    await msg.add_reaction("📔")
+                    await msg.add_reaction("✏")
+                    if channel == 1:
+                        self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
+                    elif channel == 2:
+                        self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
+                self.dump_json()
+            else:
+                msg = await ctx.send(page)
+            if '<@ &' in msg.content:
+                await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
     async def on_message(self, msg):
         """Message counting"""
@@ -96,7 +147,7 @@ class Main:
                 except AttributeError:
                     self.bot.msg_count = 1
                 try:
-                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")].\
+                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
                         append([msg.author.id, msg.channel.id])
                 except KeyError:
                     self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
@@ -143,7 +194,6 @@ class Main:
                     jpRole = msg.guild.get_role(196765998706196480)
                     ratio = characters.jpenratio(msg)
                     # if I delete a long message
-
 
                     # allow Kotoba bot commands
                     if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
@@ -249,21 +299,6 @@ class Main:
     async def invite(self, ctx):
         """Gives an invite to bring this bot to your server"""
         await ctx.send(discord.utils.oauth_url(self.bot.user.id))
-
-    # @commands.command()
-    # async def at(self, ctx):
-    #     """asyncio test"""
-    #     x = False
-    #     print(f'Before running the sleep, x should be false: {x}.')
-    #     me = self.bot.get_guild(275146036178059265).get_member(self.bot.owner_id)
-    #     x = await asyncio.sleep(2, str(me.status) == 'offline')
-    #     print(f'I have ran x = await asyncio.sleep(=="offline").  If I\'m offline, x should be True: {x}.')
-
-    # async def on_command_error(self, ctx, error):
-    #     """Reduces 'command not found' error to a single line in console"""
-    #     #  error = getattr(error, 'original', error)
-    #     if isinstance(error, commands.CommandNotFound):
-    #         print(error)
 
     @commands.group(invoke_without_command=True)
     async def report(self, ctx, user: discord.Member = None):
@@ -373,12 +408,15 @@ class Main:
                     await self.bot.get_channel(296013414755598346).send(f'Received report from a user: \n\n')
                     await self.bot.get_channel(296013414755598346).send(f'{reportMessage.content}')
 
-            async def option2(userIn: discord.Member, language_requested: int, report_guild: str):  # get into report room
+            async def option2(userIn: discord.Member, language_requested: int,
+                              report_guild: str):  # get into report room
                 REPORT_ROOM_ID = int(self.bot.db['report_room'][report_guild])
                 report_room = self.bot.get_channel(REPORT_ROOM_ID)
                 if not self.bot.db['current_report_member'][report_guild]:  # if no one is in the room
-                    if userIn.id in self.bot.db['report_room_waiting_list'][report_guild]:  # if user is in the waiting list
-                        self.bot.db['report_room_waiting_list'][report_guild].remove(userIn.id)  # remove from waiting list
+                    if userIn.id in self.bot.db['report_room_waiting_list'][
+                        report_guild]:  # if user is in the waiting list
+                        self.bot.db['report_room_waiting_list'][report_guild].remove(
+                            userIn.id)  # remove from waiting list
                     self.bot.db['current_report_member'][report_guild] = userIn.id  # set the current user
                     self.dump_json()
                     await report_room.set_permissions(userIn, read_messages=True)
@@ -413,16 +451,18 @@ class Main:
                     if str(userIn.id) not in self.bot.db['report_room_waiting_list'][report_guild]:
                         self.bot.db['report_room_waiting_list'][report_guild].append(userIn.id)  # add to waiting list
                         self.dump_json()
-                    await userIn.send(f"Sorry but someone else is using the room right now.  I'll message you when it's ope"
-                                      f"n in the order that I received requests.  You are position "
-                                      f"{self.bot.db['report_room_waiting_list'][report_guild].index(userIn.id)+1} "
-                                      f"on the list")
+                    await userIn.send(
+                        f"Sorry but someone else is using the room right now.  I'll message you when it's ope"
+                        f"n in the order that I received requests.  You are position "
+                        f"{self.bot.db['report_room_waiting_list'][report_guild].index(userIn.id)+1} "
+                        f"on the list")
                     if report_guild == '189571157446492161':
                         mod_channel = self.bot.get_channel(206230443413078016)  # spam and eggs
                     else:
                         mod_channel = self.bot.get_channel(296013414755598346)  # sp. mod channel
-                    await mod_channel.send(f'The user {userIn.name} has tried to access the report room, but was put on '
-                                           f'the wait list because someone else is currently using it.')
+                    await mod_channel.send(
+                        f'The user {userIn.name} has tried to access the report room, but was put on '
+                        f'the wait list because someone else is currently using it.')
 
             if user:  # if the mod specified a user
                 if ctx.channel.permissions_for(ctx.author).administrator:
@@ -599,36 +639,127 @@ class Main:
                     await user.send("You aren't on the waiting list.")
 
     async def on_raw_reaction_add(self, payload):
-        if payload.emoji.name == '🔥':
-            guild = self.bot.get_guild(payload.guild_id)
-            user = guild.get_member(payload.user_id)
-            if not user.bot:
-                try:
-                    config = self.bot.db['hardcore'][str(payload.guild_id)]
-                except KeyError:
+        if payload.guild_id == 266695661670367232:  # chinese
+            if payload.emoji.name in '🔥📝🖋🗣🎙':
+                roles = {'🔥': 496659040177487872,
+                         '📝': 509446402016018454,
+                         '🗣': 266713757030285313,
+                         '🖋': 344126772138475540,
+                         '🎙': 454893059080060930}
+                server = 0
+            else:
+                return
+        elif payload.guild_id == 243838819743432704:  # spanish/english
+            if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏':
+                roles = {'🎨': 401930364316024852,
+                         '🐱': 254791516659122176,
+                         '🐶': 349800774886359040,
+                         '🎮': 343617472743604235,
+                         '👪': 402148856629821460,
+                         '🎥': 354480160986103808,
+                         '🎵': 263643288731385856,
+                         '👚': 376200559063072769,
+                         '💻': 401930404908630038,
+                         '❗': 243859335892041728,
+                         '📔': 286000427512758272,
+                         '✏': 382752872095285248,
+                         'table': 396080550802096128}
+                server = 1
+            else:
+                return
+        guild = self.bot.get_guild(payload.guild_id)
+        user = guild.get_member(payload.user_id)
+        if not user.bot:
+            try:
+                config = self.bot.db['roles'][str(payload.guild_id)]
+            except KeyError:
+                return
+            if server == 0:
+                if payload.message_id != config['message']:
                     return
-                if payload.message_id == config['message']:
-                    role = guild.get_role(int(config['role']))
-                    try:
-                        await user.add_roles(role)
-                    except discord.errors.Forbidden:
-                        print('Lacking `Manage Roles` permission')
+            elif server == 1:
+                if payload.message_id != config['message1'] and payload.message_id != config['message2']:
+                    return
+            role = guild.get_role(roles[payload.emoji.name])
+            try:
+                await user.add_roles(role)
+            except discord.errors.Forbidden:
+                self.bot.get_user(202995638860906496).send(
+                    'on_raw_reaction_add: Lacking `Manage Roles` permission'
+                    f'<#{payload.guild_id}>')
 
     async def on_raw_reaction_remove(self, payload):
-        if payload.emoji.name == '🔥':
-            guild = self.bot.get_guild(payload.guild_id)
-            user = guild.get_member(payload.user_id)
-            if not user.bot:
-                try:
-                    config = self.bot.db['hardcore'][str(payload.guild_id)]
-                except KeyError:
+        if payload.guild_id == 266695661670367232:  # chinese
+            if payload.emoji.name in '🔥📝🖋🗣🎙':
+                roles = {'🔥': 496659040177487872,
+                         '📝': 509446402016018454,
+                         '🗣': 266713757030285313,
+                         '🖋': 344126772138475540,
+                         '🎙': 454893059080060930}
+                server = 0
+            else:
+                return
+        elif payload.guild_id == 243838819743432704:  # spanish/english
+            if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏':
+                roles = {'🎨': 401930364316024852,
+                         '🐱': 254791516659122176,
+                         '🐶': 349800774886359040,
+                         '🎮': 343617472743604235,
+                         '👪': 402148856629821460,
+                         '🎥': 354480160986103808,
+                         '🎵': 263643288731385856,
+                         '👚': 376200559063072769,
+                         '💻': 401930404908630038,
+                         '❗': 243859335892041728,
+                         '📔': 286000427512758272,
+                         '✏': 382752872095285248,
+                         'table': 396080550802096128}
+                server = 1
+            else:
+                return
+        guild = self.bot.get_guild(payload.guild_id)
+        user = guild.get_member(payload.user_id)
+        if not user.bot:
+            try:
+                config = self.bot.db['roles'][str(payload.guild_id)]
+            except KeyError:
+                return
+            if server == 0:
+                if payload.message_id != config['message']:
                     return
-                if payload.message_id == config['message']:
-                    role = guild.get_role(int(config['role']))
-                    try:
-                        await user.remove_roles(role)
-                    except discord.errors.Forbidden:
-                        print('Lacking `Manage Roles` permission')
+            elif server == 1:
+                if payload.message_id != config['message1'] and payload.message_id != config['message2']:
+                    return
+            role = guild.get_role(roles[payload.emoji.name])
+            try:
+                await user.remove_roles(role)
+            except discord.errors.Forbidden:
+                self.bot.get_user(202995638860906496).send(
+                    'on_raw_reaction_remove: Lacking `Manage Roles` permission'
+                    f'<#{payload.guild_id}>')
+
+    # async def on_raw_reaction_remove(self, payload):
+    #     if payload.emoji.name in '🔥📝🖋🗣🎙':
+    #         roles = {'🔥': 496659040177487872,
+    #                  '📝': 509446402016018454,
+    #                  '🗣': 266713757030285313,
+    #                  '🖋': 344126772138475540,
+    #                  '🎙': 454893059080060930}
+    #         guild = self.bot.get_guild(payload.guild_id)
+    #         user = guild.get_member(payload.user_id)
+    #         if not user.bot:
+    #             try:
+    #                 config = self.bot.db['roles'][str(payload.guild_id)]
+    #             except KeyError:
+    #                 return
+    #             if payload.message_id == config['message']:
+    #                 role = guild.get_role(roles[payload.emoji.name])
+    #                 try:
+    #                     await user.remove_roles(role)
+    #                 except discord.errors.Forbidden:
+    #                     self.bot.get_user(202995638860906496).send(
+    #                         'on_raw_reaction_remove: Lacking `Manage Roles` permission'
+    #                         f'<#{payload.guild_id}>')
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
@@ -666,7 +797,7 @@ class Main:
         self.dump_json()
 
     @captcha.command()
-    async def set_role(self, ctx, *, role_input: str =None):
+    async def set_role(self, ctx, *, role_input: str = None):
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -692,7 +823,7 @@ class Main:
     async def on_guild_join(self, guild):
         await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
 
-    @commands.command(aliases=['p', 's', 'play', 'skip', '_;', '-;', ')'])
+    @commands.command(aliases=['p', 's', ';play', 'skip', '_;', '-;', ')', '__;', '___;'])
     async def ignore_commands_list(self, ctx):
         print('Ignored command ' + ctx.invoked_with)
 
