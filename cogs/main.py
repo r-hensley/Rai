@@ -61,14 +61,14 @@ class Main:
     @is_admin()
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese server"""
-        if ctx.channel.id == 266785836467617794:
+        if ctx.channel.id in [511097200030384158, 266785836467617794]:
             download_link = 'https://docs.google.com/document/u/0/export?format=txt' \
                             '&id=159L5Z1UEv7tJs_RurM1-GkoZeYAxTpvF5D4n6enqMuE' \
                             '&token=AC4w5VjkHYH7R7lINNiyXXfX29PlhW8qfg%3A1541923812297' \
                             '&includes_info_params=true'
             async for message in ctx.channel.history(limit=11):
                 await message.delete()
-            rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig').replace('__', '').split('##########')
+            rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig').replace('__', '').split('########')
             for page in rules:
                 if page[0:6] == '!image':
                     print(page)
@@ -76,11 +76,6 @@ class Main:
                     print(url)
                     with open('image', 'wb') as f:
                         urllib.request.urlretrieve(url, "image_file.png")
-                    # with urllib.request.urlopen(url) as response, open('image', 'wb') as image_file:
-                    #     x = response.read()
-                    #     print(type(response), type(image_file), type(x))
-                    #     shutil.copyfileobj(x, image_file)
-                    #     print(type(response), type(image_file))
                     await ctx.send(file=discord.File('image_file.png'))
                 else:
                     await ctx.send(page)
@@ -549,7 +544,7 @@ class Main:
     @commands.command()
     async def done(self, ctx):
         """Only usable on Japanese/Spanish servers, finishes a report"""
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
+        if ctx.author not in self.bot.jpServ.members and ctx.author not in self.bot.spanServ.members:
             return
         report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
         if ctx.channel == report_room:
