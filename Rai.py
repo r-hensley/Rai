@@ -65,9 +65,15 @@ async def on_ready():
     with open(f"{dir_path}/database.json", "r") as read_file:
         bot.db = json.load(read_file)
     bot.ID = bot.db["ID"]
+    date = datetime.today().strftime("%d%m%Y%H%M")
+    with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
+        json.dump(bot.db, write_file)
 
     with open(f"{dir_path}/messages.json", "r") as read_file:
         bot.messages = json.load(read_file)
+
+    with open(f"{dir_path}/super_watch.json", "r") as read_file:
+        bot.super_watch = json.load(read_file)
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))

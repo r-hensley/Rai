@@ -244,7 +244,8 @@ class Logger:
                 await ctx.send('Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
                                ' invite tracking)')
             except discord.errors.Forbidden:
-                await ctx.send("I lack permissions to get invite codes.  Give me `Manage Server` and then type "
+                await ctx.send("I've enabled welcome message, but I lack permissions to get invite codes.  "
+                               "If you want invite tracking too, give me `Manage Server` and then type "
                                "`;invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
                 self.dump_json()
@@ -267,7 +268,7 @@ class Logger:
             await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
                            f'Enable/disable logging by typing `;welcome_logging`.')
 
-    @welcome_logging.command(aliases=['invites'])
+    @welcome_logging.command(aliases=['invites', 'invite'])
     async def invites_enable(self, ctx):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['welcomes']:
@@ -280,10 +281,13 @@ class Logger:
                 await ctx.send('Enabled invites tracking')
             self.dump_json()
 
-    def make_welcome_embed(self, member, used_invite):
+    async def make_welcome_embed(self, member, used_invite):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
+            if used_invite.code == "NJJCYVD":
+                await self.bot.get_channel(277384105245802497).send("<@107202830846148608> <@202995638860906496> "
+                                                                    "it's the troll maybe")
         else:
             time_str = ''
 
@@ -388,7 +392,15 @@ class Logger:
                 used_invite = None
                 if invites_enable:
                     try:
-                        old_invites = self.bot.db['welcomes'][str(member.guild.id)]['invites']
+                        try:
+                            old_invites = self.bot.db['welcomes'][str(member.guild.id)]['invites']
+                        except KeyError:
+                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = {}
+                        if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
+                            invites_list = await member.guild.invites()
+                            old_invites = {invite.code: invite.uses for invite in invites_list}
+                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
+                            self.dump_json()
                         invites = await member.guild.invites()
                         new_invites = {invite.code: invite.uses for invite in invites}
                         for invite in new_invites:
@@ -411,7 +423,8 @@ class Logger:
                             "invite link tracking.  If you wish to reenable it, type `;welcomes invites`")
                     self.dump_json()
                 try:
-                    await channel.send(embed=self.make_welcome_embed(member, used_invite))
+                    x = await self.make_welcome_embed(member, used_invite)
+                    await channel.send(embed=x)
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
 
@@ -429,8 +442,6 @@ class Logger:
                     return  # stops execution of the rest of the code if was invite link name
             except KeyError:
                 pass
-        else:
-            print(f'{member.name} did not match')
 
         """welcome message"""
         try:
