@@ -29,13 +29,20 @@ class Jpserv:
 
         return commands.check(pred)
 
-    def dump_json(self):
-        with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file)
+    def dump_json(self, which_json=0):
+        if which_json == 0:
+            filename = 'database2.json'
+            file = self.bot.db
+        if which_json == 1:
+            filename = 'super_watch2.json'
+            file = self.bot.super_watch
+        with open(f'{dir_path}/{filename}', 'w') as write_file:
+            json.dump(file, write_file)
             write_file.flush()
             os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/database.json')
-        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
+        final_filename = filename.replace('2', '')
+        os.remove(f'{dir_path}/{final_filename}')
+        os.rename(f'{dir_path}/{filename}', f'{dir_path}/{final_filename}')
 
     @commands.command()
     @is_admin()
@@ -47,6 +54,32 @@ class Jpserv:
             else:
                 await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
+
+    @commands.command()
+    @is_admin()
+    async def super_watch(self, ctx, target: discord.Member):
+        try:
+            config = self.bot.super_watch[str(ctx.guild.id)]
+        except KeyError:
+            self.bot.super_watch[str(ctx.guild.id)] = {}
+            config = self.bot.super_watch[str(ctx.guild.id)]
+        if target.id not in config['users']:
+            config['users'].append(target.id)
+        channel = self.bot.get_channel(config['channel'])
+        await channel.send(f"Added {target.name} to super_watch list")
+        self.dump_json(1)
+
+    @commands.command()
+    @is_admin()
+    async def super_unwatch(self, ctx, target: discord.Member):
+        config = self.bot.super_watch[str(ctx.guild.id)]
+        channel = self.bot.get_channel(config['channel'])
+        try:
+            config['users'].remove(target.id)
+            await channel.send(f"Removed {target.name} from super_watch list")
+        except ValueError:
+            await channel.send(f"That user wasn't on the super_watch list")
+        self.dump_json(1)
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
     async def ultrahardcore(self, ctx, member: discord.Member = None):
@@ -96,10 +129,16 @@ class Jpserv:
     @ultrahardcore.command()
     async def explanation(self, ctx):
         """Explains ultra hardcore mode for those who are using it and can't explain it"""
-        await ctx.send("This user is currently using ultra hardcore mode.  In this mode, they can't speak any English, "
-                       'and they also cannot undo this mode themselves.')
+        if ctx.author.id in self.bot.db['ultraHardcore'][str(ctx.guild.id)]:
+            await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't "
+                           f"speak any English, and they also cannot undo this mode themselves.")
+        else:
+            await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why"
+                           f"they're trying to use this command.  But, ultra hardcor emode means a user can't speak"
+                           f"any English, and can't undo this mode themselves no matter what.")
 
     @ultrahardcore.command()
+    @is_admin()
     async def ignore(self, ctx):
         config = self.bot.db['ultraHardcore']
         try:

@@ -105,14 +105,18 @@ class Main:
                     await msg.add_reaction("🎙")  # VC all
                 elif channel == 1 or channel == 2:  # english/spanish
                     emoji = self.bot.get_emoji(513211476790738954)
-                    emojispanish = self.bot.get_emoji(441439850466639885)
-                    emojienglish = self.bot.get_emoji(441439850449862656)
-                    emojiother = self.bot.get_emoji(441439850462183434)
-                    emojimod = self.bot.get_emoji(441439850571235328)
-                    post = page[8:].replace('{emojispanish}', str(emojispanish)). \
-                        replace('{emojienglish}', str(emojienglish)). \
-                        replace('{emojiother}', str(emojiother)). \
-                        replace('{emojimod}', str(emojimod)). \
+                    spanishnative = self.bot.get_emoji(524733330525257729)
+                    englishnative = self.bot.get_emoji(524733316193058817)
+                    othernative = self.bot.get_emoji(524733977991315477)
+                    fluentspanish = self.bot.get_emoji(524732626674909205)
+                    fluentenglish = self.bot.get_emoji(524732533775007744)
+                    mods = self.bot.get_emoji(524733987092955138)
+                    post = page[8:].replace('{spanishnative}', str(spanishnative)). \
+                        replace('{englishnative}', str(englishnative)). \
+                        replace('{othernative}', str(othernative)). \
+                        replace('{fluentspanish}', str(fluentspanish)). \
+                        replace('{fluentenglish}', str(fluentenglish)).\
+                        replace('{mods}', str(mods)).\
                         replace('{table}', str(emoji))
                     msg = await ctx.send(post)
                     await msg.add_reaction("🎨")
@@ -139,28 +143,10 @@ class Main:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
     async def on_message(self, msg):
-        """Message counting"""
-        try:
-            if msg.guild.id in [243838819743432704, 189571157446492161]:
-                try:
-                    self.bot.msg_count += 1
-                except AttributeError:
-                    self.bot.msg_count = 1
-                try:
-                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
-                        append([msg.author.id, msg.channel.id])
-                except KeyError:
-                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
-                        [msg.author.id, msg.channel.id]
-                if self.bot.msg_count % 100 == 0:
-                    self.dump_messages()
-        except AttributeError:
-            pass
-
         """Message as the bot"""
-        if msg.channel == 'Direct Message with Ryry013#9234' \
-                and int(msg.author.id) == self.bot.owner_id \
-                and str(msg.content[0:3]) == 'msg':
+        print(msg.content[0:3], msg.content[4:22], msg.content[22:])
+        if isinstance(msg.channel, discord.DMChannel) \
+                and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
             await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
 
         """Ping me if someone says my name"""
@@ -184,12 +170,39 @@ class Main:
         if msg.author.id == self.bot.owner_id and self.bot.selfMute:
             await msg.delete()
 
+        """super_watch"""
+        try:
+            if msg.author.id in self.bot.super_watch[str(msg.guild.id)]['users']:
+                channel = self.bot.get_channel(self.bot.super_watch[str(msg.guild.id)]['channel'])
+                await channel.send(
+                    f"<@202995638860906496> <#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
+                    f"\n{msg.content}")
+        except KeyError:
+            pass
+
+        """Message counting"""
+        try:
+            if msg.guild.id in [243838819743432704, 189571157446492161]:
+                try:
+                    self.bot.msg_count += 1
+                except AttributeError:
+                    self.bot.msg_count = 1
+                try:
+                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
+                        append([msg.author.id, msg.channel.id])
+                except KeyError:
+                    self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
+                        [msg.author.id, msg.channel.id]
+                if self.bot.msg_count % 100 == 0:
+                    self.dump_messages()
+        except AttributeError:
+            pass
+
         """Ultra Hardcore"""
         try:
             if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
                 if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
                     jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
-                    learning_engRole = next(role for role in jpServ.roles if role.id == 197100137665921024)
                     # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
                     jpRole = msg.guild.get_role(196765998706196480)
                     ratio = characters.jpenratio(msg)
@@ -823,9 +836,39 @@ class Main:
     async def on_guild_join(self, guild):
         await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
 
-    @commands.command(aliases=['p', 's', ';play', 'skip', '_;', '-;', ')', '__;', '___;'])
+    @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
+                               ';l', ';q', ';queue'])
     async def ignore_commands_list(self, ctx):
         print('Ignored command ' + ctx.invoked_with)
+
+    @commands.command()
+    async def pencil(self, ctx):
+        if ctx.author.nick:
+            try:
+                await ctx.author.edit(nick = ctx.author.nick + '📝')
+                await ctx.send("I've added 📝 to your name.  This means you wish to be corrected in your sentences")
+            except discord.errors.Forbidden:
+                await ctx.send("I lack the permissions to change your nickname")
+            except discord.errors.HTTPException:
+                await ctx.message.add_reaction('💢')
+        else:
+            try:
+                await ctx.author.edit(nick = ctx.author.name + '📝')
+                await ctx.send("I've added 📝 to your name.  This means you wish to be corrected in your sentences")
+            except discord.errors.Forbidden:
+                await ctx.send("I lack the permissions to change your nickname")
+
+    @commands.command()
+    async def eraser(self, ctx):
+        if ctx.author.nick:
+            try:
+                await ctx.author.edit(nick = ctx.author.nick[:-1])
+                await ctx.message.add_reaction('◀')
+            except discord.errors.Forbidden:
+                await ctx.send("I lack the permissions to change your nickname")
+        else:
+            await ctx.author.edit(nick = ctx.author.name[:-1])
+            await ctx.message.add_reaction('◀')
 
 
 def setup(bot):
