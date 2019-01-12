@@ -285,9 +285,17 @@ class Logger:
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
-            if used_invite.code == "NJJCYVD":
-                await self.bot.get_channel(277384105245802497).send("<@107202830846148608> <@202995638860906496> "
-                                                                    "it's the troll maybe")
+            # if used_invite.code == "NJJCYVD":
+            # await self.bot.get_channel(277384105245802497).send("<@107202830846148608> <@202995638860906496> "
+            # "it's the troll maybe")
+            if member.guild.id == 250884834803580929 and used_invite.code in ['DxSgKdP', 'dnKNXjk']:
+                message = f"I've detected someone who may possibly be a bad person.\n\
+                ID = {member.id}\n\
+                name = {member.name}\n\
+                mention = {member.mention}"
+                ryry = self.bot.get_user(202995638860906496)
+                await ryry.send(message)
+
         else:
             time_str = ''
 
@@ -307,28 +315,6 @@ class Logger:
         emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
 
         return emb
-
-    @commands.command()
-    async def invite_names(self, ctx):
-        """Enables bans for invite link names"""
-        guild = str(ctx.guild.id)
-        if guild in self.bot.db['invite_name_bans']:
-            config = self.bot.db['invite_name_bans'][guild]
-            try:
-                config['enable'] = not config['enable']
-                x = config['enable']
-                await ctx.send(f'Set bans for invite names to {x}')
-            except KeyError:
-                config['enable'] = True
-                x = config['enable']
-                await ctx.send(f'Set bans for invite names to {x}')
-        else:
-            self.bot.db['invite_name_bans'][guild] = {}
-            config = self.bot.db['invite_name_bans'][guild]
-            config['enable'] = True
-            x = config['enable']
-            await ctx.send(f'Set bans for invite names to {x}')
-        self.dump_json()
 
     @commands.group(invoke_without_command=True)
     async def welcome_message(self, ctx):
@@ -371,6 +357,11 @@ class Logger:
         config['channel'] = ctx.channel.id
         await ctx.send(f"Set welcome message channel to {ctx.channel.mention}")
         self.dump_json()
+
+    @welcome_message.command()
+    async def show_message(self, ctx):
+        config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+        await ctx.send("```" + config['message'] + "```")
 
     async def on_member_join(self, member):
         """Join logging"""
@@ -429,19 +420,19 @@ class Logger:
                     await channel.send('Rai needs permission to post embeds to track joins')
 
         """ban invite link names"""
-        pat = re.compile(r'.*(discord|discordapp).(gg|com\/invite)\/[A-Z0-9]{1,7}.*', re.I)
-        if re.match(pat, member.name):
-            print(f'{member.name} was a match')
-            try:
-                guild = str(member.guild.id)
-                if self.bot.db['invite_name_bans'][guild]['enable']:
-                    await member.ban()
+        try:
+            if self.bot.db['auto_bans'][guild]['enable']:
+                pat = re.compile(r'.*(discord|discordapp).(gg|com\/invite)\/[A-Z0-9]{1,7}.*', re.I)
+                if re.match(pat, member.name):
+                    guild = str(member.guild.id)
+                    await member.ban(reason="Name was a discord invite link")
                     await self.bot.get_channel(329576845949534208).send(f"Banned user `{member.name}` "
+                                                                        f"from {member.guild.name}"
                                                                         f"for being an invite link name\n"
                                                                         f"({member.id} {member.mention})")
                     return  # stops execution of the rest of the code if was invite link name
-            except KeyError:
-                pass
+        except KeyError:
+            pass
 
         """welcome message"""
         try:
@@ -454,7 +445,7 @@ class Logger:
                     replace('$NAME$', member.name). \
                     replace('$USERMENTION$', member.mention). \
                     replace('$SERVER$', member.guild.name)
-                await channel.send(message)
+                welcome_message = await channel.send(message)
         except KeyError:
             pass
 
@@ -463,10 +454,52 @@ class Logger:
             # check if they joined from a Japanese site or other
             # the following links are specifically the ones we've used to advertise on japanese sites
             japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
-            if str(used_invite.code) in japanese_links:
-                await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-            elif member.id != 414873201349361664:
-                await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+            post_message = True
+            try:
+                config = self.bot.db['readd_roles'][str(member.guild.id)]
+            except KeyError:
+                pass
+            else:
+                if config['enable'] and str(member.id) in config['users']:
+                    post_message = False
+                    roles_dict = {role.id: role for role in member.guild.roles}
+                    list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
+                    del(list_of_roles[0])
+                    await member.add_roles(*list_of_roles)
+                    await member.remove_roles(249695630606336000)
+                    await self.bot.jpJHO.send(f"Welcome back {member.name}! I've given your previous roles back to you")
+                    await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
+                                                                    f"{member.mention} on {member.guild.mention}")
+            finally:
+                if post_message:
+                    if str(used_invite.code) in japanese_links:
+                        await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+                    elif member.id != 414873201349361664:
+                        await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                if member.id == 414873201349361664:
+                    async for message in self.bot.jpJHO.history(limit=10):
+                        if message.author.id == 159985870458322944:
+                            await message.delete()
+                            break
+                    m = await self.bot.wait_for('message', timeout=5.0, check=lambda m: m.author.id == 299335689558949888)
+                    await m.delete()
+        else:
+            try:
+                config = self.bot.db['readd_roles'][str(member.guild.id)]
+            except KeyError:
+                pass
+            else:
+                if config['enable'] and str(member.id) in config['users']:
+                    roles_dict = {role.id: role for role in member.guild.roles}
+                    list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
+                    del(list_of_roles[0])
+                    await member.add_roles(*list_of_roles)
+                    await member.remove_roles(249695630606336000)
+                    await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
+                    await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
+                                                                    f"{member.mention} on {member.guild.mention}")
+
+
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -479,6 +512,28 @@ class Logger:
                     'Thanks! '
                     '(<@&470364944479813635>)'
                 )
+
+        """sex dating"""  # this should be the last module in on_member_join
+        try:
+            if self.bot.db['auto_bans'][str(member.guild.id)]['enable']:
+                await self.bot.wait_for('message',
+                                        timeout=500.0,
+                                        check=lambda m: 'discord.amazingsexdating.com' in m.content and
+                                                        m.author == member)
+                await member.ban(reason='For posting link to discord.amazingsexdating.com', delete_message_days=1)
+                try:
+                    await welcome_message.delete()
+                except UnboundLocalError:
+                    pass
+                await self.bot.get_channel(329576845949534208).send(f"Banned a user for posting an amazingsexdating "
+                                                                    f"link."
+                                                                    f"\nID: {member.id}"
+                                                                    f"\nServer: {member.guild.name}"
+                                                                    f"\nName: {member.name} {member.mention}")
+        except asyncio.TimeoutError:
+            pass
+        except KeyError:
+            pass
 
     @commands.group(invoke_without_command=True, aliases=['leave', 'leaves'])
     async def leave_logging(self, ctx):
@@ -533,6 +588,16 @@ class Logger:
                     await self.bot.testChan.send("Error on on_member_remove"
                                                  f"{member.guild}, {e}")
 
+        try:
+            config = self.bot.db['readd_roles'][str(member.guild.id)]
+        except KeyError:
+            pass
+        else:
+            if config['enable']:
+                config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"),
+                                                   [role.id for role in member.roles]]
+                self.dump_json()
+
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
             if guild_config['enable']:
@@ -571,7 +636,6 @@ class Logger:
             colour=0xFF9933,
             timestamp=datetime.utcnow()
         )
-
         emb.set_footer(
             text=f'{before.name}#{before.discriminator} ({before.id})',
             icon_url=before.avatar_url_as(static_format="png")
@@ -579,27 +643,29 @@ class Logger:
         return emb
 
     async def on_member_update(self, before, after):
+        # print(before.name, after.name)
         guild = str(before.guild.id)
         if guild in self.bot.db['nicknames']:
-            if before.nick != after.nick:
-                if self.bot.db['nicknames'][guild]['enable']:
-                    server_config = self.bot.db['nicknames'][guild]
-                    channel = self.bot.get_channel(server_config['channel'])
-                    if before.nick and not after.nick:  # nickname removed
-                        embed = self.make_nickname_embed(before, after)
-                        embed.description = f"**{before.nick}**'s nickname was **removed**"
-                    if not before.nick and after.nick:  # nickname added
-                        embed = self.make_nickname_embed(before, after)
-                        embed.description = \
-                            f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
-                    if before.name != after.name:
-                        embed = self.make_nickname_embed(before, after)
-                        embed.description = \
-                            f"**{before.name}#{before.discriminator}**'s membername was set to " \
-                            f"**{after.name}#{after.discriminator}**"
-                    if before.nick and after.nick:
-                        embed = self.make_nickname_embed(before, after)
+            if self.bot.db['nicknames'][guild]['enable']:
+                server_config = self.bot.db['nicknames'][guild]
+                channel = self.bot.get_channel(server_config['channel'])
+                if before.name != after.name:  # username change
+                    embed = self.make_nickname_embed(before, after)
+                    embed.description = f"**{before.name}#{before.discriminator}**'s username was set to **{after.name}#{after.discriminator}**"
                     await channel.send(embed=embed)
+                if before.nick != after.nick:  # nickname change
+                        if before.nick and not after.nick:  # nickname removed
+                            embed = self.make_nickname_embed(before, after)
+                            embed.description = f"**{before.nick}**'s nickname was **removed**"
+                        elif not before.nick and after.nick:  # nickname added
+                            embed = self.make_nickname_embed(before, after)
+                            embed.description = \
+                                f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
+                        elif before.nick and after.nick:
+                            embed = self.make_nickname_embed(before, after)
+                        else:
+                            return
+                        await channel.send(embed=embed)
 
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):
@@ -644,13 +710,14 @@ class Logger:
         return emb
 
     async def on_reaction_remove(self, reaction, member):
-        guild = str(member.guild.id)
-        if not member.bot:
-            if guild in self.bot.db['reactions']:
-                guild_config: dict = self.bot.db['reactions'][guild]
-                if guild_config['enable']:
-                    channel = self.bot.get_channel(guild_config["channel"])
-                    await channel.send(embed=self.make_reaction_embed(reaction, member))
+        if reaction.message.guild:
+            guild = str(member.guild.id)
+            if not member.bot:
+                if guild in self.bot.db['reactions']:
+                    guild_config: dict = self.bot.db['reactions'][guild]
+                    if guild_config['enable']:
+                        channel = self.bot.get_channel(guild_config["channel"])
+                        await channel.send(embed=self.make_reaction_embed(reaction, member))
 
     @commands.group(invoke_without_command=True, aliases=['ban', 'bans'])
     async def ban_logging(self, ctx):
@@ -708,6 +775,26 @@ class Logger:
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
                 await channel.send(embed=await self.make_ban_embed(guild, member))
+        if member.id == 414873201349361664:
+            await member.unban()
+
+    async def make_unban_embed(self, guild, user):
+        emb = discord.Embed(
+            description=f'❕ **{user.name}#{user.discriminator}** was `unbanned` ({user.id})',
+            colour=0x7F8C8D,
+            timestamp=datetime.utcnow()
+        )
+        emb.set_footer(text=f'User unbanned',
+                       icon_url=user.avatar_url_as(static_format="png"))
+        return emb
+
+    async def on_member_unban(self, guild, user):
+        guild_id: str = str(guild.id)
+        if guild_id in self.bot.db['bans']:
+            guild_config: dict = self.bot.db['bans'][guild_id]
+            if guild_config['enable']:
+                channel = self.bot.get_channel(guild_config["channel"])
+                await channel.send(embed=await self.make_unban_embed(guild, user))
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):

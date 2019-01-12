@@ -55,19 +55,31 @@ class Jpserv:
                 await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
 
-    @commands.command()
+    @commands.group(invoke_without_command=True)
     @is_admin()
     async def super_watch(self, ctx, target: discord.Member):
         try:
             config = self.bot.super_watch[str(ctx.guild.id)]
         except KeyError:
-            self.bot.super_watch[str(ctx.guild.id)] = {}
+            self.bot.super_watch[str(ctx.guild.id)] = {'channel': ctx.channel.id}
             config = self.bot.super_watch[str(ctx.guild.id)]
         if target.id not in config['users']:
             config['users'].append(target.id)
         channel = self.bot.get_channel(config['channel'])
         await channel.send(f"Added {target.name} to super_watch list")
         self.dump_json(1)
+
+    @super_watch.command()
+    async def set(self, ctx):
+        try:
+            config = self.bot.super_watch[str(ctx.guild.id)]
+        except KeyError:
+            self.bot.super_watch[str(ctx.guild.id)] = {'channel': ctx.channel.id}
+        else:
+            config['channel'] = ctx.channel.id
+        finally:
+            self.dump_json(1)
+            await ctx.send(f"Set posting channel for super watch as {ctx.channel.name} ({ctx.channel.id})")
 
     @commands.command()
     @is_admin()
