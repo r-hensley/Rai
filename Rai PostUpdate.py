@@ -19,17 +19,13 @@ client = Bot(description="Basic Bot by Ryry013#9234", command_prefix="r!", pm_he
 async def on_ready():
     client.germanicServListChan = client.get_channel(413491181171900416)
 
-    client.hubServ = client.get_guild(250884834803580929)
     client.hubServListChan = client.get_channel(250884951535255553)
     client.hubServMobileChan = client.get_channel(368564776386953226)
 
-    client.modServ = client.get_guild(257984339025985546)
     client.modServListChan = client.get_channel(258312052936802304)
     client.modServMobileChan = client.get_channel(367494244270866435)
 
     client.spanServ = client.get_guild(243838819743432704)
-
-    client.linglang = client.get_channel(460557284653662219)
 
     print('Updating posts')
 
@@ -39,27 +35,37 @@ async def on_ready():
     for channel in [client.hubServListChan, client.modServListChan]:  # Deletes messages from main lists, and posts
         # beginning of lists
         iterator = 0
+        print(channel)
+        try:
+            await channel.purge(limit=200)
+        except asyncio.queues.QueueEmpty:
+            pass
         async for message in channel.history():
             if is_me(message):
                 iterator += 1
                 print('Deleting message {} from {}, {}'.format(iterator, channel.guild, channel.name))
                 await message.delete()
-                # await asyncio.sleep(0.2)
         await channel.send('Reddit server masterlist: <https://www.reddit.com/r/languagelearning/comments/5m5426'
                            '/discord_language_learning_servers_masterlist/>')
-        await channel.send('Invite link for public language hub server: https://discord.gg/DxSgKdP')
+        await channel.send('Invite link for public language hub server: https://discord.gg/jxcVmHJ')
         await channel.send('You can copy-paste these two above messages and send them to anyone looking to see a list '
                            'of all the servers')
-        print('Posting list preamble to {},{}'.format(channel.guild, channel.name))
-    for channel in [client.modServMobileChan, client.hubServMobileChan, client.germanicServListChan]:  # Deletes
+        print('Posting list preamble to {}, {}'.format(channel.guild, channel.name))
+    # for channel in [client.modServMobileChan, client.hubServMobileChan, client.germanicServListChan]:  # Deletes
+    for channel in [client.hubServMobileChan, client.germanicServListChan]:  # Deletes
         # messages from mobile lists
         iterator = 0
-        async for message in channel.history():  # deletes mobile channel messages
+        try:
+            print(channel.guild.name, channel.name)
+            await channel.purge(limit=200)
+        except discord.errors.Forbidden:
+            pass
+        async for message in channel.history(limit=None):  # deletes mobile channel messages
             if is_me(message):
                 iterator += 1
                 print('Deleting message {} from {}, {}'.format(iterator, channel.guild, channel.name))
                 await message.delete()
-                # await asyncio.sleep(0.2)
+
      
     listFull = []
     listMob = []
@@ -78,7 +84,8 @@ async def on_ready():
     for i in range(listMobLen):  # Formats mobile lists, posts the mobile lists
         iterator += 1
         listMob[i] = listMob[i].replace('app.com/invite', '.gg')
-        for channel in [client.germanicServListChan, client.modServMobileChan, client.hubServMobileChan]:
+        # for channel in [client.germanicServListChan, client.modServMobileChan, client.hubServMobileChan]:
+        for channel in [client.germanicServListChan, client.hubServMobileChan]:
             print('Posting message {}/{} to {},{}'.format(iterator, listMobLen, channel.guild, channel.name))
             await channel.send(listMob[i])
 
@@ -86,7 +93,7 @@ async def on_ready():
           "run inside a web app called Discord (like Skype, but better).  Discord is a great service for "
           "communication with people all over the world, and I think more people should know about it.\n I've "
           "decided to compile a master list of servers for everyone to explore around all the available servers.  "
-          "I've put it all in one central hub server (https://discord.gg/DxSgKdP), but I'll put all the links below "
+          "I've put it all in one central hub server (https://discord.gg/jxcVmHJ), but I'll put all the links below "
           "too.  These are all the discord servers for learning languages that I've managed to find anywhere, if "
           "anyone knows of any more, please tell me and I'll add it to my list!\n")  # Makes the Reddit post
     for i in range(len(listMob)):
@@ -98,7 +105,7 @@ async def on_ready():
             listMob[i] = listMob[i].replace('.', ' ')
         print(listMob[i][0:-1])
     print("\n--------------------------\n**If you ever notice anything wrong with any of the servers, anything from "
-          "a dead link to abusive administration, please tell me through Reddit or here: https://discord.gg/DxSgKdP ("
+          "a dead link to abusive administration, please tell me through Reddit or here: https://discord.gg/jxcVmHJ ("
           "additionally, I'm in all the above servers, Ryry013#9234)**")
 
 

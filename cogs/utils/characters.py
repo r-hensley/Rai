@@ -41,6 +41,9 @@ _url = re.compile("""
 
 _emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
+def rem_emoji_url(msg):
+    return _emoji.sub('', _url.sub('', msg.content))
+
 def jpenratio(msg):
     text = _emoji.sub('', _url.sub('', msg.content))
     en, jp, total = get_character_spread(text)
