@@ -2,17 +2,16 @@ from discord.ext import commands
 import asyncio
 import traceback
 import discord
-import inspect
 import textwrap
 from contextlib import redirect_stdout
 import io
 import sys
 import codecs
 import json
+from .utils import helper_functions as hf
 
 # to expose to the eval command
 import datetime
-from collections import Counter
 from datetime import datetime, timedelta
 
 import os
@@ -75,18 +74,13 @@ class Owner:
     @commands.command(aliases=['sdb', 'dump'])
     async def savedatabase(self, ctx):
         """Saves the database"""
-        with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/database.json')
-        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
+        hf.dump_json()
         await ctx.message.add_reaction('\u2705')
 
     @commands.command(aliases=['rdb'])
     async def reload_database(self, ctx):
         """Reloads the database"""
-        with open(f"{dir_path}/database.json", "r") as read_file:
+        with open(f"{dir_path}/db_local.json", "r") as read_file:
             self.bot.db = json.load(read_file)
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
@@ -113,7 +107,6 @@ class Owner:
                     file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(aliases=['quit'])
-    @commands.is_owner()
     async def kill(self, ctx):
         """Kills bot"""
         try:
@@ -124,7 +117,6 @@ class Owner:
             await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
 
     @commands.command()
-    @commands.is_owner()
     async def load(self, ctx, *, cog : str):
         """Command which loads a module."""
 
@@ -135,9 +127,7 @@ class Owner:
         else:
             await ctx.send('**`SUCCESS`**')
 
-
     @commands.command()
-    @commands.is_owner()
     async def unload(self, ctx, *, cog : str):
 
         try:
@@ -147,9 +137,7 @@ class Owner:
         else:
             await ctx.send('**`SUCCESS`**')
 
-
     @commands.command()
-    @commands.is_owner()
     async def reload(self, ctx, *, cog : str):
     
         try:
@@ -202,7 +190,7 @@ class Owner:
                 print(f'This user left: {member[0].name}: {member[1]}')
         await ctx.send(ping_party_list)
 
-    @commands.command(pass_context=True, hidden=True, name='eval')
+    @commands.command(hidden=True, name='eval')
     async def _eval(self, ctx, *, body: str):
         """Evaluates a code"""
 
@@ -308,6 +296,49 @@ class Owner:
         except discord.errors.NotFound:
             pass
         await ctx.send(f"{content}")
+
+    @commands.command(aliases=['fd'])
+    async def get_left_users(self, ctx):
+        print('finding messages')
+        channel = self.bot.get_channel(277384105245802497)
+        name_to_id = {role.name: role.id for role in channel.guild.roles}
+        id_to_role = {role.id: role for role in channel.guild.roles}
+        # self.bot.messages = await channel.history(limit=None, after=datetime.utcnow() - timedelta(days=60)).flatten()
+        config = self.bot.db['readd_roles'][str(channel.guild.id)]
+        config['users'] = {}
+        print(len(self.bot.messages))
+        for message in self.bot.messages:
+            if message.author.id == 270366726737231884:
+                if message.embeds:
+                    try:
+                        embed = message.embeds[0]
+                    except IndexError:
+                        continue
+                    if embed.footer.text[0:10] == 'User Leave':
+                        USER_ID = embed.description.split('. (')[1][:-1]
+                        try:
+                            role_name_list = embed.fields[0].value.split(', ')
+                        except IndexError:
+                            pass
+                        role_id_list = [name_to_id[role] for role in role_name_list]
+                        try:
+                            role_id_list.remove(309913956061806592)  # in voice role
+                        except ValueError:
+                            pass
+                        try:
+                            role_id_list.remove(249695630606336000)  # new user
+                        except ValueError:
+                            pass
+                        if role_id_list:
+                            print(USER_ID, embed.fields)
+                            config['users'][USER_ID] = [message.created_at.strftime("%Y%m%d"),
+                                                        role_id_list]
+        hf.dump_json()
+        print('done')
+
+    async def on_guild_join(self, guild):
+        await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
+
 
 
 def setup(bot):

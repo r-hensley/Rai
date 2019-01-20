@@ -1,14 +1,8 @@
 import discord
 from discord.ext import commands
-import asyncio
-from datetime import datetime, timedelta
-from pytz import reference
-import time
-import sys
 import os
-from .utils import characters
-import re
 import json
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace('\\', '/')
 
@@ -45,7 +39,7 @@ class Jpserv:
         os.rename(f'{dir_path}/{filename}', f'{dir_path}/{final_filename}')
 
     @commands.command()
-    @is_admin()
+    @hf.is_admin()
     async def swap(self, ctx):
         if self.bot.jpJHO.permissions_for(ctx.author).administrator:
             if self.bot.jpJHO.position == 4:
@@ -56,7 +50,7 @@ class Jpserv:
                 await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
 
     @commands.group(invoke_without_command=True)
-    @is_admin()
+    @hf.is_admin()
     async def super_watch(self, ctx, target: discord.Member):
         try:
             config = self.bot.super_watch[str(ctx.guild.id)]
@@ -82,7 +76,7 @@ class Jpserv:
             await ctx.send(f"Set posting channel for super watch as {ctx.channel.name} ({ctx.channel.id})")
 
     @commands.command()
-    @is_admin()
+    @hf.is_admin()
     async def super_unwatch(self, ctx, target: discord.Member):
         config = self.bot.super_watch[str(ctx.guild.id)]
         channel = self.bot.get_channel(config['channel'])
@@ -100,7 +94,7 @@ class Jpserv:
         if not member:  # if no ID specified in command
             if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
                 self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-                self.dump_json()
+                hf.dump_json()
                 try:
                     await ctx.author.add_roles(role)
                 except discord.errors.Forbidden:
@@ -114,7 +108,7 @@ class Jpserv:
             if self.bot.jpJHO.permissions_for(ctx.author).administrator:
                 if ctx.author.id != member.id:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
-                    self.dump_json()
+                    hf.dump_json()
                     try:
                         await member.remove_roles(role)
                     except discord.errors.Forbidden:
@@ -150,7 +144,7 @@ class Jpserv:
                            f"any English, and can't undo this mode themselves no matter what.")
 
     @ultrahardcore.command()
-    @is_admin()
+    @hf.is_admin()
     async def ignore(self, ctx):
         config = self.bot.db['ultraHardcore']
         try:
@@ -163,7 +157,7 @@ class Jpserv:
         except KeyError:
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
-        self.dump_json()
+        hf.dump_json()
 
 def setup(bot):
     bot.add_cog(Jpserv(bot))
