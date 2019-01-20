@@ -37,3 +37,8 @@ cogs/nadeko*
 stats_results*
 todo*
 words*
+local/*
+stats*
+modified*
+raw*
+usage_stats*

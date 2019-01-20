@@ -1,1 +1,1 @@
-call gcloud compute scp ./characters.py ryry013@centos:/home/ryry013/Rai/cogs/utils/characters.py
+call gcloud compute scp ./helper_functions.py ryry013@centos:/home/ryry013/Rai/cogs/utils/helper_functions.py

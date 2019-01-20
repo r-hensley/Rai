@@ -36,8 +36,9 @@ class Math:
                                                                          m.channel == ctx.channel)
                 starting_money = int(starting_money.content)
 
-                await ctx.send(f"Ok, starting money set to `{starting_money}`.  Now tell me how much you want your first "
-                               f"bet to be")
+                await ctx.send(
+                    f"Ok, starting money set to `{starting_money}`.  Now tell me how much you want your first "
+                    f"bet to be")
                 starting_bet = await self.bot.wait_for('message', timeout=25.0,
                                                        check=lambda m: m.author == ctx.author and
                                                                        m.channel == ctx.channel)
@@ -60,7 +61,10 @@ class Math:
                 starting_money = int(starting_money)
                 starting_bet = int(starting_bet)
                 bet_increase = float(bet_increase)
-                await ctx.message.add_reaction('👍')
+                try:
+                    await ctx.message.add_reaction('👍')
+                except discord.errors.NotFound:
+                    pass
 
         except asyncio.TimeoutError:
             await ctx.send("Timed out.  Exiting module")
@@ -73,7 +77,6 @@ class Math:
             print(e)
             await ctx.send("You put in a bad number somewhere.  Try again from the beginning.  Exiting module")
             return
-
 
         money_history = [starting_money]
         current_money = int(starting_money)
@@ -109,11 +112,10 @@ class Math:
             money_history.append(current_money)
 
         if bet_number >= 1000000:
-            await ctx.send('I reached 1,000,000 flips so I stopped.  Pick smaller numbers please.')
-            return
+            await ctx.send('I reached 1,000,000 flips so I stopped.')
 
         plt.plot(number_axis, money_history)
-        plt.title(f"Starting with {starting_money} and a first bet of {starting_bet}")
+        plt.title(f"Start with {starting_money}, first bet: {starting_bet} (x{bet_increase} on loss)")
         stats = f"```Some stats: \n\n" \
                 f"Number of bets: {bet_number}\n" \
                 f"Highest point: {max(money_history)} at bet {money_history.index(max(money_history))}```"
@@ -125,18 +127,18 @@ class Math:
                     write_file.write(line)
                 plt.savefig(plotIm, format='png')
                 plotIm.seek(0)
-                write_file.seek(0)
-                try:
+                write_file.seek(0, os.SEEK_END)
+                text_file_size = write_file.tell()  # size of the text file in bytes
+                if text_file_size < 8000000:
+                    write_file.seek(0)
                     await ctx.send(content=stats, files=[discord.File(plotIm, 'plot.png'),
-                                                     discord.File(write_file, 'betting_log.txt')])
-                except discord.errors.HTTPException:
+                                                         discord.File(write_file, 'betting_log.txt')])
+                else:
+                    stats = stats + 'The text file was too big for Discord so it is not included'
                     await ctx.send(content=stats, file=discord.File(plotIm, 'plot.png'))
         plt.clf()
         plt.cla()
         plt.close()
-
-
-
 
     @commands.command(aliases=['randomwalk', 'rw'])
     async def randomWalk(self, ctx, n=None):

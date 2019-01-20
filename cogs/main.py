@@ -2,13 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
-import json
-from urllib.parse import urlparse
-import re
-from .utils import characters
-import urllib.request
-import requests
-import shutil
+from .utils import helper_functions as hf
 import langdetect
 
 import os
@@ -21,142 +15,7 @@ class Main:
 
     def __init__(self, bot):
         self.bot = bot
-
-    def dump_json(self):
-        with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/database.json')
-        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
-
-    def dump_messages(self):
-        with open(f'{dir_path}/messages2.json', 'w') as write_file:
-            json.dump(self.bot.messages, write_file)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/messages.json')
-        os.rename(f'{dir_path}/messages2.json', f'{dir_path}/messages.json')
-
-    def is_admin():
-        async def pred(ctx):
-            try:
-                ID = ctx.bot.db['mod_role'][str(ctx.guild.id)]['id']
-                mod_role = ctx.guild.get_role(ID)
-                return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
-            except KeyError:
-                return ctx.channel.permissions_for(ctx.author).administrator
-            except TypeError:
-                return ctx.channel.permissions_for(ctx.author).administrator
-
-        return commands.check(pred)
-
-    async def msg_user(self, msg):
-        try:
-            notification = 'I may have deleted a message of yours that was long.  Here it was:'
-            await msg.author.send(notification)
-            await msg.author.send(msg.content)
-        except discord.errors.Forbidden:
-            if msg.author.id == 401683644529377290:
-                return
-            await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
-                                   f"but you seem to have DMs disabled so I couldn't send it to you.")
-            notification = \
-                f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
-            me = self.bot.get_user(self.bot.owner_id)
-            await me.send(notification)
-            # await me.send(msg.author.name, msg.content)
-
-    @commands.command()
-    async def post_rules(self, ctx):
-        """Posts the rules page on the Chinese/Spanish server"""
-        if ctx.channel.permissions_for(ctx.author).send_messages:
-            if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
-                download_link = 'https://docs.google.com/document/u/0/export?format=txt' \
-                                '&id=159L5Z1UEv7tJs_RurM1-GkoZeYAxTpvF5D4n6enqMuE' \
-                                '&token=AC4w5VjkHYH7R7lINNiyXXfX29PlhW8qfg%3A1541923812297' \
-                                '&includes_info_params=true'
-                channel = 0
-            elif ctx.channel.id in [243859172268048385, 513222365581410314]:  # english rules
-                download_link = 'https://docs.google.com/document/export?format=txt' \
-                                '&id=1kOML72CfGMtdSl2tNNtFdQiAOGMCN2kZedVvIHQIrw8' \
-                                '&token=AC4w5Vjrirj8E-5sNyCUvJOAEoQqTGJLcA%3A1542430650712' \
-                                '&includes_info_params=true'
-                channel = 1
-            elif ctx.channel.id in [499544213466120192, 513222453313667082]:  # spanish rules
-                download_link = 'https://docs.google.com/document/export?format=txt' \
-                                '&id=12Ydx_5M6KuO5NCfUrSD1P_eseR6VJDVAgMfOntJYRkM' \
-                                '&token=AC4w5ViCHzxJBaDe7nEOyBL75Tud06QVow%3A1542432513956' \
-                                '&includes_info_params=true'
-                channel = 2
-            else:
-                return
-
-            async for message in ctx.channel.history(limit=12):
-                try:
-                    await message.delete()
-                except discord.errors.NotFound:
-                    pass
-            rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig')
-            rules = rules.replace('__', '').replace('{und}',
-                                                    '__')  # google uses '__' page breaks so this gets around that
-            rules = rules.split('########')
-            for page in rules:
-                if page[0:6] == '!image':
-                    url = page.split(' ')[1].replace('\r', '').replace('\n', '')
-                    with open('image', 'wb') as f:
-                        urllib.request.urlretrieve(url, "image_file.png")
-                    msg = await ctx.send(file=discord.File('image_file.png'))
-                elif page[0:8].replace('\r', '').replace('\n', '') == '!roles':
-                    if channel == 0:  # chinese
-                        emoji = self.bot.get_emoji(358529029579603969)  # blobflags
-                        post = page[8:].replace('{emoji}', str(emoji))
-                        msg = await ctx.send(post)
-                        self.bot.db['roles'][str(ctx.guild.id)]['message'] = msg.id
-                        await msg.add_reaction("🔥")  # hardcore
-                        await msg.add_reaction("📝")  # correct me
-                        await msg.add_reaction("🗣")  # debate
-                        await msg.add_reaction("🖋")  # handwriting
-                        await msg.add_reaction("🎙")  # VC all
-                    elif channel == 1 or channel == 2:  # english/spanish
-                        emoji = self.bot.get_emoji(513211476790738954)
-                        spanishnative = self.bot.get_emoji(524733330525257729)
-                        englishnative = self.bot.get_emoji(524733316193058817)
-                        othernative = self.bot.get_emoji(524733977991315477)
-                        fluentspanish = self.bot.get_emoji(524732626674909205)
-                        fluentenglish = self.bot.get_emoji(524732533775007744)
-                        mods = self.bot.get_emoji(524733987092955138)
-                        post = page[8:].replace('{spanishnative}', str(spanishnative)). \
-                            replace('{englishnative}', str(englishnative)). \
-                            replace('{othernative}', str(othernative)). \
-                            replace('{fluentspanish}', str(fluentspanish)). \
-                            replace('{fluentenglish}', str(fluentenglish)). \
-                            replace('{mods}', str(mods)). \
-                            replace('{table}', str(emoji))
-                        msg = await ctx.send(post)
-                        await msg.add_reaction("🎨")
-                        await msg.add_reaction("🐱")
-                        await msg.add_reaction("🐶")
-                        await msg.add_reaction("🎮")
-                        await msg.add_reaction(emoji)  # table
-                        await msg.add_reaction('🔥')
-                        await msg.add_reaction("👪")
-                        await msg.add_reaction("🎥")
-                        await msg.add_reaction("🎵")
-                        await msg.add_reaction("❗")
-                        await msg.add_reaction("👚")
-                        await msg.add_reaction("💻")
-                        await msg.add_reaction("📔")
-                        await msg.add_reaction("✏")
-                        if channel == 1:
-                            self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
-                        elif channel == 2:
-                            self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
-                    self.dump_json()
-                else:
-                    msg = await ctx.send(page)
-                if '<@ &' in msg.content:
-                    await msg.edit(content=msg.content.replace('<@ &', '<@&'))
+        hf.setup(bot)
 
     async def on_message(self, msg):
         if msg.author.bot:
@@ -167,231 +26,220 @@ class Main:
                 and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
             await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
 
-        if isinstance(msg.channel, discord.TextChannel):
-            """sex dating"""
+        if not isinstance(msg.channel, discord.TextChannel):
+            print(msg.created_at, msg.author.name)
+            return  # stops the rest of the code unless it's in a guild
+
+        """sex dating"""
+        if 'amazingsexdating' in msg.content:
+            await self.bot.get_user(self.bot.owner_id).send(f"sexdating in {msg.channel.mention}")
+            print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
+            print(datetime.utcnow(), '-----', msg.author.joined_at, '-----', datetime.utcnow() - msg.author.joined_at)
+        try:
+            if 'amazingsexdating' in msg.content and \
+                    self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
+                    datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
+                print('sex dating!!!!!!!!!!')
+                if msg.author.id in [202995638860906496, 414873201349361664]:
+                    print("This code would've banned but I stopped it")
+                    return
+                await msg.author.ban(reason='For posting link to discord.amazingsexdating.com',
+                                     delete_message_days=1)
+                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
+                channel = self.bot.get_channel(533863928263082014)
+                await channel.send(
+                    f"❌ Automatically added `{msg.author.name} ({msg.author.id}`) to the blacklist for "
+                    f"posting an amazingsexdating.com link")
+                message = f"Banned a user for posting an amazingsexdating link." \
+                          f"\nID: {msg.author.id}" \
+                          f"\nServer: {msg.author.guild.name}" \
+                          f"\nName: {msg.author.name} {msg.author.mention}"
+                await self.bot.get_channel(329576845949534208).send(message)
+                hf.dump_json()
+        except KeyError as e:
+            print('passed for key error on amazingsexdating: ' + e)
+            pass
+        except AttributeError as e:
+            print('passed for attributeerror in amazingsexdating: ' + e)
+            pass
+
+        """mods ping on spanish server"""
+        if msg.guild.id == 243838819743432704:
+            if '<@&258806166770024449>' in msg.content:
+                ch = self.bot.get_channel(296013414755598346)
+                me = self.bot.get_user(202995638860906496)
+                await ch.send(f"Mods ping from {msg.author.name} in {msg.channel.mention}\n"
+                              f"```{msg.content}```")
+                await me.send(f"Spanish server: mods ping from {msg.author.name} in {msg.channel.mention}\n"
+                              f"```{msg.content}```")
+
+        """Ping me if someone says my name"""
+        cont = str(msg.content)
+        if (
+                (
+                        'ryry' in cont.casefold()
+                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
+                        or 'らいらい' in cont.casefold()
+                        or 'ライライ' in cont.casefold()
+                ) and
+                not msg.author.bot  # checks to see if account is a bot account
+        ):  # random sad face
+            if 'aryan' in cont.casefold():  # why do people say this so often...
+                return
+            else:
+                await self.bot.spamChan.send(
+                    '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id,
+                                                                          msg.content))
+
+        """Self mute"""
+        if msg.author.id == self.bot.owner_id and self.bot.selfMute:
             try:
-                if 'http://discord.amazingsexdating.com/' in msg.content:
-                    print('sex dating!!!!!!!!!!')
-                    if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
-                        if datetime.utcnow() - msg.author.created_at < timedelta(hours=1):
-                            await msg.author.ban(reason='For posting link to discord.amazingsexdating.com',
-                                                 delete_message_days=1)
-                            await self.bot.get_channel(329576845949534208).send(f"Banned a user for posting an "
-                                                                                f"amazingsexdating link."
-                                                                                f"\nID: {member.id}"
-                                                                                f"\nServer: {member.guild.name}"
-                                                                                f"\nName: {member.name} {member.mention}")
+                await msg.delete()
+            except discord.errors.NotFound:
+                pass
+
+        if msg.guild:
+            """super_watch"""
+            try:
+                if msg.author.id in self.bot.super_watch[str(msg.guild.id)]['users']:
+                    channel = self.bot.get_channel(self.bot.super_watch[str(msg.guild.id)]['channel'])
+                    await channel.send(
+                        f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
+                        f"\n{msg.content}")
             except KeyError:
                 pass
-            except AttributeError as e:
-                print(e)
+
+            # """Message counting"""
+            # try:
+            #     if msg.guild.id in [243838819743432704, 189571157446492161]:
+            #         try:
+            #             self.bot.msg_count += 1
+            #         except AttributeError:
+            #             self.bot.msg_count = 1
+            #         try:
+            #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
+            #                 append([msg.author.id, msg.channel.id])
+            #         except KeyError:
+            #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
+            #                 [msg.author.id, msg.channel.id]
+            #         if self.bot.msg_count % 100 == 0:
+            #             self.dump_messages()
+            # except AttributeError:
+            #     pass
+
+            """Ultra Hardcore"""
+            try:
+                if msg.guild.id == 189571157446492161 and len(msg.content) > 3 and msg.content[0] != ';':
+                    if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
+                        jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
+                        # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+                        jpRole = msg.guild.get_role(196765998706196480)
+                        ratio = characters.jpenratio(msg)
+                        # if I delete a long message
+
+                        # allow Kotoba bot commands
+                        if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
+                            if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
+                                return  # please don't abuse this
+
+                        # delete the messages
+                        if ratio or ratio == 0.0:
+                            if msg.channel.id not in self.bot.db['ultraHardcore']['ignore']:
+                                msg_content = msg.content
+                                if jpRole in msg.author.roles:
+                                    if ratio < .55:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg_content) > 30:
+                                            await hf.long_deleted_msg_notification(msg)
+                                else:
+                                    if ratio > .45:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg_content) > 60:
+                                            await hf.long_deleted_msg_notification(msg)
+            except AttributeError:
                 pass
 
-            if msg.guild.id == 243838819743432704:
-                if '<@&258806166770024449>' in msg.content:
-                    ch = self.bot.get_channel(296013414755598346)
-                    me = self.bot.get_user(202995638860906496)
-                    await ch.send(f"Mods ping from {msg.author.name} in {msg.channel.mention}")
-                    await me.send(f"Spanish server: mods ping from {msg.author.name} in {msg.channel.mention}")
-
-            """Ping me if someone says my name"""
-            cont = str(msg.content)
-            if (
-                    (
-                            'ryry' in cont.casefold()
-                            or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
-                            or 'らいらい' in cont.casefold()
-                            or 'ライライ' in cont.casefold()
-                    ) and
-                    not msg.author.bot  # checks to see if account is a bot account
-            ):  # random sad face
-                if 'aryan' in cont.casefold():  # why do people say this so often...
-                    return
-                else:
-                    await self.bot.spamChan.send(
-                        '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id,
-                                                                              msg.content))
-
-            """Self mute"""
-            if msg.author.id == self.bot.owner_id and self.bot.selfMute:
-                try:
-                    await msg.delete()
-                except discord.errors.NotFound:
-                    pass
-
-            if msg.guild:
-                """super_watch"""
-                try:
-                    if msg.author.id in self.bot.super_watch[str(msg.guild.id)]['users']:
-                        channel = self.bot.get_channel(self.bot.super_watch[str(msg.guild.id)]['channel'])
-                        await channel.send(
-                            f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
-                            f"\n{msg.content}")
-                except KeyError:
-                    pass
-
-                # """Message counting"""
-                # try:
-                #     if msg.guild.id in [243838819743432704, 189571157446492161]:
-                #         try:
-                #             self.bot.msg_count += 1
-                #         except AttributeError:
-                #             self.bot.msg_count = 1
-                #         try:
-                #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
-                #                 append([msg.author.id, msg.channel.id])
-                #         except KeyError:
-                #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
-                #                 [msg.author.id, msg.channel.id]
-                #         if self.bot.msg_count % 100 == 0:
-                #             self.dump_messages()
-                # except AttributeError:
-                #     pass
-
-                """Ultra Hardcore"""
-                try:
-                    if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
-                        if msg.author.id in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:
-                            jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
-                            # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
-                            jpRole = msg.guild.get_role(196765998706196480)
+            """Chinese server hardcore mode"""
+            if msg.guild.id == 266695661670367232:
+                if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
+                    'ignore']:
+                    if len(msg.content) > 3:
+                        try:
+                            ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
+                            role = msg.guild.get_role(ROLE_ID)
+                        except KeyError:
+                            return
+                        except AttributeError:
+                            return
+                        if role in msg.author.roles:
+                            learning_eng = msg.guild.get_role(266778623631949826)
                             ratio = characters.jpenratio(msg)
-                            # if I delete a long message
-
-                            # allow Kotoba bot commands
-                            if msg.content[0:2] == 'k!':  # because K33's bot deletes results if you delete your msg
-                                if msg.content.count(' ') == 0:  # if people abuse this, they must use no spaces
-                                    return  # please don't abuse this
-
-                            # delete the messages
-                            if ratio:
-                                if msg.channel.id not in self.bot.db['ultraHardcore']['ignore']:
-                                    msg_content = msg.content
-                                    if jpRole in msg.author.roles:
-                                        if ratio < .55:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg_content) > 30:
-                                                await self.msg_user(msg)
-                                    else:
-                                        if ratio > .45:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg_content) > 60:
-                                                await self.msg_user(msg)
-                except AttributeError:
-                    pass
-
-                """Chinese server hardcore mode"""
-                if msg.guild.id == 266695661670367232:
-                    if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
-                        'ignore']:
-                        if len(msg.content) > 3:
-                            try:
-                                ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
-                                role = msg.guild.get_role(ROLE_ID)
-                            except KeyError:
-                                return
-                            except AttributeError:
-                                return
-                            if role in msg.author.roles:
-                                learning_eng = msg.guild.get_role(266778623631949826)
-                                ratio = characters.jpenratio(msg)
-                                if ratio is not None:
-                                    if learning_eng in msg.author.roles:
-                                        if ratio < .55:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg.content) > 30:
-                                                await self.msg_user(msg)
-                                    else:
-                                        if ratio > .45:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg.content) > 60:
-                                                await self.msg_user(msg)
-
-                """Spanish server hardcore"""
-                if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
-                    if msg.content[0] != '=' and len(msg.content) > 3:
-                        if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
-                            role = msg.guild.get_role(526089127611990046)
-                            if role in msg.author.roles:
-                                learning_eng = msg.guild.get_role(247021017740869632)
-                                learning_sp = msg.guild.get_role(297415063302832128)
-                                if learning_eng in msg.author.roles:  # learning English, delete all Spanish
-                                    try:
-                                        lang_res = langdetect.detect_langs(characters.rem_emoji_url(msg))[0]
-                                        if lang_res.lang == 'es' and lang_res.prob > 0.97:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg.content) > 30:
-                                                await self.msg_user(msg)
-                                    except langdetect.lang_detect_exception.LangDetectException:
-                                        pass
-                                elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
-                                    try:
-                                        lang_res = langdetect.detect_langs(characters.rem_emoji_url(msg))[0]
-                                        if lang_res.lang == 'en' and lang_res.prob > 0.97:
-                                            try:
-                                                await msg.delete()
-                                            except discord.errors.NotFound:
-                                                pass
-                                            if len(msg.content) > 30:
-                                                await self.msg_user(msg)
-                                    except langdetect.lang_detect_exception.LangDetectException:
-                                        pass
+                            if ratio is not None:
+                                if learning_eng in msg.author.roles:
+                                    if ratio < .55:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg.content) > 30:
+                                            await hf.long_deleted_msg_notification(msg)
                                 else:
-                                    await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                                          "learning role.  Please attach either 'Learning Spanish' or "
-                                                          "'Learning English' to properly use hardcore mode, or take off "
-                                                          "hardcore mode using the reactions in the server rules page")
+                                    if ratio > .45:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg.content) > 60:
+                                            await hf.long_deleted_msg_notification(msg)
+
+            """Spanish server hardcore"""
+            if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
+                if msg.content[0] != '=' and len(msg.content) > 3:
+                    if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
+                        role = msg.guild.get_role(526089127611990046)
+                        if role in msg.author.roles:
+                            learning_eng = msg.guild.get_role(247021017740869632)
+                            learning_sp = msg.guild.get_role(297415063302832128)
+                            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+                                try:
+                                    lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
+                                    if lang_res.lang == 'es' and lang_res.prob > 0.97:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg.content) > 30:
+                                            await hf.long_deleted_msg_notification(msg)
+                                except langdetect.lang_detect_exception.LangDetectException:
+                                    pass
+                            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+                                try:
+                                    lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
+                                    if lang_res.lang == 'en' and lang_res.prob > 0.97:
+                                        try:
+                                            await msg.delete()
+                                        except discord.errors.NotFound:
+                                            pass
+                                        if len(msg.content) > 30:
+                                            await hf.long_deleted_msg_notification(msg)
+                                except langdetect.lang_detect_exception.LangDetectException:
+                                    pass
+                            else:
+                                await msg.author.send("You have hardcore enabled but you don't have the proper "
+                                                      "learning role.  Please attach either 'Learning Spanish' or "
+                                                      "'Learning English' to properly use hardcore mode, or take off "
+                                                      "hardcore mode using the reactions in the server rules page")
 
     @commands.command()
     async def test(self, ctx):
         print(self.bot)
         print(ctx.bot)
-
-    @commands.group(invoke_without_command=True)
-    @is_admin()
-    async def hardcore(self, ctx):
-        msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
-                             "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
-                             " wish to correct a learner, attach a `*` to your message, and it will not be deleted.  "
-                             "\n\nUse the below reaction to enable/disable hardcore mode.")
-        try:
-            self.bot.db['hardcore'][str(ctx.guild.id)]['message'] = msg.id
-        except KeyError:
-            role = await ctx.guild.create_role(name='🔥Hardcore🔥')
-            self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
-        await msg.add_reaction("🔥")
-        self.dump_json()
-
-    @hardcore.command()
-    @is_admin()
-    async def ignore(self, ctx):
-        config = self.bot.db['hardcore']["266695661670367232"]
-        try:
-            if ctx.channel.id not in config['ignore']:
-                config['ignore'].append(ctx.channel.id)
-                await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-            else:
-                config['ignore'].remove(ctx.channel.id)
-                await ctx.send(f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
-        except KeyError:
-            config['ignore'] = [ctx.channel.id]
-            await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-        self.dump_json()
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -418,10 +266,241 @@ class Main:
     @commands.command()
     async def invite(self, ctx):
         """Gives an invite to bring this bot to your server"""
-        await ctx.send(discord.utils.oauth_url(self.bot.user.id))
+        await ctx.send(discord.utils.oauth_url(self.bot.user.id, permissions=discord.Permissions(permissions=3072)))
 
     @commands.group(invoke_without_command=True)
-    async def report(self, ctx, user: discord.Member = None):
+    async def report(self, ctx, user: discord.member = None):
+        """Make a report to the mods"""
+        guild_id = str(ctx.guild.id)
+        if guild_id not in self.bot.db['report']:
+            return
+        config = self.bot.db['report'][guild_id]
+        report_room = self.bot.get_channel(config['channel'])
+
+        report_text = [
+            # [0]: when the user first enters the module
+            f"Welcome to the reporting module.  You're about to make a report to the mods of the "
+            f"{ctx.guild.name} server.  Please select one of the following options for your report.\n\n"
+            f"1) Send an anonymous report to the mods.\n"
+            f"2) Request an audience with the mods to have a conversation with them (choose "
+            f"this if you want a response to your report).\n"
+            f"3) Cancel the report and leave this menu.",
+
+            # [1]: user chooses option 1: anonymous report
+            "Please type your report in one message below.  Make sure to include any relevant information, such as "
+            "who the report is about, which channel they did whatever you're reporting about was in, and any "
+            "other users involved.",
+
+            # [2]: finishes anonymous report
+            "Thank you for your report.  The mods have been notified, and your name is anonymous.",
+
+            # [3]: user chooses option 2: report room
+            f".\n\n\n\n\n__Please go here__: {report_room.mention}\n"
+            f"In ten seconds, I'll send a welcome message there.",
+
+            # [4]: initial ping to user in report room
+            f"{ctx.author.mention} This user has entered the report room.  If they don't "
+            f"come to this channel in the next ten seconds, they will not be able to "
+            f"see the following message and might be confused as to what's happening.",
+
+            # [5]: entry message in report room
+            f"Welcome to the report room {ctx.author.mention}.  Only the mods can read your messages here, so you"
+            f" can now make your report.  When you are finished, type `;report done` and a log of this conversation "
+            f"will be sent to you.  Please ping one of the mods you see online or if no one responds to you.",
+
+            # [6]: a mod requesting a user in the report room
+            f"Your presence has been requested in {report_room.mention}.  There should be a "
+            f"welcome message there explaining what is happening, but you might not see it so "
+            f"it might be a blank channel.  "
+            f"\n\n\n  Please go here within 10 seconds of this message: {report_room.mention}.  "
+            f"\n\n\n  If you missed the 10 second window, that's ok.  The channel will be blank, but it's about "
+            f"this: in this channel, only the mods can see your messages, and no other users will "
+            f"ever be able to see what you have typed in the past if they too join the "
+            f"channel.  At the end, a log of the chat will be sent to you.",
+
+            # [7]: message to the mods that someone is on the waitlist
+            f'The user {ctx.author.mention} has tried to access the report room, but was put on '
+            f'the wait list because someone else is currently using it.'
+        ]
+
+        reaction = await self.report_options(ctx, report_text)  # presents users with options for what they want to do
+        if not reaction:
+            return
+
+        if str(reaction.emoji) == "1⃣":  # requested to send a single message
+            await self.anonymous_report(ctx, report_text)
+
+        if str(reaction.emoji) == '2⃣':  # requested audience with mods
+            await self.report_room(ctx, config, ctx.author, report_text)
+
+        if str(reaction.emoji) == '3⃣':  # cancel
+            await ctx.author.send('Understood.  Have a nice day!')
+            return
+
+    @report.command()
+    async def setup(self, ctx):
+        """Sets the channel"""
+        perms = ctx.channel.permissions_for(ctx.me)
+        if not perms.read_messages or not perms.read_message_history or not perms.manage_roles:
+            await ctx.message.add_reaction('\N{CROSS MARK}')
+            try:
+                await ctx.send("I need permissions for reading messages, reading message history, and "
+                               "managing either channel permissions or server roles.  Please check these")
+            except discord.errors.Forbidden:
+                await ctx.author.send(f"Rai lacks the permission to send messages in {ctx.channel.mention}.")
+            return
+
+        guild_id = str(ctx.guild.id)
+        if guild_id in self.bot.db['report']:
+            self.bot.db['report'][guild_id]['channel'] = ctx.channel.id
+            hf.dump_json()
+            await ctx.send(f"Successfully set the report room channel to {ctx.channel.mention}.")
+        else:
+            self.bot.db['report'][guild_id] = {'channel': ctx.channel.id,
+                                               'current_user': None,
+                                               'waiting_list': [],
+                                               'entry_message': None}
+            hf.dump_json()
+            await ctx.send(f"Initial setup for report room complete.  The report room channel has been set to "
+                           f"{ctx.channel.mention}.")
+
+    @report.command()
+    async def done(self, ctx):
+        try:
+            config = self.bot.db['report'][str(ctx.guild.id)]
+            report_room = ctx.bot.get_channel(config['channel'])
+        except KeyError:
+            return
+        if not config['current_user']:
+            return
+        if ctx.channel != report_room:
+            return
+        
+        user = ctx.guild.get_member(config['current_user'])
+        start_message = await ctx.channel.get_message(config['entry_message'])
+        config['current_user'] = None
+        config['entry_message'] = None
+        hf.dump_json()
+        await report_room.set_permissions(user, read_messages=False)
+
+        message_log = 'Start of log:\n'
+        async for message in ctx.channel.history(limit=None, after=start_message):
+            message_log += f'**__{message.author}:__** {message.content} \n'
+
+        if len(message_log) > 2000:
+            list_of_messages = [message_log[i * 2000:(i + 1) * 2000] for i in range((len(message_log) // 2000) + 1)]
+            for i in list_of_messages:
+                await user.send(i)
+        else:
+            await user.send(message_log)
+        
+        await report_room.send('Session closed, and a log has been sent to the user')
+
+        if config['waiting_list']:
+            waiting_list = config['waiting_list']
+            for member_id in waiting_list:
+                if config['current_user']:
+                    break
+                member = ctx.guild.get_member(member_id)
+                msg = 'The report room is now open.  Try sending `;report` to me again. If you ' \
+                      'wish to be removed from the waiting list, please react with the below emoji. (not working)'
+                waiting_msg = await member.send(msg)
+                # await waiting_msg.add_reaction('🚫')
+                asyncio.sleep(10)
+
+    @report.command()
+    @hf.is_admin()
+    async def check_waiting_list(self, ctx):
+        guild_id = str(ctx.guild.id)
+        if guild_id not in self.bot.db['report']:
+            return
+        config = self.bot.db['report'][guild_id]
+
+        message = 'List of users on the waiting list: '
+        if config['waiting_list']:
+            members = [user.name for user in config['waiting_list']]
+            message = message + ', '.join(members)
+        else:
+            message = 'There are no users on the waiting list'
+        await ctx.send(message)
+
+    @report.command()
+    @hf.is_admin()
+    async def clear_waiting_list(self, ctx):
+        guild_id = str(ctx.guild.id)
+        if guild_id not in self.bot.db['report']:
+            return
+        config = self.bot.db['report'][guild_id]
+
+        if config['waiting_list']:
+            config['waiting_list'] = []
+            await ctx.send('Waiting list cleared')
+        else:
+            await ctx.send('There was no one on the waiting list.')
+
+    @staticmethod
+    async def report_options(ctx, report_text):
+        """;report: Presents a user with the options of making an anonymous report or entering the report room"""
+
+        def check(reaction, user):
+            return user == ctx.author and (str(reaction.emoji) in "1⃣2⃣3⃣")  # 4⃣
+
+        msg = await ctx.author.send(report_text[0])  # when the user first enters the module
+
+        await msg.add_reaction("1⃣")  # anonymous report
+        await msg.add_reaction('2⃣')  # report room
+        await msg.add_reaction('3⃣')  # cancel
+
+        try:
+            reaction, user = await ctx.bot.wait_for('reaction_add', timeout=300.0, check=check)
+            return reaction
+        except asyncio.TimeoutError:
+            await ctx.author.send("Module timed out.")
+            return
+
+    @staticmethod
+    async def anonymous_report(ctx, report_text):
+        """;report: The code for an anonymous report submission"""
+        await ctx.author.send(report_text[1])  # Instructions for the anonymous report
+
+        def check(m):
+            return m.author == ctx.author and isinstance(m.channel, discord.channel.DMChannel)
+
+        try:
+            msg = await ctx.bot.wait_for('message', timeout=300.0, check=check)
+            await ctx.author.send(report_text[2])  # "thank you for the report"
+            mod_channel = ctx.bot.get_channel(ctx.bot.db['mod_channel'][str(ctx.guild.id)])
+            await mod_channel.send('Received report from a user: \n\n')
+            await mod_channel.send(msg.content)
+            return
+        except asyncio.TimeoutError:
+            await ctx.author.send(f"Module timed out.")
+            return
+
+    @staticmethod
+    async def report_room(ctx, config, user, report_text):
+        if config['current_user']:  # if someone is in the room already
+            msg = f"Sorry but someone else is using the room right now.  I'll message you when it's ope" \
+                    f"n in the order that I received requests.  You are position " \
+                    f"{config['waiting_list'].index(user.id)+1} on the list"
+            await user.send(msg)  # someone is in the room, you've been added to waiting list
+            config['waiting_list'].append(user.id)
+            hf.dump_json()
+            return
+        if user.id in config['waiting_list']:
+            config['waiting_list'].remove(user.id)
+        report_room = ctx.bot.get_channel(config['channel'])
+        await report_room.set_permissions(user, read_messages=True)
+        await user.send(report_text[3])  # please go to the report room
+        await report_room.send(report_text[4])  # initial ping to user in report room
+        await asyncio.sleep(10)
+        msg = await report_room.send(report_text[5])  # full instructions text in report room
+        config['current_user'] = user.id
+        config['entry_message'] = msg.id
+        hf.dump_json()
+
+    @commands.group(invoke_without_command=True)
+    async def report2(self, ctx, user: discord.Member = None):
         try:
             """Japanese/Spanish server, make an anonymous report to mods"""
             if ctx.author not in self.bot.jpServ.members and ctx.author not in self.bot.spanServ.members:
@@ -547,7 +626,7 @@ class Main:
                         self.bot.db['report_room_waiting_list'][report_guild].remove(
                             userIn.id)  # remove from waiting list
                     self.bot.db['current_report_member'][report_guild] = userIn.id  # set the current user
-                    self.dump_json()
+                    hf.dump_json()
                     await report_room.set_permissions(userIn, read_messages=True)
                     if not fromMod:  # set below on "if user:", about 17 lines below
                         await userIn.send(msg5Text[language_requested])  # Please go to <#ID> channel
@@ -579,7 +658,7 @@ class Main:
                 else:
                     if str(userIn.id) not in self.bot.db['report_room_waiting_list'][report_guild]:
                         self.bot.db['report_room_waiting_list'][report_guild].append(userIn.id)  # add to waiting list
-                        self.dump_json()
+                        hf.dump_json()
                     await userIn.send(
                         f"Sorry but someone else is using the room right now.  I'll message you when it's ope"
                         f"n in the order that I received requests.  You are position "
@@ -696,72 +775,71 @@ class Main:
                           f"Error: {e}")
             raise
 
-    @report.command()
-    @is_admin()
-    async def check_waiting_list(self, ctx):
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
-            return
-        message = 'List of users on the waiting list: '
-        report_guild = str(ctx.guild.id)
-        members = []
-        if self.bot.db['report_room_waiting_list'][report_guild]:
-            for user in self.bot.db['report_room_waiting_list'][str(ctx.guild.id)]:
-                members.append(user.name)
-                message = message + ', '.join(members)
-        else:
-            message = 'There are no users on the waiting list'
-        await ctx.send(message)
+    # @report2.command()
+    # @hf.is_admin()
+    # async def check_waiting_list(self, ctx):
+    #     if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
+    #         return
+    #     message = 'List of users on the waiting list: '
+    #     report_guild = str(ctx.guild.id)
+    #     members = []
+    #     if self.bot.db['report_room_waiting_list'][report_guild]:
+    #         for user in self.bot.db['report_room_waiting_list'][str(ctx.guild.id)]:
+    #             members.append(user.name)
+    #             message = message + ', '.join(members)
+    #     else:
+    #         message = 'There are no users on the waiting list'
+    #     await ctx.send(message)
+    #
+    # @report2.command()
+    # @hf.is_admin()
+    # async def clear_waiting_list(self, ctx):
+    #     if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
+    #         return
+    #     report_guild = str(ctx.guild.id)
+    #     if self.bot.db['report_room_waiting_list'][report_guild]:
+    #         self.bot.db['report_room_waiting_list'][report_guild] = []
+    #         await ctx.send('Waiting list cleared')
+    #     else:
+    #         await ctx.send('There was no one on the waiting list.')
 
-    @report.command()
-    @is_admin()
-    async def clear_waiting_list(self, ctx):
-        if ctx.author not in self.bot.jpServ.members or ctx.author not in self.bot.spanServ.members:
-            return
-        report_guild = str(ctx.guild.id)
-        if self.bot.db['report_room_waiting_list'][report_guild]:
-            self.bot.db['report_room_waiting_list'][report_guild] = []
-            await ctx.send('Waiting list cleared')
-        else:
-            await ctx.send('There was no one on the waiting list.')
+    # @report2.command()
+    # async def done(self, ctx):
+    #     """Only usable on Japanese/Spanish servers, finishes a report"""
+    #     if ctx.author not in self.bot.jpServ.members and ctx.author not in self.bot.spanServ.members:
+    #         return
+    #     report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
+    #     if ctx.channel == report_room:
+    #         report_member = ctx.guild.get_member(self.bot.db["current_report_member"][str(ctx.guild.id)])
+    #         await report_room.set_permissions(report_member, overwrite=None)
+    #         messages = []
+    #         entryMessage = await report_room.get_message(self.bot.db["report_room_entry_message"][str(ctx.guild.id)])
+    #         async for message in report_room.history(after=entryMessage):
+    #             messages.append(message)
+    #         messageLog = 'Start of log:\n'
+    #         for i in messages:
+    #             messageLog += f'**__{i.author}:__** {i.content} \n'
+    #         if len(messageLog) > 2000:
+    #             listOfMessages = []
+    #             for i in range((len(messageLog) // 2000) + 1):
+    #                 listOfMessages.append(messageLog[i * 2000:(i + 1) * 2000])
+    #             for i in listOfMessages:
+    #                 await report_member.send(i)
+    #         else:
+    #             await report_member.send(messageLog)
+    #         self.bot.db["current_report_member"][str(report_room.guild.id)] = ""
+    #         await report_room.send('Session closed, and a log has been sent to the user')
+    #         for member_id in self.bot.db["report_room_waiting_list"][str(report_room.guild.id)]:
+    #             member = report_room.guild.get_member(member_id)
+    #             waiting_msg = await member.send('The report room is now open.  Try sending `;report` to me again.  '
+    #                                             'If you wish to be removed from the waiting list, '
+    #                                             'please react with the below emoji.')
+    #             await waiting_msg.add_reaction('🚫')
+    #             asyncio.sleep(10)
+    #         hf.dump_json()
 
-    @commands.command()
-    async def done(self, ctx):
-        """Only usable on Japanese/Spanish servers, finishes a report"""
-        if ctx.author not in self.bot.jpServ.members and ctx.author not in self.bot.spanServ.members:
-            return
-        report_room = self.bot.get_channel(self.bot.db["report_room"][str(ctx.guild.id)])
-        if ctx.channel == report_room:
-            report_member = ctx.guild.get_member(self.bot.db["current_report_member"][str(ctx.guild.id)])
-            await report_room.set_permissions(report_member, overwrite=None)
-            messages = []
-            entryMessage = await report_room.get_message(self.bot.db["report_room_entry_message"][str(ctx.guild.id)])
-            async for message in report_room.history(after=entryMessage):
-                messages.append(message)
-            messageLog = 'Start of log:\n'
-            for i in messages:
-                messageLog += f'**__{i.author}:__** {i.content} \n'
-            if len(messageLog) > 2000:
-                listOfMessages = []
-                for i in range((len(messageLog) // 2000) + 1):
-                    listOfMessages.append(messageLog[i * 2000:(i + 1) * 2000])
-                for i in listOfMessages:
-                    await report_member.send(i)
-            else:
-                await report_member.send(messageLog)
-            self.bot.db["current_report_member"][str(report_room.guild.id)] = ""
-            await report_room.send('Session closed, and a log has been sent to the user')
-            for member_id in self.bot.db["report_room_waiting_list"][str(report_room.guild.id)]:
-                member = report_room.guild.get_member(member_id)
-                waiting_msg = await member.send('The report room is now open.  Try sending `;report` to me again.  '
-                                                'If you wish to be removed from the waiting list, '
-                                                'please react with the below emoji.')
-                await waiting_msg.add_reaction('🚫')
-                asyncio.sleep(10)
-            self.dump_json()
-
-    # removes people from the waiting list for ;report if they react with '🚫' to a certain message
-    # add/remove hardcore role from people
     async def on_reaction_add(self, reaction, user: discord.Member):
+        """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
         if reaction.emoji == '🚫':
             if reaction.message.channel == user.dm_channel:
                 waiting_list_dict = self.bot.db["report_room_waiting_list"]
@@ -769,7 +847,7 @@ class Main:
                 for guild_id in waiting_list_dict:
                     if user.id in waiting_list_dict[guild_id]:
                         self.bot.db["report_room_waiting_list"][guild_id].remove(user.id)
-                        self.dump_json()
+                        hf.dump_json()
                         await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
 
                         mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
@@ -902,104 +980,6 @@ class Main:
                         'on_raw_reaction_remove: Lacking `Manage Roles` permission'
                         f'<#{payload.guild_id}>')
 
-    # async def on_raw_reaction_remove(self, payload):
-    #     if payload.emoji.name in '🔥📝🖋🗣🎙':
-    #         roles = {'🔥': 496659040177487872,
-    #                  '📝': 509446402016018454,
-    #                  '🗣': 266713757030285313,
-    #                  '🖋': 344126772138475540,
-    #                  '🎙': 454893059080060930}
-    #         guild = self.bot.get_guild(payload.guild_id)
-    #         user = guild.get_member(payload.user_id)
-    #         if not user.bot:
-    #             try:
-    #                 config = self.bot.db['roles'][str(payload.guild_id)]
-    #             except KeyError:
-    #                 return
-    #             if payload.message_id == config['message']:
-    #                 role = guild.get_role(roles[payload.emoji.name])
-    #                 try:
-    #                     await user.remove_roles(role)
-    #                 except discord.errors.Forbidden:
-    #                     self.bot.get_user(202995638860906496).send(
-    #                         'on_raw_reaction_remove: Lacking `Manage Roles` permission'
-    #                         f'<#{payload.guild_id}>')
-
-    @commands.group(invoke_without_command=True)
-    @is_admin()
-    async def captcha(self, ctx):
-        """Sets up a checkmark requirement to enter a server"""
-        await ctx.send('This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
-                       '\n1) First, do `;captcha toggle` to setup the module'
-                       '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
-                       '\n3) Then, do `;captcha set_role <role name>` '
-                       'to set the role you wish to add upon them captchaing.'
-                       '\n4) Finally, do `;captcha post_message` to post the message people will react to.')
-
-    @captcha.command()
-    @is_admin()
-    async def toggle(self, ctx):
-        guild = str(ctx.guild.id)
-        if guild in self.bot.db['captcha']:
-            guild_config = self.bot.db['captcha'][guild]
-            if guild_config['enable']:
-                guild_config['enable'] = False
-                await ctx.send('Captcha module disabled')
-            else:
-                guild_config['enable'] = True
-                await ctx.send('Captcha module enabled')
-        else:
-            self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
-            await ctx.send('Captcha module setup and enabled.')
-        self.dump_json()
-
-    @captcha.command()
-    @is_admin()
-    async def set_channel(self, ctx):
-        guild = str(ctx.guild.id)
-        if guild not in self.bot.db['captcha']:
-            await self.toggle
-        guild_config = self.bot.db['captcha'][guild]
-        guild_config['channel'] = ctx.channel.id
-        await ctx.send(f'Captcha channel set to {ctx.channel.name}')
-        self.dump_json()
-
-    @captcha.command()
-    @is_admin()
-    async def set_role(self, ctx, *, role_input: str = None):
-        guild = str(ctx.guild.id)
-        if guild not in self.bot.db['captcha']:
-            await self.toggle
-        guild_config = self.bot.db['captcha'][guild]
-        role = discord.utils.find(lambda role: role.name == role_input, ctx.guild.roles)
-        if not role:
-            await ctx.send('Failed to find a role.  Please type the name of the role after the command, like '
-                           '`;captcha set_role New User`')
-        else:
-            guild_config['role'] = role.id
-            await ctx.send(f'Set role to {role.name} ({role.id})')
-        self.dump_json()
-
-    @captcha.command()
-    @is_admin()
-    async def post_message(self, ctx):
-        guild = str(ctx.guild.id)
-        if guild in self.bot.db['captcha']:
-            guild_config = self.bot.db['captcha'][guild]
-            if guild_config['enable']:
-                msg = await ctx.send('Please react with the checkmark to enter the server')
-                guild_config['message'] = msg.id
-                self.dump_json()
-                await msg.add_reaction('✅')
-
-    async def on_guild_join(self, guild):
-        await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
-
-    @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
-                               ';l', ';q', ';queue', ';pause', ';volume', ';1'])
-    async def ignore_commands_list(self, ctx):
-        print('Ignored command ' + ctx.invoked_with)
-
     @commands.command()
     async def pencil(self, ctx):
         if ctx.author.nick:
@@ -1029,154 +1009,16 @@ class Main:
             await ctx.author.edit(nick=ctx.author.name[:-1])
             await ctx.message.add_reaction('◀')
 
-    @commands.command(aliases=['purge', 'prune'])
-    async def clear(self, ctx, num=None, *args):
-        """Deletes messages from a channel, ;clear <num_of_messages> [<user> <after_message_id>]"""
-        if len(num) == 18:
-            args = ('0', int(num))
-            num = 100
-        if ctx.channel.permissions_for(ctx.author).manage_messages:
-            try:
-                await ctx.message.delete()
-            except discord.errors.NotFound:
-                pass
-            if args:
-                if args[0] == '0':
-                    user = None
-                if args[0] != '0':
-                    try:
-                        user = await commands.MemberConverter().convert(ctx, args[0])
-                    except commands.errors.BadArgument:  # invalid user given
-                        await ctx.send('User not found')
-                        return
-                try:
-                    msg = await ctx.channel.get_message(args[1])
-                except discord.errors.NotFound:  # invaid message ID given
-                    await ctx.send('Message not found')
-                    return
-                except IndexError:  # no message ID given
-                    print('No message ID found')
-                    msg = None
-                    pass
-            else:
-                user = None
-                msg = None
-
-            try:
-                if not user and not msg:
-                    await ctx.channel.purge(limit=int(num))
-                if user and not msg:
-                    await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user)
-                if not user and msg:
-                    await ctx.channel.purge(limit=int(num), after=msg)
-                    try:
-                        await msg.delete()
-                    except discord.errors.NotFound:
-                        pass
-                if user and msg:
-                    await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user, after=msg)
-                    try:
-                        await msg.delete()
-                    except discord.errors.NotFound:
-                        pass
-            except TypeError:
-                pass
-            except ValueError:
-                await ctx.send('You must put a number after the command, like `;clear 5`')
-                return
-
     @commands.command()
     async def ryan(self, ctx):
         """Posts a link to the help docs server for my bot"""
         await ctx.send("You can find some shitty docs for how to use my bot here: https://discord.gg/7k5MMpr")
 
-    @commands.command()
-    @is_admin()
-    async def auto_bans(self, ctx):
-        try:
-            config = self.bot.db['auto_bans'][str(ctx.guild.id)]
-        except KeyError:
-            self.bot.db['auto_bans'][str(ctx.guild.id)] = {'enable': True}
-            await ctx.send('Enabled the auto bans module.  I will now automatically ban all users who join with '
-                           'a discord invite link username or who join and immediately send an amazingsexdating link')
-        else:
-            config['enable'] = not config['enable']
-            if config['enable']:
-                await ctx.send('Enabled the auto bans module.  I will now automatically ban all users who join with '
-                               'a discord invite link username or who join and immediately send an '
-                               'amazingsexdating link')
-            else:
-                await ctx.send('Disabled the auto bans module.  I will no longer auto ban users who join with a '
-                               'discord invite link username or who spam a link to amazingsexdating.')
-            self.dump_json()
-
-    @commands.command()
-    @is_admin()
-    async def set_mod_role(self, ctx, role_name):
-        try:
-            config = self.bot.db['mod_role'][str(ctx.guild.id)]
-        except KeyError:
-            self.bot.db['mod_role'][str(ctx.guild.id)] = {}
-            config = self.bot.db['mod_role'][str(ctx.guild.id)]
-        mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
-        config['id'] = mod_role.id
-        await ctx.send(f"Set the mod role to {mod_role.name} ({mod_role.id})")
-        self.dump_json()
-
-    @commands.command(aliases=['fd'])
-    @commands.is_owner()
-    async def get_left_users(self, ctx):
-        print('finding messages')
-        channel = self.bot.get_channel(277384105245802497)
-        name_to_id = {role.name: role.id for role in channel.guild.roles}
-        id_to_role = {role.id: role for role in channel.guild.roles}
-        # self.bot.messages = await channel.history(limit=None, after=datetime.utcnow() - timedelta(days=60)).flatten()
-        config = self.bot.db['readd_roles'][str(channel.guild.id)]
-        config['users'] = {}
-        print(len(self.bot.messages))
-        for message in self.bot.messages:
-            if message.author.id == 270366726737231884:
-                if message.embeds:
-                    try:
-                        embed = message.embeds[0]
-                    except IndexError:
-                        continue
-                    if embed.footer.text[0:10] == 'User Leave':
-                        USER_ID = embed.description.split('. (')[1][:-1]
-                        try:
-                            role_name_list = embed.fields[0].value.split(', ')
-                        except IndexError:
-                            pass
-                        role_id_list = [name_to_id[role] for role in role_name_list]
-                        try:
-                            role_id_list.remove(309913956061806592)  # in voice role
-                        except ValueError:
-                            pass
-                        try:
-                            role_id_list.remove(249695630606336000)  # new user
-                        except ValueError:
-                            pass
-                        if role_id_list:
-                            print(USER_ID, embed.fields)
-                            config['users'][USER_ID] = [message.created_at.strftime("%Y%m%d"),
-                                                        role_id_list]
-        self.dump_json()
-        print('done')
-
-    @commands.command()
-    @is_admin()
-    async def readd_roles(self, ctx):
-        try:
-            config = self.bot.db['readd_roles'][str(ctx.guild.id)]
-            config['enable'] = not config['enable']
-            if config['enable']:
-                await ctx.send("I will now readd roles to people who have previously left the server")
-            else:
-                await ctx.send("I will NOT readd roles to people who have previously left the server")
-        except KeyError:
-            self.bot.db['readd_roles'][str(ctx.guild.id)] = {'enable': True, 'users': {}}
-            await ctx.send("I will now readd roles to people who have previously left the server")
-        self.dump_json()
+    @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
+                               ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol'])
+    async def ignore_commands_list(self, ctx):
+        # print('Ignored command ' + ctx.invoked_with)
+        pass
 
 
 def setup(bot):

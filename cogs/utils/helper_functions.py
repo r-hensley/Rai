@@ -2,6 +2,23 @@ import discord
 import asyncio
 import os
 import re
+from discord.ext import commands
+import json
+import sys
+
+dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+self = sys.modules[__name__]
+self.bot = None
+
+
+def setup(bot):
+    if self.bot is None:
+        self.bot = bot
+    else:
+        msg = f"Bot is alerady initialized to {self.bot}"
+        raise RuntimeError(msg)
+
 
 # credit: https://gist.github.com/dperini/729294
 _url = re.compile("""
@@ -41,8 +58,59 @@ _url = re.compile("""
 
 _emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
+
+def dump_json():
+    with open(f'{dir_path}/database_2.json', 'w') as write_file:
+        json.dump(self.bot.db, write_file, indent=4)
+        write_file.flush()
+        os.fsync(write_file.fileno())
+    os.remove(f'{dir_path}/database.json')
+    os.rename(f'{dir_path}/database_2.json', f'{dir_path}/database.json')
+
+
+def is_admin():
+    async def pred(ctx):
+        try:
+            ID = self.bot.db['mod_role'][str(ctx.guild.id)]['id']
+            mod_role = ctx.guild.get_role(ID)
+            return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
+        except KeyError:
+            return ctx.channel.permissions_for(ctx.author).administrator
+        except TypeError:
+            return ctx.channel.permissions_for(ctx.author).administrator
+
+    return commands.check(pred)
+
+
+async def long_deleted_msg_notification(msg):
+    try:
+        notification = 'I may have deleted a message of yours that was long.  Here it was:'
+        await msg.author.send(notification)
+        await msg.author.send(msg.content)
+    except discord.errors.Forbidden:
+        if msg.author.id == 401683644529377290:
+            return
+        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
+                               f"but you seem to have DMs disabled so I couldn't send it to you.")
+        notification = \
+            f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
+        me = self.bot.get_user(self.bot.owner_id)
+        await me.send(notification)
+        # await me.send(msg.author.name, msg.content)
+
+
+def database_toggle(ctx, module_name):
+    try:
+        config = module_name[str(ctx.guild.id)]
+        config['enable'] = not config['enable']
+    except KeyError:
+        config = module_name[str(ctx.guild.id)] = {'enable': True}
+    return config
+
+
 def rem_emoji_url(msg):
     return _emoji.sub('', _url.sub('', msg.content))
+
 
 def jpenratio(msg):
     text = _emoji.sub('', _url.sub('', msg.content))

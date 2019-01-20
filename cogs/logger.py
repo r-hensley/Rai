@@ -1,14 +1,13 @@
 import discord
 from discord.ext import commands
 import asyncio
-from imgurpython import ImgurClient
 from datetime import datetime, timedelta
 import json
 from imgurpython import ImgurClient
-from imgurpython.helpers.error import ImgurClientError
 import functools
 from Levenshtein import distance as LDist
 import re
+from .utils import helper_functions as hf
 
 import os
 
@@ -35,7 +34,7 @@ class Logger:
 
     def dump_json(self):
         with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file)
+            json.dump(self.bot.db, write_file, indent=4)
             write_file.flush()
             os.fsync(write_file.fileno())
         os.remove(f'{dir_path}/database.json')
@@ -57,7 +56,7 @@ class Logger:
         else:  # first time register for a new guild
             module[guild] = {"enable": False, "channel": ""}
             result = 4
-        self.dump_json()
+        hf.dump_json()
         return result
 
     def module_set(self, ctx, module):
@@ -69,7 +68,7 @@ class Logger:
         else:  # new server
             module[guild] = {"enable": True, "channel": ctx.channel.id}
             result = 2
-        self.dump_json()
+        hf.dump_json()
         return result
 
     @commands.group(invoke_without_command=True, aliases=['edit', 'edits'])
@@ -84,7 +83,7 @@ class Logger:
             await ctx.send('You have not yet set a channel for edit logging yet. Run `;edit_logging set`')
         elif result == 4:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            self.dump_json()
+            hf.dump_json()
             await ctx.send('Before doing this, set a channel for logging with `;edit_logging set`.  '
                            'Then, enable/disable logging by typing `;edit_logging`.')
 
@@ -95,7 +94,7 @@ class Logger:
             await ctx.send(f'Set the edit logging channel as {ctx.channel.name}')
         elif result == 2:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            self.dump_json()
+            hf.dump_json()
             await ctx.send(f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;edit_logging`.')
 
@@ -105,7 +104,7 @@ class Logger:
         guild_config: dict = self.bot.db['edits'][guild]
         guild_config['distance_limit'] = distance_limit
         await ctx.send(f'Successfully set Levenshtein Distance limit to {distance_limit}.')
-        self.dump_json()
+        hf.dump_json()
 
     def make_edit_embed(self, before, after, levenshtein_distance):
         author = before.author
@@ -240,7 +239,7 @@ class Logger:
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
-                self.dump_json()
+                hf.dump_json()
                 await ctx.send('Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
                                ' invite tracking)')
             except discord.errors.Forbidden:
@@ -248,7 +247,7 @@ class Logger:
                                "If you want invite tracking too, give me `Manage Server` and then type "
                                "`;invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
-                self.dump_json()
+                hf.dump_json()
 
         elif result == 3:
             await ctx.send('You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
@@ -264,7 +263,7 @@ class Logger:
         elif result == 2:
             server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
             server_config['invites_enable'] = True
-            self.dump_json()
+            hf.dump_json()
             await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
                            f'Enable/disable logging by typing `;welcome_logging`.')
 
@@ -279,7 +278,7 @@ class Logger:
             except KeyError:
                 server_config['invites_enable'] = True
                 await ctx.send('Enabled invites tracking')
-            self.dump_json()
+            hf.dump_json()
 
     async def make_welcome_embed(self, member, used_invite):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
@@ -336,7 +335,7 @@ class Logger:
             config['enable'] = True
             x = config['enable']
             await ctx.send(f'Set welcome message posting to {x}')
-        self.dump_json()
+        hf.dump_json()
 
     @welcome_message.command()
     async def set_message(self, ctx, *, message: str = None):
@@ -349,14 +348,14 @@ class Logger:
             config = self.bot.db['welcome_message'][str(ctx.guild.id)]
             config['message'] = message
             await ctx.send(f"Set welcome message to ```{message}```")
-            self.dump_json()
+            hf.dump_json()
 
     @welcome_message.command()
     async def set_channel(self, ctx):
         config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         config['channel'] = ctx.channel.id
         await ctx.send(f"Set welcome message channel to {ctx.channel.mention}")
-        self.dump_json()
+        hf.dump_json()
 
     @welcome_message.command()
     async def show_message(self, ctx):
@@ -372,11 +371,11 @@ class Logger:
                 channel = self.bot.get_channel(server_config['channel'])
                 try:
                     invites_enable = server_config['invites_enable']
-                    self.dump_json()
+                    hf.dump_json()
                 except KeyError:
                     server_config['invites_enable'] = False
                     invites_enable = server_config['invites_enable']
-                    self.dump_json()
+                    hf.dump_json()
                     await channel.send("I've added a toggle for invite tracking since it requires `Manage Server` "
                                        "permission.  If you wish Rai to track used invite links for joins, please type "
                                        "`welcomes invites`.")
@@ -391,7 +390,7 @@ class Logger:
                             invites_list = await member.guild.invites()
                             old_invites = {invite.code: invite.uses for invite in invites_list}
                             self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
-                            self.dump_json()
+                            hf.dump_json()
                         invites = await member.guild.invites()
                         new_invites = {invite.code: invite.uses for invite in invites}
                         for invite in new_invites:
@@ -412,7 +411,7 @@ class Logger:
                         await channel.send(
                             "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
                             "invite link tracking.  If you wish to reenable it, type `;welcomes invites`")
-                    self.dump_json()
+                    hf.dump_json()
                 try:
                     x = await self.make_welcome_embed(member, used_invite)
                     await channel.send(embed=x)
@@ -426,13 +425,28 @@ class Logger:
                 if re.match(pat, member.name):
                     guild = str(member.guild.id)
                     await member.ban(reason="Name was a discord invite link")
-                    await self.bot.get_channel(329576845949534208).send(f"Banned user `{member.name}` "
-                                                                        f"from {member.guild.name}"
-                                                                        f"for being an invite link name\n"
-                                                                        f"({member.id} {member.mention})")
+                    message = f"Banned user `{member.name}` from {member.guild.name} for being an invite link name\n" \
+                              f"({member.id} {member.mention})"
+                    await self.bot.get_channel(329576845949534208).send(message)
+                    self.bot.db['global_blacklist']['blacklist'].append(member.id)
+                    channel = self.bot.get_channel(533863928263082014)
+                    await channel.send(
+                        f"❌ Automatically added `{member.name} ({member.id}`) to the blacklist for "
+                        f"being an invite-link name")
                     return  # stops execution of the rest of the code if was invite link name
         except KeyError:
             pass
+        hf.dump_json()
+
+        """blacklist bans"""
+        config = self.bot.db['global_blacklist']
+        if member.id in config['blacklist']:
+            try:
+                if config['enable'][str(member.guild.id)]['enable']:
+                    await member.ban(reason="On the global blacklist")
+                    return
+            except KeyError:
+                pass
 
         """welcome message"""
         try:
@@ -464,7 +478,7 @@ class Logger:
                     post_message = False
                     roles_dict = {role.id: role for role in member.guild.roles}
                     list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
-                    del(list_of_roles[0])
+                    del (list_of_roles[0])
                     await member.add_roles(*list_of_roles)
                     await member.remove_roles(249695630606336000)
                     await self.bot.jpJHO.send(f"Welcome back {member.name}! I've given your previous roles back to you")
@@ -481,7 +495,8 @@ class Logger:
                         if message.author.id == 159985870458322944:
                             await message.delete()
                             break
-                    m = await self.bot.wait_for('message', timeout=5.0, check=lambda m: m.author.id == 299335689558949888)
+                    m = await self.bot.wait_for('message', timeout=5.0,
+                                                check=lambda m: m.author.id == 299335689558949888)
                     await m.delete()
         else:
             try:
@@ -492,14 +507,11 @@ class Logger:
                 if config['enable'] and str(member.id) in config['users']:
                     roles_dict = {role.id: role for role in member.guild.roles}
                     list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
-                    del(list_of_roles[0])
+                    del (list_of_roles[0])
                     await member.add_roles(*list_of_roles)
-                    await member.remove_roles(249695630606336000)
                     await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
                     await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
-                                                                    f"{member.mention} on {member.guild.mention}")
-
-
+                                                                    f"{member.mention} on {member.guild.name}")
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -512,28 +524,6 @@ class Logger:
                     'Thanks! '
                     '(<@&470364944479813635>)'
                 )
-
-        """sex dating"""  # this should be the last module in on_member_join
-        try:
-            if self.bot.db['auto_bans'][str(member.guild.id)]['enable']:
-                await self.bot.wait_for('message',
-                                        timeout=500.0,
-                                        check=lambda m: 'discord.amazingsexdating.com' in m.content and
-                                                        m.author == member)
-                await member.ban(reason='For posting link to discord.amazingsexdating.com', delete_message_days=1)
-                try:
-                    await welcome_message.delete()
-                except UnboundLocalError:
-                    pass
-                await self.bot.get_channel(329576845949534208).send(f"Banned a user for posting an amazingsexdating "
-                                                                    f"link."
-                                                                    f"\nID: {member.id}"
-                                                                    f"\nServer: {member.guild.name}"
-                                                                    f"\nName: {member.name} {member.mention}")
-        except asyncio.TimeoutError:
-            pass
-        except KeyError:
-            pass
 
     @commands.group(invoke_without_command=True, aliases=['leave', 'leaves'])
     async def leave_logging(self, ctx):
@@ -596,7 +586,7 @@ class Logger:
             if config['enable']:
                 config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"),
                                                    [role.id for role in member.roles]]
-                self.dump_json()
+                hf.dump_json()
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
@@ -643,29 +633,56 @@ class Logger:
         return emb
 
     async def on_member_update(self, before, after):
-        # print(before.name, after.name)
         guild = str(before.guild.id)
         if guild in self.bot.db['nicknames']:
             if self.bot.db['nicknames'][guild]['enable']:
                 server_config = self.bot.db['nicknames'][guild]
                 channel = self.bot.get_channel(server_config['channel'])
+                if not channel:
+                    return
                 if before.name != after.name:  # username change
                     embed = self.make_nickname_embed(before, after)
                     embed.description = f"**{before.name}#{before.discriminator}**'s username was set to **{after.name}#{after.discriminator}**"
                     await channel.send(embed=embed)
                 if before.nick != after.nick:  # nickname change
-                        if before.nick and not after.nick:  # nickname removed
-                            embed = self.make_nickname_embed(before, after)
-                            embed.description = f"**{before.nick}**'s nickname was **removed**"
-                        elif not before.nick and after.nick:  # nickname added
-                            embed = self.make_nickname_embed(before, after)
-                            embed.description = \
-                                f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
-                        elif before.nick and after.nick:
-                            embed = self.make_nickname_embed(before, after)
-                        else:
-                            return
-                        await channel.send(embed=embed)
+                    if before.nick and not after.nick:  # nickname removed
+                        embed = self.make_nickname_embed(before, after)
+                        embed.description = f"**{before.nick}**'s nickname was **removed**"
+                    elif not before.nick and after.nick:  # nickname added
+                        embed = self.make_nickname_embed(before, after)
+                        embed.description = \
+                            f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
+                    elif before.nick and after.nick:
+                        embed = self.make_nickname_embed(before, after)
+                    else:
+                        return
+                    await channel.send(embed=embed)
+
+        """Nadeko updates"""
+        return
+        if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
+            if str(before.status) == 'online' and str(after.status) == 'offline':
+                def check(beforecheck, aftercheck):
+                    return after.id == beforecheck.id and \
+                           str(beforecheck.status) == 'offline' and \
+                           str(aftercheck.status) == 'online'
+
+                try:
+                    await self.bot.wait_for('member_update', check=check, timeout=1200)
+                    self.bot.waited = False
+                except asyncio.TimeoutError:
+                    self.bot.waited = True
+
+                if self.bot.waited:
+                    await self.bot.spanSP.send(  # nadeko was offline for 20 mins
+                        "Nadeko has gone offline.  New users won't be able to tag themselves, "
+                        "and therefore will not be able to join the server.  Please be careful of this."
+                    )
+
+            if str(before.status) == 'offline' and str(after.status) == 'online':
+                if self.bot.waited:
+                    self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
+                    await self.bot.spanSP.send('Nadeko is back online now.')
 
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):
@@ -722,6 +739,9 @@ class Logger:
     @commands.group(invoke_without_command=True, aliases=['ban', 'bans'])
     async def ban_logging(self, ctx):
         """Logs deleted bans, aliases: 'ban', 'bans'"""
+        if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
+            await ctx.send("I lack the permission to either view audit logs or embed links.  Please try again.")
+            return
         result = self.module_logging(ctx, self.bot.db['bans'])
         if result == 1:
             await ctx.send('Disabled ban logging for this server')
@@ -742,21 +762,24 @@ class Logger:
             await ctx.send(f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;ban_logging`.')
 
-    async def make_ban_embed(self, guild, member):
-        await asyncio.sleep(1)
-        log_channel = self.bot.get_channel(self.bot.db['bans'][str(guild.id)]['channel'])
+    @staticmethod
+    async def make_ban_embed(guild, member):
+        emb = None
         try:
-            emb = None
-            async for entry in guild.audit_logs(limit=1, reverse=False,
+            await asyncio.sleep(1)
+            ban_entry = None
+            async for entry in guild.audit_logs(limit=None, reverse=False,
                                                 action=discord.AuditLogAction.ban,
                                                 after=datetime.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
+                if entry.action == discord.AuditLogAction.ban:
                     ban_entry = entry
-                    reason = ban_entry.reason
-                    emb = True
-        except discord.errors.Forbidden:
-            await log_channel.send('Failed to post ban log due to lacking audit logs permissions')
+                    break
+        except discord.errors.Forbidden as e:
+            print('on_member_ban ' + e)
             return
+        if ban_entry.created_at > datetime.utcnow() - timedelta(seconds=10) and ban_entry.target == member:
+            reason = ban_entry.reason
+            emb = True
         if emb:
             emb = discord.Embed(
                 description=f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
@@ -775,10 +798,17 @@ class Logger:
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
                 await channel.send(embed=await self.make_ban_embed(guild, member))
+
         if member.id == 414873201349361664:
             await member.unban()
+            try:
+                self.bot.db['global_blacklist']['blacklist'].remove(414873201349361664)
+                hf.dump_json()
+            except ValueError:
+                pass
 
-    async def make_unban_embed(self, guild, user):
+    @staticmethod
+    def make_unban_embed(user):
         emb = discord.Embed(
             description=f'❕ **{user.name}#{user.discriminator}** was `unbanned` ({user.id})',
             colour=0x7F8C8D,
@@ -794,7 +824,7 @@ class Logger:
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await channel.send(embed=await self.make_unban_embed(guild, user))
+                await channel.send(embed=self.make_unban_embed(user))
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):
