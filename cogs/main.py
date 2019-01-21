@@ -101,8 +101,8 @@ class Main:
         if msg.guild:
             """super_watch"""
             try:
-                if msg.author.id in self.bot.super_watch[str(msg.guild.id)]['users']:
-                    channel = self.bot.get_channel(self.bot.super_watch[str(msg.guild.id)]['channel'])
+                if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]:
+                    channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                     await channel.send(
                         f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
                         f"\n{msg.content}")
@@ -134,7 +134,7 @@ class Main:
                         jpServ = self.bot.get_guild(self.bot.ID["jpServ"])
                         # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
                         jpRole = msg.guild.get_role(196765998706196480)
-                        ratio = characters.jpenratio(msg)
+                        ratio = hf.jpenratio(msg)
                         # if I delete a long message
 
                         # allow Kotoba bot commands
@@ -179,7 +179,7 @@ class Main:
                             return
                         if role in msg.author.roles:
                             learning_eng = msg.guild.get_role(266778623631949826)
-                            ratio = characters.jpenratio(msg)
+                            ratio = hf.jpenratio(msg)
                             if ratio is not None:
                                 if learning_eng in msg.author.roles:
                                     if ratio < .55:

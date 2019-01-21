@@ -16,8 +16,7 @@ def setup(bot):
     if self.bot is None:
         self.bot = bot
     else:
-        msg = f"Bot is alerady initialized to {self.bot}"
-        raise RuntimeError(msg)
+        pass
 
 
 # credit: https://gist.github.com/dperini/729294
@@ -60,12 +59,12 @@ _emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
 
 def dump_json():
-    with open(f'{dir_path}/database_2.json', 'w') as write_file:
+    with open(f'{dir_path}/db_2.json', 'w') as write_file:
         json.dump(self.bot.db, write_file, indent=4)
         write_file.flush()
         os.fsync(write_file.fileno())
-    os.remove(f'{dir_path}/database.json')
-    os.rename(f'{dir_path}/database_2.json', f'{dir_path}/database.json')
+    os.remove(f'{dir_path}/db.json')
+    os.rename(f'{dir_path}/db_2.json', f'{dir_path}/db.json')
 
 
 def is_admin():
