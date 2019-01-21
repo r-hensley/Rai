@@ -20,7 +20,9 @@ import logging
 logger = logging.getLogger('discord')
 logger.setLevel(logging.INFO)
 handler = logging.FileHandler(
-    filename=f'{dir_path}/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log',encoding='utf-8',mode='a')
+    filename=f'{dir_path}/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log',
+    encoding='utf-8',
+    mode='a')
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
 
@@ -62,7 +64,7 @@ async def on_ready():
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
-    with open(f"{dir_path}/database.json", "r") as read_file:
+    with open(f"{dir_path}/db.json", "r") as read_file:
         bot.db = json.load(read_file)
     bot.ID = bot.db["ID"]
     date = datetime.today().strftime("%d%m%Y%H%M")

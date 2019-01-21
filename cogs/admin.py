@@ -315,7 +315,6 @@ class Admin:
         await ctx.send(f"Set the mod channel for this server as {ctx.channel.name}.")
         hf.dump_json()
         
-
     @commands.command()
     @hf.is_admin()
     async def readd_roles(self, ctx):
@@ -510,7 +509,39 @@ class Admin:
             await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
                                f"({after.channel.name})")
 
-
+    @commands.group(invoke_without_command=True)
+    @hf.is_admin()
+    async def super_watch(self, ctx, target: discord.Member):
+        try:
+            config = self.bot.db['super_watch'][str(ctx.guild.id)]
+        except KeyError:
+            config = self.bot.db['super_watch'][str(ctx.guild.id)] = []
+        await ctx.send(f"Type `;super_watch add <ID>` to add someone, `;super_watch remove <ID>` to remove.")
+        if target.id not in config:
+            config.append(target.id)
+        await ctx.send(f"Added {target.name} to super_watch list")
+        hf.dump_json()
+    
+    @super_watch.command()
+    @hf.is_admin()
+    async def add(self, ctx, target: discord.Member):
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]
+        if target.id not in config:
+            config.append(target.id)
+        await ctx.send(f"Added {target.name} to super_watch list")
+        hf.dump_json()
+        
+    @super_watch.command()
+    @hf.is_admin()
+    async def remove(self, ctx, target: discord.Member):
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]
+        try:
+            config.remove(target.id)
+            await ctx.send(f"Removed {target.name} from super_watch list")
+        except ValueError:
+            await ctx.send(f"That user wasn't on the super_watch list")
+        hf.dump_json()
+        
 
 def setup(bot):
     bot.add_cog(Admin(bot))
