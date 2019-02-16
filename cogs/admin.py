@@ -3,6 +3,7 @@ from discord.ext import commands
 import json
 import urllib.request
 from .utils import helper_functions as hf
+import asyncio
 
 import os
 
@@ -14,27 +15,6 @@ class Admin:
 
     def __init__(self, bot):
         self.bot = bot
-
-    def dump_json(self):
-        with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file, indent=4)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/database.json')
-        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
-
-    def is_admin():
-        async def pred(ctx):
-            try:
-                ID = ctx.bot.db['mod_role'][str(ctx.guild.id)]['id']
-                mod_role = ctx.guild.get_role(ID)
-                return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
-            except KeyError:
-                return ctx.channel.permissions_for(ctx.author).administrator
-            except TypeError:
-                return ctx.channel.permissions_for(ctx.author).administrator
-
-        return commands.check(pred)
 
     @commands.command()
     @hf.is_admin()
@@ -226,11 +206,21 @@ class Admin:
                 await msg.add_reaction('✅')
 
     @commands.command(aliases=['purge', 'prune'])
+    @hf.is_admin()
     async def clear(self, ctx, num=None, *args):
         """Deletes messages from a channel, ;clear <num_of_messages> [<user> <after_message_id>]"""
         if len(num) == 18:
             args = ('0', int(num))
             num = 100
+        if 4 <= len(str(num)) < 18:
+            msg = await ctx.send(f"I believe you may have made a mistake with the arguments.  You're trying to delete "
+                                 f"the last {num} messages, which is probably not what you intend to do.")
+            await asyncio.sleep(5)
+            await msg.delete()
+            return
+        if 100 < int(num) < 1000:
+            await ctx.send(f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
+            await self.bot.wait_for('message', timeout=10, check=lambda m: m.author == ctx.author and m.content == 'y')
         if ctx.channel.permissions_for(ctx.author).manage_messages:
             try:
                 await ctx.message.delete()
@@ -307,14 +297,14 @@ class Admin:
         config['id'] = mod_role.id
         await ctx.send(f"Set the mod role to {mod_role.name} ({mod_role.id})")
         hf.dump_json()
-        
+
     @commands.command(aliases=['setmodchannel'])
     @hf.is_admin()
     async def set_mod_channel(self, ctx):
         self.bot.db['mod_channel'][str(ctx.guild.id)] = ctx.channel.id
         await ctx.send(f"Set the mod channel for this server as {ctx.channel.name}.")
         hf.dump_json()
-        
+
     @commands.command()
     @hf.is_admin()
     async def readd_roles(self, ctx):
@@ -381,10 +371,12 @@ class Admin:
 
     @global_blacklist.command(aliases=['vote'])
     @hf.is_admin()
-    async def add(self, ctx, user):
+    async def add(self, ctx, user, *, reason: str = None):
         channel = self.bot.get_channel(533863928263082014)
         config = self.bot.db['global_blacklist']
         target_user = self.bot.get_user(int(user))
+        print(user)
+        print(reason)
 
         async def post_vote_notification(num_of_votes):
             await ctx.message.add_reaction('✅')
@@ -393,13 +385,15 @@ class Admin:
                           f"({user}`). (voted for by {ctx.author.name})"
             else:
                 message = f"📥 There are now **{num_of_votes}** vote(s) for `{user}`." \
-                          f" (voted for by {ctx.author.name})"
+                          f" (voted for by {ctx.author.name})."
+            if reason:
+                message += "\nExtra info: {reason}"
             await channel.send(message)
 
         async def post_ban_notification():
             await ctx.message.add_reaction('✅')
             if target_user:
-                message = f"`❌ {target_user.name}` (`{user}`) has received their final vote from {ctx.author.name}" \
+                message = f"`❌ {target_user.name} ({user}`) has received their final vote from {ctx.author.name}" \
                           f" and been added to the blacklist."
             else:
                 message = f"`❌ `{user}` has received their final vote from {ctx.author.name}" \
@@ -422,7 +416,7 @@ class Admin:
             return
 
         if residency in votes_list:  # ctx.author's server already voted
-            await ctx.send(f"Someone from your server `{self.bot.get_guild(residency).name}` has already voted")
+            await ctx.send(f"Someone from your server `({self.bot.get_guild(residency).name})` has already voted")
         else:  # can take a vote
             votes_list.append(residency)
             num_of_votes = len(config['votes'][user])
@@ -445,7 +439,7 @@ class Admin:
         await ctx.send("Puts a message in the mod channel every time someone on the super watchlist joins a voice "
                        "channel.  Use `;super_voicewatch add USER` or `'super_voicewatch remove USER` to "
                        "manipulate the list.  Type `;super_voicewatch list` to see a full list.  Alias: `;svw`")
-        
+
     @super_voicewatch.command()
     @hf.is_admin()
     async def add(self, ctx, member: discord.Member):
@@ -521,7 +515,7 @@ class Admin:
             config.append(target.id)
         await ctx.send(f"Added {target.name} to super_watch list")
         hf.dump_json()
-    
+
     @super_watch.command()
     @hf.is_admin()
     async def add(self, ctx, target: discord.Member):
@@ -530,7 +524,7 @@ class Admin:
             config.append(target.id)
         await ctx.send(f"Added {target.name} to super_watch list")
         hf.dump_json()
-        
+
     @super_watch.command()
     @hf.is_admin()
     async def remove(self, ctx, target: discord.Member):
@@ -541,7 +535,7 @@ class Admin:
         except ValueError:
             await ctx.send(f"That user wasn't on the super_watch list")
         hf.dump_json()
-        
+
 
 def setup(bot):
     bot.add_cog(Admin(bot))

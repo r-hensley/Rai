@@ -80,7 +80,7 @@ class Owner:
     @commands.command(aliases=['rdb'])
     async def reload_database(self, ctx):
         """Reloads the database"""
-        with open(f"{dir_path}/db_local.json", "r") as read_file:
+        with open(f"{dir_path}/db.json", "r") as read_file:
             self.bot.db = json.load(read_file)
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
@@ -339,7 +339,32 @@ class Owner:
     async def on_guild_join(self, guild):
         await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
 
+    @commands.command()
+    async def embed_test(self, ctx, color='FFFF00'):
+        if color[0:2] == '0x':
+            color = color[2:]
+        em = discord.Embed(
+            title='title',
+            description='desc',
+            url='https://url.com',
+            timestamp=datetime.utcnow(),
+            color=discord.Color(int(color, 16))
+        )
+        em.set_footer(text='footer', icon_url='https://i.imgur.com/u6tDx8h.png')
+        em.set_image(url='https://i.imgur.com/GcgjR79.png')
+        em.set_thumbnail(url='https://i.imgur.com/qwIpWAI.png')
+        em.set_author(name='author name', url='https://author.url', icon_url='https://i.imgur.com/QLRBaM4.png')
+        em.add_field(name='inline field name', value='value', inline=True)
+        em.add_field(name='not inline field name', value='value', inline=False)
+        await ctx.send(embed=em)
 
+    @commands.command(aliases=['hk'])
+    async def hub_kick(self, ctx, user: discord.Member, rule):
+        await ctx.message.delete()
+        role = ctx.guild.get_role(530669592218042378)
+        await user.remove_roles(role)
+        await user.send(f"I've removed your member role on the Language Hub server.  Please reread "
+                        f"<#530669247718752266> carefully and then you can rejoin the server.  Specifically, {rule}.")
 
 def setup(bot):
     bot.add_cog(Owner(bot))

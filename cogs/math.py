@@ -21,7 +21,7 @@ class Math:
 
     @commands.command(aliases=['nft'])
     async def nadeko_flip_test(self, ctx, starting_money=None, starting_bet=None,
-                               bet_increase=None):
+                               bet_increase=None, save=None):
         """A test to see if/when you would go bankrupt with Nadeko coinflipping/martingale bets"""
         try:
             if not starting_bet and not starting_money and not bet_increase:  # if no amounts were specified
@@ -114,6 +114,7 @@ class Math:
         if bet_number >= 1000000:
             await ctx.send('I reached 1,000,000 flips so I stopped.')
 
+        flipTest = plt.figure(ctx.author.id)
         plt.plot(number_axis, money_history)
         plt.title(f"Start with {starting_money}, first bet: {starting_bet} (x{bet_increase} on loss)")
         stats = f"```Some stats: \n\n" \
@@ -136,12 +137,15 @@ class Math:
                 else:
                     stats = stats + 'The text file was too big for Discord so it is not included'
                     await ctx.send(content=stats, file=discord.File(plotIm, 'plot.png'))
+        if save == 'save':
+            return
+
         plt.clf()
         plt.cla()
         plt.close()
 
     @commands.command(aliases=['randomwalk', 'rw'])
-    async def randomWalk(self, ctx, n=None):
+    async def randomWalk(self, ctx, n=None, save=None):
         """A random walk game, usage: ;randomWalk [length(number)]"""
 
         if not n:
@@ -166,9 +170,9 @@ class Math:
             flipped = True
             n = -n
 
-        if n > 1000 and ctx.author.id != self.bot.owner_id:
-            n = 1000
-            await ctx.send('Setting n to 1000')
+        if n > 100000 and ctx.author.id != self.bot.owner_id:
+            n = 100000
+            await ctx.send('Setting n to 100,000')
         n += 1
         if n > 1000:
             await ctx.message.add_reaction('\u2705')
@@ -192,13 +196,19 @@ class Math:
         for i in range(n):
             string += f'{posList[i]} ({probList[i]})\n'
 
-        myPlot = plt.plot(x, posList)
+        walkPlot = plt.figure(ctx.author.id+1)
+        plt.plot(x, posList)
         plt.title(f"{ctx.author.name}'s random walk")
         maxVal = max(abs(max(posList)), abs(min(posList)))
-        plt.axes().set_ylim(-maxVal, maxVal)
-        plt.savefig(dir_path + '/randomwalk.png')
-        with open(dir_path + '/randomwalk.png', 'rb') as plotIm:
-            await ctx.send(file=discord.File(plotIm))
+        walkAxes = plt.axes().set_ylim(-maxVal, maxVal)
+        with io.BytesIO() as walkIm:
+            plt.savefig(walkIm, format='png')
+            walkIm.seek(0)
+            await ctx.send(file=discord.File(walkIm, 'plot.png'))
+
+        if save == 'save':  # will show multiple plots on one graph
+            return
+
         plt.clf()
         plt.cla()
 

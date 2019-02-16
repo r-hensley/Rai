@@ -21,6 +21,10 @@ class Main:
         if msg.author.bot:
             return
 
+        if msg.author.id == 202979770235879427-1111111:
+            channel = self.bot.get_channel(374489744974807040)
+            await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
+
         """Message as the bot"""
         if isinstance(msg.channel, discord.DMChannel) \
                 and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -30,32 +34,35 @@ class Main:
             print(msg.created_at, msg.author.name)
             return  # stops the rest of the code unless it's in a guild
 
-        """sex dating"""
-        if 'amazingsexdating' in msg.content:
-            await self.bot.get_user(self.bot.owner_id).send(f"sexdating in {msg.channel.mention}")
-            print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
-            print(datetime.utcnow(), '-----', msg.author.joined_at, '-----', datetime.utcnow() - msg.author.joined_at)
+        """best sex dating"""
+        words = ['amazingsexdating', 'bestdatingforall']
+        for word in words:
+            if word in msg.content:
+                await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.channel.mention}")
+                print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
+                print(datetime.utcnow(), '---', msg.author.joined_at, '-----', datetime.utcnow() - msg.author.joined_at)
         try:
-            if 'amazingsexdating' in msg.content and \
-                    self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
-                    datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
-                print('sex dating!!!!!!!!!!')
-                if msg.author.id in [202995638860906496, 414873201349361664]:
-                    print("This code would've banned but I stopped it")
-                    return
-                await msg.author.ban(reason='For posting link to discord.amazingsexdating.com',
-                                     delete_message_days=1)
-                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
-                channel = self.bot.get_channel(533863928263082014)
-                await channel.send(
-                    f"❌ Automatically added `{msg.author.name} ({msg.author.id}`) to the blacklist for "
-                    f"posting an amazingsexdating.com link")
-                message = f"Banned a user for posting an amazingsexdating link." \
-                          f"\nID: {msg.author.id}" \
-                          f"\nServer: {msg.author.guild.name}" \
-                          f"\nName: {msg.author.name} {msg.author.mention}"
-                await self.bot.get_channel(329576845949534208).send(message)
-                hf.dump_json()
+            for word in words:
+                if word in msg.content:
+                    if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
+                            datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
+                        print('sex dating!!!!!!!!!!')
+                        if msg.author.id in [202995638860906496, 414873201349361664]:
+                            print("This code would've banned but I stopped it")
+                            return
+                        await msg.author.ban(reason=f'For posting a {word} link',
+                                             delete_message_days=1)
+                        self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
+                        channel = self.bot.get_channel(533863928263082014)
+                        await channel.send(
+                            f"❌ Automatically added `{msg.author.name} ({msg.author.id}`) to the blacklist for "
+                            f"posting a {word} spam link")
+                        message = f"Banned a user for posting a {word} link." \
+                                  f"\nID: {msg.author.id}" \
+                                  f"\nServer: {msg.author.guild.name}" \
+                                  f"\nName: {msg.author.name} {msg.author.mention}"
+                        await self.bot.get_channel(329576845949534208).send(message)
+                        hf.dump_json()
         except KeyError as e:
             print('passed for key error on amazingsexdating: ' + e)
             pass
@@ -269,8 +276,10 @@ class Main:
         await ctx.send(discord.utils.oauth_url(self.bot.user.id, permissions=discord.Permissions(permissions=3072)))
 
     @commands.group(invoke_without_command=True)
-    async def report(self, ctx, user: discord.member = None):
+    async def report(self, ctx, user: discord.Member = None):
         """Make a report to the mods"""
+        if isinstance(ctx.channel, discord.DMChannel):
+            return
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
             return
@@ -322,6 +331,16 @@ class Main:
             f'The user {ctx.author.mention} has tried to access the report room, but was put on '
             f'the wait list because someone else is currently using it.'
         ]
+
+        if user:  # if the mods called in a user
+            await self.report_room(ctx, config, user, report_text)
+            return
+
+        try:
+            await ctx.message.delete()
+        except discord.errors.Forbidden:
+            await self.bot.ryry.send(f"I tried to delete the invocation for a ;report on {ctx.guild.name} in "
+                                     f"{ctx.channel.mention} but I lacked delete permissions.")
 
         reaction = await self.report_options(ctx, report_text)  # presents users with options for what they want to do
         if not reaction:
@@ -405,7 +424,7 @@ class Main:
                 msg = 'The report room is now open.  Try sending `;report` to me again. If you ' \
                       'wish to be removed from the waiting list, please react with the below emoji. (not working)'
                 waiting_msg = await member.send(msg)
-                # await waiting_msg.add_reaction('🚫')
+                await waiting_msg.add_reaction('🚫')
                 asyncio.sleep(10)
 
     @report.command()
@@ -478,26 +497,32 @@ class Main:
             return
 
     @staticmethod
-    async def report_room(ctx, config, user, report_text):
+    async def report_room(ctx, config, user, report_text, from_mod=False):
         if config['current_user']:  # if someone is in the room already
+            config['waiting_list'].append(user.id)
             msg = f"Sorry but someone else is using the room right now.  I'll message you when it's ope" \
                     f"n in the order that I received requests.  You are position " \
                     f"{config['waiting_list'].index(user.id)+1} on the list"
             await user.send(msg)  # someone is in the room, you've been added to waiting list
-            config['waiting_list'].append(user.id)
             hf.dump_json()
             return
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
+        config['current_user'] = user.id
         report_room = ctx.bot.get_channel(config['channel'])
         await report_room.set_permissions(user, read_messages=True)
-        await user.send(report_text[3])  # please go to the report room
-        await report_room.send(report_text[4])  # initial ping to user in report room
-        await asyncio.sleep(10)
-        msg = await report_room.send(report_text[5])  # full instructions text in report room
-        config['current_user'] = user.id
+
+        if from_mod:
+            await user.send(report_text[6])
+        else:
+            await user.send(report_text[3])  # please go to the report room
+
+        msg = await report_room.send(report_text[4])  # initial ping to user in report room
         config['entry_message'] = msg.id
         hf.dump_json()
+        await asyncio.sleep(10)
+        await report_room.send(report_text[5])  # full instructions text in report room
+
 
     @commands.group(invoke_without_command=True)
     async def report2(self, ctx, user: discord.Member = None):
@@ -842,22 +867,20 @@ class Main:
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
         if reaction.emoji == '🚫':
             if reaction.message.channel == user.dm_channel:
-                waiting_list_dict = self.bot.db["report_room_waiting_list"]
-                was_on_waiting_list = False
-                for guild_id in waiting_list_dict:
-                    if user.id in waiting_list_dict[guild_id]:
-                        self.bot.db["report_room_waiting_list"][guild_id].remove(user.id)
-                        hf.dump_json()
+                config = self.bot.db['report']
+                for guild_id in config:
+                    if user.id in config[guild_id]['waiting_list']:
+                        config[guild_id]['waiting_list'].remove(user.id)
                         await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
 
                         mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
                         msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
                                              f"report room but just removed themselves."
                         await mod_channel.send(msg_to_mod_channel)
-                        was_on_waiting_list = True
-                        break
-                if not was_on_waiting_list:
-                    await user.send("You aren't on the waiting list.")
+                        hf.dump_json()
+                        return
+                await user.send("You aren't on the waiting list.")
+
 
     async def on_raw_reaction_add(self, payload):
         if payload.emoji.name == '✅':  # captcha
@@ -1015,7 +1038,7 @@ class Main:
         await ctx.send("You can find some shitty docs for how to use my bot here: https://discord.gg/7k5MMpr")
 
     @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
-                               ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol'])
+                               ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol', ';np', ';list'])
     async def ignore_commands_list(self, ctx):
         # print('Ignored command ' + ctx.invoked_with)
         pass

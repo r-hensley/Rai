@@ -16,15 +16,15 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 #sys.stdout = open(dir_path+f'/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log', 'a')
 #sys.stderr = open(dir_path+f'/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log', 'a')
 
-import logging
-logger = logging.getLogger('discord')
-logger.setLevel(logging.INFO)
-handler = logging.FileHandler(
-    filename=f'{dir_path}/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log',
-    encoding='utf-8',
-    mode='a')
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-logger.addHandler(handler)
+# import logging
+# logger = logging.getLogger('discord')
+# logger.setLevel(logging.INFO)
+# handler = logging.FileHandler(
+#     filename=f'{dir_path}/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log',
+#     encoding='utf-8',
+#     mode='a')
+# handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+# logger.addHandler(handler)
 
 tStart = datetime.now()
 
@@ -46,7 +46,8 @@ async def on_ready():
             traceback.print_exc()
 
     print("Bot loaded")
-    
+
+    bot.ryry = bot.get_user(202995638860906496)
     bot.ryryServ = bot.get_guild(275146036178059265)
     bot.testChan = bot.get_channel(304110816607862785)
     bot.spamChan = bot.get_channel(275879535977955330)
