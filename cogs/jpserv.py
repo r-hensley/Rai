@@ -23,21 +23,6 @@ class Jpserv:
 
         return commands.check(pred)
 
-    def dump_json(self, which_json=0):
-        if which_json == 0:
-            filename = 'database2.json'
-            file = self.bot.db
-        if which_json == 1:
-            filename = 'super_watch2.json'
-            file = self.bot.super_watch
-        with open(f'{dir_path}/{filename}', 'w') as write_file:
-            json.dump(file, write_file)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        final_filename = filename.replace('2', '')
-        os.remove(f'{dir_path}/{final_filename}')
-        os.rename(f'{dir_path}/{filename}', f'{dir_path}/{final_filename}')
-
     @commands.command()
     @hf.is_admin()
     async def swap(self, ctx):

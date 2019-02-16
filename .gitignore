@@ -43,3 +43,6 @@ modified*
 raw*
 usage_stats*
 db.json
+gcloud*
+cogs/gcloud*
+list*

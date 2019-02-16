@@ -134,6 +134,8 @@ class Logger:
         return emb
 
     async def on_message_edit(self, before, after):
+        if isinstance(ctx.channel, discord.DMChannel):
+            return
         guild = str(before.guild.id)
         if not before.author.bot:
             if guild in self.bot.db['edits']:
@@ -192,7 +194,16 @@ class Logger:
 
         if message.attachments:
             list_of_attachments = []
+            attachment_names = []
+            failed = True  # will be True unless the code manages to successfully upload an image to imgur
+            file = False  # marks if someone uploaded a non-picture file
             for attachment in message.attachments:
+
+                if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
+                                                                         'apng', 'tiff', 'mov', 'mp4']:
+                    attachment_names.append(attachment.filename)
+                    file = True
+                    continue
                 # asyncio black magic from here:
                 # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
                 task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=True)
@@ -203,12 +214,15 @@ class Logger:
                     failed = None
                 except asyncio.TimeoutError:
                     list_of_attachments.append(attachment.proxy_url)
-                    failed = True
 
-            emb.add_field(name='**Attachments:**', value='\n'.join(list_of_attachments))
-            if failed:
-                emb.add_field(name='**Warning:**', value='Failed to reupload to imgur.  The above link may quickly 404')
-            emb.set_thumbnail(url=list_of_attachments[0])
+            if list_of_attachments:
+                emb.add_field(name='**Attachments:**', value='\n'.join(list_of_attachments))
+                if failed:
+                    emb.add_field(name='**Warning:**',
+                                  value='Failed to reupload to imgur.  The above link may quickly 404')
+                emb.set_thumbnail(url=list_of_attachments[0])
+            if file:
+                emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
         emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
 
@@ -284,17 +298,6 @@ class Logger:
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
-            # if used_invite.code == "NJJCYVD":
-            # await self.bot.get_channel(277384105245802497).send("<@107202830846148608> <@202995638860906496> "
-            # "it's the troll maybe")
-            if member.guild.id == 250884834803580929 and used_invite.code in ['DxSgKdP', 'dnKNXjk']:
-                message = f"I've detected someone who may possibly be a bad person.\n\
-                ID = {member.id}\n\
-                name = {member.name}\n\
-                mention = {member.mention}"
-                ryry = self.bot.get_user(202995638860906496)
-                await ryry.send(message)
-
         else:
             time_str = ''
 
@@ -479,11 +482,18 @@ class Logger:
                     roles_dict = {role.id: role for role in member.guild.roles}
                     list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
                     del (list_of_roles[0])
-                    await member.add_roles(*list_of_roles)
-                    await member.remove_roles(249695630606336000)
-                    await self.bot.jpJHO.send(f"Welcome back {member.name}! I've given your previous roles back to you")
-                    await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
-                                                                    f"{member.mention} on {member.guild.mention}")
+                    new_user_role = member.guild.get_role(249695630606336000)
+                    if new_user_role in list_of_roles:
+                        list_of_roles.remove(new_user_role)
+                    if list_of_roles:
+                        await member.add_roles(*list_of_roles)
+                        await member.remove_roles(new_user_role)
+                        await self.bot.jpJHO.send(
+                            f"Welcome back {member.name}! I've given your previous roles back to you")
+                        await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
+                                                                        f"{member.mention} on {member.guild.name}")
+                        del config['users'][str(member.id)]
+                        hf.dump_json()
             finally:
                 if post_message:
                     if str(used_invite.code) in japanese_links:
@@ -512,6 +522,8 @@ class Logger:
                     await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
                     await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
                                                                     f"{member.mention} on {member.guild.name}")
+                    del config['users'][str(member.id)]
+                    hf.dump_json()
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -584,9 +596,12 @@ class Logger:
             pass
         else:
             if config['enable']:
-                config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"),
-                                                   [role.id for role in member.roles]]
-                hf.dump_json()
+                role_list = [role.id for role in member.roles]
+                if 249695630606336000 in role_list:  # new user
+                    role_list.remove(249695630606336000)
+                if role_list:  # if the role list isn't empty (i.e., no roles)
+                    config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"), role_list]
+                    hf.dump_json()
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
