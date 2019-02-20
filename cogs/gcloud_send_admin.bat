@@ -1,1 +1,0 @@
-call gcloud compute scp ./admin.py ryry013@centos:/home/ryry013/Rai/cogs/admin.py
