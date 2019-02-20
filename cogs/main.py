@@ -286,6 +286,9 @@ class Main:
         config = self.bot.db['report'][guild_id]
         report_room = self.bot.get_channel(config['channel'])
 
+        if not user:
+            user = ctx.author
+
         report_text = [
             # [0]: when the user first enters the module
             f"Welcome to the reporting module.  You're about to make a report to the mods of the "
@@ -313,7 +316,7 @@ class Main:
             f"see the following message and might be confused as to what's happening.",
 
             # [5]: entry message in report room
-            f"Welcome to the report room {ctx.author.mention}.  Only the mods can read your messages here, so you"
+            f"Welcome to the report room {user.mention}.  Only the mods can read your messages here, so you"
             f" can now make your report.  When you are finished, type `;report done` and a log of this conversation "
             f"will be sent to you.  Please ping one of the mods you see online or if no one responds to you.",
 
@@ -328,11 +331,12 @@ class Main:
             f"channel.  At the end, a log of the chat will be sent to you.",
 
             # [7]: message to the mods that someone is on the waitlist
-            f'The user {ctx.author.mention} has tried to access the report room, but was put on '
+            f'The user {user.mention} has tried to access the report room, but was put on '
             f'the wait list because someone else is currently using it.'
         ]
 
-        if user:  # if the mods called in a user
+        if user != ctx.author:  # if the mods called in a user
+            await report_room.send(f"{user.mention}: Please come to this channel")
             await self.report_room(ctx, config, user, report_text)
             return
 

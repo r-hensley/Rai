@@ -1,1 +1,0 @@
-gcloud compute instances start centos

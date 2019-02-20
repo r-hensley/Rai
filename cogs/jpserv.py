@@ -38,21 +38,10 @@ class Jpserv:
     async def ultrahardcore(self, ctx, member: discord.Member = None):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
         role = ctx.guild.get_role(486851965121331200)
-        if not member:  # if no ID specified in command
-            if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
-                self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-                hf.dump_json()
-                try:
-                    await ctx.author.add_roles(role)
-                except discord.errors.Forbidden:
-                    await ctx.send("I couldn't add the ultra hardcore role")
-                await ctx.send(f"{ctx.author.name} has chosen to enable ultra hardcore mode.  It works the same as "
-                               "normal hardcore mode except that you can't undo it and asterisks don't change "
-                               "anything.  Talk to a mod to undo this.")
-            else:  # already enabled
-                await ctx.send("You're already in ultra hardcore mode.")
-        else:  # if you specified someone else's ID, then remove UHC from them
-            if self.bot.jpJHO.permissions_for(ctx.author).administrator:
+        ID = self.bot.db['mod_role'][str(ctx.guild.id)]['id']
+        mod_role = ctx.guild.get_role(ID)
+        if member:  # if you specified someone else's ID, then remove UHC from them
+            if mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator:
                 if ctx.author.id != member.id:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
                     hf.dump_json()
@@ -61,6 +50,29 @@ class Jpserv:
                     except discord.errors.Forbidden:
                         await ctx.send("I couldn't remove the ultra hardcore role")
                     await ctx.send(f'Undid ultra hardcore mode for {member.name}')
+            else:
+                await ctx.send(f"You can not remove UHC from other members.  Only mods/admins can.")
+        else:
+            await ctx.send(f"This is ultra hardcore mode.  It means you must speak in the language you are learning "
+                           f"(for example, if you are learning Japanese, any messages in English will be deleted). "
+                           f"This can not be undone except for asking a mod to remove it for you.  \n\n"
+                           f"To enable ultra hardcore mode, type `;uhc on` or `;uhc enable`.  ")
+
+    @ultrahardcore.command(aliases=['enable'])
+    async def on(self, ctx):
+        role = ctx.guild.get_role(486851965121331200)
+        if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
+            self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
+            hf.dump_json()
+            try:
+                await ctx.author.add_roles(role)
+            except discord.errors.Forbidden:
+                await ctx.send("I couldn't add the ultra hardcore role")
+            await ctx.send(f"{ctx.author.name} has chosen to enable ultra hardcore mode.  It works the same as "
+                           "normal hardcore mode except that you can't undo it and asterisks don't change "
+                           "anything.  Talk to a mod to undo this.")
+        else:  # already enabled
+            await ctx.send("You're already in ultra hardcore mode.")
 
     @ultrahardcore.command()
     async def list(self, ctx):
@@ -86,8 +98,8 @@ class Jpserv:
             await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't "
                            f"speak any English, and they also cannot undo this mode themselves.")
         else:
-            await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why"
-                           f"they're trying to use this command.  But, ultra hardcor emode means a user can't speak"
+            await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why "
+                           f"they're trying to use this command.  But, ultra hardcore mode means a user can't speak "
                            f"any English, and can't undo this mode themselves no matter what.")
 
     @ultrahardcore.command()
