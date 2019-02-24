@@ -241,7 +241,7 @@ class Admin:
                     await ctx.send('Message not found')
                     return
                 except IndexError:  # no message ID given
-                    print('No message ID found')
+                    print('>>No message ID found<<')
                     msg = None
                     pass
             else:
@@ -503,38 +503,66 @@ class Admin:
             await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
                                f"({after.channel.name})")
 
-    @commands.group(invoke_without_command=True)
+    @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
     @hf.is_admin()
-    async def super_watch(self, ctx, target: discord.Member):
+    async def super_watch(self, ctx):
         try:
             config = self.bot.db['super_watch'][str(ctx.guild.id)]
+            config['channel'] = ctx.channel.id
         except KeyError:
-            config = self.bot.db['super_watch'][str(ctx.guild.id)] = []
-        await ctx.send(f"Type `;super_watch add <ID>` to add someone, `;super_watch remove <ID>` to remove.")
-        if target.id not in config:
-            config.append(target.id)
-        await ctx.send(f"Added {target.name} to super_watch list")
+            self.bot.db['super_watch'][str(ctx.guild.id)] = {"users": [], "channel": ctx.channel.id}
+        await ctx.send(f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
+                       f"({ctx.channel.id}).  \n\n"
+                       f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
+                       f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
+                       f"sends posts to in the future by typing `;super_watch` again.  \n\n"
+                       f"Aliases for this command are: `;superwatch`, `;sw`.")
         hf.dump_json()
 
     @super_watch.command()
     @hf.is_admin()
-    async def add(self, ctx, target: discord.Member):
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]
-        if target.id not in config:
-            config.append(target.id)
-        await ctx.send(f"Added {target.name} to super_watch list")
-        hf.dump_json()
-
-    @super_watch.command()
-    @hf.is_admin()
-    async def remove(self, ctx, target: discord.Member):
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]
+    async def add(self, ctx, target):
         try:
-            config.remove(target.id)
-            await ctx.send(f"Removed {target.name} from super_watch list")
+            config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        except KeyError:
+            await ctx.send("Super watch is not yet setup for this server.  Run `;super_watch` to set it up.")
+        try:
+            target = await commands.MemberConverter().convert(ctx, target)
+        except commands.errors.BadArgument:  # invalid user given
+            await ctx.send("User not found")
+            return
+        if target.id not in config:
+            config.append(target.id)
+            await ctx.send(f"Added {target.name} to super_watch list")
+            hf.dump_json()
+        else:
+            await ctx.send(f"{target.name} is already on the super_watch list")
+
+    @super_watch.command()
+    @hf.is_admin()
+    async def remove(self, ctx, target):
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        try:
+            target = await commands.MemberConverter().convert(ctx, target)
+            target = target.id
+        except commands.errors.BadArgument:  # invalid user given
+            target = int(target)
+        try:
+            config.remove(target)
+            await ctx.send(f"Removed <@{target}> from super_watch list")
         except ValueError:
             await ctx.send(f"That user wasn't on the super_watch list")
         hf.dump_json()
+
+    @super_watch.command()
+    @hf.is_admin()
+    async def list(self, ctx):
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        users = [f"<@{ID}>" for ID in config]
+        if config:
+            await ctx.send(f"Users currently on the super_watch list: {', '.join(users)}")
+        else:
+            await ctx.send("There's currently no one on the super_watch list")
 
 
 def setup(bot):

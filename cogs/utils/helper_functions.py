@@ -8,13 +8,13 @@ import sys
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
-self = sys.modules[__name__]
-self.bot = None
+here = sys.modules[__name__]
+here.bot = None
 
 
 def setup(bot):
-    if self.bot is None:
-        self.bot = bot
+    if here.bot is None:
+        here.bot = bot
     else:
         pass
 
@@ -60,7 +60,7 @@ _emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
 def dump_json():
     with open(f'{dir_path}/db_2.json', 'w') as write_file:
-        json.dump(self.bot.db, write_file, indent=4)
+        json.dump(here.bot.db, write_file, indent=4)
         write_file.flush()
         os.fsync(write_file.fileno())
     os.remove(f'{dir_path}/db.json')
@@ -70,7 +70,7 @@ def dump_json():
 def is_admin():
     async def pred(ctx):
         try:
-            ID = self.bot.db['mod_role'][str(ctx.guild.id)]['id']
+            ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
             mod_role = ctx.guild.get_role(ID)
             return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
         except KeyError:
@@ -93,7 +93,7 @@ async def long_deleted_msg_notification(msg):
                                f"but you seem to have DMs disabled so I couldn't send it to you.")
         notification = \
             f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
-        me = self.bot.get_user(self.bot.owner_id)
+        me = here.bot.get_user(here.bot.owner_id)
         await me.send(notification)
         # await me.send(msg.author.name, msg.content)
 
@@ -150,3 +150,43 @@ def is_english(char):
         (0xFF58, 0xFF3A),  # Ｘ to Ｚ
     )
     return any(start <= ord(char) <= end for start, end in RANGE_CHECK)
+
+
+async def uhc_check(msg):
+    try:
+        if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
+            if msg.author.id in here.bot.db['ultraHardcore'][str(here.bot.ID["jpServ"])]:
+                # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+                jpRole = msg.guild.get_role(196765998706196480)
+                ratio = jpenratio(msg)
+                # if I delete a long message
+
+                # allow Kotoba bot commands
+                if msg.content[0:2] in ['k!', 't!'] \
+                        or msg.content[0] == ';':
+                    # if people abuse this, they must use no spaces
+                    if msg.content.count(' ') < 2 or msg.author.id == 202995638860906496:
+                        return  # please don't abuse this
+
+                # delete the messages
+                if ratio or ratio == 0.0:
+                    if msg.channel.id not in here.bot.db['ultraHardcore']['ignore']:
+                        msg_content = msg.content
+                        if jpRole in msg.author.roles:
+                            if ratio < .55:
+                                try:
+                                    await msg.delete()
+                                except discord.errors.NotFound:
+                                    pass
+                                if len(msg_content) > 30:
+                                    await long_deleted_msg_notification(msg)
+                        else:
+                            if ratio > .45:
+                                try:
+                                    await msg.delete()
+                                except discord.errors.NotFound:
+                                    pass
+                                if len(msg_content) > 60:
+                                    await long_deleted_msg_notification(msg)
+    except AttributeError:
+        pass

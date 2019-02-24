@@ -70,11 +70,11 @@ class Math:
             await ctx.send("Timed out.  Exiting module")
             return
         except TypeError as e:
-            print(e)
+            print(f">>{e}<<")
             await ctx.send("You put in a bad number somewhere.  Try again from the beginning.  Exiting module")
             return
         except ValueError as e:
-            print(e)
+            print(f">>{e}<<")
             await ctx.send("You put in a bad number somewhere.  Try again from the beginning.  Exiting module")
             return
 
