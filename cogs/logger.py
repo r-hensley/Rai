@@ -134,7 +134,7 @@ class Logger:
         return emb
 
     async def on_message_edit(self, before, after):
-        if isinstance(ctx.channel, discord.DMChannel):
+        if isinstance(before.channel, discord.DMChannel):
             return
         guild = str(before.guild.id)
         if not before.author.bot:
@@ -151,6 +151,7 @@ class Logger:
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
+        await hf.uhc_check(after)
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
     async def delete_logging(self, ctx):
@@ -238,9 +239,9 @@ class Logger:
                     try:
                         await channel.send(embed=await self.make_delete_embed(message))
                     except discord.errors.HTTPException as e:
-                        print('Error in on_message_delete, ')
+                        print('>>Error in on_message_delete, ')
                         print(e)
-                        print(message)
+                        print(message + '<<')
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -408,7 +409,7 @@ class Logger:
                                     self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
                                     break
                         if not used_invite:
-                            print('Was unable to find invite')
+                            print('>>Was unable to find invite<<')
                     except discord.errors.Forbidden:
                         server_config['invites_enable'] = False
                         await channel.send(
@@ -790,7 +791,7 @@ class Logger:
                     ban_entry = entry
                     break
         except discord.errors.Forbidden as e:
-            print('on_member_ban ' + e)
+            print('>>on_member_ban ' + e + '<<')
             return
         if ban_entry.created_at > datetime.utcnow() - timedelta(seconds=10) and ban_entry.target == member:
             reason = ban_entry.reason
@@ -805,6 +806,15 @@ class Logger:
             emb.set_footer(text=f'User Banned',
                            icon_url=member.avatar_url_as(static_format="png"))
             return emb
+        else:
+            emb = discord.Embed(
+                description=f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
+                            f'(Note, there was a bug in the code, could not get audit log data)',
+                colour=0x000000,
+                timestamp=datetime.utcnow()
+            )
+            emb.set_footer(text=f'User Banned',
+                           icon_url=member.avatar_url_as(static_format="png"))
 
     async def on_member_ban(self, guild, member):
         guild_id: str = str(guild.id)

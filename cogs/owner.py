@@ -290,7 +290,7 @@ class Owner:
     @commands.command()
     async def echo(self, ctx, *, content: str):
         """sends back whatever you send"""
-        print(content)
+        print(f">>{content}<<")
         try:
             await ctx.message.delete()
         except discord.errors.NotFound:
@@ -299,7 +299,7 @@ class Owner:
 
     @commands.command(aliases=['fd'])
     async def get_left_users(self, ctx):
-        print('finding messages')
+        print(f'>>finding messages<<')
         channel = self.bot.get_channel(277384105245802497)
         name_to_id = {role.name: role.id for role in channel.guild.roles}
         id_to_role = {role.id: role for role in channel.guild.roles}

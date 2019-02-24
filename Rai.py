@@ -13,9 +13,6 @@ from pytz import reference
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-#sys.stdout = open(dir_path+f'/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log', 'a')
-#sys.stderr = open(dir_path+f'/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log', 'a')
-
 # import logging
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
@@ -28,7 +25,6 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 tStart = datetime.now()
 
-#initial_extensions = ['cogs.math']
 initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
@@ -62,7 +58,7 @@ async def on_ready():
     bot.spanSP = bot.get_channel(277511392972636161)
 
     # bot.invitesOld = await bot.jpServ.invites() # for use in welcome cog for checking invites
-    bot.waited = str(bot.spanServ.get_member(116275390695079945).status)=='offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
+    bot.waited = str(bot.spanServ.get_member(116275390695079945).status) == 'offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
     with open(f"{dir_path}/db.json", "r") as read_file:
@@ -72,11 +68,11 @@ async def on_ready():
     with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
         json.dump(bot.db, write_file)
 
-    with open(f"{dir_path}/messages.json", "r") as read_file:
-        bot.messages = json.load(read_file)
-
-    with open(f"{dir_path}/super_watch.json", "r") as read_file:
-        bot.super_watch = json.load(read_file)
+    # with open(f"{dir_path}/messages.json", "r") as read_file:
+    #     bot.messages = json.load(read_file)
+    #
+    # with open(f"{dir_path}/super_watch.json", "r") as read_file:
+    #     bot.super_watch = json.load(read_file)
 
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
@@ -88,5 +84,6 @@ def getAPIKey(filename):
         return f.read()
 
 
-bot.run(getAPIKey(dir_path+'/BasicBotAPIKey.txt'))
+key = getAPIKey(dir_path+'/APIKey.txt') + 'c'
+bot.run(key)
 input("press key to exit")

@@ -26,13 +26,14 @@ class Jpserv:
     @commands.command()
     @hf.is_admin()
     async def swap(self, ctx):
-        if self.bot.jpJHO.permissions_for(ctx.author).administrator:
-            if self.bot.jpJHO.position == 4:
-                await self.bot.jpJHO.edit(position=5, name='just_hanging_out_2')
-                await self.bot.jpJHO2.edit(position=4, name='just_hanging_out')
-            else:
-                await self.bot.jpJHO.edit(position=4, name='just_hanging_out')
-                await self.bot.jpJHO2.edit(position=5, name='just_hanging_out_2')
+        jpJHO = bot.get_channel(189571157446492161)
+        jpJHO2 = bot.get_channel(326263874770829313)
+        if jpJHO.position == 4:
+            await jpJHO.edit(position=5, name='just_hanging_out_2')
+            await jpJHO2.edit(position=4, name='just_hanging_out')
+        else:
+            await jpJHO.edit(position=4, name='just_hanging_out')
+            await jpJHO2.edit(position=5, name='just_hanging_out_2')
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
     async def ultrahardcore(self, ctx, member: discord.Member = None):
@@ -55,7 +56,7 @@ class Jpserv:
         else:
             await ctx.send(f"This is ultra hardcore mode.  It means you must speak in the language you are learning "
                            f"(for example, if you are learning Japanese, any messages in English will be deleted). "
-                           f"This can not be undone except for asking a mod to remove it for you.  \n\n"
+                           f"This can not be undone unless you ask a mod to remove it for you.  \n\n"
                            f"To enable ultra hardcore mode, type `;uhc on` or `;uhc enable`.  ")
 
     @ultrahardcore.command(aliases=['enable'])
