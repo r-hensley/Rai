@@ -21,9 +21,10 @@ class Main:
         if msg.author.bot:
             return
 
-        if msg.author.id == 202979770235879427 - 1111111:
-            channel = self.bot.get_channel(374489744974807040)
-            await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
+        # "Experimental global watch list"
+        # if msg.author.id == 202979770235879427:
+        #     channel = self.bot.get_channel(374489744974807040)
+        #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
         """Message as the bot"""
         if isinstance(msg.channel, discord.DMChannel) \
