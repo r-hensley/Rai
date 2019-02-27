@@ -85,15 +85,21 @@ async def on_ready():
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
     await bot.change_presence(activity=discord.Game(';help'))
 
-    async def on_command_error(self, ctx, error):
-        if isinstance(error, commands.NoPrivateMessage):
-            await ctx.author.send('This command cannot be used in private messages.')
-        elif isinstance(error, commands.CommandInvokeError):
-            command = ctx.command.qualified_name
-            await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
-            print(f'In {command}:', file=sys.stderr)
-            traceback.print_tb(error.original.__traceback__)
-            print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        await ctx.author.send('This command cannot be used in private messages.')
+    elif isinstance(error, commands.CommandInvokeError):
+        command = ctx.command.qualified_name
+        await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
+        print(f'In {command}:', file=sys.stderr)
+        traceback.print_tb(error.original.__traceback__)
+        print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
+    elif isinstance(error, commands.errors.CheckFailure):
+        await ctx.send(f"You lack the permissions to do that.  Try using "
+                       f"`{bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+
 
 def getAPIKey(filename):
     with open(filename) as f:
