@@ -16,8 +16,8 @@ class Admin:
     def __init__(self, bot):
         self.bot = bot
 
-    #async def __local_check(self, ctx):
-    #    return hf.admin_check(ctx)
+    async def __local_check(self, ctx):
+        return hf.admin_check(ctx)
 
     @commands.command()
     async def adte(self, ctx):
