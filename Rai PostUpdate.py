@@ -44,33 +44,12 @@ async def on_ready():
         client.germanicServListChan,
     ]
 
+    only_reddit = True
+
     print('Updating posts')
 
     def is_me(m):
         return m.author == client.owner_id or m.author == client.user
-
-    """Deleting previous messages"""
-    for channel in to_delete_channels:
-        delete_iterator = 0
-        try:
-            await channel.purge(limit=200)
-        except asyncio.queues.QueueEmpty:
-            pass
-        except discord.errors.Forbidden:
-            pass
-        async for message in channel.history():
-            if is_me(message):
-                delete_iterator += 1
-                print(f"Deleting message #{delete_iterator} in {channel.name}")
-                try:
-                    await message.delete()
-                except discord.errors.NotFound:
-                    pass
-        await channel.send('Reddit server masterlist: <https://www.reddit.com/r/languagelearning/comments/5m5426'
-                           '/discord_language_learning_servers_masterlist/>')
-        await channel.send('Invite link for public language hub server: https://discord.gg/jxcVmHJ')
-        await channel.send('You can copy-paste these two above messages and send them to anyone looking to see a list '
-                           'of all the servers\n\n\n⠀')
 
     """Reading files"""
     listFull = []
@@ -84,35 +63,58 @@ async def on_ready():
         #  list full format is as follows:
         #  [ channel 1 ID, channel 1 text, channel 2 ID, channel 2 text, ...]
 
-    """Post main list"""
-    main_iterator = 0
+    if not only_reddit:
+        """Deleting previous messages"""
+        for channel in to_delete_channels:
+            delete_iterator = 0
+            try:
+                await channel.purge(limit=200)
+            except asyncio.queues.QueueEmpty:
+                pass
+            except discord.errors.Forbidden:
+                pass
+            async for message in channel.history():
+                if is_me(message):
+                    delete_iterator += 1
+                    print(f"Deleting message #{delete_iterator} in {channel.name}")
+                    try:
+                        await message.delete()
+                    except discord.errors.NotFound:
+                        pass
+            await channel.send('Reddit server masterlist: <https://www.reddit.com/r/languagelearning/comments/5m5426'
+                               '/discord_language_learning_servers_masterlist/>')
+            await channel.send('Invite link for public language hub server: https://discord.gg/jxcVmHJ')
+            await channel.send('You can copy-paste these two above messages and send them to anyone looking to see a '
+                               'list of all the servers\n\n\n⠀')
 
-    for part in listFull:  # main
-        if len(part) == 18:  # channel IDs
-            hub_channel = client.get_channel(int(part))
-            continue
-        main_iterator += 1
-        for channel in [client.germanicServListChan, client.modServListChan]:
-            print(f'Posting message {main_iterator}/{listFullLen} to {channel.guild}, {channel.name}')
-            await channel.send(part)
+        """Post main list"""
+        main_iterator = 0
 
-    mobile_iterator = 0
-    """Post mobile lists"""
-    for line in listMob:
-        if len(line) == 18:  # channel IDs
-            hub_channel = client.get_channel(int(line))
-            continue
-        for channel in [hub_channel]:
-            mobile_iterator += 1
-            print(f'Posting message {mobile_iterator}/{len(listMob) - 6} to {channel.guild}, {channel.name}')
-            if line[0:4] == '**__':
-                line = '⠀\n\n\n\n\n``` ```' + line
-            else:
-                line = '⠀\n' + line
-            if len(line) < 4:
+        for part in listFull:  # main
+            if len(part) == 18:  # channel IDs
+                hub_channel = client.get_channel(int(part))
                 continue
-            await channel.send(line)
+            main_iterator += 1
+            for channel in [client.germanicServListChan, client.modServListChan]:
+                print(f'Posting message {main_iterator}/{listFullLen} to {channel.guild}, {channel.name}')
+                await channel.send(part)
 
+        mobile_iterator = 0
+        """Post mobile lists"""
+        for line in listMob:
+            if len(line) == 18:  # channel IDs
+                hub_channel = client.get_channel(int(line))
+                continue
+            for channel in [hub_channel]:
+                mobile_iterator += 1
+                print(f'Posting message {mobile_iterator}/{len(listMob) - 6} to {channel.guild}, {channel.name}')
+                if line[0:4] == '**__':
+                    line = '⠀\n\n\n\n\n``` ```' + line
+                else:
+                    line = '⠀\n' + line
+                if len(line) < 4:
+                    continue
+                await channel.send(line)
 
     # for channel in [client.hubServListChan, client.modServListChan]:  # Deletes messages from main lists, and posts
     #     # beginning of lists
@@ -147,9 +149,6 @@ async def on_ready():
     #             iterator += 1
     #             print('Deleting message {} from {}, {}'.format(iterator, channel.guild, channel.name))
     #             await message.delete()
-
-     
-
 
     # for part in listFull[i]:
     #     if len(part) < 20:  # channel IDs
@@ -187,7 +186,7 @@ async def on_ready():
             listMob[i] = listMob[i].replace('.', ' ')
         if listMob[i][0:3] == '539':
             continue
-        print(listMob[i][0:-1])
+        print(listMob[i])
     print("\n--------------------------\n**If you ever notice anything wrong with any of the servers, anything from "
           "a dead link to abusive administration, please tell me through Reddit or here: https://discord.gg/jxcVmHJ ("
           "additionally, I'm in all the above servers, Ryry013#9234)**")
@@ -198,4 +197,6 @@ def getAPIKey(filename):
     return f.read()
 
 
-client.run(getAPIKey(f'{dir_path}/BasicBotAPIKey.txt'))
+key = getAPIKey(dir_path+'/APIKey.txt') + 'c'
+client.run(key)
+input("press key to exit")

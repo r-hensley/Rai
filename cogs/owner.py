@@ -26,9 +26,6 @@ class Owner:
         self._last_result = None
         self.sessions = set()
 
-    def BMP(self, s):
-        return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
-
     async def __local_check(self, ctx):
         return await self.bot.is_owner(ctx.author)
 
@@ -74,7 +71,7 @@ class Owner:
     @commands.command(aliases=['sdb', 'dump'])
     async def savedatabase(self, ctx):
         """Saves the database"""
-        hf.dump_json()
+        await hf.dump_json()
         await ctx.message.add_reaction('\u2705')
 
     @commands.command(aliases=['rdb'])
@@ -333,7 +330,7 @@ class Owner:
                             print(USER_ID, embed.fields)
                             config['users'][USER_ID] = [message.created_at.strftime("%Y%m%d"),
                                                         role_id_list]
-        hf.dump_json()
+        await hf.dump_json()
         print('done')
 
     async def on_guild_join(self, guild):

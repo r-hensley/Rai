@@ -16,8 +16,14 @@ class Admin:
     def __init__(self, bot):
         self.bot = bot
 
+    #async def __local_check(self, ctx):
+    #    return hf.admin_check(ctx)
+
     @commands.command()
-    @hf.is_admin()
+    async def adte(self, ctx):
+        await ctx.send('a')
+
+    @commands.command()
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese/Spanish server"""
         if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
@@ -101,14 +107,13 @@ class Admin:
                         self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
-                hf.dump_json()
+                await hf.dump_json()
             else:
                 msg = await ctx.send(page)
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
     @commands.group(invoke_without_command=True)
-    @hf.is_admin()
     async def hardcore(self, ctx):
         msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
                              "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
@@ -120,10 +125,9 @@ class Admin:
             role = await ctx.guild.create_role(name='🔥Hardcore🔥')
             self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
         await msg.add_reaction("🔥")
-        hf.dump_json()
+        await hf.dump_json()
 
     @hardcore.command()
-    @hf.is_admin()
     async def ignore(self, ctx):
         config = self.bot.db['hardcore']["266695661670367232"]
         try:
@@ -136,10 +140,9 @@ class Admin:
         except KeyError:
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.group(invoke_without_command=True)
-    @hf.is_admin()
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
         await ctx.send('This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
@@ -150,7 +153,6 @@ class Admin:
                        '\n4) Finally, do `;captcha post_message` to post the message people will react to.')
 
     @captcha.command()
-    @hf.is_admin()
     async def toggle(self, ctx):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
@@ -164,10 +166,9 @@ class Admin:
         else:
             self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
             await ctx.send('Captcha module setup and enabled.')
-        hf.dump_json()
+        await hf.dump_json()
 
     @captcha.command()
-    @hf.is_admin()
     async def set_channel(self, ctx):
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
@@ -175,10 +176,9 @@ class Admin:
         guild_config = self.bot.db['captcha'][guild]
         guild_config['channel'] = ctx.channel.id
         await ctx.send(f'Captcha channel set to {ctx.channel.name}')
-        hf.dump_json()
+        await hf.dump_json()
 
     @captcha.command()
-    @hf.is_admin()
     async def set_role(self, ctx, *, role_input: str = None):
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
@@ -191,10 +191,9 @@ class Admin:
         else:
             guild_config['role'] = role.id
             await ctx.send(f'Set role to {role.name} ({role.id})')
-        hf.dump_json()
+        await hf.dump_json()
 
     @captcha.command()
-    @hf.is_admin()
     async def post_message(self, ctx):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
@@ -202,11 +201,10 @@ class Admin:
             if guild_config['enable']:
                 msg = await ctx.send('Please react with the checkmark to enter the server')
                 guild_config['message'] = msg.id
-                hf.dump_json()
+                await hf.dump_json()
                 await msg.add_reaction('✅')
 
     @commands.command(aliases=['purge', 'prune'])
-    @hf.is_admin()
     async def clear(self, ctx, num=None, *args):
         """Deletes messages from a channel, ;clear <num_of_messages> [<user> <after_message_id>]"""
         if len(num) == 18:
@@ -268,11 +266,10 @@ class Admin:
             except TypeError:
                 pass
             except ValueError:
-                await ctx.send('You must put a number after the command, like `;clear 5`')
+                await ctx.send('You must put a number after the command, like `;await clear 5`')
                 return
 
     @commands.command()
-    @hf.is_admin()
     async def auto_bans(self, ctx):
         config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
         if config['enable']:
@@ -285,10 +282,9 @@ class Admin:
         else:
             await ctx.send('Disabled the auto bans module.  I will no longer auto ban users who join with a '
                            'discord invite link username or who spam a link to amazingsexdating.')
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.command()
-    @hf.is_admin()
     async def set_mod_role(self, ctx, role_name):
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
         if 'enable' in config:
@@ -296,17 +292,15 @@ class Admin:
         mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         config['id'] = mod_role.id
         await ctx.send(f"Set the mod role to {mod_role.name} ({mod_role.id})")
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.command(aliases=['setmodchannel'])
-    @hf.is_admin()
     async def set_mod_channel(self, ctx):
         self.bot.db['mod_channel'][str(ctx.guild.id)] = ctx.channel.id
         await ctx.send(f"Set the mod channel for this server as {ctx.channel.name}.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.command()
-    @hf.is_admin()
     async def readd_roles(self, ctx):
         config = hf.database_toggle(ctx, self.bot.db['readd_roles'])
         if config['enable']:
@@ -319,10 +313,9 @@ class Admin:
             await ctx.send("I will NOT readd roles to people who have previously left the server")
         if 'users' not in config:
             config['users'] = {}
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['gb', 'gbl', 'blacklist'])
-    @hf.is_admin()
     async def global_blacklist(self, ctx):
         """A global blacklist for banning spammers, requires three votes from mods from three different servers"""
         config = hf.database_toggle(ctx, self.bot.db['global_blacklist']['enable'])
@@ -336,10 +329,9 @@ class Admin:
                            "Type `;global_blacklist residency` to claim your residency on a server.")
         else:
             await ctx.send("Disabled the global blacklist.  Anyone on the blacklist will be able to join  your server.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @global_blacklist.command()
-    @hf.is_admin()
     async def residency(self, ctx):
         """Claims your residency on a server"""
         config = self.bot.db['global_blacklist']['residency']
@@ -367,10 +359,9 @@ class Admin:
 
         else:  # invalid response
             await ctx.send("Invalid response")
-        hf.dump_json()
+        await hf.dump_json()
 
     @global_blacklist.command(aliases=['vote'])
-    @hf.is_admin()
     async def add(self, ctx, user, *, reason: str = None):
         channel = self.bot.get_channel(533863928263082014)
         config = self.bot.db['global_blacklist']
@@ -427,10 +418,9 @@ class Admin:
             else:
                 await post_vote_notification(num_of_votes)
 
-        hf.dump_json()
+        await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['svw'])
-    @hf.is_admin()
     async def super_voicewatch(self, ctx):
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
@@ -441,7 +431,6 @@ class Admin:
                        "manipulate the list.  Type `;super_voicewatch list` to see a full list.  Alias: `;svw`")
 
     @super_voicewatch.command()
-    @hf.is_admin()
     async def add(self, ctx, member: discord.Member):
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
@@ -453,10 +442,9 @@ class Admin:
             config = self.bot.db['super_voicewatch'][str(ctx.guild.id)] = []
         config.append(member.id)
         await ctx.send(f"Added `{member.name} ({member.id})` to the super voice watchlist.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @super_voicewatch.command()
-    @hf.is_admin()
     async def remove(self, ctx, member: discord.Member):
         try:
             config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
@@ -467,10 +455,9 @@ class Admin:
         except ValueError:
             await ctx.send("That user was not in the watchlist.")
         await ctx.send(f"Removed `{member.name} ({member.id})` from the super voice watchlist.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @super_voicewatch.command()
-    @hf.is_admin()
     async def list(self, ctx):
         string = ''
         try:
@@ -504,7 +491,6 @@ class Admin:
                                f"({after.channel.name})")
 
     @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
-    @hf.is_admin()
     async def super_watch(self, ctx):
         try:
             config = self.bot.db['super_watch'][str(ctx.guild.id)]
@@ -517,10 +503,9 @@ class Admin:
                        f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
                        f"sends posts to in the future by typing `;super_watch` again.  \n\n"
                        f"Aliases for this command are: `;superwatch`, `;sw`.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @super_watch.command()
-    @hf.is_admin()
     async def add(self, ctx, target):
         try:
             config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
@@ -534,12 +519,11 @@ class Admin:
         if target.id not in config:
             config.append(target.id)
             await ctx.send(f"Added {target.name} to super_watch list")
-            hf.dump_json()
+            await hf.dump_json()
         else:
             await ctx.send(f"{target.name} is already on the super_watch list")
 
     @super_watch.command()
-    @hf.is_admin()
     async def remove(self, ctx, target):
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         try:
@@ -552,10 +536,9 @@ class Admin:
             await ctx.send(f"Removed <@{target}> from super_watch list")
         except ValueError:
             await ctx.send(f"That user wasn't on the super_watch list")
-        hf.dump_json()
+        await hf.dump_json()
 
     @super_watch.command()
-    @hf.is_admin()
     async def list(self, ctx):
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         users = [f"<@{ID}>" for ID in config]
@@ -563,6 +546,30 @@ class Admin:
             await ctx.send(f"Users currently on the super_watch list: {', '.join(users)}")
         else:
             await ctx.send("There's currently no one on the super_watch list")
+
+    @commands.group(invoke_without_command=True, aliases=['setprefix'])
+    async def set_prefix(self, ctx, prefix):
+        """Sets a custom prefix for the bot"""
+        if prefix:
+            self.bot.db['prefix'][str(ctx.guild.id)] = prefix
+            await ctx.send(f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset` "
+                           f"to reset it back to the default prefix of `;`")
+            await hf.dump_json()
+        else:
+            prefix = self.bot.db['prefix'].get(str(ctx.guild.id), ';')
+            await ctx.send(f"This is the command to set a custom prefix for the bot.  The current prefix is "
+                           f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
+                           f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the default prefix.")
+
+    @set_prefix.command()
+    async def reset(self, ctx):
+        try:
+            prefix = self.bot.db['prefix']
+            del prefix[str(ctx.guild.id)]
+            await ctx.send("The command prefix for this guild has successfully been reset to `;`")
+            await hf.dump_json()
+        except KeyError:
+            await ctx.send("This guild already uses the default command prefix.")
 
 
 def setup(bot):

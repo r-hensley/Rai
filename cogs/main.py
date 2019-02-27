@@ -63,7 +63,7 @@ class Main:
                                   f"\nServer: {msg.author.guild.name}" \
                                   f"\nName: {msg.author.name} {msg.author.mention}"
                         await self.bot.get_channel(329576845949534208).send(message)
-                        hf.dump_json()
+                        await hf.dump_json()
         except KeyError as e:
             print('>>passed for key error on amazingsexdating: ' + e + '<<')
             pass
@@ -235,9 +235,9 @@ class Main:
         await ctx.send("ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
 
     @commands.command()
-    async def ping(self, ctx):
+    async def ping(self, ctx, x=4):
         """sends back 'hello'"""
-        await ctx.send('hello')
+        await ctx.send(str(round(self.bot.latency, x)) + 's')
 
     @commands.command()
     async def invite(self, ctx):
@@ -345,14 +345,14 @@ class Main:
         guild_id = str(ctx.guild.id)
         if guild_id in self.bot.db['report']:
             self.bot.db['report'][guild_id]['channel'] = ctx.channel.id
-            hf.dump_json()
+            await hf.dump_json()
             await ctx.send(f"Successfully set the report room channel to {ctx.channel.mention}.")
         else:
             self.bot.db['report'][guild_id] = {'channel': ctx.channel.id,
                                                'current_user': None,
                                                'waiting_list': [],
                                                'entry_message': None}
-            hf.dump_json()
+            await hf.dump_json()
             await ctx.send(f"Initial setup for report room complete.  The report room channel has been set to "
                            f"{ctx.channel.mention}.")
 
@@ -372,7 +372,7 @@ class Main:
         start_message = await ctx.channel.get_message(config['entry_message'])
         config['current_user'] = None
         config['entry_message'] = None
-        hf.dump_json()
+        await hf.dump_json()
         await report_room.set_permissions(user, read_messages=False)
 
         message_log = 'Start of log:\n'
@@ -477,7 +477,7 @@ class Main:
                   f"n in the order that I received requests.  You are position " \
                   f"{config['waiting_list'].index(user.id)+1} on the list"
             await user.send(msg)  # someone is in the room, you've been added to waiting list
-            hf.dump_json()
+            await hf.dump_json()
             return
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
@@ -492,7 +492,7 @@ class Main:
 
         msg = await report_room.send(report_text[4])  # initial ping to user in report room
         config['entry_message'] = msg.id
-        hf.dump_json()
+        await hf.dump_json()
         await asyncio.sleep(10)
         await report_room.send(report_text[5])  # full instructions text in report room
 
@@ -623,7 +623,7 @@ class Main:
     #                     self.bot.db['report_room_waiting_list'][report_guild].remove(
     #                         userIn.id)  # remove from waiting list
     #                 self.bot.db['current_report_member'][report_guild] = userIn.id  # set the current user
-    #                 hf.dump_json()
+    #                 await hf.dump_json()
     #                 await report_room.set_permissions(userIn, read_messages=True)
     #                 if not fromMod:  # set below on "if user:", about 17 lines below
     #                     await userIn.send(msg5Text[language_requested])  # Please go to <#ID> channel
@@ -655,7 +655,7 @@ class Main:
     #             else:
     #                 if str(userIn.id) not in self.bot.db['report_room_waiting_list'][report_guild]:
     #                     self.bot.db['report_room_waiting_list'][report_guild].append(userIn.id)  # add to waiting list
-    #                     hf.dump_json()
+    #                     await hf.dump_json()
     #                 await userIn.send(
     #                     f"Sorry but someone else is using the room right now.  I'll message you when it's ope"
     #                     f"n in the order that I received requests.  You are position "
@@ -833,7 +833,7 @@ class Main:
     #                                             'please react with the below emoji.')
     #             await waiting_msg.add_reaction('🚫')
     #             asyncio.sleep(10)
-    #         hf.dump_json()
+    #         await hf.dump_json()
 
     async def on_reaction_add(self, reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
@@ -849,7 +849,7 @@ class Main:
                         msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
                                              f"report room but just removed themselves."
                         await mod_channel.send(msg_to_mod_channel)
-                        hf.dump_json()
+                        await hf.dump_json()
                         return
                 await user.send("You aren't on the waiting list.")
 
@@ -1012,6 +1012,23 @@ class Main:
                                ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol', ';np', ';list'])
     async def ignore_commands_list(self, ctx):
         pass
+
+    @commands.command(aliases=['cl', 'checklanguage'])
+    async def check_language(self, ctx, *, msg: str = None):
+        """Shows what's happening behind the scenes for hardcore mode.  Will try to detec the language that your
+        message was typed in, and display the results.  Note that this is non-deterministic code, which means
+        repeated results of the same exact message might give different results every time."""
+        stripped_msg = hf.rem_emoji_url(msg)
+        try:
+            lang_result = langdetect.detect_langs(stripped_msg)
+        except langdetect.lang_detect_exception.LangDetectException:
+            lang_result = "There was an error detecting the languages"
+        str = f"Your message:```{msg}```" \
+              f"The message I see (no custom emojis or urls): ```{stripped_msg}```" \
+              f"The language I detect: ```{lang_result}```" \
+              f"If the first language is above 0.97 of your native language, your message would be deleted"
+
+        await ctx.send(str)
 
 
 def setup(bot):

@@ -57,26 +57,36 @@ _url = re.compile("""
 
 _emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
 
+_lock = asyncio.Lock()
+_loop = asyncio.get_event_loop()
 
-def dump_json():
+
+def _predump_json():
     with open(f'{dir_path}/db_2.json', 'w') as write_file:
-        json.dump(here.bot.db, write_file, indent=4)
-        write_file.flush()
-        os.fsync(write_file.fileno())
-    os.remove(f'{dir_path}/db.json')
-    os.rename(f'{dir_path}/db_2.json', f'{dir_path}/db.json')
+        json.dump(here.bot.db.copy(), write_file, indent=4)
+
+    os.replace(f'{dir_path}/db_2.json', f'{dir_path}/db.json')
+
+
+async def dump_json():
+    with await _lock:
+        await _loop.run_in_executor(None, _predump_json)
+
+
+def admin_check(ctx):
+    try:
+        ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
+        mod_role = ctx.guild.get_role(ID)
+        return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
+    except KeyError:
+        return ctx.channel.permissions_for(ctx.author).administrator
+    except TypeError:
+        return ctx.channel.permissions_for(ctx.author).administrator
 
 
 def is_admin():
     async def pred(ctx):
-        try:
-            ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
-            mod_role = ctx.guild.get_role(ID)
-            return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
-        except KeyError:
-            return ctx.channel.permissions_for(ctx.author).administrator
-        except TypeError:
-            return ctx.channel.permissions_for(ctx.author).administrator
+        return admin_check(ctx)
 
     return commands.check(pred)
 
@@ -108,7 +118,9 @@ def database_toggle(ctx, module_name):
 
 
 def rem_emoji_url(msg):
-    return _emoji.sub('', _url.sub('', msg.content))
+    if isinstance(msg, discord.Message):
+        msg = msg.content
+    return _emoji.sub('', _url.sub('', msg))
 
 
 def jpenratio(msg):

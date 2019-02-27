@@ -40,7 +40,7 @@ class Logger:
         os.remove(f'{dir_path}/database.json')
         os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
 
-    def module_logging(self, ctx, module):
+    async def module_logging(self, ctx, module):
         guild = str(ctx.guild.id)
         if guild in module:
             guild_config: dict = module[guild]
@@ -56,10 +56,10 @@ class Logger:
         else:  # first time register for a new guild
             module[guild] = {"enable": False, "channel": ""}
             result = 4
-        hf.dump_json()
+        await hf.dump_json()
         return result
 
-    def module_set(self, ctx, module):
+    async def module_set(self, ctx, module):
         guild = str(ctx.guild.id)
         if guild in module:  # server already registered
             guild_config: dict = module[guild]
@@ -68,7 +68,7 @@ class Logger:
         else:  # new server
             module[guild] = {"enable": True, "channel": ctx.channel.id}
             result = 2
-        hf.dump_json()
+        await hf.dump_json()
         return result
 
     @commands.group(invoke_without_command=True, aliases=['edit', 'edits'])
@@ -83,7 +83,7 @@ class Logger:
             await ctx.send('You have not yet set a channel for edit logging yet. Run `;edit_logging set`')
         elif result == 4:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            hf.dump_json()
+            await hf.dump_json()
             await ctx.send('Before doing this, set a channel for logging with `;edit_logging set`.  '
                            'Then, enable/disable logging by typing `;edit_logging`.')
 
@@ -94,7 +94,7 @@ class Logger:
             await ctx.send(f'Set the edit logging channel as {ctx.channel.name}')
         elif result == 2:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            hf.dump_json()
+            await hf.dump_json()
             await ctx.send(f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;edit_logging`.')
 
@@ -104,7 +104,7 @@ class Logger:
         guild_config: dict = self.bot.db['edits'][guild]
         guild_config['distance_limit'] = distance_limit
         await ctx.send(f'Successfully set Levenshtein Distance limit to {distance_limit}.')
-        hf.dump_json()
+        await hf.dump_json()
 
     def make_edit_embed(self, before, after, levenshtein_distance):
         author = before.author
@@ -254,7 +254,7 @@ class Logger:
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
-                hf.dump_json()
+                await hf.dump_json()
                 await ctx.send('Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
                                ' invite tracking)')
             except discord.errors.Forbidden:
@@ -262,7 +262,7 @@ class Logger:
                                "If you want invite tracking too, give me `Manage Server` and then type "
                                "`;invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
-                hf.dump_json()
+                await hf.dump_json()
 
         elif result == 3:
             await ctx.send('You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
@@ -278,7 +278,7 @@ class Logger:
         elif result == 2:
             server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
             server_config['invites_enable'] = True
-            hf.dump_json()
+            await hf.dump_json()
             await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
                            f'Enable/disable logging by typing `;welcome_logging`.')
 
@@ -293,7 +293,7 @@ class Logger:
             except KeyError:
                 server_config['invites_enable'] = True
                 await ctx.send('Enabled invites tracking')
-            hf.dump_json()
+            await hf.dump_json()
 
     async def make_welcome_embed(self, member, used_invite):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
@@ -339,7 +339,7 @@ class Logger:
             config['enable'] = True
             x = config['enable']
             await ctx.send(f'Set welcome message posting to {x}')
-        hf.dump_json()
+        await hf.dump_json()
 
     @welcome_message.command()
     async def set_message(self, ctx, *, message: str = None):
@@ -352,14 +352,14 @@ class Logger:
             config = self.bot.db['welcome_message'][str(ctx.guild.id)]
             config['message'] = message
             await ctx.send(f"Set welcome message to ```{message}```")
-            hf.dump_json()
+            await hf.dump_json()
 
     @welcome_message.command()
     async def set_channel(self, ctx):
         config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         config['channel'] = ctx.channel.id
         await ctx.send(f"Set welcome message channel to {ctx.channel.mention}")
-        hf.dump_json()
+        await hf.dump_json()
 
     @welcome_message.command()
     async def show_message(self, ctx):
@@ -375,11 +375,11 @@ class Logger:
                 channel = self.bot.get_channel(server_config['channel'])
                 try:
                     invites_enable = server_config['invites_enable']
-                    hf.dump_json()
+                    await hf.dump_json()
                 except KeyError:
                     server_config['invites_enable'] = False
                     invites_enable = server_config['invites_enable']
-                    hf.dump_json()
+                    await hf.dump_json()
                     await channel.send("I've added a toggle for invite tracking since it requires `Manage Server` "
                                        "permission.  If you wish Rai to track used invite links for joins, please type "
                                        "`welcomes invites`.")
@@ -394,7 +394,7 @@ class Logger:
                             invites_list = await member.guild.invites()
                             old_invites = {invite.code: invite.uses for invite in invites_list}
                             self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
-                            hf.dump_json()
+                            await hf.dump_json()
                         invites = await member.guild.invites()
                         new_invites = {invite.code: invite.uses for invite in invites}
                         for invite in new_invites:
@@ -415,7 +415,7 @@ class Logger:
                         await channel.send(
                             "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
                             "invite link tracking.  If you wish to reenable it, type `;welcomes invites`")
-                    hf.dump_json()
+                    await hf.dump_json()
                 try:
                     x = await self.make_welcome_embed(member, used_invite)
                     await channel.send(embed=x)
@@ -440,7 +440,7 @@ class Logger:
                     return  # stops execution of the rest of the code if was invite link name
         except KeyError:
             pass
-        hf.dump_json()
+        await hf.dump_json()
 
         """blacklist bans"""
         config = self.bot.db['global_blacklist']
@@ -494,7 +494,7 @@ class Logger:
                         await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
                                                                         f"{member.mention} on {member.guild.name}")
                         del config['users'][str(member.id)]
-                        hf.dump_json()
+                        await hf.dump_json()
             finally:
                 if post_message:
                     if str(used_invite.code) in japanese_links:
@@ -524,7 +524,7 @@ class Logger:
                     await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
                                                                     f"{member.mention} on {member.guild.name}")
                     del config['users'][str(member.id)]
-                    hf.dump_json()
+                    await hf.dump_json()
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -602,7 +602,7 @@ class Logger:
                     role_list.remove(249695630606336000)
                 if role_list:  # if the role list isn't empty (i.e., no roles)
                     config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"), role_list]
-                    hf.dump_json()
+                    await hf.dump_json()
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
@@ -828,7 +828,7 @@ class Logger:
             await member.unban()
             try:
                 self.bot.db['global_blacklist']['blacklist'].remove(414873201349361664)
-                hf.dump_json()
+                await hf.dump_json()
             except ValueError:
                 pass
 
