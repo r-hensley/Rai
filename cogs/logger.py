@@ -89,7 +89,7 @@ class Logger:
 
     @edit_logging.command(aliases=['set'])
     async def edits_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['edits'])
+        result = await self.module_set(ctx, self.bot.db['edits'])
         if result == 1:
             await ctx.send(f'Set the edit logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -169,7 +169,7 @@ class Logger:
 
     @delete_logging.command(aliases=['set'])
     async def deletes_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['deletes'])
+        result = await self.module_set(ctx, self.bot.db['deletes'])
         if result == 1:
             await ctx.send(f'Set the delete logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -272,7 +272,7 @@ class Logger:
 
     @welcome_logging.command(aliases=['set'])
     async def welcomes_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['welcomes'])
+        result = await self.module_set(ctx, self.bot.db['welcomes'])
         if result == 1:
             await ctx.send(f'Set the welcome logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -554,7 +554,7 @@ class Logger:
 
     @leave_logging.command(aliases=['set'])
     async def leaves_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['leaves'])
+        result = await self.module_set(ctx, self.bot.db['leaves'])
         if result == 1:
             await ctx.send(f'Set the leave logging channel as `{ctx.channel.name}`')
         elif result == 2:
@@ -628,7 +628,7 @@ class Logger:
 
     @nickname_logging.command(aliases=['set'])
     async def nicknames_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['nicknames'])
+        result = await self.module_set(ctx, self.bot.db['nicknames'])
         if result == 1:
             await ctx.send(f'Set the nickname logging channel as `{ctx.channel.name}`')
         elif result == 2:
@@ -716,7 +716,7 @@ class Logger:
 
     @reaction_logging.command(aliases=['set'])
     async def reactions_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['reactions'])
+        result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
             await ctx.send(f'Set the reaction logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -771,7 +771,7 @@ class Logger:
 
     @ban_logging.command(aliases=['set'])
     async def bans_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['bans'])
+        result = await self.module_set(ctx, self.bot.db['bans'])
         if result == 1:
             await ctx.send(f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -867,7 +867,7 @@ class Logger:
 
     @kick_logging.command(aliases=['set'])
     async def kicks_set(self, ctx):
-        result = self.module_set(ctx, self.bot.db['kicks'])
+        result = await self.module_set(ctx, self.bot.db['kicks'])
         if result == 1:
             await ctx.send(f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
