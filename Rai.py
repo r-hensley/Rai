@@ -27,7 +27,15 @@ tStart = datetime.now()
 
 initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
 
-bot = Bot(description="Bot by Ryry013#9234", command_prefix=";", owner_id=202995638860906496)
+with open(f"{dir_path}/db.json", "r") as read_file:
+    db = json.load(read_file)
+
+
+def prefix(bot, msg):
+    return db['prefix'].get(str(msg.guild.id), ';')
+
+
+bot = Bot(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496)
 
 
 @bot.event
@@ -61,8 +69,7 @@ async def on_ready():
     bot.waited = str(bot.spanServ.get_member(116275390695079945).status) == 'offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
     bot.selfMute = False
 
-    with open(f"{dir_path}/db.json", "r") as read_file:
-        bot.db = json.load(read_file)
+    bot.db = db
     bot.ID = bot.db["ID"]
     date = datetime.today().strftime("%d%m%Y%H%M")
     with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
@@ -78,6 +85,15 @@ async def on_ready():
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
     await bot.change_presence(activity=discord.Game(';help'))
 
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.NoPrivateMessage):
+            await ctx.author.send('This command cannot be used in private messages.')
+        elif isinstance(error, commands.CommandInvokeError):
+            command = ctx.command.qualified_name
+            await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
+            print(f'In {command}:', file=sys.stderr)
+            traceback.print_tb(error.original.__traceback__)
+            print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
 
 def getAPIKey(filename):
     with open(filename) as f:
