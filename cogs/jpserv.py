@@ -45,7 +45,7 @@ class Jpserv:
             if mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator:
                 if ctx.author.id != member.id:
                     self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].remove(member.id)
-                    hf.dump_json()
+                    await hf.dump_json()
                     try:
                         await member.remove_roles(role)
                     except discord.errors.Forbidden:
@@ -64,7 +64,7 @@ class Jpserv:
         role = ctx.guild.get_role(486851965121331200)
         if ctx.author.id not in self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])]:  # if not enabled
             self.bot.db['ultraHardcore'][str(self.bot.ID["jpServ"])].append(ctx.author.id)
-            hf.dump_json()
+            await hf.dump_json()
             try:
                 await ctx.author.add_roles(role)
             except discord.errors.Forbidden:
@@ -117,7 +117,7 @@ class Jpserv:
         except KeyError:
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
-        hf.dump_json()
+        await hf.dump_json()
 
 def setup(bot):
     bot.add_cog(Jpserv(bot))

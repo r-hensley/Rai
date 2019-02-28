@@ -32,7 +32,10 @@ with open(f"{dir_path}/db.json", "r") as read_file:
 
 
 def prefix(bot, msg):
-    return db['prefix'].get(str(msg.guild.id), ';')
+    if msg.guild:
+        return db['prefix'].get(str(msg.guild.id), ';')
+    else:
+        return ';'
 
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496)

@@ -675,7 +675,6 @@ class Logger:
                     await channel.send(embed=embed)
 
         """Nadeko updates"""
-        return
         if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
             if str(before.status) == 'online' and str(after.status) == 'offline':
                 def check(beforecheck, aftercheck):
@@ -731,7 +730,8 @@ class Logger:
             timestamp=datetime.utcnow()
         )
 
-        emb.add_field(name='Original message:', value=reaction.message.content)
+        if reaction.message.content:
+            emb.add_field(name='Original message:', value=reaction.message.content)
         if type(reaction.emoji) == discord.Emoji:
             emb.set_thumbnail(url=reaction.emoji.url)
         else:
