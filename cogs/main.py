@@ -1003,10 +1003,12 @@ class Main:
             await ctx.author.edit(nick=ctx.author.name[:-1])
             await ctx.message.add_reaction('◀')
 
-    @commands.command()
+    @commands.command(aliases=['ryry'])
     async def ryan(self, ctx):
         """Posts a link to the help docs server for my bot"""
-        await ctx.send("You can find some shitty docs for how to use my bot here: https://discord.gg/7k5MMpr")
+        await ctx.send("You can find some shitty docs for how to use my bot here: "
+                       "https://github.com/ryry013/Rai/blob/master/README.md \n"
+                       "You can ask questions and find some further details here: https://discord.gg/7k5MMpr")
 
     @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
                                ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol', ';np', ';list'])

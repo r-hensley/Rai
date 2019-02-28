@@ -210,15 +210,13 @@ class Admin:
         if len(num) == 18:
             args = ('0', int(num))
             num = 100
-        if 4 <= len(str(num)) < 18:
-            msg = await ctx.send(f"I believe you may have made a mistake with the arguments.  You're trying to delete "
-                                 f"the last {num} messages, which is probably not what you intend to do.")
-            await asyncio.sleep(5)
-            await msg.delete()
-            return
-        if 100 < int(num) < 1000:
-            await ctx.send(f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
-            await self.bot.wait_for('message', timeout=10, check=lambda m: m.author == ctx.author and m.content == 'y')
+        if 100 < int(num):
+            msg = await ctx.send(f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
+            try:
+                await self.bot.wait_for('message', timeout=10,
+                                        check=lambda m: m.author == ctx.author and m.content == 'y')
+            except asyncio.TimeoutError:
+                await msg.edit(content="Canceling channel prune", delete_after=5.0)
         if ctx.channel.permissions_for(ctx.author).manage_messages:
             try:
                 await ctx.message.delete()
@@ -268,6 +266,8 @@ class Admin:
             except ValueError:
                 await ctx.send('You must put a number after the command, like `;await clear 5`')
                 return
+        else:
+            await ctx.send(f"You lack permissions to use the `;clear` command.")
 
     @commands.command()
     async def auto_bans(self, ctx):
@@ -420,7 +420,7 @@ class Admin:
 
         await hf.dump_json()
 
-    @commands.group(invoke_without_command=True, aliases=['svw'])
+    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'super_voicewatch'])
     async def super_voicewatch(self, ctx):
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
