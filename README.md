@@ -6,7 +6,9 @@ Discord bot for Japanese server written in Python.  Some key features:
 - Configurable captcha to enter a server
 - Super watchlist for when you have raiders who are repeatedly making accounts and spamming gore/porn/etc.
 
-Ryry013#9234
+Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=3072
+
+Questions to: Ryry013#9234
 
 # Commands
 List of commands for Rai bot.
