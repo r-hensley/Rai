@@ -6,6 +6,20 @@ Ryry013#9234
 # Commands
 List of commands for Rai bot.
 
+- [General](#general)
+- [Admin](#admin-commands)
+  - [Setting the mod role](#setting-the-mod-role)
+  - [Setting a custom prefix](#setting-a-custom-prefix)
+  - [Captcha to enter a server](#captcha-to-enter-a-server)
+  - [Clear/prune messages](#clearprune-messages)
+  - [Super_watch lists: an anti-raid tool](#super_watch-lists-an-anti-raid-tool)
+  - [Invite link/amazingsexdating spam auto-banning](#invite-linkamazingsexdating-spam-auto-banning)
+  - [Chinese server only commands](#chinese-server-only)
+  - [Spanish server only commands](#spanish-server-only)
+  - [Japanese server only commands](#japanese-server-only)
+- [Report room](#report-room)
+- [Logging](#logging)
+
 
 ## General
 These are usable by anyone, mostly just for fun or light general utility.
@@ -85,7 +99,7 @@ If you've received reports for a user causing problems in voice, use this to not
 - **`;svw add [USER]`** **`;svw remove [USER]`** Adds/removes a user from the list  
 - **`;svw list`** Shows a list of all users on the list currently  
 
-#### Invite link name/amazingsexdating banning
+#### Invite link/amazingsexdating spam auto-banning
 - **`;auto_bans`** Toggles the banning of all users who join and instantly send an invite link, or those that join and spam a link to amazingsexdating.com.  If you use the below welcome messages module too, then the welcome message won't be posted.
 
 #### Welcome messages
