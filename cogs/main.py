@@ -251,6 +251,8 @@ class Main:
             return
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
+            await ctx.send(f"This server has not run the setup for the report function yet.  Please type "
+                           f"`;report setup`.")
             return
         config = self.bot.db['report'][guild_id]
         report_room = self.bot.get_channel(config['channel'])

@@ -87,6 +87,8 @@ async def on_ready():
     tFinish = datetime.now()
     await bot.testChan.send('Bot loaded (time: {})'.format(tFinish-tStart))
     await bot.change_presence(activity=discord.Game(';help'))
+    sys.stderr.flush()
+    sys.stdout.flush()
 
 
 @bot.event

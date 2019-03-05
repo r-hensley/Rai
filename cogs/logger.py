@@ -491,8 +491,6 @@ class Logger:
                         await member.remove_roles(new_user_role)
                         await self.bot.jpJHO.send(
                             f"Welcome back {member.name}! I've given your previous roles back to you")
-                        await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
-                                                                        f"{member.mention} on {member.guild.name}")
                         del config['users'][str(member.id)]
                         await hf.dump_json()
             finally:
@@ -521,8 +519,6 @@ class Logger:
                     del (list_of_roles[0])
                     await member.add_roles(*list_of_roles)
                     await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
-                    await self.bot.get_user(self.bot.owner_id).send(f"I've given roles to "
-                                                                    f"{member.mention} on {member.guild.name}")
                     del config['users'][str(member.id)]
                     await hf.dump_json()
 
