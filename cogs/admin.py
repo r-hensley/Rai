@@ -20,10 +20,6 @@ class Admin:
         return hf.admin_check(ctx)
 
     @commands.command()
-    async def adte(self, ctx):
-        await ctx.send('a')
-
-    @commands.command()
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese/Spanish server"""
         if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
@@ -420,7 +416,7 @@ class Admin:
 
         await hf.dump_json()
 
-    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'super_voicewatch'])
+    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'])
     async def super_voicewatch(self, ctx):
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
