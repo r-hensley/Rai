@@ -9,6 +9,7 @@ import sys
 import codecs
 import json
 from .utils import helper_functions as hf
+import re
 
 # to expose to the eval command
 import datetime
@@ -251,7 +252,6 @@ class Owner:
                     async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=31)):
                         emoji_list = pattern.findall(message.content)
                         if emoji_list:
-                            print(f'Message: {message.content}\nEmojis: {emoji_list}\n')
                             for emoji in emoji_list:
                                 name = emoji.split(':')[1]  # this will strip the ID, and include emojis from other
                                 try:  # servers with the same name, which are usually the same emoji too
@@ -265,7 +265,7 @@ class Owner:
         print(sorted_list)
         msg1 = ''
         msg2 = ''
-        emoji_list = [i.name for i in bot.spanServ.emojis]
+        emoji_list = [i.name for i in self.bot.spanServ.emojis]
         print(emoji_list)
         for i in sorted_list:
             name = i[0]
@@ -274,6 +274,7 @@ class Owner:
             else:
                 msg2 += f':{name}:: {i[1]}\n'
         print(msg1)
+        await ctx.send(msg1)
         print(emoji_dict)
         print(emoji_list)
 
