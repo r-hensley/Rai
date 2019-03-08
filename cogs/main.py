@@ -1034,6 +1034,236 @@ class Main:
 
         await ctx.send(str)
 
+    @staticmethod
+    def get_color_from_name(name):
+        if len(name) < 3:
+            name *= 3
+        length = len(name)
+        split_name = [name[round(0 * length / 3)],
+                      name[round(1 * length / 3)],
+                      name[round(2 * length / 3)]]
+        color = {'r': ord(split_name[0]) % 256,
+                 'g': ord(split_name[1]) % 256,
+                 'b': ord(split_name[2]) % 256}
+        return color
+
+    async def add_question(self, ctx, target_message, title=None):
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            await ctx.send(f"This channel is not setup as a questions channel.  Run `;question setup` in the "
+                           f"questions channel to start setup.")
+            return
+        if not title:
+            title = target_message.content
+        question_number = 1
+        while str(question_number) in config['questions']:
+            question_number += 1
+        config['questions'][str(question_number)] = {}
+        config['questions'][str(question_number)]['title'] = title
+        config['questions'][str(question_number)]['question_message'] = target_message.id
+
+        log_channel = self.bot.get_channel(config['log_channel'])
+        color = self.get_color_from_name(target_message.author.name)  # returns a RGB tuple unique to every username
+        emb = discord.Embed(title=f"Question number: `{question_number}`",
+                            description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
+                                        f"in {target_message.channel.mention}",
+                            color=discord.Color.from_rgb(color['r'], color['g'], color['b']),
+                            timestamp=datetime.utcnow())
+        emb.add_field(name=f"{title}", value=f"{target_message.jump_url}")
+        if ctx.author != target_message.author:
+            emb.set_footer(text=f"Question added by {ctx.author.name}")
+        log_message = await log_channel.send(embed=emb)
+        config['questions'][str(question_number)]['log_message'] = log_message.id
+        number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
+                      '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
+        await target_message.add_reaction(number_map[str(question_number)])
+        hf.dump_json()
+
+    @commands.group(invoke_without_command=True, aliases=['q'])
+    async def question(self, ctx, *args):
+        """A module for asking questions, put the title of your quesiton like `;question <title>`"""
+        if not args:
+            msg = f"This is a module to help you ask your questions.  To ask a question, decide a title for your " \
+                  f"question and type `;question new <title>`.  For example, if your question is about the meaning " \
+                  f"of a word in a sentence, you could format the command like `;question new Meaning of <word> " \
+                  f"in <sentence>`. Put that command in the questions channel and you're good to go!  " \
+                  f"(Aliases for `;question new`: `;question ask`, `;question add`)"
+            await ctx.send(msg)
+            return
+
+        try:  # there is definitely some text in the arguments
+            target_message = await ctx.channel.get_message(int(args[0]))  # this will work if the first arg is an ID
+            if len(args) < 1:
+                title = target_message.content  # if there was no text after the ID
+            else:
+                title = ' '.join(args[1:])  # if there was some text after the ID
+        except (discord.errors.NotFound, ValueError):  # no ID cited in the args
+            target_message = ctx.message  # use the current message as the question link
+            title = ' '.join(args)  # turn all of args into the title
+
+        await self.add_question(ctx, target_message, title)
+
+    @question.command()
+    @hf.is_admin()
+    async def setup(self, ctx):
+        """Use this command in your questions channel"""
+        config = self.bot.db['questions'].setdefault(str(ctx.guild.id), {})
+        if str(ctx.channel.id) in config:
+            msg = await ctx.send("This will reset the questions database for this channel.  "
+                                 "Do you wish to continue?")
+            try:
+                await self.bot.wait_for('message', timeout=15.0, check=lambda m: m.content == 'y' and
+                                                                                 m.author == ctx.author)
+            except asyncio.TimeoutError:
+                await msg.edit(content="Canceled...", delete_after=10.0)
+                return
+        msg_1 = await ctx.send(f"Questions channel set as {ctx.channel.mention}.  In the way I just linked this "
+                               f"channel, please give me a link to the log channel you wish to use for this channel.")
+        try:
+            msg_2 = await self.bot.wait_for('message', timeout=20.0, check=lambda m: m.author == ctx.author)
+        except asyncio.TimeoutError:
+            await msg_1.edit(content="Canceled...", delete_after=10.0)
+            return
+
+        try:
+            log_channel_id = int(msg_2.content.split('<#')[1][:-1])
+            log_channel = self.bot.get_channel(log_channel_id)
+            if not log_channel:
+                raise NameError
+        except (IndexError, NameError):
+            await ctx.send(f"Invalid channel specified.  Please start over and specify a link to a channel "
+                           f"(should highlight blue)")
+            return
+        config[str(ctx.channel.id)] = {'questions': {},
+                                       'log_channel': log_channel_id}
+        await ctx.send(f"Set the log channel as {log_channel.mention}.  Setup complete.  Try starting your first "
+                       f"question with `;question new <title>` in this channel.")
+        hf.dump_json()
+
+    @question.command(aliases=['a'])
+    async def answer(self, ctx, number, answer_id=None):
+        """Marks a question as answered,
+        and has an optional answer_id field for if you wish to specify an answer message"""
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+            question = config['questions'][number]
+        except KeyError:
+            await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
+                           f"`;question answer 3`.")
+            return
+        log_channel = self.bot.get_channel(config['log_channel'])
+        if answer_id:
+            try:
+                answer_message = await ctx.channel.get_message(int(answer_id))
+            except discord.errors.NotFound:
+                await ctx.send(f"A corresponding message to the specified ID was not found.")
+                return
+        else:
+            answer_message = ctx.message
+        try:
+            log_message = await log_channel.get_message(question['log_message'])
+            emb = log_message.embeds[0]
+            emb.description += f"\nAnswered by {answer_message.author.mention} ({answer_message.author.name})"
+            emb.title = "ANSWERED"
+            emb.color = discord.Color.default()
+            emb.add_field(name=f"Answer:",
+                          value=answer_message.jump_url)
+            await log_message.edit(embed=emb)
+        except discord.errors.NotFound:
+            await ctx.send(f"Message in log channel not found.  Continuing code.")
+
+        question_message = await ctx.channel.get_message(question['question_message'])
+        for reaction in question_message.reactions:
+            if reaction.me:
+                await question_message.remove_reaction(reaction.emoji, self.bot.user)
+
+        del(config['questions'][number])
+        hf.dump_json()
+        await ctx.message.add_reaction('\u2705')
+
+    @question.command(aliases=['reopen'])
+    @hf.is_admin()
+    async def open(self, ctx, message_id):
+        """Reopens a closed question, point message_id to the log message in the log channel"""
+        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        log_channel = self.bot.get_channel(config['log_channel'])
+        log_message = await log_channel.get_message(int(message_id))
+        emb = log_message.embeds[0]
+        emb.description = emb.description.split('\n')[0]
+        question_message = await ctx.channel.get_message(int(emb.fields[0].value.split('/')[-1]))
+        await self.add_question(ctx, question_message, question_message.content)
+        await log_message.delete()
+
+    @question.command()
+    async def list(self, ctx):
+        """Shows a list of currently open questions"""
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]['questions']
+        except KeyError:
+            await ctx.send(f"This channel is not setup as a questions channel.  Run `;question setup` in the "
+                           f"questions channel to start setup.")
+            return
+        emb = discord.Embed(title=f"List of open questions:")
+        for question in config:
+            try:
+                question_message = await ctx.channel.get_message(config[question]['question_message'])
+                question_text = ' '.join(question_message.content.split(' ')[2:])
+                emb.add_field(name=f"Question `{question}`",
+                              value=f"By {ctx.author.mention} ({ctx.author.name}):\n"
+                                    f"{question_text}\n"
+                                    f"{question_message.jump_url}")
+            except discord.errors.NotFound:
+                emb.add_field(name=f"Question `{question}`",
+                              value="original message not found")
+        await ctx.send(embed=emb)
+
+    @question.command(aliases=['edit'])
+    @hf.is_admin()
+    async def change(self, ctx, log_id, target, *text):
+        """Edit either the asker, answerer, question, title, or answer of a question log in the log channel"""
+        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        log_channel = self.bot.get_channel(config['log_channel'])
+        target_message = await log_channel.get_message(int(log_id))
+        if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
+            await ctx.send(f"Invalid field specified in the log message.  Please choose a target to edit out of "
+                           f"`asker`, `answerer`, `question`, `title`, `answer`")
+            return
+        emb = target_message.embeds[0]
+
+        if target == 'question':
+            question_message = await ctx.channel.get_message(int(text[0]))
+            emb.set_field_at(0, name=emb.fields[0].name, value=question_message.jump_url)
+        if target == 'title':
+            title = ' '.join(text)
+            emb.set_field_at(0, name=title, value=emb.fields[0].value)
+
+        if emb.title == 'ANSWERED':
+            if target == 'asker':
+                asker = ctx.guild.get_member(int(text[0]))
+                line_1 = f"Asked by {asker.mention} ({asker.name})"
+                line_2 = emb.description.split('\n')[1]
+                emb.description = f"{line_1}\n{line_2}"
+            elif target == 'answerer':
+                answerer = ctx.guild.get_member(int(text[0]))
+                line_1 = emb.description.split('\n')[0]
+                line_2 = f"Answered by {answerer.mention} ({answerer.name})"
+                emb.description = f"{line_1}\n{line_2}"
+            elif target == 'answer':
+                answer_message = await ctx.channel.get_message(int(text[0]))
+                emb.set_field_at(1, name=emb.fields[1].name, value=answer_message.jump_url)
+        else:
+            if target == 'asker':
+                asker = ctx.guild.get_member(int(text[0]))
+                emb.description = f"Asked by {asker.mention} ({asker.name})"
+
+        if emb.footer.text:
+            emb.set_footer(text=emb.footer.text + f", Edited by {ctx.author.name}")
+        else:
+            emb.set_footer(text=f"Edited by {ctx.author.name}")
+        await target_message.edit(embed=emb)
+        await ctx.message.add_reaction('\u2705')
+
 
 def setup(bot):
     bot.add_cog(Main(bot))

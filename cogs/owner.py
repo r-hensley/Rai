@@ -343,17 +343,18 @@ class Owner:
             color = color[2:]
         em = discord.Embed(
             title='title',
-            description='desc',
+            description='title, description, url, timestamp, color\n'
+                        'em.set_footer(), em.set_image(url=), em.set_thumbnail(url=), em.set_author(), em.add_field()',
             url='https://url.com',
             timestamp=datetime.utcnow(),
             color=discord.Color(int(color, 16))
         )
-        em.set_footer(text='footer', icon_url='https://i.imgur.com/u6tDx8h.png')
+        em.set_footer(text='em.set_footer(text=str, icon_url=str)', icon_url='https://i.imgur.com/u6tDx8h.png')
         em.set_image(url='https://i.imgur.com/GcgjR79.png')
         em.set_thumbnail(url='https://i.imgur.com/qwIpWAI.png')
         em.set_author(name='author name', url='https://author.url', icon_url='https://i.imgur.com/QLRBaM4.png')
-        em.add_field(name='inline field name', value='value', inline=True)
-        em.add_field(name='not inline field name', value='value', inline=False)
+        em.add_field(name='name=str, value=str, inline=True', value='value', inline=True)
+        em.add_field(name='name=str, value=str, inline=False', value='value', inline=False)
         await ctx.send(embed=em)
 
     @commands.command(aliases=['hk'])
