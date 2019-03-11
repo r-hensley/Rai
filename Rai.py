@@ -95,15 +95,41 @@ async def on_ready():
 async def on_command_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
         await ctx.author.send('This command cannot be used in private messages.')
-    elif isinstance(error, commands.CommandInvokeError):
-        command = ctx.command.qualified_name
-        await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
-        print(f'In {command}:', file=sys.stderr)
-        traceback.print_tb(error.original.__traceback__)
-        print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
+    # elif isinstance(error, commands.CommandInvokeError):
+    #     command = ctx.command.qualified_name
+    #     await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
+    #     print(f'Error in {command}:', file=sys.stderr)
+    #     traceback.print_tb(error.original.__traceback__)
+    #     print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
     elif isinstance(error, commands.errors.CheckFailure):
         await ctx.send(f"You lack the permissions to do that.  Try using "
                        f"`{bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+    elif isinstance(error, commands.CommandNotFound):
+        print(f">>Command not found \n{ctx.message.content[:30]}<<")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"You're missing a required argument.  Try running `;help {ctx.command.qualified_name}`")
+    else:
+        error = getattr(error, 'original', error)
+        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
+        print(f'Error in {qualified_name}:', file=sys.stderr)
+        traceback.print_tb(error.__traceback__)
+        print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
+
+        e = discord.Embed(title='Command Error', colour=0xcc3366)
+        e.add_field(name='Name', value=qualified_name)
+        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
+
+        fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
+        if ctx.guild:
+            fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
+
+        e.add_field(name='Location', value=fmt, inline=False)
+
+        exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
+        traceback_text = f'```py\n{exc}\n```'
+        e.timestamp = datetime.utcnow()
+        await bot.get_channel(554572239836545074).send(traceback_text, embed=e)
+
 
 
 def getAPIKey(filename):
@@ -111,6 +137,6 @@ def getAPIKey(filename):
         return f.read()
 
 
-key = getAPIKey(dir_path+'/APIKey.txt') + 'c'
+key = getAPIKey(dir_path+'/APIKey.txt') + 'k'
 bot.run(key)
 input("press key to exit")

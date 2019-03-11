@@ -4,19 +4,21 @@ import asyncio
 from datetime import datetime, timedelta
 from .utils import helper_functions as hf
 import langdetect
+import hashlib
 
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Main:
+class Main(commands.Cog):
     """My custom cog that does stuff!"""
 
     def __init__(self, bot):
         self.bot = bot
         hf.setup(bot)
 
+    @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot:
             return
@@ -99,8 +101,9 @@ class Main:
                 return
             else:
                 await self.bot.spamChan.send(
-                    '<@202995638860906496> **By {} in <#{}>**: {}'.format(msg.author.name, msg.channel.id,
-                                                                          msg.content))
+                    f'<@202995638860906496> **By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'\n{msg.jump_url}'
+                    f'\n{msg.content}')
 
         """Self mute"""
         if msg.author.id == self.bot.owner_id and self.bot.selfMute:
@@ -264,10 +267,10 @@ class Main:
             # [0]: when the user first enters the module
             f"Welcome to the reporting module.  You're about to make a report to the mods of the "
             f"{ctx.guild.name} server.  Please select one of the following options for your report.\n\n"
-            f"1) Send an anonymous report to the mods.\n"
-            f"2) Request an audience with the mods to have a conversation with them (choose "
-            f"this if you want a response to your report).\n"
-            f"3) Cancel the report and leave this menu.",
+            f"1) Send a report to the mods.\n"
+            f"2) Send an anonymous report to the mods.\n"
+            f"3) Talk with the mods.\n"
+            f"4) Cancel",
 
             # [1]: user chooses option 1: anonymous report
             "Please type your report in one message below.  Make sure to include any relevant information, such as "
@@ -281,8 +284,8 @@ class Main:
             f".\n\n\n\n\n__Please go here__: {report_room.mention}\n"
             f"In ten seconds, I'll send a welcome message there.",
 
-            # [4]: initial ping to user in report room
-            f"{ctx.author.mention} This user has entered the report room.  If they don't "
+            # [4]: initial ping to mods in report room
+            f"{ctx.author.name} -  This user has entered the report room.  If they don't "
             f"come to this channel in the next ten seconds, they will not be able to "
             f"see the following message and might be confused as to what's happening.",
 
@@ -303,7 +306,10 @@ class Main:
 
             # [7]: message to the mods that someone is on the waitlist
             f'The user {user.mention} has tried to access the report room, but was put on '
-            f'the wait list because someone else is currently using it.'
+            f'the wait list because someone else is currently using it.',
+
+            # [8]: initial ping to user
+            f'Please come to this channel {user.mention}'
         ]
 
         if user != ctx.author:  # if the mods called in a user
@@ -321,13 +327,16 @@ class Main:
         if not reaction:
             return
 
-        if str(reaction.emoji) == "1⃣":  # requested to send a single message
-            await self.anonymous_report(ctx, report_text)
-
-        if str(reaction.emoji) == '2⃣':  # requested audience with mods
+        if str(reaction.emoji) == "1⃣":  # Send a report
             await self.report_room(ctx, config, ctx.author, report_text)
 
-        if str(reaction.emoji) == '3⃣':  # cancel
+        if str(reaction.emoji) == '2⃣':  # Send an anonymous report
+            await self.anonymous_report(ctx, report_text)
+
+        if str(reaction.emoji) == "3⃣":  # Talk to the mods
+            await self.report_room(ctx, config, ctx.author, report_text)
+
+        if str(reaction.emoji) == '4⃣':  # Cancel
             await ctx.author.send('Understood.  Have a nice day!')
             return
 
@@ -437,13 +446,14 @@ class Main:
         """;report: Presents a user with the options of making an anonymous report or entering the report room"""
 
         def check(reaction, user):
-            return user == ctx.author and (str(reaction.emoji) in "1⃣2⃣3⃣")  # 4⃣
+            return user == ctx.author and (str(reaction.emoji) in "1⃣2⃣3⃣4⃣")  # 4⃣
 
         msg = await ctx.author.send(report_text[0])  # when the user first enters the module
 
-        await msg.add_reaction("1⃣")  # anonymous report
-        await msg.add_reaction('2⃣')  # report room
-        await msg.add_reaction('3⃣')  # cancel
+        await msg.add_reaction("1⃣")  # Send a report (report room)
+        await msg.add_reaction('2⃣')  # Send an anonymous report
+        await msg.add_reaction('3⃣')  # Talk to the mods (report room)
+        await msg.add_reaction('4⃣')  # cancel
 
         try:
             reaction, user = await ctx.bot.wait_for('reaction_add', timeout=300.0, check=check)
@@ -492,7 +502,8 @@ class Main:
         else:
             await user.send(report_text[3])  # please go to the report room
 
-        msg = await report_room.send(report_text[4])  # initial ping to user in report room
+        msg = await report_room.send(report_text[4])  # initial msg to mods
+        await report_room.send(report_text[8])
         config['entry_message'] = msg.id
         await hf.dump_json()
         await asyncio.sleep(10)
@@ -837,6 +848,7 @@ class Main:
     #             asyncio.sleep(10)
     #         await hf.dump_json()
 
+    @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
         if reaction.emoji == '🚫':
@@ -855,6 +867,7 @@ class Main:
                         return
                 await user.send("You aren't on the waiting list.")
 
+    @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         if payload.emoji.name == '✅':  # captcha
             if str(payload.guild_id) in self.bot.db['captcha']:
@@ -924,6 +937,7 @@ class Main:
                     'on_raw_reaction_add: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
 
+    @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         if payload.guild_id:
             if payload.guild_id == 266695661670367232:  # chinese
@@ -1039,12 +1053,12 @@ class Main:
         if len(name) < 3:
             name *= 3
         length = len(name)
-        split_name = [name[round(0 * length / 3)],
-                      name[round(1 * length / 3)],
-                      name[round(2 * length / 3)]]
-        color = {'r': ord(split_name[0]) % 256,
-                 'g': ord(split_name[1]) % 256,
-                 'b': ord(split_name[2]) % 256}
+        i = [name[round(0 * length / 3)],
+             name[round(1 * length / 3)],
+             name[round(2 * length / 3)]]
+        color = {'r': int(hashlib.md5(i[0].encode()).hexdigest()[-2:], 16),
+                 'g': int(hashlib.md5(i[1].encode()).hexdigest()[-2:], 16),
+                 'b': int(hashlib.md5(i[2].encode()).hexdigest()[-2:], 16)}
         return color
 
     async def add_question(self, ctx, target_message, title=None):
@@ -1059,15 +1073,18 @@ class Main:
         question_number = 1
         while str(question_number) in config['questions']:
             question_number += 1
+        if question_number > 9:
+            await ctx.send(f"Note, I've reached the maximum amount of open questions for reactions.  Try "
+                           f"running `;q list` and clearing out some old questions.")
         config['questions'][str(question_number)] = {}
         config['questions'][str(question_number)]['title'] = title
         config['questions'][str(question_number)]['question_message'] = target_message.id
+        config['questions'][str(question_number)]['author'] = target_message.author.id
 
         log_channel = self.bot.get_channel(config['log_channel'])
         color = self.get_color_from_name(target_message.author.name)  # returns a RGB tuple unique to every username
         emb = discord.Embed(title=f"Question number: `{question_number}`",
-                            description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
-                                        f"in {target_message.channel.mention}",
+                            description=f"Asked by {target_message.author.mention} in {target_message.channel.mention}",
                             color=discord.Color.from_rgb(color['r'], color['g'], color['b']),
                             timestamp=datetime.utcnow())
         emb.add_field(name=f"{title}", value=f"{target_message.jump_url}")
@@ -1077,24 +1094,26 @@ class Main:
         config['questions'][str(question_number)]['log_message'] = log_message.id
         number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
                       '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
-        await target_message.add_reaction(number_map[str(question_number)])
-        hf.dump_json()
+        if question_number < 10:
+            await target_message.add_reaction(number_map[str(question_number)])
+        await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['q'])
-    async def question(self, ctx, *args):
+    async def question(self, ctx, *, args):
         """A module for asking questions, put the title of your quesiton like `;question <title>`"""
+        args = args.split(' ')
         if not args:
             msg = f"This is a module to help you ask your questions.  To ask a question, decide a title for your " \
-                  f"question and type `;question new <title>`.  For example, if your question is about the meaning " \
-                  f"of a word in a sentence, you could format the command like `;question new Meaning of <word> " \
+                  f"question and type `;question <title>`.  For example, if your question is about the meaning " \
+                  f"of a word in a sentence, you could format the command like `;question Meaning of <word> " \
                   f"in <sentence>`. Put that command in the questions channel and you're good to go!  " \
-                  f"(Aliases for `;question new`: `;question ask`, `;question add`)"
+                  f"(Alias: `;q <title>`)"
             await ctx.send(msg)
             return
 
         try:  # there is definitely some text in the arguments
             target_message = await ctx.channel.get_message(int(args[0]))  # this will work if the first arg is an ID
-            if len(args) < 1:
+            if len(args) == 1:
                 title = target_message.content  # if there was no text after the ID
             else:
                 title = ' '.join(args[1:])  # if there was some text after the ID
@@ -1142,33 +1161,62 @@ class Main:
         hf.dump_json()
 
     @question.command(aliases=['a'])
-    async def answer(self, ctx, number, answer_id=None):
+    async def answer(self, ctx, *, args=''):
         """Marks a question as answered,
         and has an optional answer_id field for if you wish to specify an answer message"""
+        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        questions = config['questions']
+        args = args.split(' ')
+
+        answer_message = answer_text = answer_id = None
+        if args == ['']:  # if a user just inputs ;q a
+            number = None
+            for question in questions:
+                if ctx.author.id == questions[question]['author']:
+                    number = question
+                    answer_message = ctx.message
+                    break
+            if not number:
+                await ctx.send(f"Please enter the number of the question you wish to answer, like `;q a 3`.")
+                return
+        elif len(args) == 1:
+            number = args[0]
+            answer_message = ctx.message  # no optional arguments are passed:   ;q a 1
+            answer_text = ''
+        else:
+            try:
+                number = args[0]  # example: ;q a 1 554490627279159341
+                answer_id = int(args[1])
+            except ValueError:
+                number = args[0]  # Supplies text answer:   ;q a 1 blah blah answer goes here
+                answer_message = ctx.message
+                answer_text = ' '.join(args[1:])
+
+        if answer_id:  # if other message is cited
+            try:
+                answer_message = await ctx.channel.get_message(int(answer_id))
+                answer_text = answer_message.content
+            except discord.errors.NotFound:
+                await ctx.send(f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
+                               f"<message id>`")
+                return
+            
         try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-            question = config['questions'][number]
+            question = questions[number]
         except KeyError:
             await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
                            f"`;question answer 3`.")
             return
-        log_channel = self.bot.get_channel(config['log_channel'])
-        if answer_id:
-            try:
-                answer_message = await ctx.channel.get_message(int(answer_id))
-            except discord.errors.NotFound:
-                await ctx.send(f"A corresponding message to the specified ID was not found.")
-                return
-        else:
-            answer_message = ctx.message
+        
         try:
+            log_channel = self.bot.get_channel(config['log_channel'])
             log_message = await log_channel.get_message(question['log_message'])
             emb = log_message.embeds[0]
-            emb.description += f"\nAnswered by {answer_message.author.mention} ({answer_message.author.name})"
+            emb.description += f"\nAnswered by {answer_message.author.mention}"
             emb.title = "ANSWERED"
             emb.color = discord.Color.default()
             emb.add_field(name=f"Answer:",
-                          value=answer_message.jump_url)
+                          value=answer_text + '\n' + answer_message.jump_url)
             await log_message.edit(embed=emb)
         except discord.errors.NotFound:
             await ctx.send(f"Message in log channel not found.  Continuing code.")
@@ -1179,7 +1227,7 @@ class Main:
                 await question_message.remove_reaction(reaction.emoji, self.bot.user)
 
         del(config['questions'][number])
-        hf.dump_json()
+        await hf.dump_json()
         await ctx.message.add_reaction('\u2705')
 
     @question.command(aliases=['reopen'])
@@ -1208,9 +1256,10 @@ class Main:
         for question in config:
             try:
                 question_message = await ctx.channel.get_message(config[question]['question_message'])
-                question_text = ' '.join(question_message.content.split(' ')[2:])
+                question_text = ' '.join(question_message.content.split(' '))
+                print(question, question_message.id)
                 emb.add_field(name=f"Question `{question}`",
-                              value=f"By {ctx.author.mention} ({ctx.author.name}):\n"
+                              value=f"By {question_message.author.mention}\n"
                                     f"{question_text}\n"
                                     f"{question_message.jump_url}")
             except discord.errors.NotFound:

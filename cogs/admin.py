@@ -10,7 +10,7 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Admin:
+class Admin(commands.Cog):
     """My custom cog that does stuff!"""
 
     def __init__(self, bot):
@@ -476,6 +476,7 @@ class Admin:
             await ctx.send(string[0:2000])
             await ctx.send(string[2000:])
 
+    @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         try:
             config = self.bot.db['super_voicewatch'][str(member.guild.id)]
