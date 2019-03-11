@@ -409,7 +409,7 @@ class Logger(commands.Cog):
                 used_invite = None
                 if invites_enable:
                     try:
-                        old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault(['invites'], {})
+                        old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault('invites', {})
                         if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
                             invites_list = await member.guild.invites()
                             old_invites = {invite.code: invite.uses for invite in invites_list}
