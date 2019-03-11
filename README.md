@@ -1,10 +1,11 @@
 # -Rai-
-Discord bot for Japanese server written in Python.  Some key features: 
+Discord bot for Discord langauge servers (Python).  Some key features: 
 - Extensive logging of joins, leaves, bans, deletes, edits, reaction removes, and invites that people use to join a server
 - A report room for users to make either anonymous reports to mods or enter a mod report chat room to discuss an issue.  Designed to eliminate the need for private messages completely from mod business.  
 - A smart message prune/clear command which takes a message ID as input so you don't have to count messages
 - Configurable captcha to enter a server
 - Super watchlist for when you have raiders who are repeatedly making accounts and spamming gore/porn/etc.
+- A questions module to manage the questions queue of a server.  Mainly, for people who ask hard questions that get swept away in the channel, this module will help them make sure their question eventually gets answered.
 
 Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=3072
 
@@ -26,6 +27,7 @@ List of commands for Rai bot.
   - [Japanese server only commands](#japanese-server-only)
 - [Report room](#report-room)
 - [Logging](#logging)
+- [Questions](#questions)
 
 
 ## General
@@ -156,3 +158,36 @@ To set the channel that the logging gets posted in, type the name of the module,
 
 For examples/screenshots of all the loggings, try it yourself or see my testing server.
 ⠀
+## Questions
+This module helps streamline the question asking process.  Mainly, for people who ask hard questions that get swept away in the channel, this module will help them make sure their question eventually gets answered.  
+
+__To setup__  
+Go to your questions channel and type `;question setup`.  You should be able to do this for multiple channels.
+
+__To ask your own question__  
+`;question <Title for your question>` (alias `;q`)  
+The bot will react with a number telling you the `Question I  D`.  
+Example: `;q What is 2+2?`
+
+__To mark someone else's comment as a question__  
+`;question <the question's message ID> [optional title]`  
+Cite the message ID of the original question, and also if you want include your own title for the question (not including a title will just use the text of the message you point to)  
+Example: `;q 553582103464378368` or `;q 553582103464378368 What is 2+2?`
+
+__To mark a question as answered__  
+`;question answer <Question ID>` (alias `;q a`)  
+Type this after enough answers have been given to consider the question answered  
+Example: `;q a 1`
+
+__To cite a certain comment as an answer__  
+Same as above, but add the message ID to the end.  
+`;question answer <Question ID> <Message ID>`  
+Example: `;q a 1 553582103464378368`
+
+__Editing a log__  
+`;question edit <log_id> <target: what you want to change> <text>`  
+You have the option for target of changing the asker, answerer, question, title, or answer of a question.
+ 
+__Other commands__  
+- `;question open <Message ID of message log>` - Reopens a closed question  
+- `;question list` - Shows a list of all open questions
