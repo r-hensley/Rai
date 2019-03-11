@@ -7,7 +7,7 @@ from .utils import helper_functions as hf
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace('\\', '/')
 
 
-class Jpserv:
+class Jpserv(commands.Cog):
     """Modules unique for the Japanese server"""
 
     def __init__(self, bot):
@@ -97,7 +97,7 @@ class Jpserv:
         """Explains ultra hardcore mode for those who are using it and can't explain it"""
         if ctx.author.id in self.bot.db['ultraHardcore'][str(ctx.guild.id)]:
             await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't "
-                           f"speak any English, and they also cannot undo this mode themselves.")
+                           f"speak their native language, and they also cannot undo this mode themselves.")
         else:
             await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why "
                            f"they're trying to use this command.  But, ultra hardcore mode means a user can't speak "

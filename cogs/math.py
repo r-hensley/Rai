@@ -13,7 +13,7 @@ import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
-class Math:
+class Math(commands.Cog):
     """Fun math games"""
 
     def __init__(self, bot):

@@ -23,7 +23,7 @@ with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
 imgur_client = ImgurClient(client_id, client_secret, access_token, refresh_token)
 
 
-class Logger:
+class Logger(commands.Cog):
     """Logs stuff"""
 
     def __init__(self, bot):
@@ -40,7 +40,8 @@ class Logger:
         os.remove(f'{dir_path}/database.json')
         os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
 
-    async def module_logging(self, ctx, module):
+    @staticmethod
+    async def module_logging(ctx, module):
         guild = str(ctx.guild.id)
         if guild in module:
             guild_config: dict = module[guild]
@@ -59,7 +60,8 @@ class Logger:
         await hf.dump_json()
         return result
 
-    async def module_set(self, ctx, module):
+    @staticmethod
+    async def module_set(ctx, module):
         guild = str(ctx.guild.id)
         if guild in module:  # server already registered
             guild_config: dict = module[guild]
@@ -106,7 +108,8 @@ class Logger:
         await ctx.send(f'Successfully set Levenshtein Distance limit to {distance_limit}.')
         await hf.dump_json()
 
-    def make_edit_embed(self, before, after, levenshtein_distance):
+    @staticmethod
+    def make_edit_embed(before, after, levenshtein_distance):
         author = before.author
         time_dif = round((after.edited_at - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
@@ -117,22 +120,24 @@ class Logger:
             timestamp=datetime.utcnow()
         )
 
-        if len(before.content) < 1025:
-            emb.add_field(name='**Before:**', value=before.content)
-        else:
-            emb.add_field(name='**Before:** (Part 1):', value=before.content[:1000])
-            emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:])
+        if len(before.content) > 0 and len(after.content) > 0:
+            if len(before.content) < 1025:
+                emb.add_field(name='**Before:**', value=before.content)
+            else:
+                emb.add_field(name='**Before:** (Part 1):', value=before.content[:1000])
+                emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:])
 
-        if len(after.content) < 1025:
-            emb.add_field(name='**After:**', value=after.content)
-        else:
-            emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
-            emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
+            if len(after.content) < 1025:
+                emb.add_field(name='**After:**', value=after.content)
+            else:
+                emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
+                emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
 
         emb.set_footer(text=f'{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
 
         return emb
 
+    @commands.Cog.listener()
     async def on_message_edit(self, before, after):
         if isinstance(before.channel, discord.DMChannel):
             return
@@ -150,7 +155,12 @@ class Logger:
                     levenshtein_distance = LDist(before.content, after.content)
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
+                        try:
+                            await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
+                        except AttributeError as e:
+                            print(f'>>Error in {ctx.command.name}, {str(e)}'
+                                  f'\nguild: {message.guild.name}\n'
+                                  f'channel id is supposed to be: {guild_config["channel"]}<<)')
         await hf.uhc_check(after)
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
@@ -197,13 +207,13 @@ class Logger:
             list_of_attachments = []
             attachment_names = []
             failed = True  # will be True unless the code manages to successfully upload an image to imgur
-            file = False  # marks if someone uploaded a non-picture file
+            file_bool = False  # marks if someone uploaded a non-picture file
             for attachment in message.attachments:
 
                 if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
                                                                          'apng', 'tiff', 'mov', 'mp4']:
                     attachment_names.append(attachment.filename)
-                    file = True
+                    file_bool = True
                     continue
                 # asyncio black magic from here:
                 # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
@@ -222,13 +232,14 @@ class Logger:
                     emb.add_field(name='**Warning:**',
                                   value='Failed to reupload to imgur.  The above link may quickly 404')
                 emb.set_thumbnail(url=list_of_attachments[0])
-            if file:
+            if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
         emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
 
         return emb
 
+    @commands.Cog.listener()
     async def on_message_delete(self, message):
         guild = str(message.guild.id)
         if not message.author.bot:
@@ -236,12 +247,21 @@ class Logger:
                 guild_config: dict = self.bot.db['deletes'][guild]
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
+                    if not channel:
+                        del(guild_config['channel'])
+                        hf.dump_json()
+                        print(f"")
+                        return
                     try:
                         await channel.send(embed=await self.make_delete_embed(message))
                     except discord.errors.HTTPException as e:
                         print('>>Error in on_message_delete, ')
                         print(e)
                         print(message + '<<')
+                    except AttributeError as e:
+                        print(f'>>Error in {ctx.command.name}, {str(e)}'
+                              f'\nguild: {message.guild.name}\n'
+                              f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -272,7 +292,8 @@ class Logger:
 
     @welcome_logging.command(aliases=['set'])
     async def welcomes_set(self, ctx):
-        result = await self.module_set(ctx, self.bot.db['welcomes'])
+        server_config = self.bot.db['welcomes']
+        result = await self.module_set(ctx, server_config)
         if result == 1:
             await ctx.send(f'Set the welcome logging channel as {ctx.channel.name}')
         elif result == 2:
@@ -295,7 +316,8 @@ class Logger:
                 await ctx.send('Enabled invites tracking')
             await hf.dump_json()
 
-    async def make_welcome_embed(self, member, used_invite):
+    @staticmethod
+    async def make_welcome_embed(member, used_invite):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
@@ -366,6 +388,7 @@ class Logger:
         config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         await ctx.send("```" + config['message'] + "```")
 
+    @commands.Cog.listener()
     async def on_member_join(self, member):
         """Join logging"""
         guild = str(member.guild.id)
@@ -386,10 +409,7 @@ class Logger:
                 used_invite = None
                 if invites_enable:
                     try:
-                        try:
-                            old_invites = self.bot.db['welcomes'][str(member.guild.id)]['invites']
-                        except KeyError:
-                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = {}
+                        old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault(['invites'], {})
                         if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
                             invites_list = await member.guild.invites()
                             old_invites = {invite.code: invite.uses for invite in invites_list}
@@ -421,11 +441,16 @@ class Logger:
                     await channel.send(embed=x)
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
+                except AttributeError as e:
+                    print(f'>>Error in {ctx.command.name}, {str(e)}'
+                          f'\nguild: {message.guild.name}\n'
+                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
+
 
         """ban invite link names"""
         try:
             if self.bot.db['auto_bans'][guild]['enable']:
-                pat = re.compile(r'.*(discord|discordapp).(gg|com\/invite)\/[A-Z0-9]{1,7}.*', re.I)
+                pat = re.compile(r'.*(discord|discordapp).(gg|com/invite)/[A-Z0-9]{1,7}.*', re.I)
                 if re.match(pat, member.name):
                     guild = str(member.guild.id)
                     await member.ban(reason="Name was a discord invite link")
@@ -463,7 +488,7 @@ class Logger:
                     replace('$NAME$', member.name). \
                     replace('$USERMENTION$', member.mention). \
                     replace('$SERVER$', member.guild.name)
-                welcome_message = await channel.send(message)
+                await channel.send(message)
         except KeyError:
             pass
 
@@ -504,9 +529,9 @@ class Logger:
                         if message.author.id == 159985870458322944:
                             await message.delete()
                             break
-                    m = await self.bot.wait_for('message', timeout=5.0,
-                                                check=lambda m: m.author.id == 299335689558949888)
-                    await m.delete()
+                    msg = await self.bot.wait_for('message', timeout=5.0,
+                                                  check=lambda m: m.author.id == 299335689558949888)
+                    await msg.delete()
         else:
             try:
                 config = self.bot.db['readd_roles'][str(member.guild.id)]
@@ -518,7 +543,10 @@ class Logger:
                     list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
                     del (list_of_roles[0])
                     await member.add_roles(*list_of_roles)
-                    await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
+                    try:
+                        await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
+                    except discord.errors.Forbidden:
+                        pass
                     del config['users'][str(member.id)]
                     await hf.dump_json()
 
@@ -557,7 +585,8 @@ class Logger:
             await ctx.send(f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;leave_logging`.')
 
-    def make_leave_embed(self, member):
+    @staticmethod
+    def make_leave_embed(member):
         emb = discord.Embed(
             description=''
                         f":outbox_tray: **{member.name}#{member.discriminator}** has `left` the server. "
@@ -575,6 +604,7 @@ class Logger:
         )
         return emb
 
+    @commands.Cog.listener()
     async def on_member_remove(self, member):
         guild = str(member.guild.id)
         if guild in self.bot.db['leaves']:
@@ -586,6 +616,9 @@ class Logger:
                 except AttributeError as e:
                     await self.bot.testChan.send("Error on on_member_remove"
                                                  f"{member.guild}, {e}")
+                    print(f'>>Error in {ctx.command.name}, {str(e)}'
+                          f'\nguild: {message.guild.name}\n'
+                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
         try:
             config = self.bot.db['readd_roles'][str(member.guild.id)]
@@ -631,7 +664,8 @@ class Logger:
             await ctx.send(f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;nickname_logging`.')
 
-    def make_nickname_embed(self, before, after):
+    @staticmethod
+    def make_nickname_embed(before, after):
         emb = discord.Embed(
             description=''
                         f"**{before.nick}**'s nickname was changed to **{after.nick}**",
@@ -644,6 +678,7 @@ class Logger:
         )
         return emb
 
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         guild = str(before.guild.id)
         if guild in self.bot.db['nicknames']:
@@ -654,7 +689,8 @@ class Logger:
                     return
                 if before.name != after.name:  # username change
                     embed = self.make_nickname_embed(before, after)
-                    embed.description = f"**{before.name}#{before.discriminator}**'s username was set to **{after.name}#{after.discriminator}**"
+                    embed.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
+                                        f"**{after.name}#{after.discriminator}**"
                     await channel.send(embed=embed)
                 if before.nick != after.nick:  # nickname change
                     if before.nick and not after.nick:  # nickname removed
@@ -668,7 +704,12 @@ class Logger:
                         embed = self.make_nickname_embed(before, after)
                     else:
                         return
-                    await channel.send(embed=embed)
+                    try:
+                        await channel.send(embed=embed)
+                    except AttributeError as e:
+                        print(f'>>Error in {ctx.command.name}, {str(e)}'
+                              f'\nguild: {message.guild.name}\n'
+                              f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
         """Nadeko updates"""
         if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
@@ -677,19 +718,19 @@ class Logger:
                     return after.id == beforecheck.id and \
                            str(beforecheck.status) == 'offline' and \
                            str(aftercheck.status) == 'online'
-
+        #
                 try:
                     await self.bot.wait_for('member_update', check=check, timeout=1200)
                     self.bot.waited = False
                 except asyncio.TimeoutError:
                     self.bot.waited = True
-
+        #
                 if self.bot.waited:
                     await self.bot.spanSP.send(  # nadeko was offline for 20 mins
                         "Nadeko has gone offline.  New users won't be able to tag themselves, "
                         "and therefore will not be able to join the server.  Please be careful of this."
                     )
-
+        #
             if str(before.status) == 'offline' and str(after.status) == 'online':
                 if self.bot.waited:
                     self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
@@ -718,7 +759,8 @@ class Logger:
             await ctx.send(f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;reaction_logging`.')
 
-    def make_reaction_embed(self, reaction, member):
+    @staticmethod
+    def make_reaction_embed(reaction, member):
         emb = discord.Embed(
             description=f'**{member.name}#{member.discriminator}** ({member.id})'
                         f' removed a reaction.',
@@ -738,6 +780,7 @@ class Logger:
 
         return emb
 
+    @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
         if reaction.message.guild:
             guild = str(member.guild.id)
@@ -746,7 +789,12 @@ class Logger:
                     guild_config: dict = self.bot.db['reactions'][guild]
                     if guild_config['enable']:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        await channel.send(embed=self.make_reaction_embed(reaction, member))
+                        try:
+                            await channel.send(embed=self.make_reaction_embed(reaction, member))
+                        except AttributeError as e:
+                            print(f'>>Error in {ctx.command.name}, {str(e)}'
+                                  f'\nguild: {message.guild.name}\n'
+                                  f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
     @commands.group(invoke_without_command=True, aliases=['ban', 'bans'])
     async def ban_logging(self, ctx):
@@ -787,7 +835,7 @@ class Logger:
                     ban_entry = entry
                     break
         except discord.errors.Forbidden as e:
-            print('>>on_member_ban ' + e + '<<')
+            print('>>on_member_ban ' + str(e) + '<<')
             return
         if ban_entry.created_at > datetime.utcnow() - timedelta(seconds=10) and ban_entry.target == member:
             reason = ban_entry.reason
@@ -812,13 +860,19 @@ class Logger:
             emb.set_footer(text=f'User Banned',
                            icon_url=member.avatar_url_as(static_format="png"))
 
+    @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await channel.send(embed=await self.make_ban_embed(guild, member))
+                try:
+                    await channel.send(embed=await self.make_ban_embed(guild, member))
+                except AttributeError as e:
+                    print(f'>>Error in {ctx.command.name}, {str(e)}'
+                          f'\nguild: {message.guild.name}\n'
+                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
         if member.id == 414873201349361664:
             await member.unban()
@@ -839,13 +893,19 @@ class Logger:
                        icon_url=user.avatar_url_as(static_format="png"))
         return emb
 
+    @commands.Cog.listener()
     async def on_member_unban(self, guild, user):
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await channel.send(embed=self.make_unban_embed(user))
+                try:
+                    await channel.send(embed=self.make_unban_embed(user))
+                except AttributeError as e:
+                    print(f'>>Error in {ctx.command.name}, {str(e)}'
+                          f'\nguild: {message.guild.name}\n'
+                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):

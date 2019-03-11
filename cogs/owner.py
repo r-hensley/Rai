@@ -19,7 +19,7 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Owner:
+class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
     def __init__(self, bot):
@@ -334,6 +334,7 @@ class Owner:
         await hf.dump_json()
         print('done')
 
+    @commands.Cog.listener()
     async def on_guild_join(self, guild):
         await self.bot.get_user(202995638860906496).send(f'I have joined {guild.name}!')
 
