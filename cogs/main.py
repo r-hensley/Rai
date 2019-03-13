@@ -102,8 +102,8 @@ class Main(commands.Cog):
             else:
                 await self.bot.spamChan.send(
                     f'<@202995638860906496> **By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
-                    f'\n{msg.jump_url}'
-                    f'\n{msg.content}')
+                    f'\n{msg.content}'
+                    f'\n{msg.jump_url}')
 
         """Self mute"""
         if msg.author.id == self.bot.owner_id and self.bot.selfMute:
