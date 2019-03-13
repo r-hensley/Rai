@@ -287,7 +287,7 @@ class Main(commands.Cog):
             # [4]: initial ping to mods in report room
             f"{ctx.author.name} -  This user has entered the report room.  If they don't "
             f"come to this channel in the next ten seconds, they will not be able to "
-            f"see the following message and might be confused as to what's happening.",
+            f"see the following message and might be confused as to what's happening. @here",
 
             # [5]: entry message in report room
             f"Welcome to the report room {user.mention}.  Only the mods can read your messages here, so you"
@@ -320,8 +320,9 @@ class Main(commands.Cog):
         try:
             await ctx.message.delete()
         except discord.errors.Forbidden:
-            await self.bot.ryry.send(f"I tried to delete the invocation for a ;report on {ctx.guild.name} in "
-                                     f"{ctx.channel.mention} but I lacked delete permissions.")
+            await report_room.send(f"I tried to delete the invocation for a ;report in {ctx.channel.mention} but I "
+                                   f"lacked the `Manage Messages` permission so I could not.  Please delete"
+                                   f"the `;report` message that the user sent to maintain their privacy.")
 
         reaction = await self.report_options(ctx, report_text)  # presents users with options for what they want to do
         if not reaction:
