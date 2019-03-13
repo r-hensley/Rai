@@ -1088,10 +1088,15 @@ class Main(commands.Cog):
                             description=f"Asked by {target_message.author.mention} in {target_message.channel.mention}",
                             color=discord.Color.from_rgb(color['r'], color['g'], color['b']),
                             timestamp=datetime.utcnow())
-        emb.add_field(name=f"{title}", value=f"{target_message.jump_url}")
+        emb.add_field(name=f"Question:", value=f"{title}\n{target_message.jump_url}")
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
-        log_message = await log_channel.send(embed=emb)
+        try:
+            log_message = await log_channel.send(embed=emb)
+        except discord.errors.HTTPException:
+            await ctx.send("The question was too long")
+            del (config['questions'][question_number])
+            return
         config['questions'][str(question_number)]['log_message'] = log_message.id
         number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
                       '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
@@ -1216,20 +1221,29 @@ class Main(commands.Cog):
             emb.description += f"\nAnswered by {answer_message.author.mention}"
             emb.title = "ANSWERED"
             emb.color = discord.Color.default()
-            emb.add_field(name=f"Answer:",
+            emb.add_field(name=f"Answer: ",
                           value=answer_text + '\n' + answer_message.jump_url)
             await log_message.edit(embed=emb)
         except discord.errors.NotFound:
+            log_message = None
             await ctx.send(f"Message in log channel not found.  Continuing code.")
 
-        question_message = await ctx.channel.get_message(question['question_message'])
-        for reaction in question_message.reactions:
-            if reaction.me:
-                await question_message.remove_reaction(reaction.emoji, self.bot.user)
+        try:
+            question_message = await ctx.channel.get_message(question['question_message'])
+            for reaction in question_message.reactions:
+                if reaction.me:
+                    await question_message.remove_reaction(reaction.emoji, self.bot.user)
+        except discord.errors.NotFound:
+            msg = await ctx.send("That question was deleted")
+            await log_message.delete()
+            await asyncio.sleep(5)
+            await msg.delete()
+            await ctx.message.delete()
 
         del(config['questions'][number])
         await hf.dump_json()
-        await ctx.message.add_reaction('\u2705')
+        if ctx.message:
+            await ctx.message.add_reaction('\u2705')
 
     @question.command(aliases=['reopen'])
     @hf.is_admin()
