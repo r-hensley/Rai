@@ -44,7 +44,7 @@ async def on_ready():
         client.germanicServListChan,
     ]
 
-    only_reddit = True
+    only_reddit = False
 
     print('Updating posts')
 
