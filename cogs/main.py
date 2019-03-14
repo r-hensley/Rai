@@ -896,7 +896,7 @@ class Main(commands.Cog):
             else:
                 return
         elif payload.guild_id == 243838819743432704:  # spanish/english
-            if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏🔥':
+            if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏🔥📆':
                 roles = {'🎨': 401930364316024852,
                          '🐱': 254791516659122176,
                          '🐶': 349800774886359040,
@@ -910,7 +910,8 @@ class Main(commands.Cog):
                          '📔': 286000427512758272,
                          '✏': 382752872095285248,
                          '🔥': 526089127611990046,
-                         'table': 396080550802096128}
+                         'table': 396080550802096128,
+                         '📆': 555478189363822600}
                 server = 1
             else:
                 return
@@ -940,56 +941,60 @@ class Main(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
-        if payload.guild_id:
-            if payload.guild_id == 266695661670367232:  # chinese
-                if payload.emoji.name in '🔥📝🖋🗣🎙':
-                    roles = {'🔥': 496659040177487872,
-                             '📝': 509446402016018454,
-                             '🗣': 266713757030285313,
-                             '🖋': 344126772138475540,
-                             '🎙': 454893059080060930}
-                    server = 0
-                else:
+        if not payload.guild_id:
+            return
+        if payload.guild_id == 266695661670367232:  # chinese
+            if payload.emoji.name in '🔥📝🖋🗣🎙':
+                roles = {'🔥': 496659040177487872,
+                         '📝': 509446402016018454,
+                         '🗣': 266713757030285313,
+                         '🖋': 344126772138475540,
+                         '🎙': 454893059080060930}
+                server = 0
+            else:
+                return
+        elif payload.guild_id == 243838819743432704:  # spanish/english
+            if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏🔥📆':
+                roles = {'🎨': 401930364316024852,
+                         '🐱': 254791516659122176,
+                         '🐶': 349800774886359040,
+                         '🎮': 343617472743604235,
+                         '👪': 402148856629821460,
+                         '🎥': 354480160986103808,
+                         '🎵': 263643288731385856,
+                         '👚': 376200559063072769,
+                         '💻': 401930404908630038,
+                         '❗': 243859335892041728,
+                         '📔': 286000427512758272,
+                         '✏': 382752872095285248,
+                         '🔥': 526089127611990046,
+                         'table': 396080550802096128,
+                         '📆': 555478189363822600}
+                server = 1
+            else:
+                return
+        else:
+            return
+        guild = self.bot.get_guild(payload.guild_id)
+        user = guild.get_member(payload.user_id)
+        if not user.bot:
+            try:
+                config = self.bot.db['roles'][str(payload.guild_id)]
+            except KeyError:
+                return
+            if server == 0:
+                if payload.message_id != config['message']:
                     return
-            elif payload.guild_id == 243838819743432704:  # spanish/english
-                if payload.emoji.name in '🎨🐱🐶🎮table👪🎥🎵❗👚💻📔✏🔥':
-                    roles = {'🎨': 401930364316024852,
-                             '🐱': 254791516659122176,
-                             '🐶': 349800774886359040,
-                             '🎮': 343617472743604235,
-                             '👪': 402148856629821460,
-                             '🎥': 354480160986103808,
-                             '🎵': 263643288731385856,
-                             '👚': 376200559063072769,
-                             '💻': 401930404908630038,
-                             '❗': 243859335892041728,
-                             '📔': 286000427512758272,
-                             '✏': 382752872095285248,
-                             '🔥': 526089127611990046,
-                             'table': 396080550802096128}
-                    server = 1
-                else:
+            elif server == 1:
+                if payload.message_id != config['message1'] and payload.message_id != config['message2']:
                     return
-            guild = self.bot.get_guild(payload.guild_id)
-            user = guild.get_member(payload.user_id)
-            if not user.bot:
-                try:
-                    config = self.bot.db['roles'][str(payload.guild_id)]
-                except KeyError:
-                    return
-                if server == 0:
-                    if payload.message_id != config['message']:
-                        return
-                elif server == 1:
-                    if payload.message_id != config['message1'] and payload.message_id != config['message2']:
-                        return
-                role = guild.get_role(roles[payload.emoji.name])
-                try:
-                    await user.remove_roles(role)
-                except discord.errors.Forbidden:
-                    self.bot.get_user(202995638860906496).send(
-                        'on_raw_reaction_remove: Lacking `Manage Roles` permission'
-                        f'<#{payload.guild_id}>')
+            role = guild.get_role(roles[payload.emoji.name])
+            try:
+                await user.remove_roles(role)
+            except discord.errors.Forbidden:
+                self.bot.get_user(202995638860906496).send(
+                    'on_raw_reaction_remove: Lacking `Manage Roles` permission'
+                    f'<#{payload.guild_id}>')
 
     @commands.command()
     async def pencil(self, ctx):
@@ -1221,6 +1226,8 @@ class Main(commands.Cog):
             emb.description += f"\nAnswered by {answer_message.author.mention}"
             emb.title = "ANSWERED"
             emb.color = discord.Color.default()
+            if not answer_text:
+                answer_text = ''
             emb.add_field(name=f"Answer: ",
                           value=answer_text + '\n' + answer_message.jump_url)
             await log_message.edit(embed=emb)
