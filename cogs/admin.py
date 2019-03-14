@@ -43,7 +43,7 @@ class Admin(commands.Cog):
         else:
             return
 
-        async for message in ctx.channel.history(limit=12):
+        async for message in ctx.channel.history(limit=30):
             try:
                 await message.delete()
             except discord.errors.NotFound:
@@ -53,12 +53,29 @@ class Admin(commands.Cog):
                                                 '__')  # google uses '__' page breaks so this gets around that
         rules = rules.split('########')
         for page in rules:
+            print([page[:30]])
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
                 with open('image', 'wb') as f:
                     urllib.request.urlretrieve(url, "image_file.png")
                 msg = await ctx.send(file=discord.File('image_file.png'))
-            elif page[0:8].replace('\r', '').replace('\n', '') == '!roles':
+            elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
+                print('lang', [page])
+                spanishnative = self.bot.get_emoji(524733330525257729)
+                englishnative = self.bot.get_emoji(524733316193058817)
+                othernative = self.bot.get_emoji(524733977991315477)
+                fluentspanish = self.bot.get_emoji(524732626674909205)
+                fluentenglish = self.bot.get_emoji(524732533775007744)
+                mods = self.bot.get_emoji(524733987092955138)
+                post = page.replace('{spanishnative}', str(spanishnative)). \
+                    replace('{englishnative}', str(englishnative)). \
+                    replace('{othernative}', str(othernative)). \
+                    replace('{fluentspanish}', str(fluentspanish)). \
+                    replace('{fluentenglish}', str(fluentenglish)). \
+                    replace('{mods}', str(mods))
+                msg = await ctx.send(post[7:])
+            elif page[:30].replace('\r', '').replace('\n', '').startswith('!roles'):
+                print('roles', [page])
                 if channel == 0:  # chinese
                     emoji = self.bot.get_emoji(358529029579603969)  # blobflags
                     post = page[8:].replace('{emoji}', str(emoji))
@@ -71,20 +88,8 @@ class Admin(commands.Cog):
                     await msg.add_reaction("🎙")  # VC all
                 elif channel == 1 or channel == 2:  # english/spanish
                     emoji = self.bot.get_emoji(513211476790738954)
-                    spanishnative = self.bot.get_emoji(524733330525257729)
-                    englishnative = self.bot.get_emoji(524733316193058817)
-                    othernative = self.bot.get_emoji(524733977991315477)
-                    fluentspanish = self.bot.get_emoji(524732626674909205)
-                    fluentenglish = self.bot.get_emoji(524732533775007744)
-                    mods = self.bot.get_emoji(524733987092955138)
-                    post = page[8:].replace('{spanishnative}', str(spanishnative)). \
-                        replace('{englishnative}', str(englishnative)). \
-                        replace('{othernative}', str(othernative)). \
-                        replace('{fluentspanish}', str(fluentspanish)). \
-                        replace('{fluentenglish}', str(fluentenglish)). \
-                        replace('{mods}', str(mods)). \
-                        replace('{table}', str(emoji))
-                    msg = await ctx.send(post)
+                    post = page.replace('{table}', str(emoji))
+                    msg = await ctx.send(post[8:])
                     await msg.add_reaction("🎨")
                     await msg.add_reaction("🐱")
                     await msg.add_reaction("🐶")
@@ -99,11 +104,12 @@ class Admin(commands.Cog):
                     await msg.add_reaction("💻")
                     await msg.add_reaction("📔")
                     await msg.add_reaction("✏")
+                    await msg.add_reaction('📆')
                     if channel == 1:
                         self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
-                await hf.dump_json()
+                # await hf.dump_json()
             else:
                 msg = await ctx.send(page)
             if '<@ &' in msg.content:
