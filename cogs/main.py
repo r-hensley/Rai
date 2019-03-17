@@ -1054,18 +1054,13 @@ class Main(commands.Cog):
 
         await ctx.send(str)
 
-    @staticmethod
-    def get_color_from_name(name):
-        if len(name) < 3:
-            name *= 3
-        length = len(name)
-        i = [name[round(0 * length / 3)],
-             name[round(1 * length / 3)],
-             name[round(2 * length / 3)]]
-        color = {'r': int(hashlib.md5(i[0].encode()).hexdigest()[-2:], 16),
-                 'g': int(hashlib.md5(i[1].encode()).hexdigest()[-2:], 16),
-                 'b': int(hashlib.md5(i[2].encode()).hexdigest()[-2:], 16)}
-        return color
+    def get_color_from_name(self, ctx):
+        config = self.bot.db['questions'][str(ctx.channel.guild.id)]
+        channel_list = sorted([int(channel) for channel in config])
+        index = channel_list.index(ctx.channel.id) % 6
+        # colors = ['00ff00', 'ff9900', '4db8ff', 'ff0000', 'ff00ff', 'ffff00'] below line is in hex
+        colors = [65280, 16750848, 5093631, 16711680, 16711935, 16776960]
+        return colors[index]
 
     async def add_question(self, ctx, target_message, title=None):
         try:
@@ -1088,10 +1083,10 @@ class Main(commands.Cog):
         config['questions'][str(question_number)]['author'] = target_message.author.id
 
         log_channel = self.bot.get_channel(config['log_channel'])
-        color = self.get_color_from_name(target_message.author.name)  # returns a RGB tuple unique to every username
+        color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every username
         emb = discord.Embed(title=f"Question number: `{question_number}`",
                             description=f"Asked by {target_message.author.mention} in {target_message.channel.mention}",
-                            color=discord.Color.from_rgb(color['r'], color['g'], color['b']),
+                            color=discord.Color(color),
                             timestamp=datetime.utcnow())
         emb.add_field(name=f"Question:", value=f"{title}\n{target_message.jump_url}")
         if ctx.author != target_message.author:
@@ -1169,7 +1164,7 @@ class Main(commands.Cog):
                                        'log_channel': log_channel_id}
         await ctx.send(f"Set the log channel as {log_channel.mention}.  Setup complete.  Try starting your first "
                        f"question with `;question new <title>` in this channel.")
-        hf.dump_json()
+        await hf.dump_json()
 
     @question.command(aliases=['a'])
     async def answer(self, ctx, *, args=''):
@@ -1191,9 +1186,16 @@ class Main(commands.Cog):
                 await ctx.send(f"Please enter the number of the question you wish to answer, like `;q a 3`.")
                 return
         elif len(args) == 1:
-            number = args[0]
-            answer_message = ctx.message  # no optional arguments are passed:   ;q a 1
-            answer_text = ''
+            try:
+                answer_message = await ctx.channel.get_message(int(args[0]))
+                for question in questions:
+                    if ctx.author.id == questions[question]['author']:
+                        number = question
+                        break
+            except discord.errors.NotFound:
+                number = args[0]
+                answer_message = ctx.message  # no optional arguments are passed:   ;q a 1
+                answer_text = ''
         else:
             try:
                 number = args[0]  # example: ;q a 1 554490627279159341
@@ -1204,13 +1206,17 @@ class Main(commands.Cog):
                 answer_text = ' '.join(args[1:])
 
         if answer_id:  # if other message is cited
-            try:
-                answer_message = await ctx.channel.get_message(int(answer_id))
-                answer_text = answer_message.content
-            except discord.errors.NotFound:
-                await ctx.send(f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
-                               f"<message id>`")
-                return
+            if 17 < len(str(answer_id)) < 21:
+                try:
+                    answer_message = await ctx.channel.get_message(int(answer_id))
+                    answer_text = answer_message.content
+                except discord.errors.NotFound:
+                    await ctx.send(f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
+                                   f"<message id>`")
+                    return
+            else:
+                answer_message = ctx.message
+                answer_text = ' '.join(answer_message.content.split(' ')[3:])
             
         try:
             question = questions[number]
@@ -1218,12 +1224,19 @@ class Main(commands.Cog):
             await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
                            f"`;question answer 3`.")
             return
-        
+
+        question_message = await ctx.channel.get_message(questions[number]['question_message'])
+        if ctx.author != question_message.author and not hf.admin_check(ctx):
+            await ctx.send(f"Only mods or the person who asked the question originally can mark it as answered")
+            return
+
         try:
             log_channel = self.bot.get_channel(config['log_channel'])
             log_message = await log_channel.get_message(question['log_message'])
+
             emb = log_message.embeds[0]
-            emb.description += f"\nAnswered by {answer_message.author.mention}"
+            if answer_message.author != question_message.author:
+                emb.description += f"\nAnswered by {answer_message.author.mention}"
             emb.title = "ANSWERED"
             emb.color = discord.Color.default()
             if not answer_text:
@@ -1257,6 +1270,9 @@ class Main(commands.Cog):
     async def open(self, ctx, message_id):
         """Reopens a closed question, point message_id to the log message in the log channel"""
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        for question in config['questions']:
+            if int(message_id) == config['questions'][question]['question_message']:
+                del(config['questions'][question])
         log_channel = self.bot.get_channel(config['log_channel'])
         log_message = await log_channel.get_message(int(message_id))
         emb = log_message.embeds[0]
@@ -1264,6 +1280,7 @@ class Main(commands.Cog):
         question_message = await ctx.channel.get_message(int(emb.fields[0].value.split('/')[-1]))
         await self.add_question(ctx, question_message, question_message.content)
         await log_message.delete()
+        hf.dump_json()
 
     @question.command()
     async def list(self, ctx):
@@ -1303,30 +1320,44 @@ class Main(commands.Cog):
         emb = target_message.embeds[0]
 
         if target == 'question':
-            question_message = await ctx.channel.get_message(int(text[0]))
-            emb.set_field_at(0, name=emb.fields[0].name, value=question_message.jump_url)
+            try:
+                question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
+                question_message = await ctx.channel.get_message(question_id)
+                emb.set_field_at(0, name=emb.fields[0].name, value=question_message.jump_url)
+            except ValueError:
+                question_message = ctx.message  # ;q edit 555932038612385798 question <New question text>
+                question_text = ' '.join(question_message.content.split(' ')[3:])
+                emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_text}\n{question_message.jump_url}")
         if target == 'title':
             title = ' '.join(text)
             emb.set_field_at(0, name=title, value=emb.fields[0].value)
+        if target == 'asker':
+            try:
+                asker = ctx.guild.get_member(int(text[0]))
+            except ValueError:
+                await ctx.send(f"To edit the asker, give the user ID of the user.  For example: "
+                               f"`;q edit <log_message_id> asker <user_id>`")
+                return
+            print(emb.description)
+            new_description = emb.description.split(' ')
+            print(new_description)
+            new_description[2] = asker.mention
+            print(new_description)
+            emb.description = ' '.join(new_description)
 
         if emb.title == 'ANSWERED':
-            if target == 'asker':
-                asker = ctx.guild.get_member(int(text[0]))
-                line_1 = f"Asked by {asker.mention} ({asker.name})"
-                line_2 = emb.description.split('\n')[1]
-                emb.description = f"{line_1}\n{line_2}"
-            elif target == 'answerer':
+            if target == 'answerer':
                 answerer = ctx.guild.get_member(int(text[0]))
-                line_1 = emb.description.split('\n')[0]
-                line_2 = f"Answered by {answerer.mention} ({answerer.name})"
-                emb.description = f"{line_1}\n{line_2}"
+                new_description = emb.description.split('Answered by ')[1] = answerer.mention
+                emb.description = 'Answered by '.join(new_description)
             elif target == 'answer':
-                answer_message = await ctx.channel.get_message(int(text[0]))
-                emb.set_field_at(1, name=emb.fields[1].name, value=answer_message.jump_url)
-        else:
-            if target == 'asker':
-                asker = ctx.guild.get_member(int(text[0]))
-                emb.description = f"Asked by {asker.mention} ({asker.name})"
+                try:  # ;q edit <log_message_id> answer <answer_id>
+                    answer_message = await ctx.channel.get_message(int(text[0]))
+                    emb.set_field_at(1, name=emb.fields[1].name, value=answer_message.jump_url)
+                except ValueError:
+                    answer_message = ctx.message  # ;q edit <log_message_id> answer <new text>
+                    answer_text = 'answer '.join(ctx.message.split('answer ')[1:])
+                    emb.set_field_at(1, name=emb.fields[1].name, value=f"{answer_text}\n{answer_message.jump_url}")
 
         if emb.footer.text:
             emb.set_footer(text=emb.footer.text + f", Edited by {ctx.author.name}")
