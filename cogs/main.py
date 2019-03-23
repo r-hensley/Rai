@@ -101,9 +101,9 @@ class Main(commands.Cog):
                 return
             else:
                 await self.bot.spamChan.send(
-                    f'<@202995638860906496> **By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
-                    f'\n{msg.jump_url}')
+                    f'\n{msg.jump_url} <@202995638860906496>')
 
         """Self mute"""
         if msg.author.id == self.bot.owner_id and self.bot.selfMute:
@@ -147,7 +147,7 @@ class Main(commands.Cog):
             """Chinese server hardcore mode"""
             if msg.guild.id == 266695661670367232:
                 if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
-                        'ignore']:
+                    'ignore']:
                     if len(msg.content) > 3:
                         try:
                             ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
@@ -438,6 +438,7 @@ class Main(commands.Cog):
 
         if config['waiting_list']:
             config['waiting_list'] = []
+            hf.dump_json()
             await ctx.send('Waiting list cleared')
         else:
             await ctx.send('There was no one on the waiting list.')
@@ -484,18 +485,28 @@ class Main(commands.Cog):
 
     @staticmethod
     async def report_room(ctx, config, user, report_text, from_mod=False):
+        report_room = ctx.bot.get_channel(config['channel'])
         if config['current_user']:  # if someone is in the room already
             config['waiting_list'].append(user.id)
             msg = f"Sorry but someone else is using the room right now.  I'll message you when it's ope" \
                   f"n in the order that I received requests.  You are position " \
                   f"{config['waiting_list'].index(user.id)+1} on the list"
             await user.send(msg)  # someone is in the room, you've been added to waiting list
+            try:
+                mod_channel = ctx.guild.get_channel(ctx.cog.bot.db['mod_channel'][str(ctx.guild.id)])
+                await mod_channel.send(f"{user.mention} ({user.name}) tried to enter the report room, but someone "
+                                       f"else is already in it.  Try typing `;report done` in the report room, "
+                                       f"and type `;report check_waiting_list` to see who is waiting.")
+            except KeyError:
+                await report_room.send(f"Note to the mods: I tried to send you a notification about the report room, "
+                                       f"but you haven't set a mod channel yet.  Please type `;set_mod_channel` in "
+                                       f"your mod channel.")
             await hf.dump_json()
             return
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-        report_room = ctx.bot.get_channel(config['channel'])
+
         await report_room.set_permissions(user, read_messages=True)
 
         if from_mod:
@@ -1081,11 +1092,13 @@ class Main(commands.Cog):
         config['questions'][str(question_number)]['title'] = title
         config['questions'][str(question_number)]['question_message'] = target_message.id
         config['questions'][str(question_number)]['author'] = target_message.author.id
+        config['questions'][str(question_number)]['command_caller'] = ctx.author.id
 
         log_channel = self.bot.get_channel(config['log_channel'])
         color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every username
         emb = discord.Embed(title=f"Question number: `{question_number}`",
-                            description=f"Asked by {target_message.author.mention} in {target_message.channel.mention}",
+                            description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
+                                        f"in {target_message.channel.mention}",
                             color=discord.Color(color),
                             timestamp=datetime.utcnow())
         emb.add_field(name=f"Question:", value=f"{title}\n{target_message.jump_url}")
@@ -1168,75 +1181,112 @@ class Main(commands.Cog):
 
     @question.command(aliases=['a'])
     async def answer(self, ctx, *, args=''):
-        """Marks a question as answered,
+        """Marks a question as answered, format: `;q a <question_id 0-9> [answer_id]`
         and has an optional answer_id field for if you wish to specify an answer message"""
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         questions = config['questions']
         args = args.split(' ')
 
+        async def self_answer_shortcut():
+            for question_number in questions:
+                if ctx.author.id == questions[question_number]['author']:
+                    return int(question_number)
+            await ctx.send(f"Only the asker of the question can omit stating the question ID.  You "
+                           f"must specify which question  you're trying to answer: `;q a <question id>`.  "
+                           f"For example, `;q a 3`.")
+            raise NameError
+
         answer_message = answer_text = answer_id = None
         if args == ['']:  # if a user just inputs ;q a
-            number = None
-            for question in questions:
-                if ctx.author.id == questions[question]['author']:
-                    number = question
-                    answer_message = ctx.message
-                    break
+            number = await self_answer_shortcut()
+            answer_message = ctx.message
+            answer_text = ''
             if not number:
                 await ctx.send(f"Please enter the number of the question you wish to answer, like `;q a 3`.")
                 return
-        elif len(args) == 1:
-            try:
-                answer_message = await ctx.channel.get_message(int(args[0]))
-                for question in questions:
-                    if ctx.author.id == questions[question]['author']:
-                        number = question
-                        break
-            except discord.errors.NotFound:
-                number = args[0]
-                answer_message = ctx.message  # no optional arguments are passed:   ;q a 1
-                answer_text = ''
-        else:
-            try:
-                number = args[0]  # example: ;q a 1 554490627279159341
-                answer_id = int(args[1])
-            except ValueError:
-                number = args[0]  # Supplies text answer:   ;q a 1 blah blah answer goes here
+
+        elif len(args) == 1:  # 1) ;q a <question ID>     2) ;q a <word>      3) ;q a <message ID>
+            try:  # arg is a number
+                single_arg = int(args[0])
+            except ValueError:  # arg is a single text word
+                number = await self_answer_shortcut()
+                answer_message = ctx.message
+                answer_text = args[0]
+            else:
+                if len(str(single_arg)) <= 2:  # ;q a <question ID>
+                    number = args[0]
+                    answer_message = ctx.message
+                    answer_text = ctx.message.content
+                elif 17 <= len(str(single_arg)) <= 21:  # ;q a <message ID>
+                    try:
+                        answer_message = await ctx.channel.get_message(single_arg)
+                    except discord.errors.NotFound:
+                        await ctx.send(f"I thought `{single_arg}` was a message ID but I couldn't find that "
+                                       f"message in this channel.")
+                        return
+                    answer_text = answer_message.content
+                    number = await self_answer_shortcut()
+                else:  # ;q a <single word>
+                    number = await self_answer_shortcut()
+                    answer_message = ctx.message
+                    answer_text = str(single_arg)
+
+        else:  # args is more than one word
+            number = args[0]
+            try:  # example: ;q a 1 554490627279159341
+                if 17 < len(args[1]) < 21:
+                    answer_message = await ctx.channel.get_message(int(args[1]))
+                    answer_text = answer_message.content
+                else:
+                    raise TypeError
+            except (ValueError, TypeError):  # Supplies text answer:   ;q a 1 blah blah answer goes here
                 answer_message = ctx.message
                 answer_text = ' '.join(args[1:])
+            except discord.errors.NotFound:
+                await ctx.send(f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
+                               f"<message id>`")
+                return
 
-        if answer_id:  # if other message is cited
-            if 17 < len(str(answer_id)) < 21:
-                try:
-                    answer_message = await ctx.channel.get_message(int(answer_id))
-                    answer_text = answer_message.content
-                except discord.errors.NotFound:
-                    await ctx.send(f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
-                                   f"<message id>`")
-                    return
-            else:
-                answer_message = ctx.message
-                answer_text = ' '.join(answer_message.content.split(' ')[3:])
-            
         try:
+            number = str(number)
             question = questions[number]
-        except KeyError:
+        except IndexError:
             await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
                            f"`;question answer 3`.")
             return
-
-        question_message = await ctx.channel.get_message(questions[number]['question_message'])
-        if ctx.author != question_message.author and not hf.admin_check(ctx):
-            await ctx.send(f"Only mods or the person who asked the question originally can mark it as answered")
+        except KeyError:
+            await ctx.send(f"You've done *something* wrong... (´・ω・`)")
             return
 
         try:
             log_channel = self.bot.get_channel(config['log_channel'])
             log_message = await log_channel.get_message(question['log_message'])
+        except discord.errors.NotFound:
+            log_message = None
+            await ctx.send(f"Message in log channel not found.  Continuing code.")
 
+        try:
+            question_message = await ctx.channel.get_message(question['question_message'])
+            if ctx.author.id not in [question_message.author.id, question['command_caller']] \
+                    and not hf.admin_check(ctx):
+                await ctx.send(f"Only mods or the person who asked/started the question "
+                               f"originally can mark it as answered.")
+                return
+        except discord.errors.NotFound:
+            if log_message:
+                await log_message.delete()
+            del questions[number]
+            msg = await ctx.send(f"Original question message not found.  Closing question")
+            await asyncio.sleep(5)
+            await msg.delete()
+            await ctx.message.delete()
+            await hf.dump_json()
+            return
+
+        if log_message:
             emb = log_message.embeds[0]
             if answer_message.author != question_message.author:
-                emb.description += f"\nAnswered by {answer_message.author.mention}"
+                emb.description += f"\nAnswered by {answer_message.author.mention} ({answer_message.author.name})"
             emb.title = "ANSWERED"
             emb.color = discord.Color.default()
             if not answer_text:
@@ -1244,9 +1294,6 @@ class Main(commands.Cog):
             emb.add_field(name=f"Answer: ",
                           value=answer_text + '\n' + answer_message.jump_url)
             await log_message.edit(embed=emb)
-        except discord.errors.NotFound:
-            log_message = None
-            await ctx.send(f"Message in log channel not found.  Continuing code.")
 
         try:
             question_message = await ctx.channel.get_message(question['question_message'])
@@ -1260,27 +1307,40 @@ class Main(commands.Cog):
             await msg.delete()
             await ctx.message.delete()
 
-        del(config['questions'][number])
+        del (config['questions'][number])
         await hf.dump_json()
         if ctx.message:
             await ctx.message.add_reaction('\u2705')
 
-    @question.command(aliases=['reopen'])
+    @question.command(aliases=['reopen', 'bump'])
     @hf.is_admin()
     async def open(self, ctx, message_id):
         """Reopens a closed question, point message_id to the log message in the log channel"""
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         for question in config['questions']:
-            if int(message_id) == config['questions'][question]['question_message']:
-                del(config['questions'][question])
+            if int(message_id) == config['questions'][question]['log_message']:
+                question = config['questions'][question]
+                break
         log_channel = self.bot.get_channel(config['log_channel'])
-        log_message = await log_channel.get_message(int(message_id))
+        try:
+            log_message = await log_channel.get_message(int(message_id))
+        except discord.errors.NotFound:
+            await ctx.send(f"Specified log message not found")
+            return
         emb = log_message.embeds[0]
-        emb.description = emb.description.split('\n')[0]
-        question_message = await ctx.channel.get_message(int(emb.fields[0].value.split('/')[-1]))
-        await self.add_question(ctx, question_message, question_message.content)
+        if emb.title == 'ANSWERED':
+            emb.description = emb.description.split('\n')[0]
+            try:
+                question_message = await ctx.channel.get_message(int(emb.fields[0].value.split('/')[-1]))
+            except discord.errors.NotFound:
+                await ctx.send(f"The message for the original question was not found")
+                return
+            await self.add_question(ctx, question_message, question_message.content)
+        else:
+            new_log_message = await log_channel.send(embed=emb)
+            question['log_message'] = new_log_message.id
         await log_message.delete()
-        hf.dump_json()
+        await hf.dump_json()
 
     @question.command()
     async def list(self, ctx):
@@ -1296,7 +1356,6 @@ class Main(commands.Cog):
             try:
                 question_message = await ctx.channel.get_message(config[question]['question_message'])
                 question_text = ' '.join(question_message.content.split(' '))
-                print(question, question_message.id)
                 emb.add_field(name=f"Question `{question}`",
                               value=f"By {question_message.author.mention}\n"
                                     f"{question_text}\n"
@@ -1323,14 +1382,16 @@ class Main(commands.Cog):
             try:
                 question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
                 question_message = await ctx.channel.get_message(question_id)
-                emb.set_field_at(0, name=emb.fields[0].name, value=question_message.jump_url)
+                emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_message.content}\n"
+                                                                   f"{question_message.jump_url})")
             except ValueError:
                 question_message = ctx.message  # ;q edit 555932038612385798 question <New question text>
                 question_text = ' '.join(question_message.content.split(' ')[3:])
                 emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_text}\n{question_message.jump_url}")
         if target == 'title':
             title = ' '.join(text)
-            emb.set_field_at(0, name=title, value=emb.fields[0].value)
+            jump_url = emb.fields[0].split('\n')[-1]
+            emb.set_field_at(0, name=emb.fields[0].name, value=f"{title}\n{jump_url}")
         if target == 'asker':
             try:
                 asker = ctx.guild.get_member(int(text[0]))
