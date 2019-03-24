@@ -37,16 +37,44 @@ class Main(commands.Cog):
             print(msg.created_at, msg.author.name)
             return  # stops the rest of the code unless it's in a guild
 
+        """chinese server banned words"""
+        words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
+                 '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
+                 '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
+        if msg.guild.id == 266695661670367232:
+            word_count = 0
+            for word in words:
+                if word in msg.content:
+                    word_count += 1
+                if word_count == 5:
+                    if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
+                        await msg.delete()
+                        await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
+                                              "get their internet shut down or get them arrested or anything.  "
+                                              "It's just annoying, so please stop trying it.")
+                        await msg.author.ban(reason=f"Banned words spam")
+                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                        await mod_channel.send(f"Banned {msg.author.name} for the banned words spam message."
+                                               f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                               f"\n```{msg.content[:1900]}```")
+
+                        break
+                    else:
+                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                        await mod_channel.send(f"Warning: {msg.author.name} may have said the banned words spam message"
+                                               f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                               f"\n```{msg.content[:1900]}```")
+                        break
+
         """best sex dating"""
         words = ['amazingsexdating', 'bestdatingforall']
-        for word in words:
-            if word in msg.content:
-                await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.channel.mention}")
-                print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
-                print(datetime.utcnow(), '---', msg.author.joined_at, '-----', datetime.utcnow() - msg.author.joined_at)
         try:
             for word in words:
                 if word in msg.content:
+                    await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.channel.mention}")
+                    print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
+                    print(datetime.utcnow(), '---', msg.author.joined_at, '-----',
+                          datetime.utcnow() - msg.author.joined_at)
                     if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
                             datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
                         print('>>sex dating!!!!!!!!!!<<')
@@ -214,11 +242,6 @@ class Main(commands.Cog):
                                                       "learning role.  Please attach either 'Learning Spanish' or "
                                                       "'Learning English' to properly use hardcore mode, or take off "
                                                       "hardcore mode using the reactions in the server rules page")
-
-    @commands.command()
-    async def test(self, ctx):
-        print(self.bot)
-        print(ctx.bot)
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -1426,6 +1449,12 @@ class Main(commands.Cog):
             emb.set_footer(text=f"Edited by {ctx.author.name}")
         await target_message.edit(embed=emb)
         await ctx.message.add_reaction('\u2705')
+
+    @commands.command()
+    async def jisho(self, ctx, *, text):
+        """Provides a link to a Jisho search"""
+        await ctx.message.delete()
+        await ctx.send(f"Try finding the meaning to the word you're looking for here: https://jisho.org/search/{text}")
 
 
 def setup(bot):
