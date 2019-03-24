@@ -167,8 +167,7 @@ def is_english(char):
 async def uhc_check(msg):
     try:
         if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
-            if msg.author.id in here.bot.db['ultraHardcore'][str(here.bot.ID["jpServ"])]:
-                # jpRole = next(role for role in jpServ.roles if role.id == 196765998706196480)
+            if here.bot.db['ultraHardcore']['users'].get(str(msg.author.id), [False])[0]:
                 jpRole = msg.guild.get_role(196765998706196480)
                 ratio = jpenratio(msg)
                 # if I delete a long message
