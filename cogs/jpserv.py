@@ -40,6 +40,8 @@ class Jpserv(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['uhc'])
     async def ultrahardcore(self, ctx, member: discord.Member = None):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
+        if ctx.guild.id != 189571157446492161:
+            return
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
@@ -65,17 +67,19 @@ class Jpserv(commands.Cog):
 
     @ultrahardcore.command(aliases=['enable'])
     async def on(self, ctx):
+        if ctx.guild.id != 189571157446492161:
+            return
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
-        if ctx.author.id in config['users']:  # if not enabled
-            user = config['users'][str(ctx.author.id)]
-            if user['on']:
+        if str(ctx.author.id) in config:  # if not enabled
+            user = config[str(ctx.author.id)]
+            if user[0]:
                 await ctx.send("You're already in ultra hardcore mode.")
                 return
             else:
-                user['on'] = True
+                user[0] = True
         else:
-            config['users'][str(ctx.author.id)] = [True, date.today().strftime("%Y/%m/%d"), 0]
+            config[str(ctx.author.id)] = [True, date.today().strftime("%Y/%m/%d"), 0]
 
         await hf.dump_json()
         try:
@@ -89,6 +93,8 @@ class Jpserv(commands.Cog):
     @ultrahardcore.command()
     async def list(self, ctx):
         """Lists the people currently in ultra hardcore mode"""
+        if ctx.guild.id != 189571157446492161:
+            return
         string = 'The members in ultra hardcore mode right now are '
         guild = self.bot.get_guild(189571157446492161)
         members = []
@@ -106,6 +112,8 @@ class Jpserv(commands.Cog):
     @ultrahardcore.command()
     async def explanation(self, ctx):
         """Explains ultra hardcore mode for those who are using it and can't explain it"""
+        if ctx.guild.id != 189571157446492161:
+            return
         if ctx.author.id in self.bot.db['ultraHardcore'][str(ctx.guild.id)]:
             await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't "
                            f"speak their native language, and they also cannot undo this mode themselves.")
@@ -117,6 +125,8 @@ class Jpserv(commands.Cog):
     @ultrahardcore.command(aliases=['lb'])
     async def leaderboard(self, ctx):
         """Shows a leaderboard of who has had UHC on for the longest"""
+        if ctx.guild.id != 189571157446492161:
+            return
         time_dict = deepcopy(self.bot.db['ultraHardcore']['users'])
         for i in time_dict:
             if time_dict[i][0]:
@@ -155,6 +165,8 @@ class Jpserv(commands.Cog):
     @ultrahardcore.command()
     @hf.is_admin()
     async def ignore(self, ctx):
+        if ctx.guild.id != 189571157446492161:
+            return
         config = self.bot.db['ultraHardcore']
         try:
             if ctx.channel.id not in config['ignore']:
