@@ -27,7 +27,7 @@ class Owner(commands.Cog):
         self._last_result = None
         self.sessions = set()
 
-    async def __local_check(self, ctx):
+    async def cog_check(self, ctx):
         return await self.bot.is_owner(ctx.author)
 
     def get_syntax_error(self, e):

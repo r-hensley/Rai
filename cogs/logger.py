@@ -29,8 +29,8 @@ class Logger(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def __local_check(self, ctx):
-        return ctx.channel.permissions_for(ctx.author).administrator
+    async def cog_check(self, ctx):
+        return hf.admin_check(ctx)
 
     def dump_json(self):
         with open(f'{dir_path}/database2.json', 'w') as write_file:

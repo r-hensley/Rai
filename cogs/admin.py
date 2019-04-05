@@ -11,12 +11,12 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 class Admin(commands.Cog):
-    """My custom cog that does stuff!"""
+    """Stuff for admins"""
 
     def __init__(self, bot):
         self.bot = bot
 
-    async def __local_check(self, ctx):
+    async def cog_check(self, ctx):
         return hf.admin_check(ctx)
 
     @commands.command()

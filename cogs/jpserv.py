@@ -28,8 +28,8 @@ class Jpserv(commands.Cog):
     @commands.command()
     @hf.is_admin()
     async def swap(self, ctx):
-        jpJHO = bot.get_channel(189571157446492161)
-        jpJHO2 = bot.get_channel(326263874770829313)
+        jpJHO = self.bot.get_channel(189571157446492161)
+        jpJHO2 = self.bot.get_channel(326263874770829313)
         if jpJHO.position == 4:
             await jpJHO.edit(position=5, name='just_hanging_out_2')
             await jpJHO2.edit(position=4, name='just_hanging_out')
@@ -58,7 +58,7 @@ class Jpserv(commands.Cog):
                     await ctx.send("I couldn't remove the ultra hardcore role")
                 await ctx.send(f'Undid ultra hardcore mode for {member.name}')
             else:
-                await cxt.send("You can not remove UHC.  Ask a mod/admin to help you.")
+                await ctx.send("You can not remove UHC.  Ask a mod/admin to help you.")
         else:
             await ctx.send(f"This is ultra hardcore mode.  It means you must speak in the language you are learning "
                            f"(for example, if you are learning Japanese, any messages in English will be deleted). "

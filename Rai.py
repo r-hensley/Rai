@@ -117,6 +117,7 @@ async def on_command_error(ctx, error):
 
         e = discord.Embed(title='Command Error', colour=0xcc3366)
         e.add_field(name='Name', value=qualified_name)
+        e.add_field(name='Command', value=ctx.message.content[:1000])
         e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
 
         fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
