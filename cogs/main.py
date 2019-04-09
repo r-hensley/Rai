@@ -54,16 +54,18 @@ class Main(commands.Cog):
                                               "It's just annoying, so please stop trying it.")
                         await msg.author.ban(reason=f"Banned words spam")
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
-                        await mod_channel.send(f"Banned {msg.author.name} for the banned words spam message."
+                        log_channel = self.bot.get_channel(295729249124352000)
+                        await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}.")
+                        await log_channel.send(f"Banned {msg.author.name} for the banned words spam message."
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                               f"\n```{msg.content[:1900]}```")
+                                               f"\n```{msg.content}"[:1995] + '```')
 
                         break
                     else:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                         await mod_channel.send(f"Warning: {msg.author.name} may have said the banned words spam message"
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                               f"\n```{msg.content[:1900]}```")
+                                               f"\n```{msg.content}"[:1995] + '```')
                         break
 
         """best sex dating"""
@@ -308,7 +310,7 @@ class Main(commands.Cog):
             f"In ten seconds, I'll send a welcome message there.",
 
             # [4]: initial ping to mods in report room
-            f"{ctx.author.name} -  This user has entered the report room.  If they don't "
+            f"{user.name} - This user has entered the report room.  If they don't "
             f"come to this channel in the next ten seconds, they will not be able to "
             f"see the following message and might be confused as to what's happening. @here",
 
@@ -336,7 +338,6 @@ class Main(commands.Cog):
         ]
 
         if user != ctx.author:  # if the mods called in a user
-            await report_room.send(f"{user.mention}: Please come to this channel")
             await self.report_room(ctx, config, user, report_text, True)
             return
 
@@ -413,11 +414,11 @@ class Main(commands.Cog):
         message_log = 'Start of log:\n'
         async for message in ctx.channel.history(limit=None, after=start_message):
             next_line = f'**__{message.author}:__** {message.content} \n'
-            if not len(message_log + next_line) > 2000:
-                message_log += next_line
-            else:
+            if len(message_log + next_line) > 2000:
                 await user.send(message_log)
                 message_log = next_line
+            else:
+                message_log += next_line
         await user.send(message_log)
 
         await report_room.send('Session closed, and a log has been sent to the user')
@@ -535,7 +536,11 @@ class Main(commands.Cog):
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-
+        if ctx.channel.permissions_for(user).read_messages:
+            initial_msg = report_text[4][:-5] + "(Deleted `@here` ping because it seems like you're " \
+                                                "just testing the room)"
+        else:
+            initial_msg = report_text[4]
         await report_room.set_permissions(user, read_messages=True)
 
         if from_mod:
@@ -550,7 +555,7 @@ class Main(commands.Cog):
         else:
             await user.send(report_text[3])  # please go to the report room
 
-        msg = await report_room.send(report_text[4])  # initial msg to mods
+        msg = await report_room.send(initial_msg)  # initial msg to mods
         await report_room.send(report_text[8])
         config['entry_message'] = msg.id
         await hf.dump_json()
@@ -895,7 +900,12 @@ class Main(commands.Cog):
     async def answer(self, ctx, *, args=''):
         """Marks a question as answered, format: `;q a <question_id 0-9> [answer_id]`
         and has an optional answer_id field for if you wish to specify an answer message"""
-        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            await ctx.send(f"This channel is not setup as a questions channel.  Please make sure you mark your "
+                           f"question as 'answered' in the channel you asked it in.")
+            return
         questions = config['questions']
         args = args.split(' ')
 
@@ -962,13 +972,13 @@ class Main(commands.Cog):
         try:
             number = str(number)
             question = questions[number]
-        except IndexError:
-            await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
-                           f"`;question answer 3`.")
-            return
         except KeyError:
-            await ctx.send(f"You've done *something* wrong... (´・ω・`)")
+            await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
+                           f"`;question answer 3`.  Also, make sure you're answering in the right channel.")
             return
+        except Error:
+            await ctx.send(f"You've done *something* wrong... (´・ω・`)")
+            raise
 
         try:
             log_channel = self.bot.get_channel(config['log_channel'])
@@ -1076,7 +1086,8 @@ class Main(commands.Cog):
             channel_config = config[str(channel)]['questions']
             for question in channel_config:
                 try:
-                    question_message = await ctx.channel.get_message(channel_config[question]['question_message'])
+                    question_channel = self.bot.get_channel(int(channel))
+                    question_message = await question_channel.get_message(channel_config[question]['question_message'])
                     question_text = ' '.join(question_message.content.split(' '))
                     text_splice = 1024 - len(question_message.jump_url) - \
                                   len(f"By {question_message.author.mention}\n\n")

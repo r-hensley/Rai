@@ -197,6 +197,6 @@ def getAPIKey(filename):
     return f.read()
 
 
-key = getAPIKey(dir_path+'/APIKey.txt') + 'c'
+key = getAPIKey(dir_path+'/APIKey.txt') + 'k'
 client.run(key)
 input("press key to exit")
