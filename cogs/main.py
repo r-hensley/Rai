@@ -536,7 +536,7 @@ class Main(commands.Cog):
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-        if report_room.channel.permissions_for(user).read_messages:
+        if report_room.permissions_for(user).read_messages:
             initial_msg = report_text[4][:-5] + "(Deleted `@here` ping because it seems like you're " \
                                                 "just testing the room)"
         else:
