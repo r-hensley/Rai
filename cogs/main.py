@@ -430,7 +430,7 @@ class Main(commands.Cog):
                     break
                 member = ctx.guild.get_member(member_id)
                 msg = 'The report room is now open.  Try sending `;report` to me again. If you ' \
-                      'wish to be removed from the waiting list, please react with the below emoji. (not working)'
+                      'wish to be removed from the waiting list, please react with the below emoji.'
                 waiting_msg = await member.send(msg)
                 await waiting_msg.add_reaction('🚫')
                 asyncio.sleep(10)
@@ -536,7 +536,7 @@ class Main(commands.Cog):
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-        if ctx.channel.permissions_for(user).read_messages:
+        if report_room.channel.permissions_for(user).read_messages:
             initial_msg = report_text[4][:-5] + "(Deleted `@here` ping because it seems like you're " \
                                                 "just testing the room)"
         else:
