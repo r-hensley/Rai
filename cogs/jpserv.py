@@ -15,7 +15,7 @@ class Jpserv(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def __local_check(self, ctx):
+    async def cog_check(self, ctx):
         return ctx.guild.id == 189571157446492161 or ctx.guild.id == 275146036178059265
         # these commands are only useable on Japanese server or my testing server
 
