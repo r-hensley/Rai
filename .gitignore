@@ -1,3 +1,4 @@
+gitpull.sh
 BasicBot*
 API*
 invitesHistory.txt
@@ -47,3 +48,4 @@ db.json
 gcloud*
 cogs/gcloud*
 list*
+
