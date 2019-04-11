@@ -49,13 +49,13 @@ class Main(commands.Cog):
                 if word_count == 5:
                     if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
                         await msg.delete()
-                        await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
-                                              "get their internet shut down or get them arrested or anything.  "
-                                              "It's just annoying, so please stop trying it.")
+                        # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
+                        #                       "get their internet shut down or get them arrested or anything.  "
+                        #                       "It's just annoying, so please stop trying it.")
                         await msg.author.ban(reason=f"Banned words spam")
-                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                        # mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                         log_channel = self.bot.get_channel(295729249124352000)
-                        await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}.")
+                        # await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}."
                         await log_channel.send(f"Banned {msg.author.name} for the banned words spam message."
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                                f"\n```{msg.content}"[:1995] + '```')
@@ -394,6 +394,7 @@ class Main(commands.Cog):
 
     @report.command()
     async def done(self, ctx):
+        """Use this when a report is finished in the report room"""
         try:
             config = self.bot.db['report'][str(ctx.guild.id)]
             report_room = ctx.bot.get_channel(config['channel'])
@@ -438,6 +439,7 @@ class Main(commands.Cog):
     @report.command()
     @hf.is_admin()
     async def check_waiting_list(self, ctx):
+        """Checks who is on the waiting list for the report room"""
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
             return
@@ -454,6 +456,7 @@ class Main(commands.Cog):
     @report.command()
     @hf.is_admin()
     async def clear_waiting_list(self, ctx):
+        """Clears the waiting list for the report room"""
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
             return
@@ -465,6 +468,20 @@ class Main(commands.Cog):
             await ctx.send('Waiting list cleared')
         else:
             await ctx.send('There was no one on the waiting list.')
+
+    @report.command()
+    @hf.is_admin()
+    async def reset(self, ctx):
+        """Manually reset the report module in case of some bug"""
+        try:
+            config = self.bot.db['report'][str(ctx.guild.id)]
+        except KeyError:
+            return
+        config['current_user'] = config['entry_message'] = None
+        config['waiting_list'] = []
+        hf.dump_json()
+        await ctx.send(f"The report module has been reset on this server.  Check the permission overrides on the "
+                       f"report channel to make sure there are no users left there.")
 
     @staticmethod
     async def report_options(ctx, report_text):
