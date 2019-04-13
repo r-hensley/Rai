@@ -19,11 +19,6 @@ class Jpserv(commands.Cog):
         return ctx.guild.id == 189571157446492161 or ctx.guild.id == 275146036178059265
         # these commands are only useable on Japanese server or my testing server
 
-    def is_admin():
-        async def pred(ctx):
-            return ctx.channel.permissions_for(ctx.author).administrator
-
-        return commands.check(pred)
 
     @commands.command()
     @hf.is_admin()
