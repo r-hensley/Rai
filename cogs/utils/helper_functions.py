@@ -61,6 +61,14 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
+async def member_converter(ctx, user):
+    try:
+        return await commands.MemberConverter().convert(ctx, user)
+    except commands.errors.BadArgument:  # invalid user given
+        await ctx.send('User not found')
+        return None
+
+
 def _predump_json():
     with open(f'{dir_path}/db_2.json', 'w') as write_file:
         json.dump(here.bot.db.copy(), write_file, indent=4)
