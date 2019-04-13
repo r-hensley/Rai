@@ -16,6 +16,8 @@ class Jpserv(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
+        if not ctx.guild:
+            return
         return ctx.guild.id == 189571157446492161 or ctx.guild.id == 275146036178059265
         # these commands are only useable on Japanese server or my testing server
 
