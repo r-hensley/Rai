@@ -36,16 +36,14 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;github`** Shows my github page
 - **`;invite`** Gives an invite to invite Rai to your server
 - **`;kawaii`** Try it
+- **`;nadeko_flip_test`** A command to simulate the Martingale strategy for Nadeko's coin flip gambling module (alias `;nft`)
 - **`;ping`** Doesn't actually perform a ping test but still a good test
 - **`;pencil`** Adds a :pencil: to the end of your name to signify that you wish to be corrected.  See ;eraser
 - **`;punch`** The first command I made with cogs, just a test, try it
 - **`;randomWalk`** <number> Generates a random walk plot, try it
 - **`;report`** Starts the dialogue in PM for entering the report room (server admins must run the setup command first)
-- **`;ryan`** Posts an invite link to this channel
-- **`;ultrahardcore on`** *(Japanese server only) (Alias: `;uhc`)* Enters ultra hardcore mode, you must talk to a mod to remove it, which they can do by `;uhc <user/id>`.  
-  - **`;uhc list`** Lists the people in ultra hardcore mode.
-  - **`;uhc explanation`** Posts an explanation in English about hardcore mode to help explain to other people why you can't speak English if they don't understand your attempts to explain it to them in Japanese
-  - **`;uhc [USER]`** *(admins only)* Removes a user from UHC mode.
+- **`;ryan`** Posts an invite link to this page/my testing server
+- **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
   
 ## Admin Commands
 The commands in this module are only usable by users with either the `Administrator` privelege in a server, or if they have the mod role set in the next command.
@@ -88,13 +86,15 @@ A feature that allows users to either make an anonymous report to the mods, or e
 
 Other commands:
 - **`;report check_waiting_list`** Checks who is on the waiting list for the report room
-` **`;report clear_waiting_list`** Clears the waiting list
-` **`;report [USER / ID]`** Pulls a user into the report room if you want to ask them questions about something.  It is recommended to tell the user you will do this before you do it.
+- **`;report clear_waiting_list`** Clears the waiting list
+- **`;report [USER / ID]`** Pulls a user into the report room if you want to ask them questions about something.  It is recommended to tell the user you will do this before you do it.
+- **`;report reset`** If something bugs out with the report room, use this to reset it.  Make sure to also manually reset the permission overrides of the channel for the last user to have been in the room.
+
 ⠀
 #### Super_watch lists: an anti-raid tool
 
 Super_watch  
-*(alias `;sw`)*
+*(alias `;sw`, `;superwatch`)*
 If you're being raided by someone who is repeatedly making multiple accounts to rejoin and spam, use this on the accounts that you think are the raiders.  
 - **`;super_watch add [id/name]`** Adds someone to the watch list.  Every time they send a message anywhere, the bot will make a post notifying the mods.   
 - **`;sw remove [id/name]`** Removes someone from the watch list.  
@@ -102,7 +102,7 @@ If you're being raided by someone who is repeatedly making multiple accounts to 
 - **`;sw set`** Set the channel you wish the messages to be posted to
 
 Super_voicewatch  
-*(aliases `;svw`, `;supervoicewatch`, `;super_voice_watch`)*
+*(aliases `;svw`, `;supervoicewatch`)*
 If you've received reports for a user causing problems in voice, use this to notify the mods whenever that user joins voice so you can go listen and hopefully confirm the reports.  
 - **`;super_voicewatch`** Sets-up the module/displays help for it.  
 - **`;svw add [USER]`** **`;svw remove [USER]`** Adds/removes a user from the list  
@@ -133,8 +133,12 @@ Formatting variables: Put any of these in the welcome message to have them repla
 
 #### Japanese server only
 - **`;swap`** Swaps the names and positions of JHO and JHO2.  Use this if JHO is particularly active and you want to move the welcome messages to JHO2.  Or as a fun prank to confuse people.
+- **`;ultrahardcore on`** *(Japanese server only) (Alias: `;uhc`)* Enters ultra hardcore mode, you must talk to a mod to remove it, which they can do by `;uhc <user/id>`.  
 - **`;ultrahardcore [NAME / ID]`** *(alias `;uhc`) *Removes a user from ultra hardcore mode 
 - **`;ultrahardcore ignore`** Adds the channel that you send this message in to the whitelist for ignored channels for ultra hardcore mode.
+  - **`;uhc list`** Lists the people in ultra hardcore mode.
+  - **`;uhc explanation`** Posts an explanation in English about hardcore mode to help explain to other people why you can't speak English if they don't understand your attempts to explain it to them in Japanese
+  -- **`;uhc lb`** Shows a leaderboard of who has had UHC for the longest.
 
 ## Logging
 Part of the admin commands, but deserves it's own section.  
@@ -166,15 +170,15 @@ Go to your questions channel and type `;question setup`.  You should be able to 
 
 __To ask your own question__  
 `;question <Title for your question>` (alias `;q`)  
-The bot will react with a number telling you the `Question I  D`.  
+The bot will react with a number telling you the `Question ID`.  
 Example: `;q What is 2+2?`
 
-__To mark someone else's comment as a question__  
+__To mark someone else's comment as a question for them__  
 `;question <the question's message ID> [optional title]`  
-Cite the message ID of the original question, and also if you want include your own title for the question (not including a title will just use the text of the message you point to)  
-Example: `;q 553582103464378368` or `;q 553582103464378368 What is 2+2?`
+Cite the message ID of the original question
+Example: `;q 553582103464378368``
 
-__To mark a question as answered__  
+__To mark a question as answered__
 `;question answer <Question ID>` (alias `;q a`)  
 Type this after enough answers have been given to consider the question answered  
 Example: `;q a 1`
@@ -184,6 +188,9 @@ Same as above, but add the message ID to the end.
 `;question answer <Question ID> <Message ID>`  
 Example: `;q a 1 553582103464378368`
 
+__Shortcut: To mark your own question as answered__
+If you're the person to make the question, you can just type `;q a` when your question has been answered.
+
 __Editing a log__  
 `;question edit <log_id> <target: what you want to change> <text>`  
 You have the option for target of changing the asker, answerer, question, title, or answer of a question.
@@ -191,3 +198,4 @@ You have the option for target of changing the asker, answerer, question, title,
 __Other commands__  
 - `;question open <Message ID of message log>` - Reopens a closed question  
 - `;question list` - Shows a list of all open questions
+- `;question bump <message_id>` Bumps a question in the question log to the bottom of the log channel
