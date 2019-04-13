@@ -155,12 +155,7 @@ class Logger(commands.Cog):
                     levenshtein_distance = LDist(before.content, after.content)
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        try:
-                            await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
-                        except AttributeError as e:
-                            print(f'>>Error in {ctx.command.name}, {str(e)}'
-                                  f'\nguild: {message.guild.name}\n'
-                                  f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                        await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
         await hf.uhc_check(after)
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
@@ -248,20 +243,11 @@ class Logger(commands.Cog):
                 if guild_config['enable']:
                     channel = self.bot.get_channel(guild_config["channel"])
                     if not channel:
-                        del(guild_config['channel'])
+                        del (guild_config['channel'])
                         hf.dump_json()
                         print(f"")
                         return
-                    try:
-                        await channel.send(embed=await self.make_delete_embed(message))
-                    except discord.errors.HTTPException as e:
-                        print('>>Error in on_message_delete, ')
-                        print(e)
-                        print(message + '<<')
-                    except AttributeError as e:
-                        print(f'>>Error in {ctx.command.name}, {str(e)}'
-                              f'\nguild: {message.guild.name}\n'
-                              f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                    await channel.send(embed=await self.make_delete_embed(message))
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -378,7 +364,11 @@ class Logger(commands.Cog):
 
     @welcome_message.command()
     async def set_channel(self, ctx):
-        config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+        try:
+            config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+        except KeyError:
+            await ctx.invoke(self.welcome_message)
+            config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         config['channel'] = ctx.channel.id
         await ctx.send(f"Set welcome message channel to {ctx.channel.mention}")
         await hf.dump_json()
@@ -441,11 +431,6 @@ class Logger(commands.Cog):
                     await channel.send(embed=x)
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
-                except AttributeError as e:
-                    print(f'>>Error in {ctx.command.name}, {str(e)}'
-                          f'\nguild: {message.guild.name}\n'
-                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
-
 
         """ban invite link names"""
         try:
@@ -611,14 +596,7 @@ class Logger(commands.Cog):
             if self.bot.db['leaves'][guild]['enable']:
                 server_config = self.bot.db['leaves'][guild]
                 channel = self.bot.get_channel(server_config['channel'])
-                try:
-                    await channel.send(embed=self.make_leave_embed(member))
-                except AttributeError as e:
-                    await self.bot.testChan.send("Error on on_member_remove"
-                                                 f"{member.guild}, {e}")
-                    print(f'>>Error in {ctx.command.name}, {str(e)}'
-                          f'\nguild: {message.guild.name}\n'
-                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                await channel.send(embed=self.make_leave_embed(member))
 
         try:
             config = self.bot.db['readd_roles'][str(member.guild.id)]
@@ -704,37 +682,33 @@ class Logger(commands.Cog):
                         embed = self.make_nickname_embed(before, after)
                     else:
                         return
-                    try:
-                        await channel.send(embed=embed)
-                    except AttributeError as e:
-                        print(f'>>Error in {ctx.command.name}, {str(e)}'
-                              f'\nguild: {message.guild.name}\n'
-                              f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                    await channel.send(embed=embed)
 
         """Nadeko updates"""
-        if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
-            if str(before.status) == 'online' and str(after.status) == 'offline':
-                def check(beforecheck, aftercheck):
-                    return after.id == beforecheck.id and \
-                           str(beforecheck.status) == 'offline' and \
-                           str(aftercheck.status) == 'online'
-        #
-                try:
-                    await self.bot.wait_for('member_update', check=check, timeout=1200)
-                    self.bot.waited = False
-                except asyncio.TimeoutError:
-                    self.bot.waited = True
-        #
-                if self.bot.waited:
-                    await self.bot.spanSP.send(  # nadeko was offline for 20 mins
-                        "Nadeko has gone offline.  New users won't be able to tag themselves, "
-                        "and therefore will not be able to join the server.  Please be careful of this."
-                    )
-        #
-            if str(before.status) == 'offline' and str(after.status) == 'online':
-                if self.bot.waited:
-                    self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
-                    await self.bot.spanSP.send('Nadeko is back online now.')
+        if self.bot.user.name == 'Rai':
+            if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
+                if str(before.status) == 'online' and str(after.status) == 'offline':
+                    def check(beforecheck, aftercheck):
+                        return after.id == beforecheck.id and \
+                               str(beforecheck.status) == 'offline' and \
+                               str(aftercheck.status) == 'online'
+
+                    try:
+                        await self.bot.wait_for('member_update', check=check, timeout=1200)
+                        self.bot.waited = False
+                    except asyncio.TimeoutError:
+                        self.bot.waited = True
+
+                    if self.bot.waited:
+                        await self.bot.spanSP.send(  # nadeko was offline for 20 mins
+                            "Nadeko has gone offline.  New users won't be able to tag themselves, "
+                            "and therefore will not be able to join the server.  Please be careful of this."
+                        )
+
+                if str(before.status) == 'offline' and str(after.status) == 'online':
+                    if self.bot.waited:
+                        self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
+                        await self.bot.spanSP.send('Nadeko is back online now.')
 
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):
@@ -789,20 +763,15 @@ class Logger(commands.Cog):
                     guild_config: dict = self.bot.db['reactions'][guild]
                     if guild_config['enable']:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        try:
-                            await channel.send(embed=self.make_reaction_embed(reaction, member))
-                        except AttributeError as e:
-                            print(f'>>Error in {ctx.command.name}, {str(e)}'
-                                  f'\nguild: {message.guild.name}\n'
-                                  f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                        await channel.send(embed=self.make_reaction_embed(reaction, member))
 
-    @commands.group(invoke_without_command=True, aliases=['ban', 'bans'])
+    @commands.group(invoke_without_command=True, aliases=['bans'])
     async def ban_logging(self, ctx):
         """Logs deleted bans, aliases: 'ban', 'bans'"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
             await ctx.send("I lack the permission to either view audit logs or embed links.  Please try again.")
             return
-        result = self.module_logging(ctx, self.bot.db['bans'])
+        result = await self.module_logging(ctx, self.bot.db['bans'])
         if result == 1:
             await ctx.send('Disabled ban logging for this server')
         elif result == 2:
@@ -824,58 +793,49 @@ class Logger(commands.Cog):
 
     @staticmethod
     async def make_ban_embed(guild, member):
-        emb = None
-        try:
-            await asyncio.sleep(1)
-            ban_entry = None
-            async for entry in guild.audit_logs(limit=None, reverse=False,
-                                                action=discord.AuditLogAction.ban,
-                                                after=datetime.utcnow() - timedelta(seconds=10)):
-                if entry.action == discord.AuditLogAction.ban:
-                    ban_entry = entry
-                    break
-        except discord.errors.Forbidden as e:
-            print('>>on_member_ban ' + str(e) + '<<')
-            return
-        if ban_entry.created_at > datetime.utcnow() - timedelta(seconds=10) and ban_entry.target == member:
-            reason = ban_entry.reason
-            emb = True
-        if emb:
-            emb = discord.Embed(
-                description=f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
-                            f'*by* {ban_entry.user.mention}\n**Reason**: {reason}',
-                colour=0x000000,
-                timestamp=datetime.utcnow()
-            )
-            emb.set_footer(text=f'User Banned',
-                           icon_url=member.avatar_url_as(static_format="png"))
-            return emb
+        ban_entry = await guild.fetch_ban(member)
+        reason = ban_entry.reason
+        emb = discord.Embed(
+            colour=0x000000,
+            timestamp=datetime.utcnow()
+        )
+        if not reason:
+            reason = '(none given)'
+        if reason.startswith('*by* '):
+            emb.description = f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
+                              f'{reason}'
         else:
-            emb = discord.Embed(
-                description=f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
-                            f'(Note, there was a bug in the code, could not get audit log data)',
-                colour=0x000000,
-                timestamp=datetime.utcnow()
-            )
-            emb.set_footer(text=f'User Banned',
-                           icon_url=member.avatar_url_as(static_format="png"))
+            emb.description = f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
+                              f'**Reason**: {reason}'
+        emb.set_footer(text=f'User Banned',
+                       icon_url=member.avatar_url_as(static_format="png"))
+        return emb
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
+            emb = await self.make_ban_embed(guild, member)
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                try:
-                    await channel.send(embed=await self.make_ban_embed(guild, member))
-                except AttributeError as e:
-                    print(f'>>Error in {ctx.command.name}, {str(e)}'
-                          f'\nguild: {message.guild.name}\n'
-                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                await channel.send(embed=emb)
+
+            config = self.bot.db['bans'][str(guild.id)]
+            try:
+                if config['crosspost']:
+                    old_desc = emb.description.split('\n\n')
+                    new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
+                    emb.description = new_desc
+                    await self.bot.get_channel(329576845949534208).send(embed=emb)
+            except KeyError:
+                pass
 
         if member.id == 414873201349361664:
-            await member.unban()
+            try:
+                await member.unban()
+            except discord.errors.NotFound:
+                pass
             try:
                 self.bot.db['global_blacklist']['blacklist'].remove(414873201349361664)
                 await hf.dump_json()
@@ -900,12 +860,7 @@ class Logger(commands.Cog):
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                try:
-                    await channel.send(embed=self.make_unban_embed(user))
-                except AttributeError as e:
-                    print(f'>>Error in {ctx.command.name}, {str(e)}'
-                          f'\nguild: {message.guild.name}\n'
-                          f'channel id is supposed to be: {guild_config["channel"]}<<)')
+                await channel.send(embed=self.make_unban_embed(user))
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):
@@ -935,7 +890,7 @@ class Logger(commands.Cog):
         log_channel = self.bot.get_channel(self.bot.db['kicks'][str(member.guild.id)]['channel'])
         try:
             emb = None
-            async for entry in member.guild.audit_logs(limit=1, reverse=False,
+            async for entry in member.guild.audit_logs(limit=1, oldest_first=False,
                                                        action=discord.AuditLogAction.kick,
                                                        after=datetime.utcnow() - timedelta(seconds=10)):
                 if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
