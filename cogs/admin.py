@@ -4,7 +4,8 @@ import json
 import urllib.request
 from .utils import helper_functions as hf
 import asyncio
-
+import re
+from datetime import datetime, timedelta
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -18,6 +19,87 @@ class Admin(commands.Cog):
 
     async def cog_check(self, ctx):
         return hf.admin_check(ctx)
+
+    @commands.command()
+    async def crosspost(self, ctx):
+        """Makes Rai crosspost all your ban audits"""
+        if str(ctx.guild.id) in self.bot.db['bans']:
+            config = self.bot.db['bans'][str(ctx.guild.id)]
+            try:
+                config['crosspost'] = not config['crosspost']
+            except KeyError:
+                config['crosspost'] = True
+        else:
+            config = self.bot.db['bans'][str(ctx.guild.id)] = {'enable': False, 'channel': None, 'crosspost': True}
+        if config['crosspost']:
+            await ctx.send(f"Rai will now crosspost ban logs")
+        else:
+            await ctx.send(f"Rai won't crosspost ban logs anymore")
+        await hf.dump_json()
+
+    @commands.command()
+    @hf.is_admin()
+    async def ban(self, ctx, *args):
+        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`"""
+        if not ctx.author.guild_permissions.ban_members:
+            await ctx.send(f"You can not ban members")
+            return
+        if not ctx.guild.get_member(self.bot.user.id).guild_permissions.ban_members:
+            await ctx.send(f"I lack the permission to ban members on this server.")
+            return
+        timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
+        if timed_ban:
+            target = await hf.member_converter(ctx, args[1])
+            reason = ' '.join(args[2:])
+            if re.findall('^\d+d\d+h$', args[0]):
+                length = timed_ban[0][:-1].split('d')
+            elif re.findall('^\d+d$', args[0]):
+                length = [timed_ban[0][:-1], '0']
+            else:
+                length = ['0', timed_ban[0][:-1]]
+            unban_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
+        else:
+            target = await hf.member_converter(ctx, args[0])
+            reason = ' '.join(args[1:])
+            length = []
+        if not target:
+            return
+        if not reason:
+            reason = None
+        em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
+        if length:
+            em.description = f"You will be unbanned automatically at {time_string} " \
+                             f"(in {length[0]} days and {length[1]} hours)"
+        else:
+            em.description = "This ban is indefinite."
+        if reason:
+            em.add_field(name="Reason:", value=reason)
+        await ctx.send("You are about to perform the following action: ", embed=em)
+        await ctx.send(f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification "
+                       f"to the user, or `no` to cancel.")
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=20.0,
+                                          check=lambda x: x.author == ctx.author and
+                                                          x.content.casefold() in ['yes', 'no', 'send'])
+        except asyncio.TimeoutError:
+            await ctx.send(f"Timed out.  Canceling ban.")
+            return
+        content = msg.content.casefold()
+        if content == 'no':
+            await ctx.send(f"Canceling ban")
+            return
+        if content == 'yes':
+            await target.ban(reason=f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}")
+        if content == 'send':
+            await target.send(embed=em)
+            await target.ban(reason=f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}")
+        return
+        if length:
+            config = self.bot.db['bans'].setdefault([str(ctx.guild.id)],
+                                                    {'enable': False, 'channel': None, 'timed_bans': {}})
+            config['timed_bans'][str(target.id)] = time_string
 
     @commands.command()
     async def post_rules(self, ctx):
@@ -228,13 +310,11 @@ class Admin(commands.Cog):
                 if args[0] == '0':
                     user = None
                 if args[0] != '0':
-                    try:
-                        user = await commands.MemberConverter().convert(ctx, args[0])
-                    except commands.errors.BadArgument:  # invalid user given
-                        await ctx.send('User not found')
+                    user = await hf.member_converter(ctx, args[0])
+                    if not user:
                         return
                 try:
-                    msg = await ctx.channel.get_message(args[1])
+                    msg = await ctx.channel.fetch_message(args[1])
                 except discord.errors.NotFound:  # invaid message ID given
                     await ctx.send('Message not found')
                     return
@@ -514,10 +594,8 @@ class Admin(commands.Cog):
             config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         except KeyError:
             await ctx.send("Super watch is not yet setup for this server.  Run `;super_watch` to set it up.")
-        try:
-            target = await commands.MemberConverter().convert(ctx, target)
-        except commands.errors.BadArgument:  # invalid user given
-            await ctx.send("User not found")
+        target = await hf.member_converter(ctx, target)
+        if not target:  # invalid user given
             return
         if target.id not in config:
             config.append(target.id)

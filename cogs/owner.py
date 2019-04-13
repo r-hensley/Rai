@@ -96,7 +96,7 @@ class Owner(commands.Cog):
         print('Saving messages')
         with codecs.open(f'{ctx.message.channel}_messages.txt', 'w', 'utf-8') as file:
             print('File opened')
-            async for msg in ctx.message.channel.history(limit=None, reverse=True):
+            async for msg in ctx.message.channel.history(limit=None, oldest_first=True):
                 try:
                     file.write(f'    ({msg.created_at}) {msg.author.name} - {msg.content}\n')
                 except UnicodeEncodeError:
@@ -139,10 +139,9 @@ class Owner(commands.Cog):
     async def reload(self, ctx, *, cog : str):
     
         try:
-            self.bot.unload_extension(f'cogs.{cog}')
-            self.bot.load_extension(f'cogs.{cog}')
+            self.bot.reload_extension(f'cogs.{cog}')
         except Exception as e:
-            await ctx.send('**`ERROR:`** {} - {}'.format(type(e).__name__, e))
+            await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
             await ctx.send('**`SUCCESS`**')
 

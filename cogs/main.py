@@ -406,7 +406,7 @@ class Main(commands.Cog):
             return
 
         user = ctx.guild.get_member(config['current_user'])
-        start_message = await ctx.channel.get_message(config['entry_message'])
+        start_message = await ctx.channel.fetch_message(config['entry_message'])
         config['current_user'] = None
         config['entry_message'] = None
         await hf.dump_json()
@@ -865,7 +865,7 @@ class Main(commands.Cog):
             return
 
         try:  # there is definitely some text in the arguments
-            target_message = await ctx.channel.get_message(int(args[0]))  # this will work if the first arg is an ID
+            target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
             if len(args) == 1:
                 title = target_message.content  # if there was no text after the ID
             else:
@@ -958,7 +958,7 @@ class Main(commands.Cog):
                     answer_text = ctx.message.content
                 elif 17 <= len(str(single_arg)) <= 21:  # ;q a <message ID>
                     try:
-                        answer_message = await ctx.channel.get_message(single_arg)
+                        answer_message = await ctx.channel.fetch_message(single_arg)
                     except discord.errors.NotFound:
                         await ctx.send(f"I thought `{single_arg}` was a message ID but I couldn't find that "
                                        f"message in this channel.")
@@ -974,7 +974,7 @@ class Main(commands.Cog):
             number = args[0]
             try:  # example: ;q a 1 554490627279159341
                 if 17 < len(args[1]) < 21:
-                    answer_message = await ctx.channel.get_message(int(args[1]))
+                    answer_message = await ctx.channel.fetch_message(int(args[1]))
                     answer_text = answer_message.content[:900]
                 else:
                     raise TypeError
@@ -993,19 +993,19 @@ class Main(commands.Cog):
             await ctx.send(f"Invalid question number.  Check the log channel again and input a single number like "
                            f"`;question answer 3`.  Also, make sure you're answering in the right channel.")
             return
-        except Error:
+        except Exception:
             await ctx.send(f"You've done *something* wrong... (´・ω・`)")
             raise
 
         try:
             log_channel = self.bot.get_channel(config['log_channel'])
-            log_message = await log_channel.get_message(question['log_message'])
+            log_message = await log_channel.fetch_message(question['log_message'])
         except discord.errors.NotFound:
             log_message = None
             await ctx.send(f"Message in log channel not found.  Continuing code.")
 
         try:
-            question_message = await ctx.channel.get_message(question['question_message'])
+            question_message = await ctx.channel.fetch_message(question['question_message'])
             if ctx.author.id not in [question_message.author.id, question['command_caller']] \
                     and not hf.admin_check(ctx):
                 await ctx.send(f"Only mods or the person who asked/started the question "
@@ -1035,7 +1035,7 @@ class Main(commands.Cog):
             await log_message.edit(embed=emb)
 
         try:
-            question_message = await ctx.channel.get_message(question['question_message'])
+            question_message = await ctx.channel.fetch_message(question['question_message'])
             for reaction in question_message.reactions:
                 if reaction.me:
                     try:
@@ -1068,7 +1068,7 @@ class Main(commands.Cog):
                 break
         log_channel = self.bot.get_channel(config['log_channel'])
         try:
-            log_message = await log_channel.get_message(int(message_id))
+            log_message = await log_channel.fetch_message(int(message_id))
         except discord.errors.NotFound:
             await ctx.send(f"Specified log message not found")
             return
@@ -1076,7 +1076,7 @@ class Main(commands.Cog):
         if emb.title == 'ANSWERED':
             emb.description = emb.description.split('\n')[0]
             try:
-                question_message = await ctx.channel.get_message(int(emb.fields[0].value.split('/')[-1]))
+                question_message = await ctx.channel.fetch_message(int(emb.fields[0].value.split('/')[-1]))
             except discord.errors.NotFound:
                 await ctx.send(f"The message for the original question was not found")
                 return
@@ -1104,7 +1104,7 @@ class Main(commands.Cog):
             for question in channel_config:
                 try:
                     question_channel = self.bot.get_channel(int(channel))
-                    question_message = await question_channel.get_message(channel_config[question]['question_message'])
+                    question_message = await question_channel.fetch_message(channel_config[question]['question_message'])
                     question_text = ' '.join(question_message.content.split(' '))
                     text_splice = 1024 - len(question_message.jump_url) - \
                                   len(f"By {question_message.author.mention}\n\n")
@@ -1124,7 +1124,7 @@ class Main(commands.Cog):
         """Edit either the asker, answerer, question, title, or answer of a question log in the log channel"""
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         log_channel = self.bot.get_channel(config['log_channel'])
-        target_message = await log_channel.get_message(int(log_id))
+        target_message = await log_channel.fetch_message(int(log_id))
         if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
             await ctx.send(f"Invalid field specified in the log message.  Please choose a target to edit out of "
                            f"`asker`, `answerer`, `question`, `title`, `answer`")
@@ -1134,7 +1134,7 @@ class Main(commands.Cog):
         if target == 'question':
             try:
                 question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
-                question_message = await ctx.channel.get_message(question_id)
+                question_message = await ctx.channel.fetch_message(question_id)
                 emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_message.content[:900]}\n"
                                                                    f"{question_message.jump_url})")
             except ValueError:
@@ -1166,7 +1166,7 @@ class Main(commands.Cog):
                 emb.description = 'Answered by '.join(new_description)
             elif target == 'answer':
                 try:  # ;q edit <log_message_id> answer <answer_id>
-                    answer_message = await ctx.channel.get_message(int(text[0]))
+                    answer_message = await ctx.channel.fetch_message(int(text[0]))
                     emb.set_field_at(1, name=emb.fields[1].name, value=answer_message.jump_url)
                 except ValueError:
                     answer_message = ctx.message  # ;q edit <log_message_id> answer <new text>
