@@ -827,7 +827,7 @@ class Logger(commands.Cog):
                     old_desc = emb.description.split('\n\n')
                     new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
                     emb.description = new_desc
-                    await self.bot.get_channel(329576845949534208).send(embed=emb)
+                    await self.bot.get_channel(329576845949534208).send(member.mention, embed=emb)
             except KeyError:
                 pass
 
