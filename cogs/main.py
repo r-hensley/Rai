@@ -31,11 +31,11 @@ class Main(commands.Cog):
         """Replace tatsumaki/nadeko serverinfo posts"""
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
             if msg.guild.id in [189571157446492161, 243838819743432704]:
-                ctx = commands.Context(message=msg,
+                ctx2 = commands.Context(message=msg,
                                        guild=msg.guild,
                                        channel=msg.channel,
                                        prefix=None)
-                await ctx.invoke(self.serverinfo)
+                await ctx2.invoke(self.serverinfo)
 
         """Message as the bot"""
         if isinstance(msg.channel, discord.DMChannel) \
