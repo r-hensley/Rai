@@ -28,6 +28,15 @@ class Main(commands.Cog):
         #     channel = self.bot.get_channel(374489744974807040)
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
+        """Replace tatsumaki/nadeko serverinfo posts"""
+        if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
+            if msg.guild.id in [189571157446492161, 243838819743432704]:
+                ctx = commands.Context(message=msg,
+                                       guild=msg.guild,
+                                       channel=msg.channel,
+                                       prefix=None)
+                await ctx.invoke(self.serverinfo)
+
         """Message as the bot"""
         if isinstance(msg.channel, discord.DMChannel) \
                 and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -52,7 +61,7 @@ class Main(commands.Cog):
                         # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
                         #                       "get their internet shut down or get them arrested or anything.  "
                         #                       "It's just annoying, so please stop trying it.")
-                        await msg.author.ban(reason=f"Banned words spam")
+                        await msg.author.ban(reason=f"*by* Rai\n**Reason: **Automatic ban: Chinese banned words spam")
                         # mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                         log_channel = self.bot.get_channel(295729249124352000)
                         # await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}."
@@ -125,7 +134,7 @@ class Main(commands.Cog):
                         or 'らいらい' in cont.casefold()
                         or 'ライライ' in cont.casefold()
                 ) and
-                not msg.author.bot  # checks to see if account is a bot account
+                (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
         ):  # random sad face
             if 'aryan' in cont.casefold():  # why do people say this so often...
                 return
@@ -1189,6 +1198,79 @@ class Main(commands.Cog):
         """Provides a link to a Jisho search"""
         await ctx.message.delete()
         await ctx.send(f"Try finding the meaning to the word you're looking for here: https://jisho.org/search/{text}")
+
+    @commands.command(aliases=['server', 'info', 'sinfo'])
+    @commands.cooldown(1, 30, type=commands.BucketType.channel)
+    async def serverinfo(self, ctx):
+        """Shows info about this server"""
+        guild = ctx.guild
+        if not guild:
+            await ctx.send(f"{ctx.channel}.  Is that what you were looking for?  (Why are you trying to call info "
+                           f"on 'this server' in a DM?)")
+            return
+        em = discord.Embed(title=f"**{guild.name}**",
+                           description=f"**ID:** {guild.id}",
+                           timestamp=guild.created_at,
+                           colour=discord.Colour(0x877AD6))
+        em.set_thumbnail(url=guild.icon_url)
+        em.add_field(name="Region", value=guild.region)
+        em.add_field(name="Channels", value=f"{len(guild.text_channels)} text / {len(guild.voice_channels)} voice")
+        em.add_field(name="Verification Level", value=guild.verification_level)
+        em.add_field(name="Guild created on (UTC)", value=guild.created_at.strftime("%Y/%m/%d %H:%M:%S"))
+
+        if guild.afk_channel:
+            em.add_field(name="Voice AFK Timeout",
+                         value=f"{guild.afk_timeout//60} mins → {guild.afk_channel.mention}")
+
+        if guild.explicit_content_filter != "disabled":
+            em.add_field(name="Explicit Content Filter", value=guild.explicit_content_filter)
+
+        if guild.id not in [189571157446492161, 243838819743432704]:
+            em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
+
+        list_of_members = guild.members
+        if len(list_of_members) < 20000:
+            role_count = {}
+            for member in list_of_members:
+                for role in member.roles:
+                    if role.name in role_count:
+                        role_count[role.name] += 1
+                    else:
+                        role_count[role.name] = 1
+            sorted_list = sorted(list(role_count.items()), key=lambda x: x[1], reverse=True)
+            top_five_roles = ''
+            counter = 0
+            for role in sorted_list[1:7]:
+                counter += 1
+                top_five_roles += f"{role[0]}: {role[1]}\n"
+                #if counter == 3:
+                #    top_five_roles += '\n'
+            top_five_roles = top_five_roles[:-1]
+            em.add_field(name=f"Top 6 roles (out of {len(guild.roles)})", value=top_five_roles)
+        else:
+            em.add_field(name="Roles", value=str(len(guild.roles)))
+
+        how_long_ago = datetime.utcnow() - guild.created_at
+        days = how_long_ago.days
+        years = days // 365
+        bef_str = ''
+        if years:
+            bef_str = f"{years} years, "
+        months = (days - 365*years) // 30.416666666666668
+        if months:
+            bef_str += f"{int(months)} months, "
+        days = days - 365*years - round(30.416666666666668*months)
+        bef_str += f"{days} days"
+        em.set_footer(text=f"Guild created {bef_str} ago on:")
+        if len(em.fields)%2 == 0:
+            two = em.fields[-2]
+            em.add_field(name=two.name, value=two.value)
+            em.remove_field(-3)
+
+        await ctx.send(embed=em)
+
+
+
 
 
 def setup(bot):

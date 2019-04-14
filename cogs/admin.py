@@ -63,6 +63,7 @@ class Admin(commands.Cog):
             target = await hf.member_converter(ctx, args[0])
             reason = ' '.join(args[1:])
             length = []
+            time_string = None
         if not target:
             return
         if not reason:
@@ -95,7 +96,6 @@ class Admin(commands.Cog):
         if content == 'send':
             await target.send(embed=em)
             await target.ban(reason=f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}")
-        return
         if length:
             config = self.bot.db['bans'].setdefault([str(ctx.guild.id)],
                                                     {'enable': False, 'channel': None, 'timed_bans': {}})
