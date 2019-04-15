@@ -374,8 +374,9 @@ class Main(commands.Cog):
             await ctx.author.send('Understood.  Have a nice day!')
             return
 
-    @report.command()
-    async def setup(self, ctx):
+    @report.command(name='setup')
+    @hf.is_admin()
+    async def report_setup(self, ctx):
         """Sets the channel"""
         perms = ctx.channel.permissions_for(ctx.me)
         if not perms.read_messages or not perms.read_message_history or not perms.manage_roles:
@@ -885,9 +886,9 @@ class Main(commands.Cog):
 
         await self.add_question(ctx, target_message, title)
 
-    @question.command()
+    @question.command(name='setup')
     @hf.is_admin()
-    async def setup(self, ctx):
+    async def question_setup(self, ctx):
         """Use this command in your questions channel"""
         config = self.bot.db['questions'].setdefault(str(ctx.guild.id), {})
         if str(ctx.channel.id) in config:
