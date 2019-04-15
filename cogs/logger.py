@@ -278,16 +278,23 @@ class Logger(commands.Cog):
 
     @welcome_logging.command(aliases=['set'])
     async def welcomes_set(self, ctx):
-        server_config = self.bot.db['welcomes']
-        result = await self.module_set(ctx, server_config)
+        result = await self.module_set(ctx, self.bot.db['welcomes'])
+        server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
         if result == 1:
             await ctx.send(f'Set the welcome logging channel as {ctx.channel.name}')
         elif result == 2:
-            server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
-            server_config['invites_enable'] = True
-            await hf.dump_json()
-            await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
-                           f'Enable/disable logging by typing `;welcome_logging`.')
+            try:
+                server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
+                server_config['invites_enable'] = True
+                await hf.dump_json()
+                await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
+                               f'Enable/disable logging by typing `;welcome_logging`.')
+            except discord.errors.Forbidden:
+                await ctx.send("I've enabled welcome message, but I lack permissions to get invite codes.  "
+                               "If you want invite tracking too, give me `Manage Server` and then type "
+                               "`;invites` to enable invite tracking for future joins.")
+                server_config['invites_enable'] = False
+                await hf.dump_json()
 
     @welcome_logging.command(aliases=['invites', 'invite'])
     async def invites_enable(self, ctx):
