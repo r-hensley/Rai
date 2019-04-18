@@ -50,7 +50,7 @@ class Main(commands.Cog):
         words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
                  '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
                  '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id == 266695661670367232:
+        if msg.guild.id in [266695661670367232, 494502230385491978]:
             word_count = 0
             for word in words:
                 if word in msg.content:
@@ -63,7 +63,10 @@ class Main(commands.Cog):
                         #                       "It's just annoying, so please stop trying it.")
                         await msg.author.ban(reason=f"*by* Rai\n**Reason: **Automatic ban: Chinese banned words spam")
                         # mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
-                        log_channel = self.bot.get_channel(295729249124352000)
+                        if msg.guild.id == 266695661670367232:
+                            log_channel = self.bot.get_channel(295729249124352000)
+                        else:
+                            log_channel = self.bot.get_channel(550087699944701962)
                         # await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}."
                         await log_channel.send(f"Banned {msg.author.name} for the banned words spam message."
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
