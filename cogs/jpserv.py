@@ -35,16 +35,23 @@ class Jpserv(commands.Cog):
             await jpJHO2.edit(position=5, name='just_hanging_out_2')
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
-    async def ultrahardcore(self, ctx, member: discord.Member = None):
+    async def ultrahardcore(self, ctx, member):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
         if ctx.guild.id != 189571157446492161:
             return
+        member = await hf.member_converter(ctx, member)
+        if not member:
+            return 
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
             if hf.admin_check(ctx) and ctx.author.id != member.id:
-                if config[str(member.id)][0]:
-                    config[str(member.id)][0] = False
+                if str(member.id) in config:
+                    if config[str(member.id)][0]:
+                        config[str(member.id)][0] = False
+                    else:
+                        await ctx.send("That user is not in UHC")
+                        return
                 else:
                     await ctx.send("That user is not in UHC mode.")
                     return

@@ -282,7 +282,7 @@ class Main(commands.Cog):
         await ctx.send(discord.utils.oauth_url(self.bot.user.id, permissions=discord.Permissions(permissions=3072)))
 
     @commands.group(invoke_without_command=True)
-    async def report(self, ctx, user: discord.Member = None):
+    async def report(self, ctx, user=None):
         """Make a report to the mods"""
         if isinstance(ctx.channel, discord.DMChannel):
             return
@@ -294,7 +294,13 @@ class Main(commands.Cog):
         config = self.bot.db['report'][guild_id]
         report_room = self.bot.get_channel(config['channel'])
 
-        if not user:
+        if user:
+            user = await hf.member_converter(ctx, user)
+            if not user:
+                await ctx.send("I couldn't find that user.  Please try again, or type just `;report` if you want to"
+                           " make your own report")
+                return
+        else:
             user = ctx.author
 
         report_text = [
@@ -346,7 +352,7 @@ class Main(commands.Cog):
             f'Please come to this channel {user.mention}'
         ]
 
-        if user != ctx.author:  # if the mods called in a user
+        if user != ctx.author and hf.admin_check(ctx):  # if the mods called in a user
             await self.report_room(ctx, config, user, report_text, True)
             return
 
