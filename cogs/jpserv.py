@@ -35,16 +35,14 @@ class Jpserv(commands.Cog):
             await jpJHO2.edit(position=5, name='just_hanging_out_2')
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
-    async def ultrahardcore(self, ctx, member):
+    async def ultrahardcore(self, ctx, member=None):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
-        if ctx.guild.id != 189571157446492161:
-            return
-        member = await hf.member_converter(ctx, member)
-        if not member:
-            return 
+        # if ctx.guild.id != 189571157446492161:
+        #     return
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
+            await hf.member_converter(ctx, member)
             if hf.admin_check(ctx) and ctx.author.id != member.id:
                 if str(member.id) in config:
                     if config[str(member.id)][0]:
@@ -102,14 +100,15 @@ class Jpserv(commands.Cog):
         string = 'The members in ultra hardcore mode right now are '
         guild = self.bot.get_guild(189571157446492161)
         members = []
-
-        for member_id in self.bot.db['ultraHardcore'][str(guild.id)]:
-            member = guild.get_member(int(member_id))
-            if member is not None:  # in case a member leaves
-                members.append(str(member))
-            else:
-                self.bot.db['ultraHardcore'][str(guild.id)].remove(member_id)
-                await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')
+        config = self.bot.db['ultraHardcore'][str(guild.id)]['users']
+        for member_id in config:
+            if config[member_id][0]:
+                member = guild.get_member(int(member_id))
+                if member is not None:  # in case a member leaves
+                    members.append(str(member))
+                else:
+                    config.remove(member_id)
+                    await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')
 
         await ctx.send(string + ', '.join(members))
 
@@ -143,9 +142,8 @@ class Jpserv(commands.Cog):
         # to_sort: [['243703909166612480', True, 162], ['219617844973797376', False, 122], ...]
         sorted_dict = sorted(to_sort, key=lambda x: x[2], reverse=True)
         print(sorted_dict)
-        leaderboard = f"Leaderboard for UHC (number of days each user has had it on) " \
-                      f"(note, no users are actually pinged)\n" \
-                      f"Bold = This user currently has UHC enabled.\n\n"
+        leaderboard = f"The number of days each user has had UHC enabled " \
+                      f"(Bold = This user currently has UHC enabled)\n\n"
         for i in sorted_dict:
             user = ctx.guild.get_member(int(i[0]))
             if i[2] < 10 and not i[1]:
@@ -163,8 +161,9 @@ class Jpserv(commands.Cog):
                 leaderboard += f"**{i[2]}: {user.mention}{username}**\n"
             else:
                 leaderboard += f"{i[2]}: {user.mention}{username}\n"
-        msg = await ctx.send("Calculating")
-        await msg.edit(content=leaderboard)
+        emb = discord.Embed(title="UHC Leaderboard", description=leaderboard,
+                            color=discord.Color(int('ff5500', 16)))
+        await ctx.send(embed=emb)
 
     @ultrahardcore.command()
     @hf.is_admin()
