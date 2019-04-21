@@ -49,3 +49,4 @@ gcloud*
 cogs/gcloud*
 list*
 .vs
+cogs/~local cogs.lnk

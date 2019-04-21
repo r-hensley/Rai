@@ -32,10 +32,14 @@ with open(f"{dir_path}/db.json", "r") as read_file:
 
 
 def prefix(bot, msg):
-    if msg.guild:
-        return db['prefix'].get(str(msg.guild.id), ';')
+    if bot.user.name == "Rai":
+        default = ';'
     else:
-        return ';'
+        default = 'r;'
+    if msg.guild:
+        return db['prefix'].get(str(msg.guild.id), default)
+    else:
+        return default
 
 
 bot = Bot(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496)
@@ -69,7 +73,8 @@ async def on_ready():
     bot.spanSP = bot.get_channel(277511392972636161)
 
     # bot.invitesOld = await bot.jpServ.invites() # for use in welcome cog for checking invites
-    bot.waited = str(bot.spanServ.get_member(116275390695079945).status) == 'offline' #checks nadeko, for use in welcome cog with checking nadeko online/offline
+    if bot.user.name == "Rai":
+        bot.waited = str(bot.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
     bot.selfMute = False
 
     bot.db = db
@@ -106,8 +111,8 @@ async def on_command_error(ctx, error):
                        f"`{bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
     elif isinstance(error, commands.CommandNotFound):
         print(f">>Command not found \n{ctx.message.content[:30]}<<")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"You're missing a required argument.  Try running `;help {ctx.command.qualified_name}`")
+    #elif isinstance(error, commands.MissingRequiredArgument):
+    #    await ctx.send(f"You're missing a required argument.  Try running `;help {ctx.command.qualified_name}`")
     else:
         error = getattr(error, 'original', error)
         qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
@@ -130,7 +135,7 @@ async def on_command_error(ctx, error):
         traceback_text = f'```py\n{exc}\n```'
         e.timestamp = datetime.utcnow()
         await bot.get_channel(554572239836545074).send(traceback_text, embed=e)
-
+    print('')
 
 
 def getAPIKey(filename):

@@ -30,12 +30,9 @@ class Main(commands.Cog):
 
         """Replace tatsumaki/nadeko serverinfo posts"""
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
-            if msg.guild.id in [189571157446492161, 243838819743432704]:
-                ctx2 = commands.Context(message=msg,
-                                       guild=msg.guild,
-                                       channel=msg.channel,
-                                       prefix=None)
-                await ctx2.invoke(self.serverinfo)
+            if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
+                new_ctx = await self.bot.get_context(msg)
+                await new_ctx.invoke(self.serverinfo)
 
         """Message as the bot"""
         if isinstance(msg.channel, discord.DMChannel) \
@@ -488,9 +485,9 @@ class Main(commands.Cog):
         else:
             await ctx.send('There was no one on the waiting list.')
 
-    @report.command()
+    @report.command(name="reset")
     @hf.is_admin()
-    async def reset(self, ctx):
+    async def report_reset(self, ctx):
         """Manually reset the report module in case of some bug"""
         try:
             config = self.bot.db['report'][str(ctx.guild.id)]
@@ -1276,12 +1273,7 @@ class Main(commands.Cog):
             two = em.fields[-2]
             em.add_field(name=two.name, value=two.value)
             em.remove_field(-3)
-
         await ctx.send(embed=em)
-
-
-
-
 
 def setup(bot):
     bot.add_cog(Main(bot))

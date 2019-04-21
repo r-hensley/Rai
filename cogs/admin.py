@@ -20,6 +20,7 @@ class Admin(commands.Cog):
     async def cog_check(self, ctx):
         return hf.admin_check(ctx)
 
+
     @commands.command()
     async def crosspost(self, ctx):
         """Makes Rai crosspost all your ban audits"""
@@ -40,45 +41,54 @@ class Admin(commands.Cog):
     @commands.command()
     @hf.is_admin()
     async def ban(self, ctx, *args):
-        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`"""
+        """Bans a user.  Usage: `;ban [time #d#h] <user> [-s] [reason]`  Example: `;ban @Ryry013 being mean` or
+        `;ban 2d3h @Abelian -s posting invite links`"""
         if not ctx.author.guild_permissions.ban_members:
             await ctx.send(f"You can not ban members")
             return
-        if not ctx.guild.get_member(self.bot.user.id).guild_permissions.ban_members:
+        if not ctx.guild.me.guild_permissions.ban_members:
             await ctx.send(f"I lack the permission to ban members on this server.")
             return
         timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
         if timed_ban:
-            target = await hf.member_converter(ctx, args[1])
-            reason = ' '.join(args[2:])
-            if re.findall('^\d+d\d+h$', args[0]):
+            if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
                 length = timed_ban[0][:-1].split('d')
-            elif re.findall('^\d+d$', args[0]):
+                length = [length[0], length[1]]
+            elif re.findall('^\d+d$', args[0]):  # format: #d
                 length = [timed_ban[0][:-1], '0']
-            else:
+            else:  # format: #h
                 length = ['0', timed_ban[0][:-1]]
             unban_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+            target = await hf.member_converter(ctx, args[1])
+            reason = ' '.join(args[2:])
             time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
         else:
             target = await hf.member_converter(ctx, args[0])
-            reason = ' '.join(args[1:])
             length = []
             time_string = None
+            reason = ' '.join(args[1:])
         if not target:
             return
         if not reason:
-            reason = None
+            reason = '(no reason given)'
         em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
         if length:
             em.description = f"You will be unbanned automatically at {time_string} " \
                              f"(in {length[0]} days and {length[1]} hours)"
         else:
             em.description = "This ban is indefinite."
-        if reason:
+        if reason != '(no reason given)':
+            if '-silent' in reason or '-s' in reason:
+                reason = reason.replace('-silent ', '').replace('-s ', '')
+                reason = '⁣' + reason
             em.add_field(name="Reason:", value=reason)
         await ctx.send("You are about to perform the following action: ", embed=em)
-        await ctx.send(f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification "
-                       f"to the user, or `no` to cancel.")
+        msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
+               f"to the user, or `no` to cancel."
+        if ctx.author in self.bot.get_guild(257984339025985546).members and not reason.startswith('⁣'):
+            if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` before the reason)"
+        msg2 = await ctx.send(msg2)
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=20.0,
@@ -90,14 +100,22 @@ class Admin(commands.Cog):
         content = msg.content.casefold()
         if content == 'no':
             await ctx.send(f"Canceling ban")
+            await msg2.delete()
             return
+        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
+        if reason.startswith('⁣'):
+            text = '⁣' + text
         if content == 'yes':
-            await target.ban(reason=f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}")
+            await target.ban(reason=text)
+            await msg2.delete()
+            await ctx.send(f"Successfully banned")
         if content == 'send':
             await target.send(embed=em)
-            await target.ban(reason=f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}")
+            await target.ban(reason=text)
+            await msg2.delete()
+            await ctx.send(f"Successfully banned")
         if length:
-            config = self.bot.db['bans'].setdefault([str(ctx.guild.id)],
+            config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
                                                     {'enable': False, 'channel': None, 'timed_bans': {}})
             config['timed_bans'][str(target.id)] = time_string
 
@@ -252,8 +270,8 @@ class Admin(commands.Cog):
             await ctx.send('Captcha module setup and enabled.')
         await hf.dump_json()
 
-    @captcha.command()
-    async def set_channel(self, ctx):
+    @captcha.command(name="set_channel")
+    async def captcha_set_channel(self, ctx):
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -262,8 +280,8 @@ class Admin(commands.Cog):
         await ctx.send(f'Captcha channel set to {ctx.channel.name}')
         await hf.dump_json()
 
-    @captcha.command()
-    async def set_role(self, ctx, *, role_input: str = None):
+    @captcha.command(name="set_role")
+    async def captcha_set_role(self, ctx, *, role_input: str = None):
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -277,8 +295,8 @@ class Admin(commands.Cog):
             await ctx.send(f'Set role to {role.name} ({role.id})')
         await hf.dump_json()
 
-    @captcha.command()
-    async def post_message(self, ctx):
+    @captcha.command(name="post_message")
+    async def captcha_post_message(self, ctx):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
             guild_config = self.bot.db['captcha'][guild]
@@ -372,6 +390,9 @@ class Admin(commands.Cog):
         if 'enable' in config:
             del (config['enable'])
         mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        if not mod_role:
+            await ctx.send("The role with that name was not found")
+            return None
         config['id'] = mod_role.id
         await ctx.send(f"Set the mod role to {mod_role.name} ({mod_role.id})")
         await hf.dump_json()
@@ -443,8 +464,8 @@ class Admin(commands.Cog):
             await ctx.send("Invalid response")
         await hf.dump_json()
 
-    @global_blacklist.command(aliases=['vote'])
-    async def add(self, ctx, user, *, reason: str = None):
+    @global_blacklist.command(aliases=['vote'], name="add")
+    async def blacklist_add(self, ctx, user, *, reason: str = None):
         channel = self.bot.get_channel(533863928263082014)
         config = self.bot.db['global_blacklist']
         target_user = self.bot.get_user(int(user))
@@ -504,53 +525,57 @@ class Admin(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'])
     async def super_voicewatch(self, ctx):
+        """Sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
-        await ctx.send("Puts a message in the mod channel every time someone on the super watchlist joins a voice "
-                       "channel.  Use `;super_voicewatch add USER` or `'super_voicewatch remove USER` to "
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id),
+                                                            {"users": [], "channel": ctx.channel.id})
+        config['channel'] = ctx.channel.id
+        await hf.dump_json()
+        await ctx.send(f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
+                       "**About svw:** Puts a message in the mod channel every time someone on the super watchlist "
+                       "joins a voice channel.  Use `;super_voicewatch add USER` or `'super_voicewatch remove USER` to "
                        "manipulate the list.  Type `;super_voicewatch list` to see a full list.  Alias: `;svw`")
 
-    @super_voicewatch.command()
-    async def add(self, ctx, member: discord.Member):
+    @super_voicewatch.command(name="add")
+    async def voicewatch_add(self, ctx, member: discord.Member):
+        """Add a member to super voice watch"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
-        try:
-            config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
-        except KeyError:
-            config = self.bot.db['super_voicewatch'][str(ctx.guild.id)] = []
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), [])
         config.append(member.id)
         await ctx.send(f"Added `{member.name} ({member.id})` to the super voice watchlist.")
         await hf.dump_json()
 
-    @super_voicewatch.command()
-    async def remove(self, ctx, member: discord.Member):
-        try:
-            config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
-        except KeyError:
-            config = self.bot.db['super_voicewatch'][str(ctx.guild.id)] = []
+    @super_voicewatch.command(name="remove")
+    async def voicewatch_remove(self, ctx, member: discord.Member):
+        """Remove a user from super voice watch"""
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), [])
         try:
             config.remove(member.id)
         except ValueError:
             await ctx.send("That user was not in the watchlist.")
+            return
         await ctx.send(f"Removed `{member.name} ({member.id})` from the super voice watchlist.")
         await hf.dump_json()
 
-    @super_voicewatch.command()
-    async def list(self, ctx):
+    @super_voicewatch.command(name="list")
+    async def super_voicewatch_list(self, ctx):
+        """Lists the users in super voice watch"""
         string = ''
         try:
             config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
         except KeyError:
             await ctx.send("Voice watchlist not set-up yet on this server.  Run `;super_voicewatch`")
             return
-        if not config:
+        if not config['users']:
             await ctx.send("The voice watchlist is empty")
             return
-        for ID in config:
+        for ID in config['users']:
             member = ctx.guild.get_member(ID)
             if member:
                 string += f"{member.mention} `({member.name}#{member.discriminator} {member.id})`\n"
@@ -575,11 +600,9 @@ class Admin(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
     async def super_watch(self, ctx):
-        try:
-            config = self.bot.db['super_watch'][str(ctx.guild.id)]
-            config['channel'] = ctx.channel.id
-        except KeyError:
-            self.bot.db['super_watch'][str(ctx.guild.id)] = {"users": [], "channel": ctx.channel.id}
+        config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
+                                                       {"users": [], "channel": ctx.channel.id})
+        config['channel'] = ctx.channel.id
         await ctx.send(f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
                        f"({ctx.channel.id}).  \n\n"
                        f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
@@ -588,12 +611,11 @@ class Admin(commands.Cog):
                        f"Aliases for this command are: `;superwatch`, `;sw`.")
         await hf.dump_json()
 
-    @super_watch.command()
-    async def add(self, ctx, target):
-        try:
-            config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        except KeyError:
-            await ctx.send("Super watch is not yet setup for this server.  Run `;super_watch` to set it up.")
+    @super_watch.command(name="add")
+    async def superwatch_add(self, ctx, target):
+        if str(ctx.guild.id) not in self.bot.db['super_watch']:
+            await ctx.invoke(self.super_watch)
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         target = await hf.member_converter(ctx, target)
         if not target:  # invalid user given
             return
@@ -604,8 +626,8 @@ class Admin(commands.Cog):
         else:
             await ctx.send(f"{target.name} is already on the super_watch list")
 
-    @super_watch.command()
-    async def remove(self, ctx, target):
+    @super_watch.command(name="remove")
+    async def superwatch_remove(self, ctx, target):
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         try:
             target = await commands.MemberConverter().convert(ctx, target)
@@ -619,8 +641,8 @@ class Admin(commands.Cog):
             await ctx.send(f"That user wasn't on the super_watch list")
         await hf.dump_json()
 
-    @super_watch.command()
-    async def list(self, ctx):
+    @super_watch.command(name="list")
+    async def super_watch_list(self, ctx):
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
@@ -642,8 +664,8 @@ class Admin(commands.Cog):
                            f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
                            f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the default prefix.")
 
-    @set_prefix.command()
-    async def reset(self, ctx):
+    @set_prefix.command(name='reset')
+    async def prefix_reset(self, ctx):
         try:
             prefix = self.bot.db['prefix']
             del prefix[str(ctx.guild.id)]
@@ -652,6 +674,690 @@ class Admin(commands.Cog):
         except KeyError:
             await ctx.send("This guild already uses the default command prefix.")
 
+    def make_options_embed(self, list_in):  # makes the options menu
+        emb = discord.Embed(title='Options Menu',
+                            description="Reply with any of the option numbers or letters (b/x)\n")
+        counter = 1
+        options = ''
+        for option in list_in:
+            options += f"**{counter})** {option}\n"
+            counter += 1
+        options += "\n**b)** Go back\n"
+        options += "**x)** Close the options menu"
+        emb.add_field(name="Options", value=options)
+        return emb
+
+    async def wait_menu(self, ctx, menu, emb_in, choices_in):  # posts wait menu, gets a response, returns choice
+        if menu:
+            await menu.delete()
+        menu = await ctx.send(embed=emb_in)
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=60.0,
+                                          check=lambda x: x.content.casefold() in choices_in and x.author == ctx.author)
+        except asyncio.TimeoutError:
+            await ctx.send("Menu timed out")
+            await menu.delete()
+            return 'time_out', menu
+        await msg.delete()
+        return msg.content, menu
+
+    @commands.command()
+    async def options(self, ctx, menu=None):
+        """A comprehensive options and configuration menu for the bot"""
+        if menu:
+            if not isinstance(menu, discord.Message):
+                menu = None
+
+        while True:
+            options = ["Set/view the mod role (`;set_mod_role <role name>`)",  # 1
+                       "Set/view the mod channel (`;set_mod_channel`)",  # 2
+                       "Set/view the custom prefix (`;set_prefix <prefix>`)",  # 3
+                       "Logging modules",  # 4
+                       "Report module (`;report`)",  # 5
+                       "Setup a questions channel (`;q`)",  # 6
+                       "Automatically readd roles to users who rejoin the server (`;readd_roles`)",  # 7
+                       "Reaction-to-enter requirement for the server (`;captcha`)",  # 8
+                       "Super voice watch (`;svw`)",  # 9
+                       "Super text watch (`;sw`)",  # 10
+                       ]
+            emb = self.make_options_embed(options)
+            emb.description = "(WIP) " + emb.description
+            choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'x']
+            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+            if choice == 'time_out':
+                return
+            elif choice == 'x':
+                await menu.delete()
+                await ctx.send(f"Closing options menu")
+                return
+
+
+#           main > set mod role
+            elif choice == '1':
+                while True:
+                    options = ['Set the mod role (`;set_mod_role`)', "Unset the mod role"]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Setting mod role"
+                    try:
+                        config = self.bot.db['mod_role'][str(ctx.guild.id)]
+                        role = ctx.guild.get_role(config['id'])
+                        emb.description = f"Current role is {role.mention} ({role.id})\n" + emb.description
+                    except KeyError:
+                        emb.description = f"No role is currently set\n" + emb.description
+
+                    choices = ['1', '2', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+                    elif choice == '1':
+                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                                                   "the mod role")
+                        reply_msg = await self.bot.wait_for('message',
+                                                            timeout=20.0,
+                                                            check=lambda x: x.author == ctx.author)
+                        await ctx.invoke(self.set_mod_role, reply_msg.content)
+                        await instr_msg.delete()
+                        await reply_msg.delete()
+                    elif choice == '2':
+                        try:
+                            del self.bot.db['mod_role'][str(ctx.guild.id)]
+                            await ctx.send("Removed the setting for a mod role")
+                        except KeyError:
+                            await ctx.send("You currently don't have a mod role set")
+
+
+#           main > set mod channel
+            elif choice == '2':
+                while True:
+                    options = ['Set the mod channel as this channel (`;set_mod_channel`)', "Unset the mod channel"]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Setting mod channel"
+                    config = self.bot.db['mod_channel']
+                    try:
+                        channel = ctx.guild.get_channel(config[str(ctx.guild.id)])
+                        emb.description = f"Current channel is {channel.mention} ({channel.id})\n" + emb.description
+                    except KeyError:
+                        emb.description = f"There is no mod channel currently set\n" + emb.description
+
+                    choices = ['1', '2', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+                    elif choice == '1':
+                        await ctx.invoke(self.set_mod_channel)
+                    elif choice == '2':
+                        try:
+                            del config[str(ctx.guild.id)]
+                            await ctx.send("Unset the mod channel")
+                        except KeyError:
+                            await ctx.send("There is no mod channel set")
+
+
+#           # main > set custom prefix
+            elif choice == '3':
+                while True:
+                    options = ['Set the custom prefix (`;set_prefix <prefix>`)',
+                               "Reset the server's custom prefix (`<prefix>set_prefix reset`)"]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Custom Prefix"
+                    config = self.bot.db['prefix']
+                    current_prefix = config.get(str(ctx.guild.id), 'not set')
+                    emb.description = f"The custom prefix is {current_prefix}\n" + emb.description
+
+                    choices = ['1', '2', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closing options menu")
+                        await menu.delete()
+                        return
+                    elif choice == '1':
+                        instr_msg = await ctx.send(f"Please input the custom prefix you wish to use on this server")
+                        try:
+                            reply_msg = await self.bot.wait_for('message',
+                                                                timeout=20.0,
+                                                                check=lambda x: x.author == ctx.author)
+                            await instr_msg.delete()
+                            await reply_msg.delete()
+                            await ctx.invoke(self.set_prefix, reply_msg.content)
+                        except asyncio.TimeoutError:
+                            await ctx.send("Module timed out")
+                            await instr_msg.delete()
+                            return
+                    elif choice == '2':
+                        await ctx.invoke(self.prefix_reset)
+
+
+#           main > logging module
+            elif choice == '4':
+                while True:
+                    options = ['Deleted messages (`;deletes`)',  # 1
+                               'Edited messages (`;edits`)',   # 2
+                               'Joins and invite link tracking (`;joins`)',  # 3
+                               'Leaves (`;leaves`)',  # 4
+                               'Kicks (`;kicks`)',  # 5
+                               'Bans (`;bans`)',  # 6
+                               "Username/nickname changes (`;nicknames`)",  # 7
+                               "Removed reactions (`;reactions`)",  # 8
+                               ]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Logging Module"
+
+                    choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closing options menu")
+                        await menu.delete()
+                        return
+
+                    # main > logging > deletes
+                    elif choice == '1':
+                        options = ["Enable/disable this module (`;deletes`)",
+                                   "Set the channel for logging (`;deletes set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Deletes"
+                        config = self.bot.db['deletes'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track deleted messages in " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks deleted messages " \
+                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('delete_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('delete_logging deletes_set'))
+
+                    # main > logging > edits
+                    elif choice == '2':
+                        options = ["Enable/disable this module (`;edits`)",
+                                   "Set the channel for logging (`;edits set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Edits"
+                        config = self.bot.db['edits'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track edited messages in " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks edited messages " \
+                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('edit_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('edit_logging deletes_set'))
+
+                    # main > logging > welcomes/joins
+                    elif choice == '3':
+                        options = ["Enable/disable this module (`;joins`)",
+                                   "Set the channel for logging (`;joins set`)",
+                                   "Enable/disable tracking of invite links people used to join (`;joins invites`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Joins/Invite Tracking"
+                        config = self.bot.db['welcomes'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to log member joins in " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks joins " \
+                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', '3', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('welcome_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('welcome_logging welcomes_set'))
+                            elif choice == '3':
+                                await ctx.invoke(self.bot.get_command('welcome_logging invites_enable'))
+
+                    # main > logging > leaves
+                    elif choice == '4':
+                        options = ["Enable/disable this module (`;leaves`)",
+                                   "Set the channel for logging (`;leaves set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Leaves"
+                        config = self.bot.db['leaves'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to log when members leave the server in " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It logs when a member leaves." \
+                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('leave_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('leave_logging leaves_set'))
+
+                    # main > logging > kicks
+                    elif choice == '5':
+                        options = ["Enable/disable this module (`;kicks`)",
+                                   "Set the channel for logging (`;kicks set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Kicks"
+                        config = self.bot.db['kicks'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track kicked members " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks kicked members " \
+                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('kick_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('kick_logging kicks_set'))
+
+                    # main > logging > bans
+                    elif choice == '6':
+                        options = ["Enable/disable this module (`;bans`)",
+                                   "Set the channel for logging (`;bans set`)"]
+                        emb = self.make_options_embed(options)
+                        config = self.bot.db['bans'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track banned members " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks banned members " \
+                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('ban_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('ban_logging bans_set'))
+
+                    # main > logging > nicknames
+                    elif choice == '7':
+                        options = ["Enable/disable this module (`;nicknames`)",
+                                   "Set the channel for logging (`;nicknames set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Nicknames"
+                        config = self.bot.db['nicknames'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track member nickname changes " \
+                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
+                                                  f"or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks member nickname " \
+                                                  f"changes.\n\nReply with any of the option numbers or letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('nickname_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('nickname_logging nicknames_set'))
+
+                    # main > logging > reactions
+                    elif choice == '8':
+                        options = ["Enable/disable this module (`;reactions`)",
+                                   "Set the channel for logging (`;reactions set`)"]
+                        emb = self.make_options_embed(options)
+                        emb.title = "Logging > Reactions"
+                        config = self.bot.db['kicks'][str(ctx.guild.id)]
+
+                        while True:
+                            if config['enable']:
+                                channel = ctx.guild.get_channel(config['channel'])
+                                emb.description = f"I am currently set to track when users remove a reaction from a " \
+                                                  f"message in {channel.mention}\n\nReply with any of the option " \
+                                                  f"numbers or letters (b/x)"
+                            else:
+                                emb.description = f"This module is currently disabled.  It tracks when users remove " \
+                                                  f"a reaction from a\n\nReply with any of the option numbers or " \
+                                                  f"letters (b/x)"
+
+                            choices = ['1', '2', 'b', 'x']
+                            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+
+                            if choice == 'time_out':
+                                return
+                            elif choice == 'b':
+                                break
+                            elif choice == 'x':
+                                await ctx.send(f"Closing options menu")
+                                await menu.delete()
+                                return
+                            elif choice == '1':
+                                await ctx.invoke(self.bot.get_command('reaction_logging'))
+                            elif choice == '2':
+                                await ctx.invoke(self.bot.get_command('reaction_logging reactions_set'))
+
+
+#           main > report module
+            elif choice == '5':
+                while True:
+                    options = ['Set the mod role (these users can do `;report done`) (`set_mod_role`)',
+                               "Set the mod channel (this is where anonymous reports go) (`;set_mod_channel`)",
+                               "Set the report room (this is where users get taken for reports) (`;report setup`)",
+                               "Check the report room waiting list (`;report check_waiting_list`)",
+                               "Clear the report room waiting list (`;report clear_waiting_list`)",
+                               "Reset the report room (in case of bugs) (`;report reset`)"]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Setting up the report module"
+                    try:
+                        config = self.bot.db['report'][str(ctx.guild.id)]
+                        channel = ctx.guild.get_channel(config['channel'])
+                        emb.description = f"Current report channel is {channel.mention} ({channel.id})\n" \
+                                          f"{emb.description}"
+                    except KeyError:
+                        emb.description = f"The report room is not setup yet.\n{emb.description}"
+
+                    choices = ['1', '2', '3', '4', '5', '6', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+
+                    # set mod role
+                    elif choice == '1':
+                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                                                   "the mod role")
+                        reply_msg = await self.bot.wait_for('message',
+                                                            timeout=20.0,
+                                                            check=lambda x: x.author == ctx.author)
+                        await ctx.invoke(self.set_mod_role, reply_msg.content)
+                        await instr_msg.delete()
+                        await reply_msg.delete()
+
+                    # set mod channel
+                    elif choice == '2':
+                        await ctx.invoke(self.set_mod_channel)
+
+                    # Set the report room
+                    elif choice == '3':
+                        await ctx.invoke(self.bot.get_command('report report_setup'))
+
+                    # Check waiting list
+                    elif choice == '4':
+                        await ctx.invoke(self.bot.get_command('report check_waiting_list'))
+
+                    # Clear waiting list
+                    elif choice == '5':
+                        await ctx.invoke(self.bot.get_command('report clear_waiting_list'))
+
+                    # Reset report room
+                    elif choice == '6':
+                        await ctx.invoke(self.bot.get_command('report report_reset'))
+
+
+#           main > questions module
+            elif choice == '6':
+                await ctx.invoke(self.bot.get_command('question setup'))
+
+
+#           main > readd roles
+            elif choice == '7':
+                await ctx.invoke(self.bot.get_command('readd_roles'))
+
+
+#           main > captcha
+            elif choice == '8':
+                while True:
+                    options = ['Enable/disable the module (`;captcha toggle`)',
+                               "Set here as the channel the new users will see (`;captcha set_channel`)",
+                               "Set the role the new users will receive upon reacting "
+                               "(`;captcha set_role <role name>`)",
+                               "Post the message to this channel (`;captcha post_message`)"]
+                    emb = self.make_options_embed(options)
+                    emb.title = "Reaction-to-enter requirement for entering the server"
+                    try:
+                        config = self.bot.db['captcha'][str(ctx.guild.id)]
+                        channel = ctx.guild.get_channel(config['channel'])
+                        role = ctx.guild.get_role(config['role'])
+                        word_dict = {True: 'enabled', False: 'disabled'}
+                        emb.description = f"This module is currently {word_dict[config['enable']]}.\n" \
+                                          f"Current entry channel is {channel.mention} ({channel.id})\n" \
+                                          f"The role new users receive is {role.mention} ({role.id})\n" \
+                                          f"{emb.description}"
+                    except KeyError:
+                        await ctx.invoke(self.toggle)
+                        continue
+
+                    choices = ['1', '2', '3', '4', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+
+                    # Enable/disable the module
+                    elif choice == '1':
+                        await ctx.invoke(self.toggle)
+
+                    # Set here as the channel the new users will see
+                    elif choice == '2':
+                        await ctx.invoke(self.captcha_set_channel)
+
+                    # Set the role the new users will receive upon reacting"
+                    elif choice == '3':
+                        instr_msg = await ctx.send(f"Please input the exact name of the role new users will receive")
+                        try:
+                            reply_msg = await self.bot.wait_for('message',
+                                                                timeout=20.0,
+                                                                check=lambda x: x.author == ctx.author)
+                            await instr_msg.delete()
+                            await reply_msg.delete()
+                            await ctx.invoke(self.captcha_set_role, reply_msg.content)
+                        except asyncio.TimeoutError:
+                            await ctx.send("Module timed out")
+                            await instr_msg.delete()
+                            return
+
+                    # Post the message to this channel
+                    elif choice == '4':
+                        await ctx.invoke(self.captcha_post_message)
+
+
+#           main > super voice watch
+            elif choice == '9':
+                while True:
+                    options = ["Set here as the channel logs will be posted (`;svw`)",
+                               'View list of people in super voice watch (`;svw list`)']
+                    emb = self.make_options_embed(options)
+                    emb.title = "Super voice watch"
+                    try:
+                        config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
+                        channel = ctx.guild.get_channel(config['channel'])
+                        emb.description = f"When a user on the super voice list joins a voice channel, this will be " \
+                                          f"logged in {channel.mention}\n" \
+                                          f"{emb.description}"
+                    except KeyError:
+                        await ctx.invoke(self.super_voicewatch)
+                        continue
+
+                    choices = ['1', '2', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+
+                    # Set here as the channel the new users will see (`;svw`)
+                    elif choice == '1':
+                        await ctx.invoke(self.super_voicewatch)
+
+                    # View list of people in super voice watch (`;svw list`)
+                    elif choice == '2':
+                        await ctx.invoke(self.super_voicewatch_list)
+
+
+#           main > super text watch
+            elif choice == '10':
+                while True:
+                    options = ["Set here as the channel logs will be sent to (`;sw`)",
+                               'View list of people in super voice watch (`;sw list`)']
+                    emb = self.make_options_embed(options)
+                    emb.title = "Super text watch"
+                    try:
+                        config = self.bot.db['super_watch'][str(ctx.guild.id)]
+                        channel = ctx.guild.get_channel(config['channel'])
+                        emb.description = f"When a user on the super text watch list sends any message, this will be " \
+                                          f"logged in {channel.mention}.  The purpose for this is if a user joins " \
+                                          f"who you suspect to be a troll, and you want to watch them very carefully." \
+                                          f"\n{emb.description}"
+                    except KeyError:
+                        await ctx.invoke(self.super_watch)
+                        continue
+
+                    choices = ['1', '2', 'b', 'x']
+                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+                    if choice == 'time_out':
+                        return
+                    if choice == 'b':
+                        break
+                    elif choice == 'x':
+                        await ctx.send(f"Closed options menu")
+                        await menu.delete()
+                        return
+
+                    # Set here as the channel the new users will see (`;svw`)
+                    elif choice == '1':
+                        await ctx.invoke(self.super_watch)
+
+                    # View list of people in super voice watch (`;svw list`)
+                    elif choice == '2':
+                        await ctx.invoke(self.super_watch_list)
+
+            else:
+                await ctx.send("Something went wrong")
+                return
+            await hf.dump_json()
 
 def setup(bot):
     bot.add_cog(Admin(bot))

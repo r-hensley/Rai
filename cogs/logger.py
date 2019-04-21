@@ -76,7 +76,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['edit', 'edits'])
     async def edit_logging(self, ctx):
         """Logs edited messages, aliases: 'edit', 'edits'"""
-        result = self.module_logging(ctx, self.bot.db['edits'])
+        result = await self.module_logging(ctx, self.bot.db['edits'])
         if result == 1:
             await ctx.send('Disabled edit logging for this server')
         elif result == 2:
@@ -161,7 +161,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
     async def delete_logging(self, ctx):
         """Logs deleted messages, aliases: 'delete', 'deletes'"""
-        result = self.module_logging(ctx, self.bot.db['deletes'])
+        result = await self.module_logging(ctx, self.bot.db['deletes'])
         if result == 1:
             await ctx.send('Disabled delete logging for this server')
         elif result == 2:
@@ -252,7 +252,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
         """Logs server joins + tracks invite links, aliases: 'welcome', 'welcomes', 'join', 'joins'"""
-        result = self.module_logging(ctx, self.bot.db['welcomes'])
+        result = await self.module_logging(ctx, self.bot.db['welcomes'])
         server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
         if result == 1:
             await ctx.send('Disabled welcome logging for this server')
@@ -287,8 +287,8 @@ class Logger(commands.Cog):
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
                 await hf.dump_json()
-                await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.  '
-                               f'Enable/disable logging by typing `;welcome_logging`.')
+                await ctx.send(f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.'
+                               f'  Enable/disable logging by typing `;welcome_logging`.')
             except discord.errors.Forbidden:
                 await ctx.send("I've enabled welcome message, but I lack permissions to get invite codes.  "
                                "If you want invite tracking too, give me `Manage Server` and then type "
@@ -298,6 +298,7 @@ class Logger(commands.Cog):
 
     @welcome_logging.command(aliases=['invites', 'invite'])
     async def invites_enable(self, ctx):
+        """Enables/disables the identification of used invite links when people join"""
         guild = str(ctx.guild.id)
         if guild in self.bot.db['welcomes']:
             server_config = self.bot.db['welcomes'][guild]
@@ -364,7 +365,11 @@ class Logger(commands.Cog):
                            "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
                            "the user\n`$SERVER$` = The name of the server")
         else:
-            config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+            try:
+                config = self.bot.db['welcome_message'][str(ctx.guild.id)]
+            except KeyError:
+                await ctx.send(f"Run `;welcome_message` first to setup the module")
+                return
             config['message'] = message
             await ctx.send(f"Set welcome message to ```{message}```")
             await hf.dump_json()
@@ -557,7 +562,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['leave', 'leaves'])
     async def leave_logging(self, ctx):
         """Logs leaves + shows list of roles at time of leave, aliases: 'leave', 'leaves'"""
-        result = self.module_logging(ctx, self.bot.db['leaves'])
+        result = await self.module_logging(ctx, self.bot.db['leaves'])
         if result == 1:
             await ctx.send('Disabled leave logging for this server')
         elif result == 2:
@@ -629,7 +634,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['nickname', 'nicknames'])
     async def nickname_logging(self, ctx):
         """Logs nicknames changes, aliases: 'nickname', 'nicknames'"""
-        result = self.module_logging(ctx, self.bot.db['nicknames'])
+        result = await self.module_logging(ctx, self.bot.db['nicknames'])
         if result == 1:
             await ctx.send('Disabled nickname logging for this server')
         elif result == 2:
@@ -720,7 +725,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):
         """Logs deleted reactions, aliases: 'reaction', 'reactions'"""
-        result = self.module_logging(ctx, self.bot.db['reactions'])
+        result = await self.module_logging(ctx, self.bot.db['reactions'])
         if result == 1:
             await ctx.send('Disabled reaction logging for this server')
         elif result == 2:
@@ -798,28 +803,56 @@ class Logger(commands.Cog):
             await ctx.send(f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                            f'logging by typing `;ban_logging`.')
 
-    @staticmethod
-    async def make_ban_embed(guild, member):
-        ban_entry = await guild.fetch_ban(member)
-        reason = ban_entry.reason
+    async def make_ban_embed(self, guild, member):
+        ban_entry = None
+        reason = "(could not find audit log entry)"
+        by = ""
+        await asyncio.sleep(1)
+        async for entry in guild.audit_logs(limit=None, oldest_first=False,
+                                            action=discord.AuditLogAction.ban,
+                                            after=datetime.utcnow() - timedelta(seconds=20)):
+            if entry.action == discord.AuditLogAction.ban and entry.target == member:
+                ban_entry = entry
+                reason = ban_entry.reason
+                by = f'*by* {ban_entry.user.name}'
+                break
         emb = discord.Embed(
             colour=0x000000,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
+            description=''
         )
         if not reason:
             reason = '(none given)'
+        if reason.startswith('⁣') or '-s' in reason:
+            reason = reason.replace('⁣', '').replace('-s ', '').replace(' -s', '')
+            emb.description = '⁣'
+        print(reason)
         if reason.startswith('*by* '):
-            emb.description = f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
-                              f'{reason}'
+            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
+                               f'{reason}'
         else:
-            emb.description = f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
-                              f'**Reason**: {reason}'
+            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
+                               f'{by}\n**Reason**: {reason}'
+        
         emb.set_footer(text=f'User Banned',
                        icon_url=member.avatar_url_as(static_format="png"))
         return emb
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
+        if member.id == 414873201349361664:
+            try:
+                await member.unban()
+            except discord.errors.NotFound:
+                pass
+            except discord.errors.Forbidden:
+                pass
+            try:
+                self.bot.db['global_blacklist']['blacklist'].remove(414873201349361664)
+                await hf.dump_json()
+            except ValueError:
+                pass
+
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
             emb = await self.make_ban_embed(guild, member)
@@ -828,13 +861,12 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(guild_config["channel"])
                 await channel.send(embed=emb)
 
-            config = self.bot.db['bans'][str(guild.id)]
             try:
-                if config['crosspost']:
+                if guild_config['crosspost'] and not emb.description.startswith('⁣'):
                     old_desc = emb.description.split('\n\n')
                     new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
                     emb.description = new_desc
-                    await self.bot.get_channel(329576845949534208).send(member.mention, embed=emb)
+                    await self.bot.get_channel(329576845949534208).send(member.mention, embed=emb)  # 304110816607862785
             except KeyError:
                 pass
 
@@ -872,7 +904,7 @@ class Logger(commands.Cog):
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):
         """Logs deleted kicks, aliases: 'kick', 'kicks'"""
-        result = self.module_logging(ctx, self.bot.db['kicks'])
+        result = await self.module_logging(ctx, self.bot.db['kicks'])
         if result == 1:
             await ctx.send('Disabled kick logging for this server')
         elif result == 2:
