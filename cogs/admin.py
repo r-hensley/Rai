@@ -593,8 +593,8 @@ class Admin(commands.Cog):
             config = self.bot.db['super_voicewatch'][str(member.guild.id)]
         except KeyError:
             return
-        if member.id in config and not before.channel and after.channel:
-            channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
+        if member.id in config['users'] and not before.channel and after.channel:
+            channel = self.bot.get_channel(config['channel'])
             await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
                                f"({after.channel.name})")
 

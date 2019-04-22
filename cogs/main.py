@@ -154,8 +154,8 @@ class Main(commands.Cog):
         if msg.guild:
             """super_watch"""
             try:
-                if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]:
-                    channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]['users']:
+                    channel = self.bot.db['super_watch'][str(msg.guild.id)]['channel']
                     await channel.send(
                         f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
                         f"\n{msg.content}")
