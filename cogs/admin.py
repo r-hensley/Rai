@@ -530,8 +530,7 @@ class Admin(commands.Cog):
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id),
-                                                            {"users": [], "channel": ctx.channel.id})
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
         await hf.dump_json()
         await ctx.send(f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
@@ -546,17 +545,17 @@ class Admin(commands.Cog):
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), [])
-        config.append(member.id)
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
+        config['users'].append(member.id)
         await ctx.send(f"Added `{member.name} ({member.id})` to the super voice watchlist.")
         await hf.dump_json()
 
     @super_voicewatch.command(name="remove")
     async def voicewatch_remove(self, ctx, member: discord.Member):
         """Remove a user from super voice watch"""
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), [])
+        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
         try:
-            config.remove(member.id)
+            config['users'].remove(member.id)
         except ValueError:
             await ctx.send("That user was not in the watchlist.")
             return
