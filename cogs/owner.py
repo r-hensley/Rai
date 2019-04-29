@@ -69,13 +69,13 @@ class Owner(commands.Cog):
     #         f'{time_dif} seconds.****Before:****After:**#{ctx.channel.name}'
     #     await ctx.send(f'Possibly about {len(y)}')
 
-    @commands.command(aliases=['sdb', 'dump'])
+    @commands.command(aliases=['sdb', 'dump'], hidden=True)
     async def savedatabase(self, ctx):
         """Saves the database"""
         await hf.dump_json()
         await ctx.message.add_reaction('\u2705')
 
-    @commands.command(aliases=['rdb'])
+    @commands.command(aliases=['rdb'], hidden=True)
     async def reload_database(self, ctx):
         """Reloads the database"""
         with open(f"{dir_path}/db.json", "r") as read_file:
@@ -83,14 +83,14 @@ class Owner(commands.Cog):
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
 
-    @commands.command(aliases=['rmdb'])
+    @commands.command(aliases=['rmdb'], hidden=True)
     async def reload_messages(self, ctx):
         """Reloads the messages"""
         with open(f"{dir_path}/messages.json", "r") as read_file:
             self.bot.messages = json.load(read_file)
         await ctx.message.add_reaction('♻')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def saveMessages(self, ctx):
         """Saves all messages in a channel to a text file"""
         print('Saving messages')
@@ -106,7 +106,7 @@ class Owner(commands.Cog):
 
     @commands.command(aliases=['quit'])
     async def kill(self, ctx):
-        """Kills bot"""
+        """Rai is a killer"""
         try:
             await ctx.message.add_reaction('💀')
             await self.bot.logout()
@@ -114,7 +114,7 @@ class Owner(commands.Cog):
         except Exception as e:
             await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def load(self, ctx, *, cog : str):
         """Command which loads a module."""
 
@@ -125,7 +125,7 @@ class Owner(commands.Cog):
         else:
             await ctx.send('**`SUCCESS`**')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def unload(self, ctx, *, cog : str):
 
         try:
@@ -135,7 +135,7 @@ class Owner(commands.Cog):
         else:
             await ctx.send('**`SUCCESS`**')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def reload(self, ctx, *, cog : str):
     
         try:
@@ -154,7 +154,7 @@ class Owner(commands.Cog):
         # remove `single quotes`
         return content.strip('` \n')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def pp(self, ctx):
         """Checks most active members who are in ping party but not welcoming party yet"""
         print('Checking ping party members')
@@ -241,6 +241,7 @@ class Owner(commands.Cog):
 
     @commands.command()
     async def count_emoji(self, ctx):
+        """Counts the most commonly used emojis"""
         pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
         channel_list = ctx.guild.channels
         emoji_dict = {}
@@ -279,12 +280,12 @@ class Owner(commands.Cog):
 
     @commands.command()
     async def selfMute(self, ctx, hour: float, minute: float):
-        """mutes ryry for x amount of minutes"""
+        """Irreversably mutes ryry for x amount of minutes"""
         self.bot.selfMute = True
         await ctx.send(f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
         self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def echo(self, ctx, *, content: str):
         """sends back whatever you send"""
         print(f">>{content}<<")
@@ -339,6 +340,7 @@ class Owner(commands.Cog):
 
     @commands.command()
     async def embed_test(self, ctx, color='FFFF00'):
+        """Helps show the fields for embeds"""
         if color[0:2] == '0x':
             color = color[2:]
         em = discord.Embed(
@@ -357,7 +359,7 @@ class Owner(commands.Cog):
         em.add_field(name='name=str, value=str, inline=False', value='value', inline=False)
         await ctx.send(embed=em)
 
-    @commands.command(aliases=['hk'])
+    @commands.command(aliases=['hk'], hidden=True)
     async def hub_kick(self, ctx, user: discord.Member, rule):
         await ctx.message.delete()
         role = ctx.guild.get_role(530669592218042378)

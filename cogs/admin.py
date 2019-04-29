@@ -20,7 +20,7 @@ class Admin(commands.Cog):
     async def cog_check(self, ctx):
         return hf.admin_check(ctx)
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def crosspost(self, ctx):
         """Makes Rai crosspost all your ban audits"""
         if str(ctx.guild.id) in self.bot.db['bans']:
@@ -46,8 +46,6 @@ class Admin(commands.Cog):
         `;ban 2d3h @Abelian -s posting invite links`"""
         timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
         if timed_ban:
-            await ctx.send(f"Sorry, timed ban is broken right now :(")
-            return
             if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
                 length = timed_ban[0][:-1].split('d')
                 length = [length[0], length[1]]
@@ -88,7 +86,7 @@ class Admin(commands.Cog):
         msg2 = await ctx.send(msg2)
         try:
             msg = await self.bot.wait_for('message',
-                                          timeout=20.0,
+                                          timeout=40.0,
                                           check=lambda x: x.author == ctx.author and
                                                           x.content.casefold() in ['yes', 'no', 'send'])
         except asyncio.TimeoutError:
@@ -105,18 +103,19 @@ class Admin(commands.Cog):
         if content == 'yes':
             await target.ban(reason=text)
             await msg2.delete()
-            await ctx.send(f"Successfully banned")
         if content == 'send':
             await target.send(embed=em)
             await target.ban(reason=text)
             await msg2.delete()
-            await ctx.send(f"Successfully banned")
         if length:
             config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
                                                     {'enable': False, 'channel': None, 'timed_bans': {}})
-            config['timed_bans'][str(target.id)] = time_string
+            timed_bans = config.setdefault('timed_bans', {})
+            timed_bans[str(target.id)] = time_string
+            await hf.dump_json()
+        await ctx.send(f"Successfully banned")
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese/Spanish server"""
         if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
@@ -214,7 +213,7 @@ class Admin(commands.Cog):
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
-    @commands.group(invoke_without_command=True)
+    @commands.group(invoke_without_command=True, hidden=True)
     async def hardcore(self, ctx):
         msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
                              "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
@@ -370,6 +369,7 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(ban_members=True)
     async def auto_bans(self, ctx):
+        """Auto bans for amazingsexdating/users who join with invite link names"""
         config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
         if config['enable']:
             await ctx.send('Enabled the auto bans module.  I will now automatically ban all users who join with '
@@ -381,6 +381,7 @@ class Admin(commands.Cog):
 
     @commands.command()
     async def set_mod_role(self, ctx, role_name):
+        """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`."""
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
         if 'enable' in config:
             del (config['enable'])
@@ -394,12 +395,14 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=['setmodchannel'])
     async def set_mod_channel(self, ctx):
+        """Sets the mod channel for your server.  Run this command in the mod channel."""
         self.bot.db['mod_channel'][str(ctx.guild.id)] = ctx.channel.id
         await ctx.send(f"Set the mod channel for this server as {ctx.channel.name}.")
         await hf.dump_json()
 
     @commands.command()
     async def readd_roles(self, ctx):
+        """Automatically readd roles to users who left the server and then rejoin."""
         config = hf.database_toggle(ctx, self.bot.db['readd_roles'])
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
@@ -413,9 +416,9 @@ class Admin(commands.Cog):
             config['users'] = {}
         await hf.dump_json()
 
-    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'])
+    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'], hidden=True)
     async def super_voicewatch(self, ctx):
-        """Sets the super voice watch log channel"""
+        """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
@@ -487,7 +490,7 @@ class Admin(commands.Cog):
             await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
                                f"({after.channel.name})")
 
-    @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
+    @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'], hidden=True)
     async def super_watch(self, ctx):
         config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
                                                        {"users": [], "channel": ctx.channel.id})
