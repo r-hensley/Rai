@@ -11,6 +11,15 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
+def blacklist_check():
+    async def pred(ctx):
+        if ctx.author in ctx.bot.get_guild(257984339025985546).members:
+            if ctx.guild.id == 257984339025985546 or hf.admin_check(ctx):
+                return True
+
+    return commands.check(pred)
+
+
 class Main(commands.Cog):
     """My custom cog that does stuff!"""
 
@@ -47,31 +56,41 @@ class Main(commands.Cog):
         words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
                  '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
                  '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id in [266695661670367232, 494502230385491978]:
+        if msg.guild.id in [266695661670367232, 494502230385491978, 320439136236601344, 275146036178059265]:
             word_count = 0
             for word in words:
                 if word in msg.content:
+                    print(word)
                     word_count += 1
                 if word_count == 5:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                    log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
                     if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
-                        await msg.delete()
+                        print('1')
+                        try:
+                            await msg.delete()
+                        except discord.Forbidden:
+                            print('2')
+                            await mod_channel.send(f"Rai is lacking the permission to delete messages for the Chinese "
+                                                   f"spam message.")
+
                         # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
                         #                       "get their internet shut down or get them arrested or anything.  "
                         #                       "It's just annoying, so please stop trying it.")
-                        await msg.author.ban(reason=f"*by* Rai\n**Reason: **Automatic ban: Chinese banned words spam")
-                        # mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
-                        if msg.guild.id == 266695661670367232:
-                            log_channel = self.bot.get_channel(295729249124352000)
-                        else:
-                            log_channel = self.bot.get_channel(550087699944701962)
-                        # await mod_channel.send(f"Banned a user for the banned words spam.  See {log_channel.mention}."
+                        try:
+                            await msg.author.ban(reason=f"*by* Rai\n"
+                                                        f"**Reason: **Automatic ban: Chinese banned words spam")
+                        except discord.Forbidden:
+                            await mod_channel.send(f"I tried to ban someone for the Chinese spam message, but I lack "
+                                                   f"the permission to ban users.")
+
                         await log_channel.send(f"Banned {msg.author.name} for the banned words spam message."
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                               f"\n```{msg.content}"[:1995] + '```')
+                                               f"\n```{msg.content}"[:1850] + '```')
 
                         break
                     else:
-                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+
                         await mod_channel.send(f"Warning: {msg.author.name} may have said the banned words spam message"
                                                f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                                f"\n```{msg.content}"[:1995] + '```')
@@ -115,15 +134,18 @@ class Main(commands.Cog):
         """mods ping on spanish server"""
         if msg.guild.id == 243838819743432704:
             if '<@&258806166770024449>' in msg.content:
-                ch = self.bot.get_channel(296013414755598346)
+                ch = self.bot.get_channel(563448201139716136)
                 me = self.bot.get_user(202995638860906496)
                 fourteen = self.bot.get_user(136444391777763328)
-                await ch.send(f"Mods ping from {msg.author.name} in {msg.channel.mention}\n"
-                              f"```{msg.content}```")
-                pm = f"Spanish server: mods ping from {msg.author.name} in {msg.channel.mention}\n" \
-                     f"```{msg.content}```"
-                await me.send(pm)
-                await fourteen.send(pm)
+                em = discord.Embed(title=f"Mods Ping",
+                                   description=f"From {msg.author.mention} ({msg.author.name}) "
+                                               f"in {msg.channel.mention}",
+                                   color=discord.Color(int('FFAA00', 16)),
+                                   timestamp=datetime.utcnow())
+                em.add_field(name="Content", value=f"{msg.content}\n⁣".replace('<@&258806166770024449>', ''))
+                await ch.send(embed=em)
+                await me.send(embed=em)
+                await fourteen.send(embed=em)
 
         """Ping me if someone says my name"""
         cont = str(msg.content)
@@ -249,10 +271,14 @@ class Main(commands.Cog):
                                 except langdetect.lang_detect_exception.LangDetectException:
                                     pass
                             else:
-                                await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                                      "learning role.  Please attach either 'Learning Spanish' or "
-                                                      "'Learning English' to properly use hardcore mode, or take off "
-                                                      "hardcore mode using the reactions in the server rules page")
+                                try:
+                                    await msg.author.send("You have hardcore enabled but you don't have the proper "
+                                                          "learning role.  Please attach either 'Learning Spanish' or "
+                                                          "'Learning English' to properly use hardcore mode, or take "
+                                                          "off hardcore mode using the reactions in the server rules "
+                                                          "page")
+                                except discord.errors.Forbidden:
+                                    pass
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -1114,8 +1140,6 @@ class Main(commands.Cog):
             return
         emb = discord.Embed(title=f"List of open questions:")
         for channel in config:
-            print(config)
-            print(str(channel))
             channel_config = config[str(channel)]['questions']
             for question in channel_config:
                 try:
@@ -1168,11 +1192,8 @@ class Main(commands.Cog):
                 await ctx.send(f"To edit the asker, give the user ID of the user.  For example: "
                                f"`;q edit <log_message_id> asker <user_id>`")
                 return
-            print(emb.description)
             new_description = emb.description.split(' ')
-            print(new_description)
             new_description[2] = asker.mention
-            print(new_description)
             emb.description = ' '.join(new_description)
 
         if emb.title == 'ANSWERED':
@@ -1274,6 +1295,112 @@ class Main(commands.Cog):
             em.add_field(name=two.name, value=two.value)
             em.remove_field(-3)
         await ctx.send(embed=em)
+
+    @commands.group(invoke_without_command=True, aliases=['gb', 'gbl', 'blacklist'])
+    @blacklist_check()
+    async def global_blacklist(self, ctx):
+        """A global blacklist for banning spammers, requires three votes from mods from three different servers"""
+        config = hf.database_toggle(ctx, self.bot.db['global_blacklist'])
+        if config['enable']:
+            if not ctx.me.guild_permissions.ban_members:
+                await ctx.send('I lack the permission to ban members.  Please fix that before enabling this module')
+                hf.database_toggle(ctx, self.bot.db['global_blacklist'])
+                return
+            await ctx.send("Enabled the global blacklist on this server.  Anyone voted into the blacklist by three "
+                           "mods and joining your server will be automatically banned.  "
+                           "Type `;global_blacklist residency` to claim your residency on a server.")
+        else:
+            await ctx.send("Disabled the global blacklist.  Anyone on the blacklist will be able to join  your server.")
+        await hf.dump_json()
+
+    @global_blacklist.command()
+    @blacklist_check()
+    async def residency(self, ctx):
+        """Claims your residency on a server"""
+        config = self.bot.db['global_blacklist']['residency']
+
+        if str(ctx.author.id) in config:
+            server = self.bot.get_guild(config[str(ctx.author.id)])
+            await ctx.send(f"You've already claimed residency on {server.name}.  You can not change this without "
+                           f"talking to Ryan.")
+            return
+
+        await ctx.send("For the purpose of maintaining fairness in a ban, you're about to claim your mod residency to "
+                       f"`{ctx.guild.name}`.  This can not be changed without talking to Ryan.  "
+                       f"Do you wish to continue?\n\nType `yes` or `no` (case insensitive).")
+        msg = await self.bot.wait_for('message',
+                                      timeout=25.0,
+                                      check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+
+        if msg.content.casefold() == 'yes':  # register
+            config[str(ctx.author.id)] = ctx.guild.id
+            await ctx.send(f"Registered your residency to `{ctx.guild.name}`.  Type `;global_blacklist add <ID>` to "
+                           f"vote on a user for the blacklist")
+
+        elif msg.content.casefold() == 'no':  # cancel
+            await ctx.send("Understood.  Exiting module.")
+
+        else:  # invalid response
+            await ctx.send("Invalid response")
+        await hf.dump_json()
+
+    @global_blacklist.command(aliases=['vote'], name="add")
+    @blacklist_check()
+    async def blacklist_add(self, ctx, user, *, reason: str = None):
+        channel = self.bot.get_channel(533863928263082014)
+        config = self.bot.db['global_blacklist']
+        target_user = self.bot.get_user(int(user))
+
+        async def post_vote_notification(num_of_votes):
+            await ctx.message.add_reaction('✅')
+            if target_user:
+                message = f"📥 There are now **{num_of_votes}** vote(s) for `{target_user.name} " \
+                          f"({user}`) (voted for by {ctx.author.name})"
+            else:
+                message = f"📥 There are now **{num_of_votes}** vote(s) for `{user}`." \
+                          f" (voted for by {ctx.author.name})."
+            if reason:
+                message += "\nExtra info: {reason}"
+            await channel.send(message)
+
+        async def post_ban_notification():
+            await ctx.message.add_reaction('✅')
+            if target_user:
+                message = f"`❌ {target_user.name} ({user}`) has received their final vote from {ctx.author.name}" \
+                          f" and been added to the blacklist."
+            else:
+                message = f"`❌ `{user}` has received their final vote from {ctx.author.name}" \
+                          f" and been added to the blacklist."
+            await channel.send(message)
+
+        if user in config['votes']:  # already been voted on before
+            votes_list = config['votes'][user]  # a list of guild ids that have voted for adding to the blacklist
+        else:
+            if user not in config['blacklist']:
+                votes_list = config['votes'][user] = []  # no votes yet, so an empty list
+            else:
+                await ctx.send("This user is already on the blacklist")
+                return
+
+        try:  # the guild ID that the person trying to add a vote belongs to
+            residency = self.bot.db['global_blacklist']['residency'][str(ctx.author.id)]  # a guild id
+        except KeyError:
+            await ctx.send("Please claim residency on a server first with `;global_blacklist residency`")
+            return
+
+        if residency in votes_list:  # ctx.author's server already voted
+            await ctx.send(f"Someone from your server `({self.bot.get_guild(residency).name})` has already voted")
+        else:  # can take a vote
+            votes_list.append(residency)
+            num_of_votes = len(config['votes'][user])
+            if num_of_votes == 3:
+                config['blacklist'].append(int(user))  # adds the user id to the blacklist
+                del (config['votes'][user])
+                await post_ban_notification()
+            else:
+                await post_vote_notification(num_of_votes)
+
+        await hf.dump_json()
 
 def setup(bot):
     bot.add_cog(Main(bot))

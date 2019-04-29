@@ -20,7 +20,6 @@ class Admin(commands.Cog):
     async def cog_check(self, ctx):
         return hf.admin_check(ctx)
 
-
     @commands.command()
     async def crosspost(self, ctx):
         """Makes Rai crosspost all your ban audits"""
@@ -40,17 +39,15 @@ class Admin(commands.Cog):
 
     @commands.command()
     @hf.is_admin()
+    @commands.bot_has_permissions(ban_members=True)
+    @commands.has_permissions(ban_members=True)
     async def ban(self, ctx, *args):
         """Bans a user.  Usage: `;ban [time #d#h] <user> [-s] [reason]`  Example: `;ban @Ryry013 being mean` or
         `;ban 2d3h @Abelian -s posting invite links`"""
-        if not ctx.author.guild_permissions.ban_members:
-            await ctx.send(f"You can not ban members")
-            return
-        if not ctx.guild.me.guild_permissions.ban_members:
-            await ctx.send(f"I lack the permission to ban members on this server.")
-            return
         timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
         if timed_ban:
+            await ctx.send(f"Sorry, timed ban is broken right now :(")
+            return
             if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
                 length = timed_ban[0][:-1].split('d')
                 length = [length[0], length[1]]
@@ -153,14 +150,14 @@ class Admin(commands.Cog):
                                                 '__')  # google uses '__' page breaks so this gets around that
         rules = rules.split('########')
         for page in rules:
-            print([page[:30]])
+            # print([page[:30]])
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
                 with open('image', 'wb') as f:
                     urllib.request.urlretrieve(url, "image_file.png")
                 msg = await ctx.send(file=discord.File('image_file.png'))
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
-                print('lang', [page])
+                # print('lang', [page])
                 spanishnative = self.bot.get_emoji(524733330525257729)
                 englishnative = self.bot.get_emoji(524733316193058817)
                 othernative = self.bot.get_emoji(524733977991315477)
@@ -175,7 +172,7 @@ class Admin(commands.Cog):
                     replace('{mods}', str(mods))
                 msg = await ctx.send(post[7:])
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!roles'):
-                print('roles', [page])
+                # print('roles', [page])
                 if channel == 0:  # chinese
                     emoji = self.bot.get_emoji(358529029579603969)  # blobflags
                     post = page[8:].replace('{emoji}', str(emoji))
@@ -209,7 +206,9 @@ class Admin(commands.Cog):
                         self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
-                # await hf.dump_json()
+                else:
+                    await ctx.send(f"Something went wrong")
+                    return
             else:
                 msg = await ctx.send(page)
             if '<@ &' in msg.content:
@@ -255,6 +254,7 @@ class Admin(commands.Cog):
                        '\n4) Finally, do `;captcha post_message` to post the message people will react to.')
 
     @captcha.command()
+    @commands.bot_has_permissions(manage_roles=True)
     async def toggle(self, ctx):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
@@ -307,6 +307,7 @@ class Admin(commands.Cog):
                 await msg.add_reaction('✅')
 
     @commands.command(aliases=['purge', 'prune'])
+    @commands.bot_has_permissions(manage_messages=True)
     async def clear(self, ctx, num=None, *args):
         """Deletes messages from a channel, ;clear <num_of_messages> [<user> <after_message_id>]"""
         if len(num) == 18:
@@ -319,64 +320,58 @@ class Admin(commands.Cog):
                                         check=lambda m: m.author == ctx.author and m.content == 'y')
             except asyncio.TimeoutError:
                 await msg.edit(content="Canceling channel prune", delete_after=5.0)
-        if ctx.channel.permissions_for(ctx.author).manage_messages:
-            try:
-                await ctx.message.delete()
-            except discord.errors.NotFound:
-                pass
-            if args:
-                if args[0] == '0':
-                    user = None
-                if args[0] != '0':
-                    user = await hf.member_converter(ctx, args[0])
-                    if not user:
-                        return
-                try:
-                    msg = await ctx.channel.fetch_message(args[1])
-                except discord.errors.NotFound:  # invaid message ID given
-                    await ctx.send('Message not found')
-                    return
-                except IndexError:  # no message ID given
-                    print('>>No message ID found<<')
-                    msg = None
-                    pass
-            else:
+        try:
+            await ctx.message.delete()
+        except discord.errors.NotFound:
+            pass
+        if args:
+            if args[0] == '0':
                 user = None
-                msg = None
-
+            if args[0] != '0':
+                user = await hf.member_converter(ctx, args[0])
+                if not user:
+                    return
             try:
-                if not user and not msg:
-                    await ctx.channel.purge(limit=int(num))
-                if user and not msg:
-                    await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user)
-                if not user and msg:
-                    await ctx.channel.purge(limit=int(num), after=msg)
-                    try:
-                        await msg.delete()
-                    except discord.errors.NotFound:
-                        pass
-                if user and msg:
-                    await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user, after=msg)
-                    try:
-                        await msg.delete()
-                    except discord.errors.NotFound:
-                        pass
-            except TypeError:
-                pass
-            except ValueError:
-                await ctx.send('You must put a number after the command, like `;await clear 5`')
+                msg = await ctx.channel.fetch_message(args[1])
+            except discord.errors.NotFound:  # invaid message ID given
+                await ctx.send('Message not found')
                 return
+            except IndexError:  # no message ID given
+                print('>>No message ID found<<')
+                msg = None
+                pass
         else:
-            await ctx.send(f"You lack permissions to use the `;clear` command.")
+            user = None
+            msg = None
+
+        try:
+            if not user and not msg:
+                await ctx.channel.purge(limit=int(num))
+            if user and not msg:
+                await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user)
+            if not user and msg:
+                await ctx.channel.purge(limit=int(num), after=msg)
+                try:
+                    await msg.delete()
+                except discord.errors.NotFound:
+                    pass
+            if user and msg:
+                await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user, after=msg)
+                try:
+                    await msg.delete()
+                except discord.errors.NotFound:
+                    pass
+        except TypeError:
+            pass
+        except ValueError:
+            await ctx.send('You must put a number after the command, like `;await clear 5`')
+            return
 
     @commands.command()
+    @commands.bot_has_permissions(ban_members=True)
     async def auto_bans(self, ctx):
         config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
         if config['enable']:
-            if not ctx.me.guild_permissions.ban_members:
-                await ctx.send("I lack the permission to ban users.  Please fix this before enabling the module")
-                hf.database_toggle(ctx, self.bot.db['auto_bans'])
-                return
             await ctx.send('Enabled the auto bans module.  I will now automatically ban all users who join with '
                            'a discord invite link username or who join and immediately send an amazingsexdating link')
         else:
@@ -416,111 +411,6 @@ class Admin(commands.Cog):
             await ctx.send("I will NOT readd roles to people who have previously left the server")
         if 'users' not in config:
             config['users'] = {}
-        await hf.dump_json()
-
-    @commands.group(invoke_without_command=True, aliases=['gb', 'gbl', 'blacklist'])
-    async def global_blacklist(self, ctx):
-        """A global blacklist for banning spammers, requires three votes from mods from three different servers"""
-        config = hf.database_toggle(ctx, self.bot.db['global_blacklist']['enable'])
-        if config['enable']:
-            if not ctx.me.guild_permissions.ban_members:
-                await ctx.send('I lack the permission to ban members.  Please fix that before enabling this module')
-                hf.database_toggle(ctx, self.bot.db['global_blacklist'])
-                return
-            await ctx.send("Enabled the global blacklist on this server.  Anyone voted into the blacklist by three "
-                           "mods and joining your server will be automatically banned.  "
-                           "Type `;global_blacklist residency` to claim your residency on a server.")
-        else:
-            await ctx.send("Disabled the global blacklist.  Anyone on the blacklist will be able to join  your server.")
-        await hf.dump_json()
-
-    @global_blacklist.command()
-    async def residency(self, ctx):
-        """Claims your residency on a server"""
-        config = self.bot.db['global_blacklist']['residency']
-
-        if str(ctx.author.id) in config:
-            server = self.bot.get_guild(config[str(ctx.author.id)])
-            await ctx.send(f"You've already claimed residency on {server.name}.  You can not change this without "
-                           f"talking to Ryan.")
-            return
-
-        await ctx.send("For the purpose of maintaining fairness in a ban, you're about to claim your mod residency to "
-                       f"`{ctx.guild.name}`.  This can not be changed without talking to Ryan.  "
-                       f"Do you wish to continue?\n\nType `yes` or `no` (case insensitive).")
-        msg = await self.bot.wait_for('message',
-                                      timeout=25.0,
-                                      check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
-
-        if msg.content.casefold() == 'yes':  # register
-            config[str(ctx.author.id)] = ctx.guild.id
-            await ctx.send(f"Registered your residency to `{ctx.guild.name}`.  Type `;global_blacklist add <ID>` to "
-                           f"vote on a user for the blacklist")
-
-        elif msg.content.casefold() == 'no':  # cancel
-            await ctx.send("Understood.  Exiting module.")
-
-        else:  # invalid response
-            await ctx.send("Invalid response")
-        await hf.dump_json()
-
-    @global_blacklist.command(aliases=['vote'], name="add")
-    async def blacklist_add(self, ctx, user, *, reason: str = None):
-        channel = self.bot.get_channel(533863928263082014)
-        config = self.bot.db['global_blacklist']
-        target_user = self.bot.get_user(int(user))
-        print(user)
-        print(reason)
-
-        async def post_vote_notification(num_of_votes):
-            await ctx.message.add_reaction('✅')
-            if target_user:
-                message = f"📥 There are now **{num_of_votes}** vote(s) for `{target_user.name} " \
-                          f"({user}`). (voted for by {ctx.author.name})"
-            else:
-                message = f"📥 There are now **{num_of_votes}** vote(s) for `{user}`." \
-                          f" (voted for by {ctx.author.name})."
-            if reason:
-                message += "\nExtra info: {reason}"
-            await channel.send(message)
-
-        async def post_ban_notification():
-            await ctx.message.add_reaction('✅')
-            if target_user:
-                message = f"`❌ {target_user.name} ({user}`) has received their final vote from {ctx.author.name}" \
-                          f" and been added to the blacklist."
-            else:
-                message = f"`❌ `{user}` has received their final vote from {ctx.author.name}" \
-                          f" and been added to the blacklist."
-            await channel.send(message)
-
-        if user in config['votes']:  # already been voted on before
-            votes_list = config['votes'][user]  # a list of guild ids that have voted for adding to the blacklist
-        else:
-            if user not in config['blacklist']:
-                votes_list = config['votes'][user] = []  # no votes yet, so an empty list
-            else:
-                await ctx.send("This user is already on the blacklist")
-                return
-
-        try:  # the guild ID that the person trying to add a vote belongs to
-            residency = self.bot.db['global_blacklist']['residency'][str(ctx.author.id)]  # a guild id
-        except KeyError:
-            await ctx.send("Please claim residency on a server first with `;global_blacklist residency`")
-            return
-
-        if residency in votes_list:  # ctx.author's server already voted
-            await ctx.send(f"Someone from your server `({self.bot.get_guild(residency).name})` has already voted")
-        else:  # can take a vote
-            votes_list.append(residency)
-            num_of_votes = len(config['votes'][user])
-            if num_of_votes == 3:
-                config['blacklist'].append(int(user))  # adds the user id to the blacklist
-                del (config['votes'][user])
-                await post_ban_notification()
-            else:
-                await post_vote_notification(num_of_votes)
-
         await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'])
@@ -699,9 +589,11 @@ class Admin(commands.Cog):
             await menu.delete()
             return 'time_out', menu
         await msg.delete()
+
         return msg.content, menu
 
     @commands.command()
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def options(self, ctx, menu=None):
         """A comprehensive options and configuration menu for the bot"""
         if menu:
@@ -723,7 +615,11 @@ class Admin(commands.Cog):
             emb = self.make_options_embed(options)
             emb.description = "(WIP) " + emb.description
             choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'x']
-            choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+            try:
+                choice, menu = await self.wait_menu(ctx, menu, emb, choices)
+            except discord.Forbidden:
+                await ctx.send(f"I lack the ability to manage messages, which I require for the options module")
+                return
             if choice == 'time_out':
                 return
             elif choice == 'x':

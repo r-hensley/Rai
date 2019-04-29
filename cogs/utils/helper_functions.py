@@ -83,7 +83,7 @@ async def dump_json():
 
 def admin_check(ctx):
     if not ctx.guild:
-        return False
+        return
     try:
         ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
         mod_role = ctx.guild.get_role(ID)
