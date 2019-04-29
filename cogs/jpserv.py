@@ -25,6 +25,8 @@ class Jpserv(commands.Cog):
     @commands.command()
     @hf.is_admin()
     async def swap(self, ctx):
+        """Swaps JHO/JHO2's names and positions in the lists, for if we temporarily want welcome messages to go to
+        JHO2"""
         jpJHO = self.bot.get_channel(189571157446492161)
         jpJHO2 = self.bot.get_channel(326263874770829313)
         if jpJHO.position == 4:
@@ -42,7 +44,7 @@ class Jpserv(commands.Cog):
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
-            await hf.member_converter(ctx, member)
+            member = await hf.member_converter(ctx, member)
             if hf.admin_check(ctx) and ctx.author.id != member.id:
                 if str(member.id) in config:
                     if config[str(member.id)][0]:
@@ -69,6 +71,7 @@ class Jpserv(commands.Cog):
 
     @ultrahardcore.command(aliases=['enable'])
     async def on(self, ctx):
+        """Enables UHC"""
         if ctx.guild.id != 189571157446492161:
             return
         role = ctx.guild.get_role(486851965121331200)
@@ -168,6 +171,7 @@ class Jpserv(commands.Cog):
     @ultrahardcore.command()
     @hf.is_admin()
     async def ignore(self, ctx):
+        """Ignores a channel for UHC"""
         if ctx.guild.id != 189571157446492161:
             return
         config = self.bot.db['ultraHardcore']

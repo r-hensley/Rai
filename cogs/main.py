@@ -27,6 +27,50 @@ class Main(commands.Cog):
         self.bot = bot
         hf.setup(bot)
 
+    @commands.command()
+    async def new_help(self, ctx):
+        x = self.bot.commands
+        msg_dict = {}
+        emb = discord.Embed(title='Help', description="Type `;help <command>` for more info on any command or category")
+        for command in x:
+            if await command.can_run(ctx) and not command.hidden:
+                if command.cog_name in msg_dict:
+                    msg_dict[command.cog_name].append(command)
+                else:
+                    msg_dict[command.cog_name] = [command]
+        for cog in msg_dict:
+            str = ''
+            for command in msg_dict[cog]:
+                if command.short_doc:
+                    str += f"⠀⠀**{command.name}**\n{command.short_doc}\n"
+                else:
+                    str += f"⠀⠀**{command.name}**\n"
+            emb.add_field(name=f"⁣\n__{command.cog_name}__",
+                          value=str, inline=False)
+        await ctx.send(embed=emb)
+
+    @commands.command(hidden=True)
+    async def _unban_users(self, ctx):
+        config = self.bot.db['bans']
+        to_delete = []
+        for guild_id in config:
+            guild_config = config[guild_id]
+            if 'timed_bans' in guild_config:
+                for member_id in guild_config['timed_bans']:
+                    unban_time = datetime.strptime(guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC")
+                    if unban_time < datetime.utcnow():
+                        guild = self.bot.get_guild(int(guild_id))
+                        member = discord.Object(id=member_id)
+                        try:
+                            await guild.unban(member, reason="End of timed ban")
+                            to_delete.append((guild_id, 'timed_bans', member_id))
+                        except discord.NotFound:
+                            pass
+        if to_delete:
+            for i in to_delete:
+                del config[i[0]][i[1]][i[2]]
+            await hf.dump_json()
+
     @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot:
@@ -60,7 +104,6 @@ class Main(commands.Cog):
             word_count = 0
             for word in words:
                 if word in msg.content:
-                    print(word)
                     word_count += 1
                 if word_count == 5:
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
@@ -301,6 +344,7 @@ class Main(commands.Cog):
     async def ping(self, ctx, x=4):
         """sends back 'hello'"""
         await ctx.send(str(round(self.bot.latency, x)) + 's')
+        await self.bot.testChan.send('hello')
 
     @commands.command()
     async def invite(self, ctx):
@@ -805,7 +849,7 @@ class Main(commands.Cog):
                        "You can ask questions and find some further details here: https://discord.gg/7k5MMpr")
 
     @commands.command(aliases=[';p', ';s', ';play', ';skip', '_;', '-;', ')', '__;', '___;', ';leave', ';join',
-                               ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol', ';np', ';list'])
+                               ';l', ';q', ';queue', ';pause', ';volume', ';1', ';vol', ';np', ';list'], hidden=True)
     async def ignore_commands_list(self, ctx):
         pass
 
@@ -1193,7 +1237,8 @@ class Main(commands.Cog):
                                f"`;q edit <log_message_id> asker <user_id>`")
                 return
             new_description = emb.description.split(' ')
-            new_description[2] = asker.mention
+            new_description[2] = f"{asker.mention} ({asker.name})"
+            del new_description[3]
             emb.description = ' '.join(new_description)
 
         if emb.title == 'ANSWERED':
@@ -1296,7 +1341,7 @@ class Main(commands.Cog):
             em.remove_field(-3)
         await ctx.send(embed=em)
 
-    @commands.group(invoke_without_command=True, aliases=['gb', 'gbl', 'blacklist'])
+    @commands.group(invoke_without_command=True, aliases=['gb', 'gbl', 'blacklist'], hidden=True)
     @blacklist_check()
     async def global_blacklist(self, ctx):
         """A global blacklist for banning spammers, requires three votes from mods from three different servers"""
@@ -1401,6 +1446,31 @@ class Main(commands.Cog):
                 await post_vote_notification(num_of_votes)
 
         await hf.dump_json()
+
+    @global_blacklist.command(name='list')
+    @blacklist_check()
+    async def blacklist_list(self, ctx):
+        """Lists the users with residencies on each server"""
+        users_str = ''
+        users_dict = {}
+        config = self.bot.db['global_blacklist']['residency']
+        for user_id in config:
+            user = self.bot.get_user(int(user_id))
+            guild = self.bot.get_guild(config[user_id])
+            if guild in users_dict:
+                users_dict[guild].append(user)
+            else:
+                users_dict[guild] = [user]
+        for guild in users_dict:
+            try:
+                users_str += f"**{guild.name}:** {', '.join([user.name for user in users_dict[guild]])}\n"
+            except AttributeError:
+                pass
+        emb = discord.Embed(title="Global blacklist residencies", description="Listed below is a breakdown of who "
+                                                                              "holds residencies in which servers.\n\n")
+        emb.description += users_str
+        await ctx.send(embed=emb)
+
 
 def setup(bot):
     bot.add_cog(Main(bot))
