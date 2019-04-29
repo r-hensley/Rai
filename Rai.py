@@ -55,6 +55,7 @@ async def on_ready():
         except Exception as e:
             print('Failed to load extension {}.'.format(extension), file=sys.stderr)
             traceback.print_exc()
+            raise
 
     print("Bot loaded")
 
@@ -98,21 +99,51 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.NoPrivateMessage):
-        await ctx.author.send('This command cannot be used in private messages.')
-    # elif isinstance(error, commands.CommandInvokeError):
-    #     command = ctx.command.qualified_name
-    #     await ctx.send(f"You inputted the syntax for that command wrong.  Check `;help {command}`")
-    #     print(f'Error in {command}:', file=sys.stderr)
-    #     traceback.print_tb(error.original.__traceback__)
-    #     print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
-    elif isinstance(error, commands.errors.CheckFailure):
-        await ctx.send(f"You lack the permissions to do that.  Try using "
-                       f"`{bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+    if isinstance(error, commands.BadArgument):
+        # parsing or conversion failure is encountered on an argument to pass into a command.
+        await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
+
+    elif isinstance(error, commands.BotMissingPermissions):
+        await ctx.send(f"To do that command, Rai is missing the following permissions: "
+                       f"`{'`, `'.join(error.missing_perms)}`")
+
+    elif isinstance(error, commands.CommandInvokeError):
+        command = ctx.command.qualified_name
+        await ctx.send(f"I couldn't execute the command.  Either I don't have the right permissions, or you inputted "
+                       f"the syntax for that command wrong.  Check `;help {command}`")
+
     elif isinstance(error, commands.CommandNotFound):
-        print(f">>Command not found \n{ctx.message.content[:30]}<<")
-    #elif isinstance(error, commands.MissingRequiredArgument):
-    #    await ctx.send(f"You're missing a required argument.  Try running `;help {ctx.command.qualified_name}`")
+        # no command under that name is found
+        pass
+
+    elif isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"This command is on cooldown.  Try again in {round(error.retry_after)} seconds.")
+
+    elif isinstance(error, commands.CheckFailure):
+        # the predicates in Command.checks have failed.
+        if ctx.command.name == 'global_blacklist':
+            return
+        await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+                       f"`{bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+
+    elif isinstance(error, commands.MissingRequiredArgument):
+        # parsing a command and a parameter that is required is not encountered
+        msg = f"You're missing a required argument ({error.param}).  " \
+              f"Try running `;help {ctx.command.qualified_name}`"
+        if error.param.name in ['args', 'kwargs']:
+            msg = msg.replace(f" ({error.param})", '')
+        await ctx.send(msg)
+
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send(f"To do that command, you are missing the following permissions: "
+                       f"`{'`, `'.join(error.missing_perms)}`")
+
+    elif isinstance(error, commands.NoPrivateMessage):
+        await ctx.author.send('This command cannot be used in private messages.')
+
+    elif isinstance(error, commands.NotOwner):
+        await ctx.send(f"Only Ryan can do that.")
+
     else:
         error = getattr(error, 'original', error)
         qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)

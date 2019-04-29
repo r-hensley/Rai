@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 from imgurpython import ImgurClient
+from imgurpython.helpers.error import ImgurClientError
 import functools
 from Levenshtein import distance as LDist
 import re
@@ -72,6 +73,19 @@ class Logger(commands.Cog):
             result = 2
         await hf.dump_json()
         return result
+
+    async def module_disable_notification(self, guild, guild_config):
+        try:
+            channel = self.bot.db['mod_channel'][str(guild.id)]
+        except KeyError:
+            pass
+        else:
+            channel = self.bot.get_channel(channel)
+            await channel.send(f"Disabled the message deleting logs due to Rai possibly lacking the "
+                               f"permissions to post messages or embeds.")
+        finally:
+            guild_config['enable'] = False
+            await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['edit', 'edits'])
     async def edit_logging(self, ctx):
@@ -155,7 +169,10 @@ class Logger(commands.Cog):
                     levenshtein_distance = LDist(before.content, after.content)
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
+                        try:
+                            await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
+                        except discord.errors.Forbidden:
+                            await self.module_disable_notification(before.message.guild, guild_config)
         await hf.uhc_check(after)
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
@@ -218,7 +235,7 @@ class Logger(commands.Cog):
                     image = await asyncio.wait_for(task, timeout=10)
                     list_of_attachments.append(image['link'])
                     failed = None
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, ImgurClientError):
                     list_of_attachments.append(attachment.proxy_url)
 
             if list_of_attachments:
@@ -247,7 +264,10 @@ class Logger(commands.Cog):
                         hf.dump_json()
                         print(f"")
                         return
-                    await channel.send(embed=await self.make_delete_embed(message))
+                    try:
+                        await channel.send(embed=await self.make_delete_embed(message))
+                    except discord.errors.Forbidden:
+                        await self.module_disable_notification(message.guild, guild_config)
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -394,6 +414,7 @@ class Logger(commands.Cog):
     async def on_member_join(self, member):
         """Join logging"""
         guild = str(member.guild.id)
+        used_invite = None
         if guild in self.bot.db['welcomes']:
             if self.bot.db['welcomes'][guild]['enable']:
                 server_config = self.bot.db['welcomes'][guild]
@@ -408,36 +429,39 @@ class Logger(commands.Cog):
                     await channel.send("I've added a toggle for invite tracking since it requires `Manage Server` "
                                        "permission.  If you wish Rai to track used invite links for joins, please type "
                                        "`welcomes invites`.")
-                used_invite = None
                 if invites_enable:
+                    old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault('invites', {})
                     try:
-                        old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault('invites', {})
-                        if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
-                            invites_list = await member.guild.invites()
-                            old_invites = {invite.code: invite.uses for invite in invites_list}
-                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
-                            await hf.dump_json()
                         invites = await member.guild.invites()
-                        new_invites = {invite.code: invite.uses for invite in invites}
-                        for invite in new_invites:
-                            try:
-                                if new_invites[invite] > old_invites[invite]:
-                                    used_invite = next(i for i in invites if str(i.code) == invite)
-                                    self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                                    break
-                            except KeyError:  # new invite
-                                if new_invites[invite] == 1:
-                                    used_invite = next(i for i in invites if str(i.code) == invite)
-                                    self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                                    break
-                        if not used_invite:
-                            print('>>Was unable to find invite<<')
                     except discord.errors.Forbidden:
                         server_config['invites_enable'] = False
                         await channel.send(
                             "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
-                            "invite link tracking.  If you wish to reenable it, type `;welcomes invites`")
-                    await hf.dump_json()
+                            "invite link tracking.  If you wish to reenable it, type `;welcomes invites` or use "
+                            "the options menu (`;options`)")
+                    else:
+                        if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
+                            old_invites = {invite.code: invite.uses for invite in invites}
+                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
+                            await hf.dump_json()
+                        else:
+                            new_invites = {invite.code: invite.uses for invite in invites}
+                            for invite in new_invites:
+                                try:
+                                    if new_invites[invite] > old_invites[invite]:
+                                        used_invite = next(i for i in invites if str(i.code) == invite)
+                                        self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
+                                        break
+                                except KeyError:  # new invite
+                                    if new_invites[invite] == 1:
+                                        used_invite = next(i for i in invites if str(i.code) == invite)
+                                        self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
+                                        break
+                            if not used_invite:
+                                print('>>Was unable to find invite<<')
+                    finally:
+                        await hf.dump_json()
+
                 try:
                     x = await self.make_welcome_embed(member, used_invite)
                     await channel.send(embed=x)
@@ -517,8 +541,9 @@ class Logger(commands.Cog):
                         await hf.dump_json()
             finally:
                 if post_message:
-                    if str(used_invite.code) in japanese_links:
-                        await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+                    if used_invite:
+                        if str(used_invite.code) in japanese_links:
+                            await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
                     elif member.id != 414873201349361664:
                         await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
                 if member.id == 414873201349361664:
@@ -606,9 +631,12 @@ class Logger(commands.Cog):
         guild = str(member.guild.id)
         if guild in self.bot.db['leaves']:
             if self.bot.db['leaves'][guild]['enable']:
-                server_config = self.bot.db['leaves'][guild]
-                channel = self.bot.get_channel(server_config['channel'])
-                await channel.send(embed=self.make_leave_embed(member))
+                guild_config = self.bot.db['leaves'][guild]
+                channel = self.bot.get_channel(guild_config['channel'])
+                try:
+                    await channel.send(embed=self.make_leave_embed(member))
+                except discord.errors.Forbidden:
+                    await self.module_disable_notification(member.guild, guild_config)
 
         try:
             config = self.bot.db['readd_roles'][str(member.guild.id)]
@@ -627,7 +655,11 @@ class Logger(commands.Cog):
             guild_config: dict = self.bot.db['kicks'][guild]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                emb = await self.make_kick_embed(member)
+                try:
+                    emb = await self.make_kick_embed(member)
+                except discord.errors.Forbidden:
+                    await self.module_disable_notification(member.guild, guild_config)
+                    return
                 if emb:
                     await channel.send(embed=emb)
 
@@ -673,26 +705,33 @@ class Logger(commands.Cog):
         guild = str(before.guild.id)
         if guild in self.bot.db['nicknames']:
             if self.bot.db['nicknames'][guild]['enable']:
-                server_config = self.bot.db['nicknames'][guild]
-                channel = self.bot.get_channel(server_config['channel'])
+                guild_config = self.bot.db['nicknames'][guild]
+                channel = self.bot.get_channel(guild_config['channel'])
                 if not channel:
                     return
-                if before.name != after.name:  # username change
+                if before.name == after.name and before.nick == after.nick:
+                    return
+
+                try:
                     embed = self.make_nickname_embed(before, after)
+                except discord.errors.Forbidden:
+                    await self.module_disable_notification(before.guild, guild_config)
+                    return
+
+                if before.name != after.name:  # username change
                     embed.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
                                         f"**{after.name}#{after.discriminator}**"
                     await channel.send(embed=embed)
+
                 if before.nick != after.nick:  # nickname change
                     if before.nick and not after.nick:  # nickname removed
-                        embed = self.make_nickname_embed(before, after)
                         embed.description = f"**{before.nick}**'s nickname was **removed**"
                     elif not before.nick and after.nick:  # nickname added
-                        embed = self.make_nickname_embed(before, after)
                         embed.description = \
                             f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
-                    elif before.nick and after.nick:
-                        embed = self.make_nickname_embed(before, after)
-                    else:
+                    elif before.nick and after.nick:  # nickname changed
+                        pass
+                    else:  # no nickname changes
                         return
                     await channel.send(embed=embed)
 
@@ -775,7 +814,11 @@ class Logger(commands.Cog):
                     guild_config: dict = self.bot.db['reactions'][guild]
                     if guild_config['enable']:
                         channel = self.bot.get_channel(guild_config["channel"])
-                        await channel.send(embed=self.make_reaction_embed(reaction, member))
+                        try:
+                            await channel.send(embed=self.make_reaction_embed(reaction, member))
+                        except discord.errors.Forbidden:
+                            await self.module_disable_notification(reaction.message.guild, guild_config)
+                            return
 
     @commands.group(invoke_without_command=True, aliases=['bans'])
     async def ban_logging(self, ctx):
@@ -855,8 +898,12 @@ class Logger(commands.Cog):
 
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
-            emb = await self.make_ban_embed(guild, member)
             guild_config: dict = self.bot.db['bans'][guild_id]
+            try:
+                emb = await self.make_ban_embed(guild, member)
+            except discord.errors.Forbidden:
+                await self.module_disable_notification(guild, guild_config)
+                return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
                 await channel.send(embed=emb)
@@ -899,7 +946,11 @@ class Logger(commands.Cog):
             guild_config: dict = self.bot.db['bans'][guild_id]
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await channel.send(embed=self.make_unban_embed(user))
+                try:
+                    await channel.send(embed=self.make_unban_embed(user))
+                except discord.errors.Forbidden:
+                    await self.module_disable_notification(guild, guild_config)
+                    return
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
     async def kick_logging(self, ctx):

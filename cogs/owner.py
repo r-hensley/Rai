@@ -28,12 +28,12 @@ class Owner(commands.Cog):
         self.sessions = set()
 
     async def cog_check(self, ctx):
-        return await self.bot.is_owner(ctx.author)
+        return ctx.author.id in [202995638860906496, 414873201349361664]
 
     def get_syntax_error(self, e):
         if e.text is None:
-            return '```py\n{}: {}\n```'.format(e.__class__.__name__,e)
-        return '```py\n{}{"^":>{}}\n{}: {}```'.format(e.text,e.offset,e.__class__.__name__,e)
+            return f'```py\n{e.__class__.__name__}: {e}\n```'
+        return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
     @commands.command()
     async def flush(self, ctx):
