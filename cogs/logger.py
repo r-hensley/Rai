@@ -262,7 +262,6 @@ class Logger(commands.Cog):
                     if not channel:
                         del (guild_config['channel'])
                         hf.dump_json()
-                        print(f"")
                         return
                     try:
                         await channel.send(embed=await self.make_delete_embed(message))
@@ -869,7 +868,6 @@ class Logger(commands.Cog):
         if reason.startswith('⁣') or '-s' in reason:
             reason = reason.replace('⁣', '').replace('-s ', '').replace(' -s', '')
             emb.description = '⁣'
-        print(reason)
         if reason.startswith('*by* '):
             emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
                                f'{reason}'

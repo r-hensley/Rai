@@ -6,6 +6,7 @@ from discord.ext import commands
 import platform
 import sys, traceback
 import json
+from cogs.utils import helper_functions as hf
 
 from datetime import datetime, timedelta
 from pytz import reference
@@ -100,8 +101,11 @@ class Rai(Bot):
                     counter = 0
                 if counter % 5 == 0:
                     await ctx.invoke(self.get_command("_unban_users"))
+                    await ctx.invoke(self.get_command("_unmute_users"))
+                    await hf.dump_json()
                 await asyncio.sleep(60)
         except Exception as error:
+            print('error')
             error = getattr(error, 'original', error)
             print(f'Error in background task:', file=sys.stderr)
             traceback.print_tb(error.__traceback__)
