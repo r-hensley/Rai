@@ -5,6 +5,7 @@ import re
 from discord.ext import commands
 import json
 import sys
+from datetime import datetime, timedelta
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -61,6 +62,23 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
+def parse_time(time):
+    time_re = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', time)
+    if time_re:
+        if re.findall('^\d+d\d+h$', time):  # format: #d#h
+            length = time_re[0][:-1].split('d')
+            length = [length[0], length[1]]
+        elif re.findall('^\d+d$', time):  # format: #d
+            length = [time_re[0][:-1], '0']
+        else:  # format: #h
+            length = ['0', time_re[0][:-1]]
+    else:
+        return False, False
+    finish_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+    time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    return time_string, length
+
+
 async def member_converter(ctx, user):
     try:
         return await commands.MemberConverter().convert(ctx, user)
@@ -79,6 +97,23 @@ def _predump_json():
 async def dump_json():
     with await _lock:
         await _loop.run_in_executor(None, _predump_json)
+
+
+def submod_check(ctx):
+    if not ctx.guild:
+        return
+    if admin_check(ctx):
+        return True
+    role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
+    submod_role = ctx.guild.get_role(role_id)
+    return submod_role in ctx.author.roles
+
+
+def is_submod():
+    async def pred(ctx):
+        return submod_check(ctx)
+
+    return commands.check(pred)
 
 
 def admin_check(ctx):

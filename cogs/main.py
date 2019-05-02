@@ -108,6 +108,11 @@ class Main(commands.Cog):
         # if msg.author.id == 202979770235879427:
         #     channel = self.bot.get_channel(374489744974807040)
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
+        """Replace .mute on spanish server"""
+        if msg.guild.id == 243838819743432704:
+            if msg.content.startswith('.mute'):
+                await msg.channel.send(f"I've disabled Nadeko's `.mute` since it's broken.   Use Rai's `;mute` (syntax "
+                                       f"should all be the same)")
 
         """Replace tatsumaki/nadeko serverinfo posts"""
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
