@@ -3,9 +3,11 @@ Discord bot for Discord langauge servers (Python).  Some key features:
 - Extensive logging of joins, leaves, bans, deletes, edits, reaction removes, and invites that people use to join a server
 - A report room for users to make either anonymous reports to mods or enter a mod report chat room to discuss an issue.  Designed to eliminate the need for private messages completely from mod business.  
 - A smart message prune/clear command which takes a message ID as input so you don't have to count messages
-- Configurable captcha to enter a server
+- Configurable reaction requirement to enter a server
 - Super watchlist for when you have raiders who are repeatedly making accounts and spamming gore/porn/etc.
 - A questions module to manage the questions queue of a server.  Mainly, for people who ask hard questions that get swept away in the channel, this module will help them make sure their question eventually gets answered.
+- Options module for easy configuration of options
+- Unlimited duration timed mutes and bans.
 
 Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=3072
 
@@ -46,14 +48,26 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
   
 ## Admin Commands
-The commands in this module are only usable by users with either the `Administrator` privelege in a server, or if they have the mod role set in the next command.
+The commands in this module are only usable by users with either the `Administrator` privelege in a server, or if they have the mod role set in the next command.  **Most of these commands can be manipulated easier by typing `;options` and using the menu that comes up.**
+
+#### Setting the mod channel
+Important messages from the bot will go here.  This channel doesn't have to actually be your mod channel, just in the channel you want important notifications to go, type:
+` **`;set_mod_channel`** Sets the current channel as the mod channel
 
 #### Setting the mod role  
 - **`;set_mod_role [role name]`** Sets the mod role for the server.  Type the name of the role exactly in [role name].
+- **`;set_submod_role [role name]`** If you want to optionally allow a secondary role to be able to mute users, use this.  Otherwise, `;mute` will default to the main mod role.
   
 #### Setting a custom prefix
 - **`;set_prefix [prefix]`** Sets a custom prefix, for example, `;set_prefix !`
   - **`<prefix>set_prefix reset`** Resets the prefix to `;`
+  
+#### Ban/Mute
+- **`;ban [time] <user> [reason]`** Bans a user for an optional amount of time with an optional reason.  Examples:
+  - `;ban @Ryry013` Bans me indefinitely.  
+  - `;ban 1d2h @Ryry013` Bans me for 1 day and 2 hours.
+  ` `;ban @Ryry013 for being mean` Bans me indefinitely for being mean.
+- **`;mute [time] <user>`** Mutes a user from all text and voice chat.  Similar usage to the above `;ban` command.
   
 #### Captcha to enter a server
 Sets up a requirement to react to a message with a checkmark to enter a server / get a role.  Follow these steps:
