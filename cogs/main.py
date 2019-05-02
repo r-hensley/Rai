@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, date
 from .utils import helper_functions as hf
 import langdetect
-import hashlib
+import re
 
 import os
 
@@ -52,24 +52,52 @@ class Main(commands.Cog):
     @commands.command(hidden=True)
     async def _unban_users(self, ctx):
         config = self.bot.db['bans']
-        to_delete = []
         for guild_id in config:
+            unbanned_users = []
             guild_config = config[guild_id]
+            try:
+                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
+            except KeyError:
+                mod_channel = None
             if 'timed_bans' in guild_config:
-                for member_id in guild_config['timed_bans']:
+                for member_id in guild_config['timed_bans'].copy():
                     unban_time = datetime.strptime(guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC")
                     if unban_time < datetime.utcnow():
                         guild = self.bot.get_guild(int(guild_id))
                         member = discord.Object(id=member_id)
                         try:
                             await guild.unban(member, reason="End of timed ban")
-                            to_delete.append((guild_id, 'timed_bans', member_id))
+                            del config[guild_id]['timed_bans'][member_id]
+                            unbanned_users.append(member_id)
                         except discord.NotFound:
                             pass
-        if to_delete:
-            for i in to_delete:
-                del config[i[0]][i[1]][i[2]]
-            await hf.dump_json()
+            if mod_channel and unbanned_users:
+                unbanned_users = [f"<@{i}>" for i in unbanned_users]
+                await mod_channel.send(embed=discord.Embed(description=f"I've unbanned {', '.join(unbanned_users)}, as"
+                                                                       f"the time for their temporary ban has expired",
+                                                           color=discord.Color(int('00ffaa', 16))))
+
+    @commands.command(hidden=True)
+    async def _unmute_users(self, ctx):
+        config = self.bot.db['mutes']
+        for guild_id in config:
+            unmuted_users = []
+            guild_config = config[guild_id]
+            try:
+                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id]) 
+            except KeyError:
+                mod_channel = None
+            if 'timed_mutes' in guild_config:
+                for member_id in guild_config['timed_mutes'].copy():
+                    unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
+                    if unmute_time < datetime.utcnow():
+                        await ctx.invoke(self.bot.get_command('unmute'), member_id, guild_id, True)
+                        unmuted_users.append(member_id)
+            if unmuted_users and mod_channel:
+                unmuted_users = [f"<@{i}>" for i in unmuted_users]
+                await mod_channel.send(embed=discord.Embed(description=f"I've unmuted {', '.join(unmuted_users)}, as "
+                                                                       f"the time for their temporary mute has expired",
+                                                           color=discord.Color(int('00ffaa', 16))))
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -93,7 +121,6 @@ class Main(commands.Cog):
             await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
 
         if not isinstance(msg.channel, discord.TextChannel):
-            print(msg.created_at, msg.author.name)
             return  # stops the rest of the code unless it's in a guild
 
         """chinese server banned words"""
@@ -109,11 +136,9 @@ class Main(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                     log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
                     if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
-                        print('1')
                         try:
                             await msg.delete()
                         except discord.Forbidden:
-                            print('2')
                             await mod_channel.send(f"Rai is lacking the permission to delete messages for the Chinese "
                                                    f"spam message.")
 
@@ -182,7 +207,7 @@ class Main(commands.Cog):
                 fourteen = self.bot.get_user(136444391777763328)
                 em = discord.Embed(title=f"Mods Ping",
                                    description=f"From {msg.author.mention} ({msg.author.name}) "
-                                               f"in {msg.channel.mention}",
+                                               f"in {msg.channel.mention}\n{msg.jump_url}",
                                    color=discord.Color(int('FFAA00', 16)),
                                    timestamp=datetime.utcnow())
                 em.add_field(name="Content", value=f"{msg.content}\n⁣".replace('<@&258806166770024449>', ''))
@@ -1470,6 +1495,89 @@ class Main(commands.Cog):
                                                                               "holds residencies in which servers.\n\n")
         emb.description += users_str
         await ctx.send(embed=emb)
+
+    @commands.command()
+    @hf.is_submod()
+    @commands.bot_has_permissions(manage_roles=True)
+    async def mute(self, ctx, time, member=None):
+        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`"""
+        async def set_channel_overrides(role):
+            failed_channels = []
+            for channel in ctx.guild.voice_channels:
+                if role not in channel.overwrites:
+                    try:
+                        await channel.set_permissions(role, speak=False)
+                    except discord.Forbidden:
+                        failed_channels.append(channel.name)
+            for channel in ctx.guild.text_channels:
+                if role not in channel.overwrites:
+                    try:
+                        await channel.set_permissions(role, send_messages=False, add_reactions=False, attach_files=False)
+                    except discord.Forbidden:
+                        failed_channels.append(channel.name)
+            return failed_channels
+
+        if str(ctx.guild.id) not in self.bot.db['mutes']:
+            await ctx.send("Doing first-time setup of mute module.  I will create a `rai-mute` role, "
+                           "add then a permission override for it to every channel to prevent communication")
+            role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
+            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+            failed_channels = await set_channel_overrides(role)
+            if failed_channels:
+                await ctx.send(f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
+                               f"member joins this (these) channel(s), they'll be able to type/speak.")
+        else:
+            config = self.bot.db['mutes'][str(ctx.guild.id)]
+            role = ctx.guild.get_role(config['role'])
+            await set_channel_overrides(role)
+        time_string, length = hf.parse_time(str(time))
+        if not time_string:
+            member = time
+        target = await hf.member_converter(ctx, member)
+        if not target:
+            return
+        if role in target.roles:
+            await ctx.send("This user is already muted (already has the mute role)")
+            return
+        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+        if time_string:
+            config['timed_mutes'][str(target.id)] = time_string
+            await hf.dump_json()
+        emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been **muted** from text and "
+                                        f"voice chat.",
+                            color=discord.Color(int('FF0000', 16)))
+        if time_string:
+            emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
+        await ctx.send(embed=emb)
+
+    @commands.command()
+    @hf.is_submod()
+    @commands.bot_has_permissions(manage_roles=True)
+    async def unmute(self, ctx, target, guild=None, silent=False):
+        """Unmutes a user"""
+        if not guild:
+            guild = ctx.guild
+        else:
+            guild = self.bot.get_guild(int(guild))
+        config = self.bot.db['mutes'][str(guild.id)]
+        role = guild.get_role(config['role'])
+        target: discord.Member = await hf.member_converter(ctx, target)
+        if not target:
+            return
+        if role not in target.roles:
+            await ctx.send("This user is not muted")
+            return
+        try:
+            await target.remove_roles(role)
+        except discord.HTTPException:
+            pass
+        if str(target.id) in config['timed_mutes']:
+            del config['timed_mutes'][str(target.id)]
+            await hf.dump_json()
+        emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+                            color=discord.Color(int('00ffaa', 16)))
+        if not silent:
+            await ctx.send(embed=emb)
 
 
 def setup(bot):

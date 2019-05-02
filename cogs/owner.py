@@ -28,7 +28,7 @@ class Owner(commands.Cog):
         self.sessions = set()
 
     async def cog_check(self, ctx):
-        return ctx.author.id in [202995638860906496, 414873201349361664]
+        return ctx.author.id in [202995638860906496, 414873201349361664, 528770932613971988]
 
     def get_syntax_error(self, e):
         if e.text is None:

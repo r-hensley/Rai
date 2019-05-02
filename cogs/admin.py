@@ -81,8 +81,11 @@ class Admin(commands.Cog):
         msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
                f"to the user, or `no` to cancel."
         if ctx.author in self.bot.get_guild(257984339025985546).members and not reason.startswith('⁣'):
-            if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` before the reason)"
+            try:
+                if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                    msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` before the reason)"
+            except KeyError:
+                pass
         msg2 = await ctx.send(msg2)
         try:
             msg = await self.bot.wait_for('message',
@@ -114,6 +117,7 @@ class Admin(commands.Cog):
             timed_bans[str(target.id)] = time_string
             await hf.dump_json()
         await ctx.send(f"Successfully banned")
+
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
@@ -380,6 +384,20 @@ class Admin(commands.Cog):
         await hf.dump_json()
 
     @commands.command()
+    async def set_submod_role(self, ctx, role_name):
+        """Set the submod role for your server.  Type the exact name of the role like `;set_submod_role Mods`."""
+        config = hf.database_toggle(ctx, self.bot.db['submod_role'])
+        if 'enable' in config:
+            del (config['enable'])
+        submod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        if not submod_role:
+            await ctx.send("The role with that name was not found")
+            return None
+        config['id'] = submod_role.id
+        await ctx.send(f"Set the submod role to {submod_role.name} ({submod_role.id})")
+        await hf.dump_json()
+
+    @commands.command()
     async def set_mod_role(self, ctx, role_name):
         """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`."""
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
@@ -634,7 +652,9 @@ class Admin(commands.Cog):
 #           main > set mod role
             elif choice == '1':
                 while True:
-                    options = ['Set the mod role (`;set_mod_role`)', "Unset the mod role"]
+                    options = ['Set the mod role (`;set_mod_role`)', "Unset the mod role",
+                               "Set the submod role (currently only for the mute and ;question answer commands) "
+                               "(`;set_submod_role`)", "Unset the submod role"]
                     emb = self.make_options_embed(options)
                     emb.title = "Setting mod role"
                     try:
@@ -644,7 +664,7 @@ class Admin(commands.Cog):
                     except KeyError:
                         emb.description = f"No role is currently set\n" + emb.description
 
-                    choices = ['1', '2', 'b', 'x']
+                    choices = ['1', '2', '3', '4', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
                     if choice == 'time_out':
                         return
@@ -669,6 +689,21 @@ class Admin(commands.Cog):
                             await ctx.send("Removed the setting for a mod role")
                         except KeyError:
                             await ctx.send("You currently don't have a mod role set")
+                    elif choice == '3':
+                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                                                   "the submod role")
+                        reply_msg = await self.bot.wait_for('message',
+                                                            timeout=20.0,
+                                                            check=lambda x: x.author == ctx.author)
+                        await ctx.invoke(self.set_submod_role, reply_msg.content)
+                        await instr_msg.delete()
+                        await reply_msg.delete()
+                    elif choice == '4':
+                        try:
+                            del self.bot.db['submod_role'][str(ctx.guild.id)]
+                            await ctx.send("Removed the setting for a submod role")
+                        except KeyError:
+                            await ctx.send("You currently don't have a submod role set")
 
 
 #           main > set mod channel
