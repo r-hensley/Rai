@@ -37,6 +37,40 @@ class Admin(commands.Cog):
             await ctx.send(f"Rai won't crosspost ban logs anymore")
         await hf.dump_json()
 
+    @commands.group(invoke_without_command=True)
+    async def stats(self, ctx):
+        """Enable/disable keeping of statistics for users (`;u`)"""
+        guild = str(ctx.guild.id)
+        if guild in self.bot.db['stats']:
+            self.bot.db['stats'][guild]['enable'] = not self.bot.db['stats'][guild]['enable']
+        else:
+            self.bot.db['stats'][guild] = {'enable': True,
+                                           'messages': {},
+                                           'hidden': [],
+                                           'voice':
+                                               {'in_voice': {},
+                                                'total_time': {}}
+                                           }
+        await ctx.send(f"Logging of stats is now set to {self.bot.db['stats'][guild]['enable']}.")
+        await hf.dump_json()
+
+    @stats.command()
+    async def hide(self, ctx):
+        """Hides the current channel from being shown in user stat pages"""
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['hidden']
+        except KeyError:
+            return
+        channel = str(ctx.channel.id)
+        if channel in config:
+            config.remove(channel)
+            await ctx.send(f"Removed this channel from the list of hidden channels.  It will now be shown when "
+                           f"someone calls their stats page.")
+        else:
+            config.append(channel)
+            await ctx.send(f"Hid this channel.  When someone calls their stats page, it will not be shown.")
+        await hf.dump_json()
+
     @commands.command()
     @hf.is_admin()
     @commands.bot_has_permissions(ban_members=True)
@@ -103,13 +137,13 @@ class Admin(commands.Cog):
         text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
         if reason.startswith('⁣'):
             text = '⁣' + text
-        if content == 'yes':
-            await target.ban(reason=text)
-            await msg2.delete()
         if content == 'send':
             await target.send(embed=em)
+        try:
             await target.ban(reason=text)
-            await msg2.delete()
+        except discord.Forbidden:
+            await ctx.send(f"I couldn't ban that user.  They're probably above me in the role list.")
+            return
         if length:
             config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
                                                     {'enable': False, 'channel': None, 'timed_bans': {}})
@@ -117,7 +151,6 @@ class Admin(commands.Cog):
             timed_bans[str(target.id)] = time_string
             await hf.dump_json()
         await ctx.send(f"Successfully banned")
-
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
@@ -285,6 +318,18 @@ class Admin(commands.Cog):
 
     @captcha.command(name="set_role")
     async def captcha_set_role(self, ctx, *, role_input: str = None):
+        if not role_input:
+            instr_msg = await ctx.send(f"Please input the exact name of the role new users will receive")
+            try:
+                reply_msg = await self.bot.wait_for('message',
+                                                    timeout=20.0,
+                                                    check=lambda x: x.author == ctx.author)
+                await instr_msg.delete()
+                await reply_msg.delete()
+            except asyncio.TimeoutError:
+                await ctx.send("Module timed out")
+                await instr_msg.delete()
+                return
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -497,16 +542,85 @@ class Admin(commands.Cog):
             await ctx.send(string[0:2000])
             await ctx.send(string[2000:])
 
+    @commands.command(hidden=True)
+    async def command_into_voice(self, ctx, member):
+        if not ctx.author == self.bot.user:
+            return
+        await self.into_voice(member)
+
+    async def into_voice(self, member):
+        if member.bot:
+            return
+        guild = str(member.guild.id)
+        member_id = str(member.id)
+        config = self.bot.db['stats'][guild]['voice']
+        config['in_voice'][member_id] = datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+
+    @commands.command(hidden=True)
+    async def command_out_of_voice(self, ctx, member, date_str=None):
+        if not ctx.author == self.bot.user:
+            return
+        await self.out_of_voice(member, date_str=None)
+
+    async def out_of_voice(self, member, date_str=None):
+        guild = str(member.guild.id)
+        member_id = str(member.id)
+        config = self.bot.db['stats'][guild]['voice']
+        if member_id not in config['in_voice']:
+            return
+
+        # calculate how long they've been in voice
+        join_time = datetime.strptime(config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC")
+        total_length = (datetime.utcnow() - join_time).seconds
+        hours = total_length // 3600
+        minutes = total_length % 3600 // 60
+        del config['in_voice'][member_id]
+
+        # add to their total
+        if not date_str:
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+        if date_str not in config['total_time']:
+            config['total_time'][date_str] = {}
+        today = config['total_time'][date_str]
+        if member_id not in today:
+            today[member_id] = [hours, minutes]
+        else:
+            today[member_id][0] += hours
+            today[member_id][1] += minutes
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        try:
-            config = self.bot.db['super_voicewatch'][str(member.guild.id)]
-        except KeyError:
-            return
-        if member.id in config['users'] and not before.channel and after.channel:
-            channel = self.bot.get_channel(config['channel'])
-            await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
-                               f"({after.channel.name})")
+        async def superwatch_check():
+            try:
+                config = self.bot.db['super_voicewatch'][str(member.guild.id)]
+            except KeyError:
+                return
+            if member.id in config['users'] and not before.channel and after.channel:
+                channel = self.bot.get_channel(config['channel'])
+                await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
+                                   f"({after.channel.name})")
+        await superwatch_check()
+
+        """voice stats"""
+        # voice
+        # 	in_voice:
+        # 		user1:
+        # 			enter_utc
+        # 	total_time:
+        # 		user1: hours
+        async def voice_update():
+            guild = str(member.guild.id)
+            if guild not in self.bot.db['stats']:
+                return
+            if not self.bot.db['stats'][guild]['enable']:
+                return
+
+            if not before.channel and after.channel:  # joins voice
+                await self.into_voice(member)
+            if before.channel and not after.channel:
+                await self.out_of_voice(member)
+        await voice_update()
+
 
     @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'], hidden=True)
     async def super_watch(self, ctx):
@@ -1087,7 +1201,9 @@ class Admin(commands.Cog):
                                "Set the report room (this is where users get taken for reports) (`;report setup`)",
                                "Check the report room waiting list (`;report check_waiting_list`)",
                                "Clear the report room waiting list (`;report clear_waiting_list`)",
-                               "Reset the report room (in case of bugs) (`;report reset`)"]
+                               "Reset the report room (in case of bugs) (`;report reset`)",
+                               "Ping `@here` when someone makes an anonymous report (`;report anonymous_ping`)",
+                               "Ping `@here` when someone makes enters the report room (`;report room_ping`)"]
                     emb = self.make_options_embed(options)
                     emb.title = "Setting up the report module"
                     try:
@@ -1098,7 +1214,7 @@ class Admin(commands.Cog):
                     except KeyError:
                         emb.description = f"The report room is not setup yet.\n{emb.description}"
 
-                    choices = ['1', '2', '3', '4', '5', '6', 'b', 'x']
+                    choices = ['1', '2', '3', '4', '5', '6', '7', '8', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
                     if choice == 'time_out':
                         return
@@ -1122,11 +1238,13 @@ class Admin(commands.Cog):
 
                     # set mod channel
                     elif choice == '2':
+                        print(ctx)
                         await ctx.invoke(self.set_mod_channel)
 
                     # Set the report room
                     elif choice == '3':
-                        await ctx.invoke(self.bot.get_command('report report_setup'))
+                        print(ctx)
+                        await ctx.invoke(self.bot.get_command('report setup'))
 
                     # Check waiting list
                     elif choice == '4':
@@ -1138,8 +1256,15 @@ class Admin(commands.Cog):
 
                     # Reset report room
                     elif choice == '6':
-                        await ctx.invoke(self.bot.get_command('report report_reset'))
+                        await ctx.invoke(self.bot.get_command('report reset'))
 
+                    # Ping `@here` for anonymous reports
+                    elif choice == '7':
+                        await ctx.invoke(self.bot.get_command('report anonymous_ping'))
+
+                    # Ping `@here` for users in the report room
+                    elif choice == '8':
+                        await ctx.invoke(self.bot.get_command('report room_ping'))
 
 #           main > questions module
             elif choice == '6':
@@ -1195,18 +1320,7 @@ class Admin(commands.Cog):
 
                     # Set the role the new users will receive upon reacting"
                     elif choice == '3':
-                        instr_msg = await ctx.send(f"Please input the exact name of the role new users will receive")
-                        try:
-                            reply_msg = await self.bot.wait_for('message',
-                                                                timeout=20.0,
-                                                                check=lambda x: x.author == ctx.author)
-                            await instr_msg.delete()
-                            await reply_msg.delete()
-                            await ctx.invoke(self.captcha_set_role, reply_msg.content)
-                        except asyncio.TimeoutError:
-                            await ctx.send("Module timed out")
-                            await instr_msg.delete()
-                            return
+                        await ctx.invoke(self.captcha_set_role)
 
                     # Post the message to this channel
                     elif choice == '4':

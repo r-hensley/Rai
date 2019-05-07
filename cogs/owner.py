@@ -35,6 +35,25 @@ class Owner(commands.Cog):
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
+    @commands.command(aliases=['crr'], hidden=True)
+    async def clean_readd_roles(self, ctx):
+        """This was to clean out all the roles in the readd_roles database which had the `@everyone` role"""
+        print('counting')
+        config = self.bot.db['readd_roles']
+        for guild_id in config:
+            guild = self.bot.get_guild(int(guild_id))
+            guild_config = config[guild_id]['users']
+            in_roles = 0
+            only_role = 0
+            for user in guild_config.copy():
+                if guild.id in guild_config[user][1]:
+                    in_roles += 1
+                    guild_config[user][1].remove(guild.id)
+                    if len(guild_config[user][1]) == 0:
+                        only_role += 1
+                        del guild_config[user]
+            print(guild.name, in_roles, only_role)
+
     @commands.command()
     async def flush(self, ctx):
         """Flushes stderr/stdout"""

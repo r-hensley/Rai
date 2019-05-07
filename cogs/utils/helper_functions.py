@@ -83,7 +83,8 @@ async def member_converter(ctx, user):
     try:
         return await commands.MemberConverter().convert(ctx, user)
     except commands.errors.BadArgument:  # invalid user given
-        await ctx.send('User not found')
+        if ctx.author != ctx.bot.user:
+            await ctx.send('User not found')
         return None
 
 
