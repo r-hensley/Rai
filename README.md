@@ -8,6 +8,7 @@ Discord bot for Discord langauge servers (Python).  Some key features:
 - A questions module to manage the questions queue of a server.  Mainly, for people who ask hard questions that get swept away in the channel, this module will help them make sure their question eventually gets answered.
 - Options module for easy configuration of options
 - Unlimited duration timed mutes and bans.
+- Stats module for showing most active users in the server and per channel for the last month.
 
 Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=3072
 
@@ -24,6 +25,7 @@ List of commands for Rai bot.
   - [Clear/prune messages](#clearprune-messages)
   - [Super_watch lists: an anti-raid tool](#super_watch-lists-an-anti-raid-tool)
   - [Invite link/amazingsexdating spam auto-banning](#invite-linkamazingsexdating-spam-auto-banning)
+  - [Stats](#stats)
   - [Chinese server only commands](#chinese-server-only)
   - [Spanish server only commands](#spanish-server-only)
   - [Japanese server only commands](#japanese-server-only)
@@ -34,10 +36,13 @@ List of commands for Rai bot.
 
 ## General
 These are usable by anyone, mostly just for fun or light general utility.
+- **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
 - **`;eraser`** Erases the last character of your nickname, supposedly a :pencil:, made in conjunction with ;pencil.  Mostly a joke command
 - **`;github`** Shows my github page
 - **`;invite`** Gives an invite to invite Rai to your server
+- **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
 - **`;kawaii`** Try it
+- **`;lb`** Shows the guild leaderboard.
 - **`;nadeko_flip_test`** A command to simulate the Martingale strategy for Nadeko's coin flip gambling module (alias `;nft`)
 - **`;ping`** Doesn't actually perform a ping test but still a good test
 - **`;pencil`** Adds a :pencil: to the end of your name to signify that you wish to be corrected.  See ;eraser
@@ -45,7 +50,9 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;randomWalk`** <number> Generates a random walk plot, try it
 - **`;report`** Starts the dialogue in PM for entering the report room (server admins must run the setup command first)
 - **`;ryan`** Posts an invite link to this page/my testing server
-- **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
+- **`;u`** Shows your profile information
+
+
   
 ## Admin Commands
 The commands in this module are only usable by users with either the `Administrator` privelege in a server, or if they have the mod role set in the next command.  **Most of these commands can be manipulated easier by typing `;options` and using the menu that comes up.**
@@ -136,6 +143,13 @@ Formatting variables: Put any of these in the welcome message to have them repla
 - `$NAME` → The name of the user (not a mention, just plaintext)
 - `$USERMENTION$` → A ping/mention to the user
 - `$SERVER$` → The name of the server
+
+#### Stats
+Will keep track of the top posters in a server, and also per channel.  Give users their most-talked-in channels.
+- **`;stats`** Enable/disable the stats module
+- **`;u`** Shows your profile information
+- **`;lb`** Shows the guild leaderboard.
+- **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
 
 #### Chinese server only
 - **`;hardcore`** Posts a message in that channel with a reaction for people to click to assign hardcore mode to themselves
