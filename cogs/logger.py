@@ -330,7 +330,7 @@ class Logger(commands.Cog):
             await hf.dump_json()
 
     @staticmethod
-    async def make_welcome_embed(member, used_invite):
+    async def make_welcome_embed(member, used_invite, list_of_roles=None):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
@@ -349,6 +349,8 @@ class Logger(commands.Cog):
             footer_text = f'User Join ({member.guild.member_count}) {invite_string}'
         else:
             footer_text = f'User Join ({member.guild.member_count})'
+        if list_of_roles:
+            emb.add_field(name='Readded roles:', value=', '.join(reversed([role.name for role in list_of_roles])))
 
         emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
 
@@ -420,11 +422,9 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(server_config['channel'])
                 try:
                     invites_enable = server_config['invites_enable']
-                    await hf.dump_json()
                 except KeyError:
                     server_config['invites_enable'] = False
                     invites_enable = server_config['invites_enable']
-                    await hf.dump_json()
                     await channel.send("I've added a toggle for invite tracking since it requires `Manage Server` "
                                        "permission.  If you wish Rai to track used invite links for joins, please type "
                                        "`welcomes invites`.")
@@ -442,7 +442,6 @@ class Logger(commands.Cog):
                         if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
                             old_invites = {invite.code: invite.uses for invite in invites}
                             self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
-                            await hf.dump_json()
                         else:
                             new_invites = {invite.code: invite.uses for invite in invites}
                             for invite in new_invites:
@@ -458,14 +457,94 @@ class Logger(commands.Cog):
                                         break
                             if not used_invite:
                                 print('>>Was unable to find invite<<')
+
+                def get_list_of_roles():
+                    list_of_roles = []
+                    roles_dict = {role.id: role for role in member.guild.roles}
+                    for role in config['users'][str(member.id)][1]:
+                        try:
+                            list_of_roles.append(roles_dict[role])
+                        except KeyError:
+                            pass
+                    return list_of_roles
+
+                """Japanese Server Welcome / readding roles"""
+                list_of_roles = []
+                if guild == '189571157446492161':
+                    print('1')
+                    # check if they joined from a Japanese site or other
+                    # the following links are specifically the ones we've used to advertise on japanese sites
+                    japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+                    post_message = True
+                    try:
+                        config = self.bot.db['readd_roles'][str(member.guild.id)]
+                        print('2')
+                    except KeyError:
+                        pass
+                    else:
+                        print('3')
+                        if config['enable'] and str(member.id) in config['users']:
+                            print('4')
+                            post_message = False
+                            list_of_roles = get_list_of_roles()
+                            new_user_role = member.guild.get_role(249695630606336000)
+                            if new_user_role in list_of_roles:
+                                list_of_roles.remove(new_user_role)
+                            if list_of_roles:
+                                print('5')
+                                await member.add_roles(*list_of_roles)
+                                await member.remove_roles(new_user_role)
+                                await self.bot.jpJHO.send(
+                                    f"Welcome back {member.name}! I've given your previous roles back to you")
+                                del config['users'][str(member.id)]
                     finally:
-                        await hf.dump_json()
+                        print('6')
+                        if post_message:
+                            print('7')
+                            if used_invite:
+                                print('8')
+                                if str(used_invite.code) in japanese_links:
+                                    await self.bot.jpJHO.send(
+                                        f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+                            elif member.id != 414873201349361664:
+                                print('9')
+                                await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                        if member.id == 414873201349361664:
+                            async for message in self.bot.jpJHO.history(limit=10):
+                                if message.author.id == 159985870458322944:
+                                    await message.delete()
+                                    break
+                            try:
+                                msg = await self.bot.wait_for('message', timeout=10.0,
+                                                              check=lambda m: m.author.id == 299335689558949888 and
+                                                              m.channel == self.bot.jpJHO)
+                                await msg.delete()
+                            except asyncio.TimeoutError:
+                                pass
+
+                else:
+                    try:
+                        config = self.bot.db['readd_roles'][str(member.guild.id)]
+                    except KeyError:
+                        pass
+                    else:
+                        if config['enable'] and str(member.id) in config['users']:
+                            list_of_roles = get_list_of_roles()
+                            await member.add_roles(*list_of_roles)
+                            try:
+                                await member.send(
+                                    f"Welcome back {member.name}! I've given your previous roles back to you")
+                            except discord.errors.Forbidden:
+                                pass
+                            del config['users'][str(member.id)]
 
                 try:
-                    x = await self.make_welcome_embed(member, used_invite)
+                    x = await self.make_welcome_embed(member, used_invite, list_of_roles)
                     await channel.send(embed=x)
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
+
+                await hf.dump_json()
 
         """ban invite link names"""
         try:
@@ -511,65 +590,6 @@ class Logger(commands.Cog):
                 await channel.send(message)
         except KeyError:
             pass
-
-        """Japanese Server Welcome"""
-        if guild == '189571157446492161':
-            # check if they joined from a Japanese site or other
-            # the following links are specifically the ones we've used to advertise on japanese sites
-            japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
-            post_message = True
-            try:
-                config = self.bot.db['readd_roles'][str(member.guild.id)]
-            except KeyError:
-                pass
-            else:
-                if config['enable'] and str(member.id) in config['users']:
-                    post_message = False
-                    roles_dict = {role.id: role for role in member.guild.roles}
-                    list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
-                    del (list_of_roles[0])
-                    new_user_role = member.guild.get_role(249695630606336000)
-                    if new_user_role in list_of_roles:
-                        list_of_roles.remove(new_user_role)
-                    if list_of_roles:
-                        await member.add_roles(*list_of_roles)
-                        await member.remove_roles(new_user_role)
-                        await self.bot.jpJHO.send(
-                            f"Welcome back {member.name}! I've given your previous roles back to you")
-                        del config['users'][str(member.id)]
-                        await hf.dump_json()
-            finally:
-                if post_message:
-                    if used_invite:
-                        if str(used_invite.code) in japanese_links:
-                            await self.bot.jpJHO.send(f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                    elif member.id != 414873201349361664:
-                        await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
-                if member.id == 414873201349361664:
-                    async for message in self.bot.jpJHO.history(limit=10):
-                        if message.author.id == 159985870458322944:
-                            await message.delete()
-                            break
-                    msg = await self.bot.wait_for('message', timeout=5.0,
-                                                  check=lambda m: m.author.id == 299335689558949888)
-                    await msg.delete()
-        else:
-            try:
-                config = self.bot.db['readd_roles'][str(member.guild.id)]
-            except KeyError:
-                pass
-            else:
-                if config['enable'] and str(member.id) in config['users']:
-                    roles_dict = {role.id: role for role in member.guild.roles}
-                    list_of_roles = [roles_dict[role] for role in config['users'][str(member.id)][1]]
-                    del (list_of_roles[0])
-                    await member.add_roles(*list_of_roles)
-                    try:
-                        await member.send(f"Welcome back {member.name}! I've given your previous roles back to you")
-                    except discord.errors.Forbidden:
-                        pass
-                    del config['users'][str(member.id)]
-                    await hf.dump_json()
 
         """Spanish Server welcome"""
         if member.guild == self.bot.spanServ:
@@ -632,6 +652,10 @@ class Logger(commands.Cog):
             if self.bot.db['leaves'][guild]['enable']:
                 guild_config = self.bot.db['leaves'][guild]
                 channel = self.bot.get_channel(guild_config['channel'])
+                if not channel:
+                    del self.bot.db['leaves'][guild]
+                    await hf.dump_json()
+                    return
                 try:
                     await channel.send(embed=self.make_leave_embed(member))
                 except discord.errors.Forbidden:
@@ -646,6 +670,7 @@ class Logger(commands.Cog):
                 role_list = [role.id for role in member.roles]
                 if 249695630606336000 in role_list:  # new user
                     role_list.remove(249695630606336000)
+                role_list.remove(member.guild.id)
                 if role_list:  # if the role list isn't empty (i.e., no roles)
                     config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"), role_list]
                     await hf.dump_json()
@@ -849,7 +874,7 @@ class Logger(commands.Cog):
         ban_entry = None
         reason = "(could not find audit log entry)"
         by = ""
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
         async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                             action=discord.AuditLogAction.ban,
                                             after=datetime.utcnow() - timedelta(seconds=20)):

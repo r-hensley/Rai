@@ -50,6 +50,32 @@ class Main(commands.Cog):
         await ctx.send(embed=emb)
 
     @commands.command(hidden=True)
+    async def _check_desync_voice(self, ctx):
+        config = self.bot.db['stats']
+        for guild_id in config:
+            if guild_id not in config:
+                continue
+            if not config[guild_id]['enable']:
+                continue
+            guild_config = config[guild_id]
+            guild = self.bot.get_guild(int(guild_id))
+            voice_channels = guild.voice_channels
+            users_in_voice = []
+            for channel in voice_channels:
+                users_in_voice += [str(member.id) for member in channel.members]
+            for user_id in guild_config['voice']['in_voice'].copy():  # in DB, not in voice
+                if user_id not in users_in_voice:
+                    member = guild.get_member(int(user_id))
+                    if not member:
+                        del guild_config['voice']['in_voice'][user_id]
+                        return
+                    await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
+            for user_id in users_in_voice.copy():  # in voice, not in DB
+                if user_id not in guild_config['voice']['in_voice']:
+                    member = guild.get_member(int(user_id))
+                    await ctx.invoke(self.bot.get_command("command_into_voice"), member)
+
+    @commands.command(hidden=True)
     async def _unban_users(self, ctx):
         config = self.bot.db['bans']
         for guild_id in config:
@@ -72,8 +98,11 @@ class Main(commands.Cog):
                         except discord.NotFound:
                             pass
             if mod_channel and unbanned_users:
-                unbanned_users = [f"<@{i}>" for i in unbanned_users]
-                await mod_channel.send(embed=discord.Embed(description=f"I've unbanned {', '.join(unbanned_users)}, as"
+                text_list = []
+                for i in unbanned_users:
+                    user = self.bot.get_user(int(i))
+                    text_list.append(f"{user.mention} ({user.name})")
+                await mod_channel.send(embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as"
                                                                        f"the time for their temporary ban has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
 
@@ -84,18 +113,21 @@ class Main(commands.Cog):
             unmuted_users = []
             guild_config = config[guild_id]
             try:
-                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id]) 
+                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
             except KeyError:
                 mod_channel = None
             if 'timed_mutes' in guild_config:
                 for member_id in guild_config['timed_mutes'].copy():
                     unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
                     if unmute_time < datetime.utcnow():
-                        await ctx.invoke(self.bot.get_command('unmute'), member_id, guild_id, True)
+                        await ctx.invoke(self.bot.get_command('unmute'), member_id, guild_id)
                         unmuted_users.append(member_id)
             if unmuted_users and mod_channel:
-                unmuted_users = [f"<@{i}>" for i in unmuted_users]
-                await mod_channel.send(embed=discord.Embed(description=f"I've unmuted {', '.join(unmuted_users)}, as "
+                text_list = []
+                for i in unmuted_users:
+                    user = self.bot.get_user(int(i))
+                    text_list.append(f"{user.mention} ({user.name})")
+                await mod_channel.send(embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
 
@@ -108,25 +140,57 @@ class Main(commands.Cog):
         # if msg.author.id == 202979770235879427:
         #     channel = self.bot.get_channel(374489744974807040)
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
-        """Replace .mute on spanish server"""
-        if msg.guild.id == 243838819743432704:
-            if msg.content.startswith('.mute'):
-                await msg.channel.send(f"I've disabled Nadeko's `.mute` since it's broken.   Use Rai's `;mute` (syntax "
-                                       f"should all be the same)")
-
-        """Replace tatsumaki/nadeko serverinfo posts"""
-        if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
-            if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
-                new_ctx = await self.bot.get_context(msg)
-                await new_ctx.invoke(self.serverinfo)
 
         """Message as the bot"""
-        if isinstance(msg.channel, discord.DMChannel) \
-                and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
-            await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
+        async def message_as_bot():
+            if isinstance(msg.channel, discord.DMChannel) \
+                    and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
+                await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
 
-        if not isinstance(msg.channel, discord.TextChannel):
-            return  # stops the rest of the code unless it's in a guild
+            if not isinstance(msg.channel, discord.TextChannel):
+                return  # stops the rest of the code unless it's in a guild
+        await message_as_bot()
+
+        """Replace tatsumaki/nadeko serverinfo posts"""
+        async def replace_tatsumaki_posts():
+            if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
+                if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
+                    new_ctx = await self.bot.get_context(msg)
+                    await new_ctx.invoke(self.serverinfo)
+        await replace_tatsumaki_posts()
+
+        """Ping me if someone says my name"""
+        cont = str(msg.content)
+        if (
+                (
+                        'ryry' in cont.casefold()
+                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
+                        or 'らいらい' in cont.casefold()
+                        or 'ライライ' in cont.casefold()
+                ) and
+                (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
+        ):  # random sad face
+            if 'aryan' in cont.casefold():  # why do people say this so often...
+                return
+            else:
+                await self.bot.spamChan.send(
+                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'\n{msg.content}'
+                    f'\n{msg.jump_url} <@202995638860906496>')
+
+        """Self mute"""
+        if msg.author.id == self.bot.owner_id and self.bot.selfMute:
+            try:
+                await msg.delete()
+            except discord.errors.NotFound:
+                pass
+
+        ##########################################
+
+        if not msg.guild:  # all code after this has msg.guild requirement
+            return
+
+        ##########################################
 
         """chinese server banned words"""
         words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
@@ -220,138 +284,148 @@ class Main(commands.Cog):
                 await me.send(embed=em)
                 await fourteen.send(embed=em)
 
-        """Ping me if someone says my name"""
-        cont = str(msg.content)
-        if (
-                (
-                        'ryry' in cont.casefold()
-                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
-                        or 'らいらい' in cont.casefold()
-                        or 'ライライ' in cont.casefold()
-                ) and
-                (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
-        ):  # random sad face
-            if 'aryan' in cont.casefold():  # why do people say this so often...
+        """Replace .mute on spanish server"""
+        if msg.guild.id == 243838819743432704:
+            if msg.content.startswith('.mute'):
+                await msg.channel.send(
+                    f"I've disabled Nadeko's `.mute` since it's broken.   Use Rai's `;mute` (syntax "
+                    f"should all be the same)")
+
+        """super_watch"""
+        try:
+            if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]['users']:
+                channel = self.bot.get_channel(self.bot.db['super_watch'][str(msg.guild.id)]['channel'])
+                await channel.send(
+                    f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
+                    f"\n{msg.content}")
+        except KeyError:
+            pass
+
+        """Message counting"""
+
+        # stats:
+        # 	guild1:
+        # 		enable = True/False
+        # 		messages (for ,u):
+        # 			{5/6/2019:
+        # 				{user_id1:
+        # 					channel1: 30,
+        # 					channel2: 20
+        # 				user_id2:
+        # 					channel1: 40,
+        # 					channel2: 10
+        # 				...}
+        # 			5/5/2019:
+        # 				{user_id1:
+        # 					channel1: 30,
+        # 					channel2: 20
+        # 				user_id2:
+        # 					channel1: 40,
+        # 					channel2: 10
+        # 				...}
+        # 			...
+        def msg_count():
+            if msg.author.bot:
                 return
+            if str(msg.guild.id) not in self.bot.db['stats']:
+                return
+            if not self.bot.db['stats'][str(msg.guild.id)]['enable']:
+                return
+
+            config = self.bot.db['stats'][str(msg.guild.id)]
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            if date_str not in config['messages']:
+                config['messages'][date_str] = {}
+            today = config['messages'][date_str]
+            author = str(msg.author.id)
+            channel = str(msg.channel.id)
+            if author in today:
+                if channel in today[author]:
+                    today[author][channel] += 1
+                else:
+                    today[author][channel] = 1
             else:
-                await self.bot.spamChan.send(
-                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
-                    f'\n{msg.content}'
-                    f'\n{msg.jump_url} <@202995638860906496>')
+                today[author] = {channel: 1}
 
-        """Self mute"""
-        if msg.author.id == self.bot.owner_id and self.bot.selfMute:
-            try:
-                await msg.delete()
-            except discord.errors.NotFound:
-                pass
+        msg_count()
 
-        if msg.guild:
-            """super_watch"""
-            try:
-                if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]['users']:
-                    channel = self.bot.get_channel(self.bot.db['super_watch'][str(msg.guild.id)]['channel'])
-                    await channel.send(
-                        f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
-                        f"\n{msg.content}")
-            except KeyError:
-                pass
+        """Ultra Hardcore"""
+        await hf.uhc_check(msg)
 
-            # """Message counting"""
-            # try:
-            #     if msg.guild.id in [243838819743432704, 189571157446492161]:
-            #         try:
-            #             self.bot.msg_count += 1
-            #         except AttributeError:
-            #             self.bot.msg_count = 1
-            #         try:
-            #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")]. \
-            #                 append([msg.author.id, msg.channel.id])
-            #         except KeyError:
-            #             self.bot.messages[str(msg.guild.id)][msg.created_at.strftime("%Y%m%d")] = \
-            #                 [msg.author.id, msg.channel.id]
-            #         if self.bot.msg_count % 100 == 0:
-            #             self.dump_messages()
-            # except AttributeError:
-            #     pass
-
-            """Ultra Hardcore"""
-            await hf.uhc_check(msg)
-
-            """Chinese server hardcore mode"""
-            if msg.guild.id == 266695661670367232:
-                if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
-                    'ignore']:
-                    if len(msg.content) > 3:
-                        try:
-                            ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
-                            role = msg.guild.get_role(ROLE_ID)
-                        except KeyError:
-                            return
-                        except AttributeError:
-                            return
-                        if role in msg.author.roles:
-                            learning_eng = msg.guild.get_role(266778623631949826)
-                            ratio = hf.jpenratio(msg)
-                            if ratio is not None:
-                                if learning_eng in msg.author.roles:
-                                    if ratio < .55:
-                                        try:
-                                            await msg.delete()
-                                        except discord.errors.NotFound:
-                                            pass
-                                        if len(msg.content) > 30:
-                                            await hf.long_deleted_msg_notification(msg)
-                                else:
-                                    if ratio > .45:
-                                        try:
-                                            await msg.delete()
-                                        except discord.errors.NotFound:
-                                            pass
-                                        if len(msg.content) > 60:
-                                            await hf.long_deleted_msg_notification(msg)
-
-            """Spanish server hardcore"""
-            if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
-                if msg.content[0] != '=' and len(msg.content) > 3:
-                    if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
-                        role = msg.guild.get_role(526089127611990046)
-                        if role in msg.author.roles:
-                            learning_eng = msg.guild.get_role(247021017740869632)
-                            learning_sp = msg.guild.get_role(297415063302832128)
-                            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
-                                try:
-                                    lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
-                                    if lang_res.lang == 'es' and lang_res.prob > 0.97:
-                                        try:
-                                            await msg.delete()
-                                        except discord.errors.NotFound:
-                                            pass
-                                        if len(msg.content) > 30:
-                                            await hf.long_deleted_msg_notification(msg)
-                                except langdetect.lang_detect_exception.LangDetectException:
-                                    pass
-                            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
-                                try:
-                                    lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
-                                    if lang_res.lang == 'en' and lang_res.prob > 0.97:
-                                        try:
-                                            await msg.delete()
-                                        except discord.errors.NotFound:
-                                            pass
-                                        if len(msg.content) > 30:
-                                            await hf.long_deleted_msg_notification(msg)
-                                except langdetect.lang_detect_exception.LangDetectException:
-                                    pass
+        """Chinese server hardcore mode"""
+        if msg.guild.id == 266695661670367232:
+            if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
+                'ignore']:
+                if len(msg.content) > 3:
+                    try:
+                        ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
+                        role = msg.guild.get_role(ROLE_ID)
+                    except KeyError:
+                        return
+                    except AttributeError:
+                        return
+                    if role in msg.author.roles:
+                        learning_eng = msg.guild.get_role(266778623631949826)
+                        ratio = hf.jpenratio(msg)
+                        if ratio is not None:
+                            if learning_eng in msg.author.roles:
+                                if ratio < .55:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 30:
+                                        await hf.long_deleted_msg_notification(msg)
                             else:
-                                try:
-                                    await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                                          "learning role.  Please attach either 'Learning Spanish' or "
-                                                          "'Learning English' to properly use hardcore mode, or take "
-                                                          "off hardcore mode using the reactions in the server rules "
-                                                          "page")
-                                except discord.errors.Forbidden:
-                                    pass
+                                if ratio > .45:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 60:
+                                        await hf.long_deleted_msg_notification(msg)
+
+        """Spanish server hardcore"""
+        if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
+            if msg.content[0] != '=' and len(msg.content) > 3:
+                if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
+                    role = msg.guild.get_role(526089127611990046)
+                    if role in msg.author.roles:
+                        learning_eng = msg.guild.get_role(247021017740869632)
+                        learning_sp = msg.guild.get_role(297415063302832128)
+                        if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+                            try:
+                                lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
+                                if lang_res.lang == 'es' and lang_res.prob > 0.97:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 30:
+                                        await hf.long_deleted_msg_notification(msg)
+                            except langdetect.lang_detect_exception.LangDetectException:
+                                pass
+                        elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+                            try:
+                                lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
+                                if lang_res.lang == 'en' and lang_res.prob > 0.97:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 30:
+                                        await hf.long_deleted_msg_notification(msg)
+                            except langdetect.lang_detect_exception.LangDetectException:
+                                pass
+                        else:
+                            try:
+                                await msg.author.send("You have hardcore enabled but you don't have the proper "
+                                                      "learning role.  Please attach either 'Learning Spanish' or "
+                                                      "'Learning English' to properly use hardcore mode, or take "
+                                                      "off hardcore mode using the reactions in the server rules "
+                                                      "page")
+                            except discord.errors.Forbidden:
+                                pass
 
     @commands.command()
     async def kawaii(self, ctx):
@@ -599,6 +673,37 @@ class Main(commands.Cog):
         await ctx.send(f"The report module has been reset on this server.  Check the permission overrides on the "
                        f"report channel to make sure there are no users left there.")
 
+    @report.command(name="anonymous_ping")
+    @hf.is_admin()
+    async def report_anonymous_ping(self, ctx):
+        """Enable/disable a `@here` ping for if someone makes an anonymous report"""
+        try:
+            config = self.bot.db['report'][str(ctx.guild.id)]
+        except KeyError:
+            return
+        config['anonymous_ping'] = not config['anonymous_ping']
+        if config['anonymous_ping']:
+            await ctx.send("Enabled pinging for anonymous reports.  I'll add a `@here` ping to the next one.")
+        else:
+            await ctx.send("Disabled pinging for anonymous reports.")
+        await hf.dump_json()
+
+    @report.command(name="room_ping")
+    @hf.is_admin()
+    async def report_room_ping(self, ctx):
+        """Enable/disable a `@here` ping for if someone enters the report room"""
+        try:
+            config = self.bot.db['report'][str(ctx.guild.id)]
+        except KeyError:
+            return
+        config['room_ping'] = not config['room_ping']
+        if config['room_ping']:
+            await ctx.send("Enabled pinging for when someone enters the report room.  "
+                           "I'll add a `@here` ping to the next one.")
+        else:
+            await ctx.send("Disabled pinging for the report room.")
+        await hf.dump_json()
+
     @staticmethod
     async def report_options(ctx, report_text):
         """;report: Presents a user with the options of making an anonymous report or entering the report room"""
@@ -639,7 +744,10 @@ class Main(commands.Cog):
             msg = await ctx.bot.wait_for('message', timeout=300.0, check=check)
             await ctx.author.send(report_text[2])  # "thank you for the report"
             mod_channel = ctx.bot.get_channel(ctx.bot.db['mod_channel'][str(ctx.guild.id)])
-            await mod_channel.send('Received report from a user: \n\n')
+            initial_msg = 'Received report from a user: \n\n'
+            if ctx.bot.db['report'][str(ctx.guild.id)]['anonymous_ping']:
+                initial_msg = '@here ' + initial_msg
+            await mod_channel.send(initial_msg)
             await mod_channel.send(msg.content)
             return
         except asyncio.TimeoutError:
@@ -669,9 +777,8 @@ class Main(commands.Cog):
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-        if report_room.permissions_for(user).read_messages:
-            initial_msg = report_text[4][:-5] + "(Deleted `@here` ping because it seems like you're " \
-                                                "just testing the room)"
+        if report_room.permissions_for(user).read_messages or not config['room_ping']:
+            initial_msg = report_text[4][:-5]
         else:
             initial_msg = report_text[4]
         await report_room.set_permissions(user, read_messages=True)
@@ -884,8 +991,8 @@ class Main(commands.Cog):
         pass
 
     @commands.command(aliases=['cl', 'checklanguage'])
-    async def check_language(self, ctx, *, msg: str = None):
-        """Shows what's happening behind the scenes for hardcore mode.  Will try to detec the language that your
+    async def check_language(self, ctx, *, msg: str):
+        """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your
         message was typed in, and display the results.  Note that this is non-deterministic code, which means
         repeated results of the same exact message might give different results every time."""
         stripped_msg = hf.rem_emoji_url(msg)
@@ -1558,7 +1665,7 @@ class Main(commands.Cog):
     @commands.command()
     @hf.is_submod()
     @commands.bot_has_permissions(manage_roles=True)
-    async def unmute(self, ctx, target, guild=None, silent=False):
+    async def unmute(self, ctx, target_in, guild=None):
         """Unmutes a user"""
         if not guild:
             guild = ctx.guild
@@ -1566,23 +1673,151 @@ class Main(commands.Cog):
             guild = self.bot.get_guild(int(guild))
         config = self.bot.db['mutes'][str(guild.id)]
         role = guild.get_role(config['role'])
-        target: discord.Member = await hf.member_converter(ctx, target)
-        if not target:
-            return
-        if role not in target.roles:
-            await ctx.send("This user is not muted")
-            return
-        try:
-            await target.remove_roles(role)
-        except discord.HTTPException:
-            pass
-        if str(target.id) in config['timed_mutes']:
-            del config['timed_mutes'][str(target.id)]
+        target: discord.Member = await hf.member_converter(ctx, target_in)
+
+        if target:
+            target_id = target.id
+            if role not in target.roles:
+                await ctx.send("This user is not muted")
+
+            try:
+                await target.remove_roles(role)
+            except discord.HTTPException:
+                pass
+
+        else:
+            if ctx.author == ctx.bot.user:
+                target_id = target_in
+            else:
+                return
+
+        if str(target_id) in config['timed_mutes']:
+            del config['timed_mutes'][str(target_id)]
             await hf.dump_json()
-        emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
-                            color=discord.Color(int('00ffaa', 16)))
-        if not silent:
+
+        if ctx.author != ctx.bot.user:
+            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+                                color=discord.Color(int('00ffaa', 16)))
             await ctx.send(embed=emb)
+
+    @commands.command(aliases=['u'])
+    async def user(self, ctx, member=None):
+        if not member:
+            member = ctx.author
+        else:
+            member = await hf.member_converter(ctx, member)
+            if not member:
+                return
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['messages']
+        except KeyError:
+            return
+        message_count = {}
+        for day in config:
+            if str(member.id) in config[day]:
+                user = config[day][str(member.id)]
+                for channel in user:
+                    try:
+                        message_count[channel] += user[channel]
+                    except KeyError:
+                        message_count[channel] = user[channel]
+        sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
+        # looks like [('284045742652260352', 15), ('296491080881537024', 3), ('296013414755598346', 1)]
+        total_msgs = 0
+        for i in sorted_msgs:
+            total_msgs += i[1]
+        emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+                            description="Last 30 days",
+                            color=discord.Color(int('00ccFF', 16)),
+                            timestamp=member.joined_at)
+        emb.add_field(name="Messages sent",
+                      value=total_msgs)
+        good_channels = 0
+        hidden = self.bot.db['stats'][str(ctx.guild.id)]['hidden']
+        for channel in sorted_msgs.copy():
+            if str(ctx.channel.id) in hidden:  # you're in a hidden channel, keep all
+                break
+            if channel[0] in hidden:  # one of the top channels is a hidden channel, remove
+                sorted_msgs.remove(channel)
+            else:  # it's not a hidden channel, keep
+                good_channels += 1
+            if good_channels == 3:  # you have three kept channels
+                break
+        channeltext = ''
+        try:
+            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])), round(100*sorted_msgs[0][1]/total_msgs, 2))
+            channeltext += f"**#{channel1[0]}**: {channel1[1]}%⠀\n"
+            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])), round(100*sorted_msgs[1][1]/total_msgs, 2))
+            channeltext += f"**#{channel2[0]}**: {channel2[1]}%⠀\n"
+            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])), round(100*sorted_msgs[2][1]/total_msgs, 2))
+            channeltext += f"**#{channel3[0]}**: {channel3[1]}%⠀\n"
+        except IndexError:  # will stop automatically if there's not three channels in the list
+            pass
+        if channeltext:
+            emb.add_field(name="Top Channels:",
+                          value=f"{channeltext}")
+        voice_config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
+        voice_time = [0, 0]
+        for day in voice_config:
+            print(day)
+            if str(member.id) in voice_config[day]:
+                time = voice_config[day][str(member.id)]
+                voice_time[0] += time[0]
+                voice_time[1] += time[1]
+        print(voice_time)
+        if voice_time[0] or voice_time[1]:
+            emb.add_field(name="Time in voice chats",
+                          value=f"{voice_time[0]}h {voice_time[1]}m")
+        if (not total_msgs or not sorted_msgs) and not voice_time[0] and not voice_time[1]:
+            emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+                                description="This user hasn't said anything in the past 30 days",
+                                color=discord.Color(int('00ccFF', 16)),
+                                timestamp=member.joined_at)
+        emb.set_footer(text="Joined this server")
+        await ctx.send(embed=emb)
+
+    async def make_lb(self, ctx, channel_in):
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['messages']
+        except KeyError:
+            return
+        msg_count = {}
+        for day in config:
+            for user in config[day]:
+                for channel in config[day][user]:
+                    if channel_in:
+                        if str(channel_in.id) != channel:
+                            continue
+                    try:
+                        msg_count[user] += config[day][user][channel]
+                    except KeyError:
+                        msg_count[user] = config[day][user][channel]
+        sorted_dict = sorted(msg_count.items(), key=lambda x: x[1], reverse=True)
+        emb = discord.Embed(title="Leaderboard",
+                            description="For the past 30 days",
+                            color=discord.Color(int('00ccFF', 16)),
+                            timestamp=datetime.utcnow())
+        if channel_in:
+            emb.title = f"Leaderboard for #{channel_in.name}"
+        for i in range(len(sorted_dict[:25])):
+            member = ctx.guild.get_member(int(sorted_dict[i][0]))
+            emb.add_field(name=f"{i+1}) {member.name}",
+                          value=sorted_dict[i][1])
+        await ctx.send(embed=emb)
+
+    @commands.command()
+    async def lb(self, ctx):
+        """Shows a leaderboard of the top 25 most active users this month"""
+        await self.make_lb(ctx, False)
+
+    @commands.command()
+    async def chlb(self, ctx, channel=None):
+        if not channel:
+            channel = ctx.channel
+        else:
+            channel_id = channel[2:-1]
+            channel = ctx.guild.get_channel(int(channel_id))
+        await self.make_lb(ctx, channel)
 
 
 def setup(bot):

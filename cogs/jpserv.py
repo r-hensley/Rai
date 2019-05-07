@@ -45,6 +45,8 @@ class Jpserv(commands.Cog):
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
             member = await hf.member_converter(ctx, member)
+            if not member:
+                return
             if hf.admin_check(ctx) and ctx.author.id != member.id:
                 if str(member.id) in config:
                     if config[str(member.id)][0]:
@@ -103,12 +105,12 @@ class Jpserv(commands.Cog):
         string = 'The members in ultra hardcore mode right now are '
         guild = self.bot.get_guild(189571157446492161)
         members = []
-        config = self.bot.db['ultraHardcore'][str(guild.id)]['users']
+        config = self.bot.db['ultraHardcore']['users']
         for member_id in config:
             if config[member_id][0]:
                 member = guild.get_member(int(member_id))
                 if member is not None:  # in case a member leaves
-                    members.append(str(member))
+                    members.append(member.name)
                 else:
                     config.remove(member_id)
                     await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')

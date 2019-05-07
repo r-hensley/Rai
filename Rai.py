@@ -90,7 +90,7 @@ class Rai(Bot):
     async def background_tasks(self):
         try:
             await self.wait_until_ready()
-            counter = 0  # counts minutes (x4: 360, x24: 1440)
+            counter = 4  # counts minutes (x4: 360, x24: 1440)
             channel = self.get_channel(304110816607862785)
             msg = await channel.send("Starting background tasks")
             ctx = await self.get_context(msg)
@@ -102,10 +102,10 @@ class Rai(Bot):
                 if counter % 5 == 0:
                     await ctx.invoke(self.get_command("_unban_users"))
                     await ctx.invoke(self.get_command("_unmute_users"))
+                    await ctx.invoke(self.get_command("_check_desync_voice"))
                     await hf.dump_json()
                 await asyncio.sleep(60)
         except Exception as error:
-            print('error')
             error = getattr(error, 'original', error)
             print(f'Error in background task:', file=sys.stderr)
             traceback.print_tb(error.__traceback__)
@@ -119,9 +119,7 @@ class Rai(Bot):
                 self.last_error = datetime.utcnow()
                 self.bg_task = self.loop.create_task(self.background_tasks())
 
-
     async def on_command_error(self, ctx, error):
-        print(datetime.now())
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
@@ -176,6 +174,7 @@ class Rai(Bot):
             await ctx.send(f"Only Ryan can do that.")
             return
 
+        print(datetime.now())
         error = getattr(error, 'original', error)
         qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
         print(f'Error in {qualified_name}:', file=sys.stderr)
@@ -194,7 +193,7 @@ class Rai(Bot):
         e.add_field(name='Location', value=fmt, inline=False)
 
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-        traceback_text = f'```py\n{exc}\n```'
+        traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}\n```'
         e.timestamp = datetime.utcnow()
         await self.get_channel(554572239836545074).send(traceback_text, embed=e)
         print('')
