@@ -427,11 +427,6 @@ class Main(commands.Cog):
                             except discord.errors.Forbidden:
                                 pass
 
-    @commands.command()
-    async def kawaii(self, ctx):
-        """Try it"""
-        await ctx.send('https://i.imgur.com/hRBicd2.png')
-
     @commands.command(aliases=['git'])
     async def github(self, ctx):
         """Gives my github page"""
@@ -1727,7 +1722,7 @@ class Main(commands.Cog):
         for i in sorted_msgs:
             total_msgs += i[1]
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
-                            description="Last 30 days",
+                            description="Last 30 days (since 2019/05/07)",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=member.joined_at)
         emb.add_field(name="Messages sent",
@@ -1759,15 +1754,16 @@ class Main(commands.Cog):
         voice_config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
         voice_time = [0, 0]
         for day in voice_config:
-            print(day)
             if str(member.id) in voice_config[day]:
                 time = voice_config[day][str(member.id)]
                 voice_time[0] += time[0]
                 voice_time[1] += time[1]
-        print(voice_time)
+        total_minutes = voice_time[1] + voice_time[0]*60
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
         if voice_time[0] or voice_time[1]:
             emb.add_field(name="Time in voice chats",
-                          value=f"{voice_time[0]}h {voice_time[1]}m")
+                          value=f"{hours}h {minutes}m")
         if (not total_msgs or not sorted_msgs) and not voice_time[0] and not voice_time[1]:
             emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
                                 description="This user hasn't said anything in the past 30 days",
@@ -1794,15 +1790,28 @@ class Main(commands.Cog):
                         msg_count[user] = config[day][user][channel]
         sorted_dict = sorted(msg_count.items(), key=lambda x: x[1], reverse=True)
         emb = discord.Embed(title="Leaderboard",
-                            description="For the past 30 days",
+                            description="For the past 30 days (since 2019/05/07)",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=datetime.utcnow())
         if channel_in:
             emb.title = f"Leaderboard for #{channel_in.name}"
-        for i in range(len(sorted_dict[:25])):
+        number_of_users_found = 0
+        found_yourself = False
+        for i in range(len(sorted_dict)):
             member = ctx.guild.get_member(int(sorted_dict[i][0]))
-            emb.add_field(name=f"{i+1}) {member.name}",
-                          value=sorted_dict[i][1])
+            if member:
+                if number_of_users_found < 24 or \
+                        (number_of_users_found == 24 and (found_yourself or member == ctx.author)) or \
+                        number_of_users_found > 24 and member == ctx.author:
+                    emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
+                                  value=sorted_dict[i][1])
+                number_of_users_found += 1
+                if member == ctx.author:
+                    found_yourself = True
+            if number_of_users_found >= 25 and found_yourself:
+                print(number_of_users_found)
+                break
+
         await ctx.send(embed=emb)
 
     @commands.command()

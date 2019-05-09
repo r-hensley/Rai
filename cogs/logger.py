@@ -74,14 +74,14 @@ class Logger(commands.Cog):
         await hf.dump_json()
         return result
 
-    async def module_disable_notification(self, guild, guild_config):
+    async def module_disable_notification(self, guild, guild_config, module_name):
         try:
             channel = self.bot.db['mod_channel'][str(guild.id)]
         except KeyError:
             pass
         else:
             channel = self.bot.get_channel(channel)
-            await channel.send(f"Disabled the message deleting logs due to Rai possibly lacking the "
+            await channel.send(f"Disabled the {module_name} logs due to Rai possibly lacking the "
                                f"permissions to post messages or embeds.")
         finally:
             guild_config['enable'] = False
@@ -172,7 +172,7 @@ class Logger(commands.Cog):
                         try:
                             await channel.send(embed=self.make_edit_embed(before, after, levenshtein_distance))
                         except discord.errors.Forbidden:
-                            await self.module_disable_notification(before.message.guild, guild_config)
+                            await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
 
     @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
@@ -266,7 +266,7 @@ class Logger(commands.Cog):
                     try:
                         await channel.send(embed=await self.make_delete_embed(message))
                     except discord.errors.Forbidden:
-                        await self.module_disable_notification(message.guild, guild_config)
+                        await self.module_disable_notification(message.guild, guild_config, 'message deletes')
 
     @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
     async def welcome_logging(self, ctx):
@@ -471,44 +471,35 @@ class Logger(commands.Cog):
                 """Japanese Server Welcome / readding roles"""
                 list_of_roles = []
                 if guild == '189571157446492161':
-                    print('1')
                     # check if they joined from a Japanese site or other
                     # the following links are specifically the ones we've used to advertise on japanese sites
                     japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
                     post_message = True
                     try:
                         config = self.bot.db['readd_roles'][str(member.guild.id)]
-                        print('2')
                     except KeyError:
                         pass
                     else:
-                        print('3')
                         if config['enable'] and str(member.id) in config['users']:
-                            print('4')
                             post_message = False
                             list_of_roles = get_list_of_roles()
                             new_user_role = member.guild.get_role(249695630606336000)
                             if new_user_role in list_of_roles:
                                 list_of_roles.remove(new_user_role)
                             if list_of_roles:
-                                print('5')
                                 await member.add_roles(*list_of_roles)
                                 await member.remove_roles(new_user_role)
                                 await self.bot.jpJHO.send(
                                     f"Welcome back {member.name}! I've given your previous roles back to you")
                                 del config['users'][str(member.id)]
                     finally:
-                        print('6')
                         if post_message:
-                            print('7')
                             if used_invite:
-                                print('8')
                                 if str(used_invite.code) in japanese_links:
                                     await self.bot.jpJHO.send(
                                         f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                            elif member.id != 414873201349361664:
-                                print('9')
-                                await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                                elif member.id != 414873201349361664:
+                                    await self.bot.jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
                         if member.id == 414873201349361664:
                             async for message in self.bot.jpJHO.history(limit=10):
                                 if message.author.id == 159985870458322944:
@@ -659,7 +650,7 @@ class Logger(commands.Cog):
                 try:
                     await channel.send(embed=self.make_leave_embed(member))
                 except discord.errors.Forbidden:
-                    await self.module_disable_notification(member.guild, guild_config)
+                    await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
         try:
             config = self.bot.db['readd_roles'][str(member.guild.id)]
@@ -682,7 +673,7 @@ class Logger(commands.Cog):
                 try:
                     emb = await self.make_kick_embed(member)
                 except discord.errors.Forbidden:
-                    await self.module_disable_notification(member.guild, guild_config)
+                    await self.module_disable_notification(member.guild, guild_config, 'member kick')
                     return
                 if emb:
                     await channel.send(embed=emb)
@@ -739,7 +730,7 @@ class Logger(commands.Cog):
                 try:
                     embed = self.make_nickname_embed(before, after)
                 except discord.errors.Forbidden:
-                    await self.module_disable_notification(before.guild, guild_config)
+                    await self.module_disable_notification(before.guild, guild_config, 'nickname and username changes')
                     return
 
                 if before.name != after.name:  # username change
@@ -841,7 +832,8 @@ class Logger(commands.Cog):
                         try:
                             await channel.send(embed=self.make_reaction_embed(reaction, member))
                         except discord.errors.Forbidden:
-                            await self.module_disable_notification(reaction.message.guild, guild_config)
+                            await self.module_disable_notification(
+                                reaction.message.guild, guild_config, 'reaction remove')
                             return
 
     @commands.group(invoke_without_command=True, aliases=['bans'])
@@ -925,7 +917,7 @@ class Logger(commands.Cog):
             try:
                 emb = await self.make_ban_embed(guild, member)
             except discord.errors.Forbidden:
-                await self.module_disable_notification(guild, guild_config)
+                await self.module_disable_notification(guild, guild_config, 'bans')
                 return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
@@ -972,7 +964,7 @@ class Logger(commands.Cog):
                 try:
                     await channel.send(embed=self.make_unban_embed(user))
                 except discord.errors.Forbidden:
-                    await self.module_disable_notification(guild, guild_config)
+                    await self.module_disable_notification(guild, guild_config, 'unban')
                     return
 
     @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])

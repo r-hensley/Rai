@@ -132,8 +132,7 @@ class Rai(Bot):
 
         elif isinstance(error, commands.CommandInvokeError):
             command = ctx.command.qualified_name
-            await ctx.send(f"I couldn't execute the command.  Either I don't have the right permissions, or you inputted "
-                           f"the syntax for that command wrong, or I have a bug.  Check `;help {command}`")
+            await ctx.send(f"I couldn't execute the command.  I probably have a bug.  This has been reported to Ryan.")
             pass
 
         elif isinstance(error, commands.CommandNotFound):

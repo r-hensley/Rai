@@ -79,13 +79,40 @@ def parse_time(time):
     return time_string, length
 
 
-async def member_converter(ctx, user):
-    try:
-        return await commands.MemberConverter().convert(ctx, user)
-    except commands.errors.BadArgument:  # invalid user given
-        if ctx.author != ctx.bot.user:
-            await ctx.send('User not found')
-        return None
+async def member_converter(ctx, user_in):
+    # check for an ID
+    user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", user_in)
+    if user_id:
+        user_id = user_id[0].replace('<@', '').replace('>', '').replace('!', '')
+        member = ctx.guild.get_member(int(user_id))
+        return member
+
+    # check for an exact name
+    member = ctx.guild.get_member_named(user_in)
+    if member:
+        return member
+
+    # try the beginning of the name
+    member_list = [(member.name.casefold(), member.nick.casefold() if member.nick else '', member)
+                   for member in ctx.guild.members]
+    user_in = user_in.casefold()
+    for member in member_list:
+        if member[0].startswith(user_in):
+            return member[2]
+        if member[1].startswith(user_in):
+            return member[2]
+
+    # is it anywhere in the name
+    for member in member_list:
+        if user_in in member[0]:
+            return member[2]
+        if user_in in member[1]:
+            return member[2]
+
+
+    if ctx.author != ctx.bot.user:
+        await ctx.send('User not found')
+    return None
 
 
 def _predump_json():
@@ -105,7 +132,10 @@ def submod_check(ctx):
         return
     if admin_check(ctx):
         return True
-    role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
+    try:
+        role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
+    except KeyError:
+        return
     submod_role = ctx.guild.get_role(role_id)
     return submod_role in ctx.author.roles
 
