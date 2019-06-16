@@ -37,7 +37,7 @@ class Jpserv(commands.Cog):
             await jpJHO2.edit(position=5, name='just_hanging_out_2')
 
     @commands.group(invoke_without_command=True, aliases=['uhc'])
-    async def ultrahardcore(self, ctx, member=None):
+    async def ultrahardcore(self, ctx, *, member=None):
         """Irreversible hardcore mode.  Must talk to an admin to have this undone."""
         # if ctx.guild.id != 189571157446492161:
         #     return
@@ -66,9 +66,13 @@ class Jpserv(commands.Cog):
             else:
                 await ctx.send("You can not remove UHC.  Ask a mod/admin to help you.")
         else:
-            await ctx.send(f"This is ultra hardcore mode.  It means you must speak in the language you are learning "
-                           f"(for example, if you are learning Japanese, any messages in English will be deleted). "
-                           f"This can not be undone unless you ask a mod to remove it for you.  \n\n"
+            if str(ctx.author.id) in config:
+                if config[str(ctx.author.id)][0]:
+                    await ctx.invoke(self.explanation)
+                    return
+            await ctx.send(f"This is ultra hardcore mode.  It means you must speak in the language you are learning"
+                           f" (for example, if you are learning Japanese, any messages in English will be deleted)."
+                           f" This can not be undone unless you ask a mod to remove it for you.  \n\n"
                            f"To enable ultra hardcore mode, type `;uhc on` or `;uhc enable`.  ")
 
     @ultrahardcore.command(aliases=['enable'])
@@ -106,13 +110,13 @@ class Jpserv(commands.Cog):
         guild = self.bot.get_guild(189571157446492161)
         members = []
         config = self.bot.db['ultraHardcore']['users']
-        for member_id in config:
+        for member_id in config.copy():
             if config[member_id][0]:
                 member = guild.get_member(int(member_id))
                 if member is not None:  # in case a member leaves
                     members.append(member.name)
                 else:
-                    config.remove(member_id)
+                    del config[member_id]
                     await ctx.send(f'Removed <@{member_id}> from the list, as they seem to have left the server')
 
         await ctx.send(string + ', '.join(members))
@@ -122,13 +126,14 @@ class Jpserv(commands.Cog):
         """Explains ultra hardcore mode for those who are using it and can't explain it"""
         if ctx.guild.id != 189571157446492161:
             return
-        if ctx.author.id in self.bot.db['ultraHardcore'][str(ctx.guild.id)]:
-            await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't "
-                           f"speak their native language, and they also cannot undo this mode themselves.")
-        else:
-            await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why "
-                           f"they're trying to use this command.  But, ultra hardcore mode means a user can't speak "
-                           f"any English, and can't undo this mode themselves no matter what.")
+        if str(ctx.author.id) in self.bot.db['ultraHardcore']['users']:
+            if self.bot.db['ultraHardcore']['users'][str(ctx.author.id)][0]:
+                await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't"
+                               f" speak their native language, and they also cannot undo this mode themselves.")
+                return
+        await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why "
+                       f"they're trying to use this command.  But, ultra hardcore mode means a user can't speak "
+                       f"any English, and can't undo this mode themselves no matter what.")
 
     @ultrahardcore.command(aliases=['lb'])
     async def leaderboard(self, ctx):
@@ -146,26 +151,20 @@ class Jpserv(commands.Cog):
         to_sort = [[i[0], i[1][0], i[1][2]] for i in list(time_dict.items())]
         # to_sort: [['243703909166612480', True, 162], ['219617844973797376', False, 122], ...]
         sorted_dict = sorted(to_sort, key=lambda x: x[2], reverse=True)
-        print(sorted_dict)
         leaderboard = f"The number of days each user has had UHC enabled " \
                       f"(Bold = This user currently has UHC enabled)\n\n"
         for i in sorted_dict:
             user = ctx.guild.get_member(int(i[0]))
-            if i[2] < 10 and not i[1]:
+            if (i[2] < 10 and not i[1]) or (not user):
                 continue
-            if user:
-                if user.nick:
-                    nickname = user.name
-                    username = f" ({user.name})"
-                else:
-                    nickname = user.name
-                    username = ''
+            if user.nick:
+                name_str = f"{user.mention} ({user.name})"
             else:
-                nickname = i[0]
-            if i[1] and user:
-                leaderboard += f"**{i[2]}: {user.mention}{username}**\n"
+                name_str = f"{user.name}"
+            if i[1]:
+                leaderboard += f"**{i[2]}: {name_str}**\n"
             else:
-                leaderboard += f"{i[2]}: {user.mention}{username}\n"
+                leaderboard += f"{i[2]}: {name_str}\n"
         emb = discord.Embed(title="UHC Leaderboard", description=leaderboard,
                             color=discord.Color(int('ff5500', 16)))
         await ctx.send(embed=emb)

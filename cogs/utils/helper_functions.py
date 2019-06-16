@@ -62,6 +62,14 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
+def green_embed(text):
+    return discord.Embed(description=text, color=discord.Color(int('00ff00', 16)))
+
+
+def red_embed(text):
+    return discord.Embed(description=text, color=discord.Color(int('ff0000', 16)))
+
+
 def parse_time(time):
     time_re = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', time)
     if time_re:
@@ -81,7 +89,7 @@ def parse_time(time):
 
 async def member_converter(ctx, user_in):
     # check for an ID
-    user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", user_in)
+    user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
         user_id = user_id[0].replace('<@', '').replace('>', '').replace('!', '')
         member = ctx.guild.get_member(int(user_id))
@@ -244,6 +252,8 @@ async def uhc_check(msg):
     try:
         if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
             if here.bot.db['ultraHardcore']['users'].get(str(msg.author.id), [False])[0]:
+                msg.content = msg.content.replace('hat is your native language', '').replace('Welcome', '').\
+                    replace("hat's your native language", "")
                 jpRole = msg.guild.get_role(196765998706196480)
                 ratio = jpenratio(msg)
                 # if I delete a long message

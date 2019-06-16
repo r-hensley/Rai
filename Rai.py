@@ -53,6 +53,17 @@ class Rai(Bot):
         with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
             json.dump(self.db, write_file)
 
+        initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
+        # initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner']
+        for extension in initial_extensions:
+            try:  # in on_ready because if not I get tons of errors from on_message before bot loads
+                self.load_extension(extension)
+                print('Loaded {}'.format(extension))
+            except Exception as e:
+                print('Failed to load extension {}.'.format(extension), file=sys.stderr)
+                traceback.print_exc()
+                raise
+
     async def on_ready(self):
         self.ryry = self.get_user(202995638860906496)
         self.ryryServ = self.get_guild(275146036178059265)
@@ -72,15 +83,7 @@ class Rai(Bot):
             self.waited = str(self.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
         self.selfMute = False
 
-        initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
-        for extension in initial_extensions:
-            try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-                self.load_extension(extension)
-                print('Loaded {}'.format(extension))
-            except Exception as e:
-                print('Failed to load extension {}.'.format(extension), file=sys.stderr)
-                traceback.print_exc()
-                raise
+
         print("Bot loaded")
 
         t_finish = datetime.now()
@@ -88,6 +91,7 @@ class Rai(Bot):
         await self.change_presence(activity=discord.Game(';help'))
 
     async def background_tasks(self):
+        await self.wait_until_ready()
         try:
             await self.wait_until_ready()
             counter = 4  # counts minutes (x4: 360, x24: 1440)
@@ -118,6 +122,9 @@ class Rai(Bot):
             if (datetime.utcnow() - self.last_error).seconds > 5 and self.num_of_errors < 20:
                 self.last_error = datetime.utcnow()
                 self.bg_task = self.loop.create_task(self.background_tasks())
+            else:
+                await channel.send(f"❗❗❗❗ STOPPING BACKGROUND TASKS ❗❗❗❗\n"
+                                   f"❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗")
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
@@ -147,8 +154,11 @@ class Rai(Bot):
             # the predicates in Command.checks have failed.
             if ctx.command.name == 'global_blacklist':
                 return
-            await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
-                           f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+            try:
+                await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+                               f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+            except discord.Forbidden:
+                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
             return
 
         elif isinstance(error, commands.MissingRequiredArgument):
@@ -157,8 +167,14 @@ class Rai(Bot):
                   f"Try running `;help {ctx.command.qualified_name}`"
             if error.param.name in ['args', 'kwargs']:
                 msg = msg.replace(f" ({error.param})", '')
-            await ctx.send(msg)
+            try:
+                await ctx.send(msg)
+            except discord.Forbidden:
+                pass
             return
+
+        elif isinstance(error, discord.Forbidden):
+            await ctx.send(f"I tried to do something I'm not allowed to do, so I couldn't complete your command :(")
 
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send(f"To do that command, you are missing the following permissions: "
@@ -192,7 +208,7 @@ class Rai(Bot):
         e.add_field(name='Location', value=fmt, inline=False)
 
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-        traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}\n```'
+        traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
         e.timestamp = datetime.utcnow()
         await self.get_channel(554572239836545074).send(traceback_text, embed=e)
         print('')
