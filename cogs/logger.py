@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 from imgurpython import ImgurClient
-from imgurpython.helpers.error import ImgurClientError
+from imgurpython.helpers.error import ImgurClientError, ImgurClientRateLimitError
 import functools
 from Levenshtein import distance as LDist
 import re
@@ -13,6 +13,9 @@ from .utils import helper_functions as hf
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+SPAN_SERV_ID = 243838819743432704
+NADEKO_ID = 116275390695079945
+SPAN_WELCOME_CHAN_ID = 243838819743432704
 
 with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
     file.readline()  # comment line in text file
@@ -81,8 +84,8 @@ class Logger(commands.Cog):
             pass
         else:
             channel = self.bot.get_channel(channel)
-            await channel.send(f"Disabled the {module_name} logs due to Rai possibly lacking the "
-                               f"permissions to post messages or embeds.")
+            await channel.send(f"Disabled the {module_name} logs due to Rai possibly lacking some permission "
+                               f"(possibly `Send Messages`, `Embed Links`, or for bans, `View Audit Log`)")
         finally:
             guild_config['enable'] = False
             await hf.dump_json()
@@ -175,7 +178,7 @@ class Logger(commands.Cog):
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
 
-    @commands.group(invoke_without_command=True, aliases=['delete', 'deletes'])
+    @commands.group(invoke_without_command=True, aliases=['deletes'])
     async def delete_logging(self, ctx):
         """Logs deleted messages, aliases: 'delete', 'deletes'"""
         result = await self.module_logging(ctx, self.bot.db['deletes'])
@@ -235,7 +238,7 @@ class Logger(commands.Cog):
                     image = await asyncio.wait_for(task, timeout=10)
                     list_of_attachments.append(image['link'])
                     failed = None
-                except (asyncio.TimeoutError, ImgurClientError):
+                except (asyncio.TimeoutError, ImgurClientError, ImgurClientRateLimitError):
                     list_of_attachments.append(attachment.proxy_url)
 
             if list_of_attachments:
@@ -583,10 +586,11 @@ class Logger(commands.Cog):
             pass
 
         """Spanish Server welcome"""
-        if member.guild == self.bot.spanServ:
-            nadeko_obj = self.bot.spanServ.get_member(116275390695079945)
+        spanServ = self.bot.get_guild(SPAN_SERV_ID)
+        if member.guild == spanServ:
+            nadeko_obj = spanServ.get_member(NADEKO_ID)
             if str(nadeko_obj.status) == 'offline':
-                await self.bot.get_channel(243838819743432704).send(
+                await self.bot.get_channel(SPAN_WELCOME_CHAN_ID).send(
                     'Welcome to the server.  Nadeko is currently down, '
                     'so please state your roles and someone in welcoming party will come to'
                     ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
@@ -752,7 +756,8 @@ class Logger(commands.Cog):
 
         """Nadeko updates"""
         if self.bot.user.name == 'Rai':
-            if before == self.bot.spanServ.get_member(116275390695079945) and before.guild == self.bot.spanServ:
+            spanServ = self.bot.get_guild(SPAN_SERV_ID)
+            if before == spanServ.get_member(116275390695079945) and before.guild == spanServ:
                 if str(before.status) == 'online' and str(after.status) == 'offline':
                     def check(beforecheck, aftercheck):
                         return after.id == beforecheck.id and \

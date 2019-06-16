@@ -16,6 +16,7 @@ import datetime
 from datetime import datetime, timedelta
 
 import os
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
@@ -35,24 +36,30 @@ class Owner(commands.Cog):
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
-    @commands.command(aliases=['crr'], hidden=True)
-    async def clean_readd_roles(self, ctx):
-        """This was to clean out all the roles in the readd_roles database which had the `@everyone` role"""
-        print('counting')
-        config = self.bot.db['readd_roles']
-        for guild_id in config:
-            guild = self.bot.get_guild(int(guild_id))
-            guild_config = config[guild_id]['users']
-            in_roles = 0
-            only_role = 0
-            for user in guild_config.copy():
-                if guild.id in guild_config[user][1]:
-                    in_roles += 1
-                    guild_config[user][1].remove(guild.id)
-                    if len(guild_config[user][1]) == 0:
-                        only_role += 1
-                        del guild_config[user]
-            print(guild.name, in_roles, only_role)
+    @commands.command(aliases=['cdb'], hidden=True)
+    async def change_database(self, ctx):
+        """Change database in some way"""
+        config = self.bot.db['stats']
+        for guild in config:
+            guild_config = config[guild]['voice']['total_time']
+            for day in guild_config:
+                for user in guild_config[day]:
+                    if isinstance(guild_config[day][user], list):
+                        guild_config[day][user] = guild_config[day][user][0] * 60 + guild_config[day][user][1]
+        print('done')
+
+    @commands.command()
+    async def check_voice_users(self, ctx):
+        """Checks to see who is currently accumulating voice chat time with the stats module"""
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['in_voice']
+            in_voice_users = f'{datetime.utcnow()}\n\n'
+        except KeyError:
+            return
+        for user_id in config:
+            member = ctx.guild.get_member(int(user_id))
+            in_voice_users += f"{member.display_name} - {config[user_id]}\n"
+        await ctx.send(in_voice_users)
 
     @commands.command()
     async def flush(self, ctx):
@@ -121,6 +128,7 @@ class Owner(commands.Cog):
                 except UnicodeEncodeError:
                     def BMP(s):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
+
                     file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(aliases=['quit'])
@@ -134,7 +142,7 @@ class Owner(commands.Cog):
             await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
 
     @commands.command(hidden=True)
-    async def load(self, ctx, *, cog : str):
+    async def load(self, ctx, *, cog: str):
         """Command which loads a module."""
 
         try:
@@ -145,7 +153,7 @@ class Owner(commands.Cog):
             await ctx.send('**`SUCCESS`**')
 
     @commands.command(hidden=True)
-    async def unload(self, ctx, *, cog : str):
+    async def unload(self, ctx, *, cog: str):
 
         try:
             self.bot.unload_extension(f'cogs.{cog}')
@@ -155,8 +163,8 @@ class Owner(commands.Cog):
             await ctx.send('**`SUCCESS`**')
 
     @commands.command(hidden=True)
-    async def reload(self, ctx, *, cog : str):
-    
+    async def reload(self, ctx, *, cog: str):
+
         try:
             self.bot.reload_extension(f'cogs.{cog}')
         except Exception as e:
@@ -169,7 +177,7 @@ class Owner(commands.Cog):
         # remove triple quotes + py\n
         if content.startswith("```") and content.endswith("```"):
             return '\n'.join(content.split('\n')[1:-1])
-        
+
         # remove `single quotes`
         return content.strip('` \n')
 
@@ -253,7 +261,7 @@ class Owner(commands.Cog):
                     except discord.errors.HTTPException:
                         st = f'```py\n{value}\n```'
                         await ctx.send('Result over 2000 characters')
-                        await ctx.send(st[0:1996]+'\n```')
+                        await ctx.send(st[0:1996] + '\n```')
             else:
                 self._last_result = ret
                 await ctx.send(f'```py\n{value}{ret}\n```')
@@ -385,6 +393,7 @@ class Owner(commands.Cog):
         await user.remove_roles(role)
         await user.send(f"I've removed your member role on the Language Hub server.  Please reread "
                         f"<#530669247718752266> carefully and then you can rejoin the server.  Specifically, {rule}.")
+
 
 def setup(bot):
     bot.add_cog(Owner(bot))

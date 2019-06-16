@@ -9,7 +9,8 @@ import re
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
+COLOR_CHANNEL_ID = 577382927596257280
+BLACKLIST_CHANNEL_ID = 533863928263082014
 
 def blacklist_check():
     async def pred(ctx):
@@ -59,21 +60,32 @@ class Main(commands.Cog):
                 continue
             guild_config = config[guild_id]
             guild = self.bot.get_guild(int(guild_id))
-            voice_channels = guild.voice_channels
+            try:
+                voice_channels = guild.voice_channels
+            except AttributeError:
+                continue
             users_in_voice = []
             for channel in voice_channels:
                 users_in_voice += [str(member.id) for member in channel.members]
-            for user_id in guild_config['voice']['in_voice'].copy():  # in DB, not in voice
-                if user_id not in users_in_voice:
+            for user_id in guild_config['voice']['in_voice'].copy():  # all users in the database
+                if user_id not in users_in_voice:  # if not in voice, remove from database
                     member = guild.get_member(int(user_id))
                     if not member:
                         del guild_config['voice']['in_voice'][user_id]
                         return
                     await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
-            for user_id in users_in_voice.copy():  # in voice, not in DB
-                if user_id not in guild_config['voice']['in_voice']:
-                    member = guild.get_member(int(user_id))
-                    await ctx.invoke(self.bot.get_command("command_into_voice"), member)
+
+            for user_id in users_in_voice.copy():  # all users in voice
+                member = guild.get_member(int(user_id))
+                vs = member.voice
+                if vs:
+                    if vs.deaf or vs.self_deaf or vs.afk:  # deafened or afk but in database, remove
+                        await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
+                    if user_id not in guild_config['voice']['in_voice']:  # in voice, not in database, add
+                        if vs.channel:
+                            await ctx.invoke(self.bot.get_command("command_into_voice"), member, vs)
+                else:
+                    await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)  # in voice but no vs? remove
 
     @commands.command(hidden=True)
     async def _unban_users(self, ctx):
@@ -120,16 +132,134 @@ class Main(commands.Cog):
                 for member_id in guild_config['timed_mutes'].copy():
                     unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
                     if unmute_time < datetime.utcnow():
-                        await ctx.invoke(self.bot.get_command('unmute'), member_id, guild_id)
+                        await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
                         unmuted_users.append(member_id)
             if unmuted_users and mod_channel:
                 text_list = []
                 for i in unmuted_users:
                     user = self.bot.get_user(int(i))
-                    text_list.append(f"{user.mention} ({user.name})")
+                    if user:
+                        text_list.append(f"{user.mention} ({user.name})")
+                    if not user:
+                        text_list.append(f"{i}")
                 await mod_channel.send(embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
+
+    # @commands.command(aliases=['r'])
+    # async def iam(self, ctx, role):
+    #     shortened_names = {'0': 'test0', '1': 'test1', '2': 'test2', '3': 'test3', '4': 'test4', '5': 'test5'}
+    #     if role in shortened_names:
+    #         desired_role = shortened_names[role]
+    #     else:
+    #         desired_role = role
+    #     role_dict = {}
+    #     if desired_role not in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
+    #         return
+    #     for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
+    #         role_dict[role_name] = discord.utils.get(ctx.guild.roles, name=role_name)
+    #     old_role = None
+    #     for role_name in role_dict:
+    #         if role_dict[role_name] in ctx.author.roles:
+    #             await ctx.author.remove_roles(role_dict[role_name])
+    #             old_role = role_name
+    #     if not old_role:
+    #         await ctx.send("You must have one of the test roles first before using this.")
+    #         return
+    #     await ctx.author.add_roles(role_dict[desired_role])
+    #     old = role_dict[old_role]
+    #     new = role_dict[desired_role]
+    #     await ctx.send(embed=discord.Embed(description=f"Changed {ctx.author.display_name} "
+    #                                                    f"from {old.mention} to {new.mention}.",
+    #                                        color=role_dict[desired_role].color))
+    #
+    # @commands.group(aliases=['c', 'color'], invoke_without_command=True)
+    # async def color_change(self, ctx, role_name_in=None, color_in=None):
+    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
+    #     shortened_names = {'0': 'test0', '1': 'test1', '2': 'test2', '3': 'test3', '4': 'test4', '5': 'test5',
+    #                        '6': 'test6', '7': 'test7'}
+    #     role_names = {'test0': 'NE', 'test1': 'FE', 'test2': 'OL', 'test3': 'NS', 'test4': 'FS', 'test5': 'Mods'}
+    #     if role_name_in in shortened_names:
+    #         role_name_in = shortened_names[role_name_in]
+    #     if ctx.guild.id == 243838819743432704:
+    #         if not color_in:
+    #             color_str = "The current colors are: \n"
+    #             for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7']:
+    #                 role = discord.utils.get(ctx.guild.roles, name=role_name)
+    #                 if not role:
+    #                     continue
+    #                 color_str += f"{role.mention}: #{role.color.r:02X},{role.color.g:02X},{role.color.b:02X}"
+    #                 if role_name in role_names:
+    #                     color_str += f" ({role_names[role_name]})\n"
+    #                 else:
+    #                     color_str += '\n'
+    #             await ctx.send(color_str)
+    #             return
+    #         if role_name_in in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7']:
+    #             if not ctx.channel == colors_channel:
+    #                 return
+    #             role = discord.utils.get(ctx.guild.roles, name=role_name_in)
+    #             if not role:
+    #                 await ctx.send(f"{role_name_in} not found.")
+    #                 return
+    #             try:
+    #                 color = discord.Color(int(color_in, 16))
+    #             except ValueError:
+    #                 await ctx.send(f"Invalid color code used.  You may only use numbers 0-9 and letters a-f.")
+    #                 return
+    #             await ctx.send(embed=discord.Embed(description=f"Changed the color of {role.mention} to {color_in}.",
+    #                                                color=color))
+    #             await role.edit(color=color)
+    #
+    # @color_change.command(name="save")
+    # @hf.is_submod()
+    # async def color_save(self, ctx):
+    #     """Save the current color set"""
+    #     config = self.bot.db['colors']
+    #     color_str = ""
+    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
+    #     for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
+    #         if not ctx.channel == colors_channel:
+    #             return
+    #         role = discord.utils.get(ctx.guild.roles, name=role_name)
+    #         if not role:
+    #             await ctx.send(f"{role_name} not found.")
+    #             return
+    #         color_str += f"{role.name}: #{role.color.r:02X},{role.color.g:02X},{role.color.b:02X}\n"
+    #     config[str(len(config)+1)] = color_str
+    #     await hf.dump_json()
+    #
+    # @color_change.command(name="load")
+    # @hf.is_submod()
+    # async def color_load(self, ctx, index=None):
+    #     try:
+    #         config = self.bot.db['colors'][str(index)]
+    #         new_colors = []
+    #         for color_str in config.split('\n')[:-1]:
+    #             new_colors.append(color_str.split('#')[1].replace(',', ''))
+    #     except ValueError:
+    #         await ctx.send("Input a single number that you get from `;c list`.")
+    #         return
+    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
+    #     role_names = ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']
+    #     for index in range(6):
+    #         if not ctx.channel == colors_channel:
+    #             return
+    #         role = discord.utils.get(ctx.guild.roles, name=role_names[index])
+    #         if not role:
+    #             await ctx.send(f"{role_name} not found.")
+    #             return
+    #         color = discord.Color(int(new_colors[index], 16))
+    #         await role.edit(color=color)
+    #     await ctx.invoke(self.color_change)
+    #
+    # @color_change.command(name='list')
+    # async def color_list(self, ctx):
+    #     config = self.bot.db['colors']
+    #     to_send = 'Saved configs:\n\n'
+    #     for index in range(len(config)):
+    #         to_send += f"〰〰({index+1})〰〰\n{config[str(index+1)]}\n"
+    #     await ctx.send(to_send)
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -142,6 +272,7 @@ class Main(commands.Cog):
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
         """Message as the bot"""
+
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -149,14 +280,17 @@ class Main(commands.Cog):
 
             if not isinstance(msg.channel, discord.TextChannel):
                 return  # stops the rest of the code unless it's in a guild
+
         await message_as_bot()
 
         """Replace tatsumaki/nadeko serverinfo posts"""
+
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
                     new_ctx = await self.bot.get_context(msg)
                     await new_ctx.invoke(self.serverinfo)
+
         await replace_tatsumaki_posts()
 
         """Ping me if someone says my name"""
@@ -216,7 +350,8 @@ class Main(commands.Cog):
                         #                       "It's just annoying, so please stop trying it.")
                         try:
                             await msg.author.ban(reason=f"*by* Rai\n"
-                                                        f"**Reason: **Automatic ban: Chinese banned words spam")
+                                                        f"**Reason: **Automatic ban: Chinese banned words spam\n"
+                                                        f"{msg.content[:100]}")
                         except discord.Forbidden:
                             await mod_channel.send(f"I tried to ban someone for the Chinese spam message, but I lack "
                                                    f"the permission to ban users.")
@@ -234,24 +369,23 @@ class Main(commands.Cog):
                         break
 
         """best sex dating"""
-        words = ['amazingsexdating', 'bestdatingforall']
+        words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip']
         try:
             for word in words:
                 if word in msg.content:
-                    await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.channel.mention}")
-                    print(self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'])
-                    print(datetime.utcnow(), '---', msg.author.joined_at, '-----',
-                          datetime.utcnow() - msg.author.joined_at)
+                    await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.guild.name} - "
+                                                                    f"{msg.channel.name} "
+                                                                    f"{msg.channel.mention}")
+                    if str(msg.author.guild.id) in self.bot.db['auto_bans']:
+                        return
                     if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
                             datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
-                        print('>>sex dating!!!!!!!!!!<<')
                         if msg.author.id in [202995638860906496, 414873201349361664]:
-                            print(">>This code would've banned but I stopped it<<")
                             return
                         await msg.author.ban(reason=f'For posting a {word} link',
                                              delete_message_days=1)
                         self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
-                        channel = self.bot.get_channel(533863928263082014)
+                        channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
                         await channel.send(
                             f"❌ Automatically added `{msg.author.name} ({msg.author.id}`) to the blacklist for "
                             f"posting a {word} spam link")
@@ -262,10 +396,10 @@ class Main(commands.Cog):
                         await self.bot.get_channel(329576845949534208).send(message)
                         await hf.dump_json()
         except KeyError as e:
-            print('>>passed for key error on amazingsexdating: ' + e + '<<')
+            print(f'>>passed for key error on amazingsexdating: {e}<<')
             pass
         except AttributeError as e:
-            print('>>passed for attributeerror in amazingsexdating: ' + e + '<<')
+            print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
             pass
 
         """mods ping on spanish server"""
@@ -451,7 +585,7 @@ class Main(commands.Cog):
         await ctx.send(discord.utils.oauth_url(self.bot.user.id, permissions=discord.Permissions(permissions=3072)))
 
     @commands.group(invoke_without_command=True)
-    async def report(self, ctx, user=None):
+    async def report(self, ctx, *, user=None):
         """Make a report to the mods"""
         if isinstance(ctx.channel, discord.DMChannel):
             return
@@ -467,7 +601,7 @@ class Main(commands.Cog):
             user = await hf.member_converter(ctx, user)
             if not user:
                 await ctx.send("I couldn't find that user.  Please try again, or type just `;report` if you want to"
-                           " make your own report")
+                               " make your own report")
                 return
         else:
             user = ctx.author
@@ -818,6 +952,24 @@ class Main(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
+        if payload.channel_id == BLACKLIST_CHANNEL_ID:  # votes on blacklist
+            if payload.emoji.name == '⬆':
+                channel = self.bot.get_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                ctx = await self.bot.get_context(message)
+                ctx.author = self.bot.get_user(payload.user_id)
+                ctx.reacted_user_id = payload.user_id
+                user_id = message.embeds[0].title.split(' ')[0]
+                config = self.bot.db['global_blacklist']
+                if str(payload.user_id) in config['residency']:
+                    voting_guild_id = config['residency'][str(payload.user_id)]
+                    if voting_guild_id not in config['votes2'][user_id]['votes']:
+                        if message.embeds[0].color != discord.Color(int('ff0000', 16)):
+                            await ctx.invoke(self.blacklist_add, args=user_id)
+                else:
+                    await ctx.author.send("Please claim residency on a server first with `;global_blacklist residency`")
+                    return
+
         if payload.emoji.name == '✅':  # captcha
             if str(payload.guild_id) in self.bot.db['captcha']:
                 config = self.bot.db['captcha'][str(payload.guild_id)]
@@ -1320,10 +1472,11 @@ class Main(commands.Cog):
             for question in channel_config:
                 try:
                     question_channel = self.bot.get_channel(int(channel))
-                    question_message = await question_channel.fetch_message(channel_config[question]['question_message'])
+                    question_message = await question_channel.fetch_message(
+                        channel_config[question]['question_message'])
                     question_text = ' '.join(question_message.content.split(' '))
-                    text_splice = 1024 - len(question_message.jump_url) - \
-                                  len(f"By {question_message.author.mention}\n\n")
+                    text_splice = 1020 - len(question_message.jump_url) - \
+                                  len(f"By {question_message.author.mention} in {question_message.channel.mention}\n\n")
                     value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n" \
                                  f"{question_text[:text_splice]}\n" \
                                  f"{question_message.jump_url}"
@@ -1448,7 +1601,7 @@ class Main(commands.Cog):
             for role in sorted_list[1:7]:
                 counter += 1
                 top_five_roles += f"{role[0]}: {role[1]}\n"
-                #if counter == 3:
+                # if counter == 3:
                 #    top_five_roles += '\n'
             top_five_roles = top_five_roles[:-1]
             em.add_field(name=f"Top 6 roles (out of {len(guild.roles)})", value=top_five_roles)
@@ -1461,13 +1614,13 @@ class Main(commands.Cog):
         bef_str = ''
         if years:
             bef_str = f"{years} years, "
-        months = (days - 365*years) // 30.416666666666668
+        months = (days - 365 * years) // 30.416666666666668
         if months:
             bef_str += f"{int(months)} months, "
-        days = days - 365*years - round(30.416666666666668*months)
+        days = days - 365 * years - round(30.416666666666668 * months)
         bef_str += f"{days} days"
         em.set_footer(text=f"Guild created {bef_str} ago on:")
-        if len(em.fields)%2 == 0:
+        if len(em.fields) % 2 == 0:
             two = em.fields[-2]
             em.add_field(name=two.name, value=two.value)
             em.remove_field(-3)
@@ -1489,6 +1642,40 @@ class Main(commands.Cog):
         else:
             await ctx.send("Disabled the global blacklist.  Anyone on the blacklist will be able to join  your server.")
         await hf.dump_json()
+
+    @global_blacklist.command(name='reason', aliases=['edit'])
+    @blacklist_check()
+    async def blacklist_reason(self, ctx, entry_message_id, *, reason):
+        """Add a reason to a blacklist entry: `;gbl reason <message_id> <reason>`"""
+        blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+        entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
+        emb = entry_message.embeds[0]
+        old_reason = emb.fields[1].value
+        emb.set_field_at(1, name=emb.fields[1].name, value=reason)
+        await entry_message.edit(embed=emb)
+        await ctx.send(f"Changed reason of {entry_message.jump_url}\nOld reason: ```{old_reason}```")
+
+    @global_blacklist.command(name='remove', alias=['delete'])
+    @hf.is_admin()
+    async def blacklist_remove(self, ctx, entry_message_id):
+        """Removes an entry from the blacklist channel"""
+        blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+        entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
+        emb = entry_message.embeds[0]
+        target_id = emb.title.split(' ')[0]
+        await entry_message.delete()
+
+        try:
+            self.bot.db['global_blacklist']['blacklist'].remove(str(target_id))
+        except ValueError:
+            pass
+
+        try:
+            del self.bot.db['global_blacklist']['votes2'][str(target_id)]
+        except ValueError:
+            pass
+
+        await ctx.message.add_reaction('✅')
 
     @global_blacklist.command()
     @blacklist_check()
@@ -1521,63 +1708,77 @@ class Main(commands.Cog):
             await ctx.send("Invalid response")
         await hf.dump_json()
 
-    @global_blacklist.command(aliases=['vote'], name="add")
-    @blacklist_check()
-    async def blacklist_add(self, ctx, user, *, reason: str = None):
-        channel = self.bot.get_channel(533863928263082014)
+    #@global_blacklist.command(aliases=['vote'], name="add")
+    #@commands.bot_has_permissions(add_reactions=True)
+    #@blacklist_check()
+    @commands.command()
+    async def blacklist_add(self, ctx, *, args):
+        """Add people to the blacklist"""
+        args = args.replace('\n', ' ').split(' ')
+        list_of_ids = []
+        reason = "None"
+        for arg_index in range(len(args)):
+            if re.search('\d{17,22}', args[arg_index]):
+                list_of_ids.append(str(args[arg_index]))
+            else:
+                reason = ' '.join(args[arg_index:])
+                break
+        channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         config = self.bot.db['global_blacklist']
-        target_user = self.bot.get_user(int(user))
+        if not list_of_ids:
+            await ctx.author.send(f"No valid ID found in command")
+            return
+        for user in list_of_ids:
+            async def post_vote_notification(target_user, reason):
+                await ctx.message.add_reaction('✅')
+                if not target_user:
+                    target_user = ''
+                emb = discord.Embed(title=f"{user} {target_user} (1 vote)", color=discord.Color(int('ffff00', 16)))
+                emb.add_field(name='Voters', value=ctx.author.name)
+                emb.add_field(name='Reason', value=reason)
+                msg = await channel.send(embed=emb)
+                await msg.add_reaction('⬆')
+                return msg
 
-        async def post_vote_notification(num_of_votes):
-            await ctx.message.add_reaction('✅')
-            if target_user:
-                message = f"📥 There are now **{num_of_votes}** vote(s) for `{target_user.name} " \
-                          f"({user}`) (voted for by {ctx.author.name})"
-            else:
-                message = f"📥 There are now **{num_of_votes}** vote(s) for `{user}`." \
-                          f" (voted for by {ctx.author.name})."
-            if reason:
-                message += "\nExtra info: {reason}"
-            await channel.send(message)
-
-        async def post_ban_notification():
-            await ctx.message.add_reaction('✅')
-            if target_user:
-                message = f"`❌ {target_user.name} ({user}`) has received their final vote from {ctx.author.name}" \
-                          f" and been added to the blacklist."
-            else:
-                message = f"`❌ `{user}` has received their final vote from {ctx.author.name}" \
-                          f" and been added to the blacklist."
-            await channel.send(message)
-
-        if user in config['votes']:  # already been voted on before
-            votes_list = config['votes'][user]  # a list of guild ids that have voted for adding to the blacklist
-        else:
-            if user not in config['blacklist']:
-                votes_list = config['votes'][user] = []  # no votes yet, so an empty list
-            else:
-                await ctx.send("This user is already on the blacklist")
+            try:  # the guild ID that the person trying to add a vote belongs to
+                user_residency = config['residency'][str(ctx.author.id)]  # a guild id
+            except KeyError:
+                await ctx.author.send("Please claim residency on a server first with `;global_blacklist residency`")
                 return
 
-        try:  # the guild ID that the person trying to add a vote belongs to
-            residency = self.bot.db['global_blacklist']['residency'][str(ctx.author.id)]  # a guild id
-        except KeyError:
-            await ctx.send("Please claim residency on a server first with `;global_blacklist residency`")
-            return
+            if user in config['blacklist']:  # already blacklisted
+                await ctx.send(f"{user} is already on the blacklist")
+                continue
 
-        if residency in votes_list:  # ctx.author's server already voted
-            await ctx.send(f"Someone from your server `({self.bot.get_guild(residency).name})` has already voted")
-        else:  # can take a vote
-            votes_list.append(residency)
-            num_of_votes = len(config['votes'][user])
-            if num_of_votes == 3:
-                config['blacklist'].append(int(user))  # adds the user id to the blacklist
-                del (config['votes'][user])
-                await post_ban_notification()
-            else:
-                await post_vote_notification(num_of_votes)
+            if user not in config['votes2']:  # 0 votes
+                config['votes2'][user] = {'votes': [user_residency], 'message': 0}
+                msg = await post_vote_notification(self.bot.get_user(int(user)), reason)
+                config['votes2'][user]['message'] = msg.id
+                continue
 
-        await hf.dump_json()
+            if user in config['votes2']:  # 1 or 2 votes
+                list_of_votes = config['votes2'][user]['votes']
+                if user_residency in list_of_votes:
+                    await ctx.author.send(f"{user} - Someone from your server already voted")
+                    continue
+
+                message = await channel.fetch_message(config['votes2'][user]['message'])
+                emb = message.embeds[0]
+                title_str = emb.title
+                result = re.search('(\((.*)\))? \((.) votes?\)', title_str)
+                # target_username = result.group(2)
+                num_of_votes = result.group(3)
+                emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
+                if num_of_votes == '1':  # 1-->2
+                    emb.title = emb.title.replace('vote', 'votes')
+                    config['votes2'][user]['votes'].append(user_residency)
+                if num_of_votes == '2':  # 2-->3
+                    emb.color = discord.Color(int('ff0000', 16))
+                    del config['votes2'][user]
+                    config['blacklist'].append(int(user))
+                emb.set_field_at(0, name=emb.fields[0].name, value=emb.fields[0].value + f', {ctx.author.name}')
+                await message.edit(embed=emb)
+                await hf.dump_json()
 
     @global_blacklist.command(name='list')
     @blacklist_check()
@@ -1606,8 +1807,9 @@ class Main(commands.Cog):
     @commands.command()
     @hf.is_submod()
     @commands.bot_has_permissions(manage_roles=True)
-    async def mute(self, ctx, time, member=None):
+    async def mute(self, ctx, time, *, member: str = None):
         """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`"""
+
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -1619,7 +1821,8 @@ class Main(commands.Cog):
             for channel in ctx.guild.text_channels:
                 if role not in channel.overwrites:
                     try:
-                        await channel.set_permissions(role, send_messages=False, add_reactions=False, attach_files=False)
+                        await channel.set_permissions(role, send_messages=False, add_reactions=False,
+                                                      attach_files=False)
                     except discord.Forbidden:
                         failed_channels.append(channel.name)
             return failed_channels
@@ -1659,22 +1862,20 @@ class Main(commands.Cog):
 
     @commands.command()
     @hf.is_submod()
-    @commands.bot_has_permissions(manage_roles=True)
+    @commands.bot_has_permissions(manage_roles=True, )
     async def unmute(self, ctx, target_in, guild=None):
         """Unmutes a user"""
         if not guild:
             guild = ctx.guild
+            target: discord.Member = await hf.member_converter(ctx, target_in)
         else:
             guild = self.bot.get_guild(int(guild))
+            target: discord.Member = guild.get_member(int(target_in))
         config = self.bot.db['mutes'][str(guild.id)]
         role = guild.get_role(config['role'])
-        target: discord.Member = await hf.member_converter(ctx, target_in)
 
         if target:
             target_id = target.id
-            if role not in target.roles:
-                await ctx.send("This user is not muted")
-
             try:
                 await target.remove_roles(role)
             except discord.HTTPException:
@@ -1696,7 +1897,7 @@ class Main(commands.Cog):
             await ctx.send(embed=emb)
 
     @commands.command(aliases=['u'])
-    async def user(self, ctx, member=None):
+    async def user(self, ctx, *, member: str = None):
         if not member:
             member = ctx.author
         else:
@@ -1722,7 +1923,7 @@ class Main(commands.Cog):
         for i in sorted_msgs:
             total_msgs += i[1]
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
-                            description="Last 30 days (since 2019/05/07)",
+                            description="Since 2019/05/07)",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=member.joined_at)
         emb.add_field(name="Messages sent",
@@ -1740,11 +1941,11 @@ class Main(commands.Cog):
                 break
         channeltext = ''
         try:
-            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])), round(100*sorted_msgs[0][1]/total_msgs, 2))
+            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])), round(100 * sorted_msgs[0][1] / total_msgs, 2))
             channeltext += f"**#{channel1[0]}**: {channel1[1]}%⠀\n"
-            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])), round(100*sorted_msgs[1][1]/total_msgs, 2))
+            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])), round(100 * sorted_msgs[1][1] / total_msgs, 2))
             channeltext += f"**#{channel2[0]}**: {channel2[1]}%⠀\n"
-            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])), round(100*sorted_msgs[2][1]/total_msgs, 2))
+            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])), round(100 * sorted_msgs[2][1] / total_msgs, 2))
             channeltext += f"**#{channel3[0]}**: {channel3[1]}%⠀\n"
         except IndexError:  # will stop automatically if there's not three channels in the list
             pass
@@ -1752,25 +1953,56 @@ class Main(commands.Cog):
             emb.add_field(name="Top Channels:",
                           value=f"{channeltext}")
         voice_config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
-        voice_time = [0, 0]
+        voice_time = 0
         for day in voice_config:
             if str(member.id) in voice_config[day]:
                 time = voice_config[day][str(member.id)]
-                voice_time[0] += time[0]
-                voice_time[1] += time[1]
-        total_minutes = voice_time[1] + voice_time[0]*60
-        hours = total_minutes // 60
-        minutes = total_minutes % 60
-        if voice_time[0] or voice_time[1]:
+                voice_time += time
+        hours = voice_time // 60
+        minutes = voice_time % 60
+        if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=f"{hours}h {minutes}m")
-        if (not total_msgs or not sorted_msgs) and not voice_time[0] and not voice_time[1]:
+        if (not total_msgs or not sorted_msgs) and not voice_time:
             emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
                                 description="This user hasn't said anything in the past 30 days",
                                 color=discord.Color(int('00ccFF', 16)),
                                 timestamp=member.joined_at)
         emb.set_footer(text="Joined this server")
         await ctx.send(embed=emb)
+
+    @staticmethod
+    def make_leaderboard_embed(ctx, channel_in, dict_in, title):
+        sorted_dict = sorted(dict_in.items(), reverse=True, key=lambda x: x[1])
+        emb = discord.Embed(title=title,
+                            description="Since 2019/05/07)",
+                            color=discord.Color(int('00ccFF', 16)),
+                            timestamp=datetime.utcnow())
+        if channel_in:
+            emb.title = f"Leaderboard for #{channel_in.name}"
+        number_of_users_found = 0
+        found_yourself = False
+        for i in range(len(sorted_dict)):
+            member = ctx.guild.get_member(int(sorted_dict[i][0]))
+            if member:
+                if number_of_users_found < 24 or \
+                        (number_of_users_found == 24 and (found_yourself or member == ctx.author)) or \
+                        number_of_users_found > 24 and member == ctx.author:
+                    if title.startswith("Messages"):
+                        value = sorted_dict[i][1]
+                        emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
+                                      value=sorted_dict[i][1])
+                    elif title.startswith("Voice"):
+                        hours = sorted_dict[i][1] // 60
+                        minutes = sorted_dict[i][1] % 60
+                        emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
+                                      value=f"{hours}h {minutes}m")
+                number_of_users_found += 1
+                if member == ctx.author:
+                    found_yourself = True
+            if number_of_users_found >= 25 and found_yourself:
+                break
+        return emb
 
     async def make_lb(self, ctx, channel_in):
         try:
@@ -1788,31 +2020,7 @@ class Main(commands.Cog):
                         msg_count[user] += config[day][user][channel]
                     except KeyError:
                         msg_count[user] = config[day][user][channel]
-        sorted_dict = sorted(msg_count.items(), key=lambda x: x[1], reverse=True)
-        emb = discord.Embed(title="Leaderboard",
-                            description="For the past 30 days (since 2019/05/07)",
-                            color=discord.Color(int('00ccFF', 16)),
-                            timestamp=datetime.utcnow())
-        if channel_in:
-            emb.title = f"Leaderboard for #{channel_in.name}"
-        number_of_users_found = 0
-        found_yourself = False
-        for i in range(len(sorted_dict)):
-            member = ctx.guild.get_member(int(sorted_dict[i][0]))
-            if member:
-                if number_of_users_found < 24 or \
-                        (number_of_users_found == 24 and (found_yourself or member == ctx.author)) or \
-                        number_of_users_found > 24 and member == ctx.author:
-                    emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
-                                  value=sorted_dict[i][1])
-                number_of_users_found += 1
-                if member == ctx.author:
-                    found_yourself = True
-            if number_of_users_found >= 25 and found_yourself:
-                print(number_of_users_found)
-                break
-
-        await ctx.send(embed=emb)
+        await ctx.send(embed=self.make_leaderboard_embed(ctx, channel_in, msg_count, "Messages Leaderboard"))
 
     @commands.command()
     async def lb(self, ctx):
@@ -1825,8 +2033,158 @@ class Main(commands.Cog):
             channel = ctx.channel
         else:
             channel_id = channel[2:-1]
-            channel = ctx.guild.get_channel(int(channel_id))
+            try:
+                channel = ctx.guild.get_channel(int(channel_id))
+            except ValueError:
+                await ctx.send(f"Please provide a link to a channel, not just the channel name (e.g. `;chlb #general`),"
+                               f"or if you just type `;chlb` it will show the leaderboard for the current channel.")
+                return
         await self.make_lb(ctx, channel)
+
+    @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
+    async def vc(self, ctx):
+        """Prints a leaderboard of who has the most time in voice"""
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
+        except KeyError:
+            return
+        lb_dict = {}
+        for day in config:
+            for user in config[day]:
+                if user in lb_dict:
+                    lb_dict[user] += config[day][user]
+                else:
+                    lb_dict[user] = config[day][user]
+        await ctx.send(embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
+
+    @commands.command(name="delete", aliases=['del'])
+    @hf.is_submod()
+    async def msg_delete(self, ctx, *ids):
+        """A command to delete messages for mods (nod admins, submods).  Usage: `;del <list of IDs>`\n\n
+        Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
+        msgs = []
+        failed_ids = []
+        for msg_id in ids:
+            try:
+                msg = await ctx.channel.fetch_message(msg_id)
+                msgs.append(msg)
+            except discord.NotFound:
+                failed_ids.append(msg_id)
+        if failed_ids:
+            await ctx.send(f"Unable to find ID(s) {', '.join(failed_ids)}.")
+        if not msgs:
+            return
+        emb = discord.Embed(title=f"Deleted messages", color=discord.Color(int('ff0000', 16)),
+                            description=f"by {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})",
+                            timestamp=datetime.utcnow())
+        for msg_index in range(len(msgs)):
+            msg = msgs[msg_index]
+            await msg.delete()
+            emb.add_field(name=f"Message {msg_index} by {msg.author.name}#{msg.author.discriminator} ({msg.author.id})",
+                          value=f"{msg.content[:1024]}")
+            if msg.content[1024:]:
+                emb.add_field(name=f"continued", value=f"...{msg.content[1024:]}")
+            if msg.attachments:
+                x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
+                emb.add_field(name="Attachments (might expire soon):", value='\n'.join(x))
+        emb.set_footer(text=f"In #{ctx.channel.name}")
+        if str(ctx.guild.id) in self.bot.db['submod_channel']:
+            channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
+        elif str(ctx.guild.id) in self.bot.db['mod_channel']:
+            channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+        else:
+            await ctx.send("Please set either a mod channel or a submod channel with "
+                           "`;set_mod_channel` or `;set_submod_channel`")
+            return
+        await channel.send(embed=emb)
+
+    @commands.command()
+    async def lsar(self, ctx, page_num=1):
+        """Lists self-assignable roles"""
+        roles_list = []
+        config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
+        groups = sorted([int(key) for key in config])
+        groups = [str(i) for i in groups]
+        for group in groups:
+            for role in config[group]:
+                roles_list.append((group, role))
+        role_list_str = f"**There are {len(roles_list)} self-assignable roles**\n"
+        if len(roles_list) == 1:
+            role_list_str = role_list_str.replace('roles', 'role').replace('are', 'is')
+        current_group = ''
+        try:
+            current_group = roles_list[20 * (page_num - 1)][0]
+            role_list_str += f"⟪Group {current_group}⟫\n"
+        except IndexError:
+            pass
+
+        for role_tuple in roles_list[20 * (page_num - 1):20 * page_num]:
+            if current_group != role_tuple[0]:
+                current_group = groups[groups.index(current_group) + 1]
+                role_list_str += f"\n⟪Group {current_group}⟫\n"
+
+            role = ctx.guild.get_role(role_tuple[1])
+            if not role:
+                config[current_group].remove(role_tuple[1])
+                continue
+            role_list_str += f"⠀{role.name}\n"
+
+        emb = discord.Embed(description=role_list_str, color=discord.Color(int('00ff00', 16)))
+        emb.set_footer(text=f"{page_num} / {(len(roles_list)//20)+1}")
+        await ctx.send(embed=emb)
+
+    @commands.command()
+    async def iam(self, ctx, *, role_name):
+        """Command used to self-assign a role"""
+        if str(ctx.guild.id) not in self.bot.db['SAR']:
+            return
+        config = self.bot.db['SAR'][str(ctx.guild.id)]
+        desired_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        if not desired_role:
+            await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
+            return
+
+        if desired_role in ctx.author.roles:
+            await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** "
+                                              f"You already have that role"))
+            return
+
+        for group in config:
+            for role_id in config[group]:
+                if desired_role.id == role_id:
+                    await ctx.author.add_roles(desired_role)
+                    await ctx.send(embed=hf.green_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** You now have"
+                                                        f" the **{desired_role.name}** role."))
+                    return
+
+    @commands.command()
+    async def iamnot(self, ctx, *, role_name):
+        """Command used to remove a self-assigned role"""
+        if str(ctx.guild.id) not in self.bot.db['SAR']:
+            return
+        config = self.bot.db['SAR'][str(ctx.guild.id)]
+
+        desired_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        if not desired_role:
+            await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
+            return
+
+        if desired_role not in ctx.author.roles:
+            await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** "
+                                              f"You don't have that role"))
+            return
+
+        for group in config:
+            for role_id in config[group]:
+                if desired_role.id == role_id:
+                    await ctx.author.remove_roles(desired_role)
+                    await ctx.send(
+                        embed=hf.green_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** You no longer have "
+                                             f"the **{desired_role.name}** role."))
+                    return
+
+        await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** That role is not "
+                                          f"self-assignable."))
 
 
 def setup(bot):
