@@ -5,12 +5,16 @@ from datetime import datetime, timedelta, date
 from .utils import helper_functions as hf
 import langdetect
 import re
+from textblob import TextBlob as tb
+import textblob
 
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 COLOR_CHANNEL_ID = 577382927596257280
 BLACKLIST_CHANNEL_ID = 533863928263082014
+BANS_CHANNEL_ID = 329576845949534208
+
 
 def blacklist_check():
     async def pred(ctx):
@@ -26,6 +30,7 @@ class Main(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.ignored_characters = []
         hf.setup(bot)
 
     @commands.command()
@@ -132,8 +137,9 @@ class Main(commands.Cog):
                 for member_id in guild_config['timed_mutes'].copy():
                     unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
                     if unmute_time < datetime.utcnow():
-                        await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
-                        unmuted_users.append(member_id)
+                        result = await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
+                        if result:
+                            unmuted_users.append(member_id)
             if unmuted_users and mod_channel:
                 text_list = []
                 for i in unmuted_users:
@@ -145,6 +151,26 @@ class Main(commands.Cog):
                 await mod_channel.send(embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
+
+    @commands.command(hidden=True)
+    async def _delete_old_stats_days(self, ctx):
+        for server_id in self.bot.db['stats']:
+            config = self.bot.db['stats'][server_id]
+            for day in config['messages'].copy():
+                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                if days_ago > 30:
+                    for user_id in config['messages'][day]:
+                        for channel_id in config['messages'][day][user_id]:
+                            if user_id in config['member_totals']:
+                                config['member_totals'][user_id] += config['messages'][day][user_id][channel_id]
+                            else:
+                                config['member_totals'][user_id] = config['messages'][day][user_id][channel_id]
+                    del config['messages'][day]
+            for day in config['voice']['total_time'].copy():
+                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                if days_ago > 30:
+                    del config['voice']['total_time'][day]
+
 
     # @commands.command(aliases=['r'])
     # async def iam(self, ctx, role):
@@ -272,14 +298,10 @@ class Main(commands.Cog):
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
         """Message as the bot"""
-
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
                 await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
-
-            if not isinstance(msg.channel, discord.TextChannel):
-                return  # stops the rest of the code unless it's in a guild
 
         await message_as_bot()
 
@@ -294,23 +316,27 @@ class Main(commands.Cog):
         await replace_tatsumaki_posts()
 
         """Ping me if someone says my name"""
-        cont = str(msg.content)
-        if (
-                (
-                        'ryry' in cont.casefold()
-                        or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
-                        or 'らいらい' in cont.casefold()
-                        or 'ライライ' in cont.casefold()
-                ) and
-                (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
-        ):  # random sad face
-            if 'aryan' in cont.casefold():  # why do people say this so often...
-                return
-            else:
-                await self.bot.spamChan.send(
-                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
-                    f'\n{msg.content}'
-                    f'\n{msg.jump_url} <@202995638860906496>')
+        async def mention_ping():
+            cont = str(msg.content)
+            if (
+                    (
+                            'ryry' in cont.casefold()
+                            or ('ryan' in cont.casefold() and msg.channel.guild != self.bot.spanServ)
+                            or 'らいらい' in cont.casefold()
+                            or 'ライライ' in cont.casefold()
+                            or '来来' in cont.casefold()
+                            or '雷来' in cont.casefold()
+                    ) and
+                    (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
+            ):  # random sad face
+                if 'aryan' in cont.casefold():  # why do people say this so often...
+                    return
+                else:
+                    await self.bot.spamChan.send(
+                        f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                        f'\n{msg.content}'
+                        f'\n{msg.jump_url} <@202995638860906496>')
+            await mention_ping()
 
         """Self mute"""
         if msg.author.id == self.bot.owner_id and self.bot.selfMute:
@@ -369,38 +395,57 @@ class Main(commands.Cog):
                         break
 
         """best sex dating"""
-        words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip']
-        try:
-            for word in words:
-                if word in msg.content:
-                    await self.bot.get_user(self.bot.owner_id).send(f"best spam sex in {msg.guild.name} - "
-                                                                    f"{msg.channel.name} "
-                                                                    f"{msg.channel.mention}")
-                    if str(msg.author.guild.id) in self.bot.db['auto_bans']:
-                        return
-                    if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable'] and \
-                            datetime.utcnow() - msg.author.joined_at < timedelta(minutes=10):
-                        if msg.author.id in [202995638860906496, 414873201349361664]:
+        async def spam_account_bans():
+            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
+            try:
+                for word in words:
+                    if word in msg.content:
+                        time_ago = datetime.utcnow() - msg.author.joined_at
+                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by {msg.author.name}" \
+                                   f" (joined {time_ago.seconds//3600}h {time_ago.seconds%3600//60}m ago [{time_ago}])" \
+                                   f"```{msg.content}```"
+                        await self.bot.get_user(self.bot.owner_id).send(msg_text)
+                        if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
                             return
-                        await msg.author.ban(reason=f'For posting a {word} link',
-                                             delete_message_days=1)
-                        self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
-                        channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-                        await channel.send(
-                            f"❌ Automatically added `{msg.author.name} ({msg.author.id}`) to the blacklist for "
-                            f"posting a {word} spam link")
-                        message = f"Banned a user for posting a {word} link." \
-                                  f"\nID: {msg.author.id}" \
-                                  f"\nServer: {msg.author.guild.name}" \
-                                  f"\nName: {msg.author.name} {msg.author.mention}"
-                        await self.bot.get_channel(329576845949534208).send(message)
-                        await hf.dump_json()
-        except KeyError as e:
-            print(f'>>passed for key error on amazingsexdating: {e}<<')
-            pass
-        except AttributeError as e:
-            print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
-            pass
+                        if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
+                            if time_ago < timedelta(minutes=10) or \
+                                    (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
+                                if msg.author.id in [202995638860906496, 414873201349361664]:
+                                    return
+                                await msg.author.ban(reason=f'For posting spam link: {msg.content}',
+                                                     delete_message_days=1)
+                                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
+                                channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+                                emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
+                                emb.add_field(name="Reason", value=msg.content)
+                                await channel.send(embed=emb)
+                                created_ago = datetime.utcnow() - msg.author.created_at
+                                joined_ago = datetime.utcnow() - msg.author.joined_at
+                                message = f"**Banned a user for posting a {word} link.**" \
+                                          f"\n**ID:** {msg.author.id}" \
+                                          f"\n**Server:** {msg.author.guild.name}" \
+                                          f"\n**Name:** {msg.author.name} {msg.author.mention}" \
+                                          f"\n**Account creation:** {msg.author.created_at} " \
+                                          f"({created_ago.days}d {created_ago.seconds//3600}h ago)" \
+                                          f"\n**Server join:** {msg.author.joined_at} " \
+                                          f"({joined_ago.days}d {joined_ago.seconds//3600}h ago)" \
+                                          f"\n**Message:** {msg.content}"
+                                emb2 = hf.red_embed(message)
+                                emb2.color = discord.Color(int('000000', 16))
+                                await self.bot.get_channel(329576845949534208).send(embed=emb2)
+                                if str(msg.guild.id) in self.bot.db['bans']:
+                                    if self.bot.db['bans'][str(msg.guild.id)]['channel']:
+                                        channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
+                                        await self.bot.get_channel(channel_id).send(embed=emb2)
+                                await hf.dump_json()
+
+            except KeyError as e:
+                print(f'>>passed for key error on amazingsexdating: {e}<<')
+                pass
+            except AttributeError as e:
+                print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
+                pass
+        await spam_account_bans()
 
         """mods ping on spanish server"""
         if msg.guild.id == 243838819743432704:
@@ -421,9 +466,14 @@ class Main(commands.Cog):
         """Replace .mute on spanish server"""
         if msg.guild.id == 243838819743432704:
             if msg.content.startswith('.mute'):
-                await msg.channel.send(
-                    f"I've disabled Nadeko's `.mute` since it's broken.   Use Rai's `;mute` (syntax "
-                    f"should all be the same)")
+                ctx = await self.bot.get_context(msg)
+                args = msg.content.split()[1:]
+                if len(args) == 1:
+                    await ctx.invoke(self.mute, args[0])
+                elif len(args) > 1:
+                    await ctx.invoke(self.mute, args[0], member=' '.join(args[1:]))
+                else:
+                 await ctx.send("Use `;mute` instead")
 
         """super_watch"""
         try:
@@ -443,17 +493,25 @@ class Main(commands.Cog):
         # 		messages (for ,u):
         # 			{5/6/2019:
         # 				{user_id1:
+        #                   emoji: {emoji1: 1, emoji2: 3}
+        #                   lang: {'eng': 25, 'sp': 30}
         # 					channel1: 30,
         # 					channel2: 20
         # 				user_id2:
+        #                   emoji: {emoji1: 1, emoji2: 3}
+        #                   lang: {'eng': 25, 'sp': 30}
         # 					channel1: 40,
         # 					channel2: 10
         # 				...}
         # 			5/5/2019:
         # 				{user_id1:
+        #                   emoji: {emoji1: 1, emoji2: 3}
+        #                   lang: {'eng': 25, 'sp': 30}
         # 					channel1: 30,
         # 					channel2: 20
         # 				user_id2:
+        #                   emoji: {emoji1: 1, emoji2: 3}
+        #                   lang: {'eng': 25, 'sp': 30}
         # 					channel1: 40,
         # 					channel2: 10
         # 				...}
@@ -473,13 +531,33 @@ class Main(commands.Cog):
             today = config['messages'][date_str]
             author = str(msg.author.id)
             channel = str(msg.channel.id)
-            if author in today:
-                if channel in today[author]:
-                    today[author][channel] += 1
-                else:
-                    today[author][channel] = 1
-            else:
-                today[author] = {channel: 1}
+
+            # emojis
+            emojis = re.findall(':([A-Za-z0-9\_]+):', msg.content)
+            unicode_emojis = []
+            for character in msg.content:
+                if hf.is_emoji(character):
+                    emojis.append(character)
+                if hf.is_ignored_emoji(character) and character not in self.ignored_characters:
+                    self.ignored_characters.append(character)
+
+            # languages
+            lang_used = None
+            try:
+                lang_used = tb(hf.rem_emoji_url(msg)).detect_language()
+            except textblob.exceptions.TranslatorError:
+                pass
+
+            today.setdefault(author, {})
+            today[author][channel] = today[author].get(channel, 0) + 1
+            today[author].setdefault('emoji', {})
+            for emoji in emojis:
+                if emoji in ['、']:
+                    continue
+                today[author]['emoji'][emoji] = today[author]['emoji'].get(emoji, 0) + 1
+            if lang_used:
+                today[author].setdefault('lang', {})
+                today[author]['lang'][lang_used] = today[author]['lang'].get(lang_used, 0) + 1
 
         msg_count()
 
@@ -600,8 +678,12 @@ class Main(commands.Cog):
         if user:
             user = await hf.member_converter(ctx, user)
             if not user:
-                await ctx.send("I couldn't find that user.  Please try again, or type just `;report` if you want to"
-                               " make your own report")
+                if not hf.admin_check(ctx):
+                    await ctx.send("You shouldn't type the report into the channel.  Just type `;report` and a menu "
+                                   "will help you.")
+                else:
+                    await ctx.send("I couldn't find that user.  Please try again, or type just `;report` if you want to"
+                                   " make your own report")
                 return
         else:
             user = ctx.author
@@ -729,7 +811,7 @@ class Main(commands.Cog):
         config['current_user'] = None
         config['entry_message'] = None
         await hf.dump_json()
-        await report_room.set_permissions(user, read_messages=False)
+        await report_room.set_permissions(user, overwrite=None)
 
         message_log = 'Start of log:\n'
         async for message in ctx.channel.history(limit=None, after=start_message):
@@ -874,7 +956,7 @@ class Main(commands.Cog):
             await ctx.author.send(report_text[2])  # "thank you for the report"
             mod_channel = ctx.bot.get_channel(ctx.bot.db['mod_channel'][str(ctx.guild.id)])
             initial_msg = 'Received report from a user: \n\n'
-            if ctx.bot.db['report'][str(ctx.guild.id)]['anonymous_ping']:
+            if ctx.bot.db['report'][str(ctx.guild.id)].setdefault('anonymous_ping', False):
                 initial_msg = '@here ' + initial_msg
             await mod_channel.send(initial_msg)
             await mod_channel.send(msg.content)
@@ -906,7 +988,7 @@ class Main(commands.Cog):
         if user.id in config['waiting_list']:
             config['waiting_list'].remove(user.id)
         config['current_user'] = user.id
-        if report_room.permissions_for(user).read_messages or not config['room_ping']:
+        if report_room.permissions_for(user).read_messages or not config.setdefault('room_ping', False):
             initial_msg = report_text[4][:-5]
         else:
             initial_msg = report_text[4]
@@ -952,8 +1034,10 @@ class Main(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        if payload.channel_id == BLACKLIST_CHANNEL_ID:  # votes on blacklist
-            if payload.emoji.name == '⬆':
+        if payload.user_id == self.bot.user.id:
+            return
+        if payload.emoji.name == '⬆':
+            if payload.channel_id == BLACKLIST_CHANNEL_ID:  # votes on blacklist
                 channel = self.bot.get_channel(payload.channel_id)
                 message = await channel.fetch_message(payload.message_id)
                 ctx = await self.bot.get_context(message)
@@ -966,6 +1050,25 @@ class Main(commands.Cog):
                     if voting_guild_id not in config['votes2'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
                             await ctx.invoke(self.blacklist_add, args=user_id)
+                else:
+                    await ctx.author.send("Please claim residency on a server first with `;global_blacklist residency`")
+                    return
+
+            elif payload.channel_id == BANS_CHANNEL_ID:
+                channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+                try:
+                    message = await channel.fetch_message(payload.message_id)
+                except discord.errors.NotFound:
+                    print(payload.message_id, payload.user_id)
+                    raise
+                ctx = await self.bot.get_context(message)
+                ctx.author = self.bot.get_user(payload.user_id)
+                ctx.reacted_user_id = payload.user_id
+                user_id = re.search('\((\d{17,22})\)', message.embeds[0].description).lastgroup
+                config = self.bot.db['global_blacklist']
+                if str(payload.user_id) in config['residency']:
+                    if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
+                        await ctx.invoke(self.blacklist_add, args=user_id)
                 else:
                     await ctx.author.send("Please claim residency on a server first with `;global_blacklist residency`")
                     return
@@ -1098,32 +1201,21 @@ class Main(commands.Cog):
 
     @commands.command()
     async def pencil(self, ctx):
-        if ctx.author.nick:
-            try:
-                await ctx.author.edit(nick=ctx.author.nick + '📝')
-                await ctx.send("I've added 📝 to your name.  This means you wish to be corrected in your sentences")
-            except discord.errors.Forbidden:
-                await ctx.send("I lack the permissions to change your nickname")
-            except discord.errors.HTTPException:
-                await ctx.message.add_reaction('💢')
-        else:
-            try:
-                await ctx.author.edit(nick=ctx.author.name + '📝')
-                await ctx.send("I've added 📝 to your name.  This means you wish to be corrected in your sentences")
-            except discord.errors.Forbidden:
-                await ctx.send("I lack the permissions to change your nickname")
+        try:
+            await ctx.author.edit(nick=ctx.author.display_name + '📝')
+            await ctx.send("I've added 📝 to your name.  This means you wish to be corrected in your sentences")
+        except discord.errors.Forbidden:
+            await ctx.send("I lack the permissions to change your nickname")
+        except discord.errors.HTTPException:
+            await ctx.message.add_reaction('💢')
 
     @commands.command()
     async def eraser(self, ctx):
-        if ctx.author.nick:
-            try:
-                await ctx.author.edit(nick=ctx.author.nick[:-1])
-                await ctx.message.add_reaction('◀')
-            except discord.errors.Forbidden:
-                await ctx.send("I lack the permissions to change your nickname")
-        else:
-            await ctx.author.edit(nick=ctx.author.name[:-1])
+        try:
+            await ctx.author.edit(nick=ctx.author.display_name[:-1])
             await ctx.message.add_reaction('◀')
+        except discord.errors.Forbidden:
+            await ctx.send("I lack the permissions to change your nickname")
 
     @commands.command(aliases=['ryry'])
     async def ryan(self, ctx):
@@ -1170,7 +1262,7 @@ class Main(commands.Cog):
                            f"questions channel to start setup.")
             return
         if not title:
-            title = target_message.content[:900]
+            title = target_message.content
         # for channel in self.bot.db['questions'][str(ctx.guild.id)]:
         # for question in self.bot.db['questions'][str(ctx.guild.id)][channel]:
         # question = self.bot.db['questions'][str(ctx.guild.id)][channel][question]
@@ -1193,22 +1285,27 @@ class Main(commands.Cog):
 
         log_channel = self.bot.get_channel(config['log_channel'])
         color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every username
-        splice_len = 1024 - len(target_message.jump_url)
         emb = discord.Embed(title=f"Question number: `{question_number}`",
                             description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
                                         f"in {target_message.channel.mention}",
                             color=discord.Color(color),
                             timestamp=datetime.utcnow())
-        if len(title) > splice_len:
-            emb.add_field(name=f"Question:", value=f"{title[:splice_len]}...\n{target_message.jump_url}")
+        if len(f"{title}\n") > (1024 - len(target_message.jump_url)):
+            emb.add_field(name=f"Question:", value=f"{title}"[:1024])
+            if title[1024:]:
+                emb.add_field(name=f"Question (cont.):", value=f"{title[1024:]}\n")
+            emb.add_field(name=f"Jump Link to Question:", value=target_message.jump_url)
         else:
             emb.add_field(name=f"Question:", value=f"{title}\n{target_message.jump_url}")
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
         try:
             log_message = await log_channel.send(embed=emb)
-        except discord.errors.HTTPException:
-            await ctx.send("The question was too long")
+        except discord.errors.HTTPException as err:
+            if err.status == 400:
+                await ctx.send("The question was too long")
+            elif err.status == 403:
+                await ctx.send("I didn't have permissions to post in that channel")
             del (config['questions'][str(question_number)])
             return
         config['questions'][str(question_number)]['log_message'] = log_message.id
@@ -1457,8 +1554,8 @@ class Main(commands.Cog):
         await log_message.delete()
         await hf.dump_json()
 
-    @question.command()
-    async def list(self, ctx):
+    @question.command(name='list')
+    async def question_list(self, ctx):
         """Shows a list of currently open questions"""
         try:
             config = self.bot.db['questions'][str(ctx.guild.id)]
@@ -1467,7 +1564,15 @@ class Main(commands.Cog):
                            f"questions channel to start setup.")
             return
         emb = discord.Embed(title=f"List of open questions:")
+        if str(ctx.channel.id) in config:
+            log_channel_id = config[str(ctx.channel.id)]['log_channel']
+        elif str(ctx.guild.id) in config:
+            log_channel_id = config[str(ctx.guild.id)]['log_channel']
+        else:
+            log_channel_id = '0'  # use all channels
         for channel in config:
+            if config[channel]['log_channel'] != log_channel_id and log_channel_id != 0:
+                continue
             channel_config = config[str(channel)]['questions']
             for question in channel_config:
                 try:
@@ -1575,6 +1680,7 @@ class Main(commands.Cog):
         em.add_field(name="Channels", value=f"{len(guild.text_channels)} text / {len(guild.voice_channels)} voice")
         em.add_field(name="Verification Level", value=guild.verification_level)
         em.add_field(name="Guild created on (UTC)", value=guild.created_at.strftime("%Y/%m/%d %H:%M:%S"))
+        em.add_field(name="Number of members", value=ctx.guild.member_count)
 
         if guild.afk_channel:
             em.add_field(name="Voice AFK Timeout",
@@ -1708,10 +1814,10 @@ class Main(commands.Cog):
             await ctx.send("Invalid response")
         await hf.dump_json()
 
-    #@global_blacklist.command(aliases=['vote'], name="add")
-    #@commands.bot_has_permissions(add_reactions=True)
-    #@blacklist_check()
-    @commands.command()
+    # @global_blacklist.command(aliases=['vote'], name="add")
+    # @commands.bot_has_permissions(add_reactions=True)
+    # @blacklist_check()
+    @global_blacklist.command(aliases=['vote'], name="add")
     async def blacklist_add(self, ctx, *, args):
         """Add people to the blacklist"""
         args = args.replace('\n', ' ').split(' ')
@@ -1807,9 +1913,9 @@ class Main(commands.Cog):
     @commands.command()
     @hf.is_submod()
     @commands.bot_has_permissions(manage_roles=True)
-    async def mute(self, ctx, time, *, member: str = None):
-        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`"""
-
+    async def mute(self, ctx, time, member=None, *, reason=None):
+        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
+        indefinite mute."""
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -1840,9 +1946,22 @@ class Main(commands.Cog):
             config = self.bot.db['mutes'][str(ctx.guild.id)]
             role = ctx.guild.get_role(config['role'])
             await set_channel_overrides(role)
+
         time_string, length = hf.parse_time(str(time))
-        if not time_string:
+        print(f"time: {time}\nmember: {member}\nreason: {reason}\ntime_string: {time_string}\nlength: {length}\n")
+        if not time_string:  # indefinite mute
+            if not reason:
+                reason = ''
+            if member:
+                reason = f"{member} {reason}"
             member = time
+            time = None
+
+        silent = False
+        if '-s' in reason:
+            reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+            silent = True
+
         target = await hf.member_converter(ctx, member)
         if not target:
             return
@@ -1850,15 +1969,54 @@ class Main(commands.Cog):
             await ctx.send("This user is already muted (already has the mute role)")
             return
         await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+
+        if target.voice:  # if they're in a channel, move them out then in to trigger the mute
+            voice_state = target.voice
+            try:
+                if ctx.guild.afk_channel:
+                    await target.move_to(ctx.guild.afk_channel)
+                    await target.move_to(voice_state.channel)
+                else:
+                    for channel in ctx.guild.voice_channels:
+                        if not channel.members:
+                            await target.move_to(channel)
+                            await target.move_to(voice_state.channel)
+                            break
+            except discord.Forbidden:
+                pass
+
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
             await hf.dump_json()
-        emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been **muted** from text and "
-                                        f"voice chat.",
-                            color=discord.Color(int('FF0000', 16)))
+
+        emb = hf.red_embed(f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat.")
         if time_string:
             emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
+        if silent:
+            emb.description += " (The user was not notified of this)"
         await ctx.send(embed=emb)
+
+        print(f"time: {time}\nmember: {member}\nreason: {reason}\ntime_string: {time_string}\nlength: {length}\n")
+        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
+        modlog_channel = self.bot.get_channel(modlog_config['channel'])
+
+        emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
+        emb.color = discord.Color(int('ffff00', 16))  # embed
+        if time_string:
+            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
+        else:
+            emb.add_field(name="Length", value="Indefinite", inline=False)
+        if reason:
+            emb.add_field(name="Reason", value=reason)
+        if not silent:
+            await target.send(embed=emb)
+
+        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
+        emb.description = "Mute"
+        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+        await modlog_channel.send(embed=emb)
+        await hf.dump_json()
 
     @commands.command()
     @hf.is_submod()
@@ -1874,10 +2032,12 @@ class Main(commands.Cog):
         config = self.bot.db['mutes'][str(guild.id)]
         role = guild.get_role(config['role'])
 
+        failed = False
         if target:
             target_id = target.id
             try:
                 await target.remove_roles(role)
+                failed = False
             except discord.HTTPException:
                 pass
 
@@ -1896,6 +2056,69 @@ class Main(commands.Cog):
                                 color=discord.Color(int('00ffaa', 16)))
             await ctx.send(embed=emb)
 
+        if not failed:
+            return True
+
+    lang_codes_dict = {'af': 'Afrikaans', 'ga': 'Irish', 'sq': 'Albanian', 'it': 'Italian', 'ar': 'Arabic',
+                       'ja': 'Japanese', 'az': 'Azerbaijani', 'kn': 'Kannada', 'eu': 'Basque', 'ko': 'Korean',
+                       'bn': 'Bengali', 'la': 'Latin', 'be': 'Belarusian', 'lv': 'Latvian', 'bg': 'Bulgarian',
+                       'lt': 'Lithuanian', 'ca': 'Catalan', 'mk': 'Macedonian', 'zh-CN': 'Chinese Simplified',
+                       'ms': 'Malay', 'zh-TW': 'Chinese Traditional', 'mt': 'Maltese', 'hr': 'Croatian',
+                       'no': 'Norwegian', 'cs': 'Czech', 'fa': 'Persian', 'da': 'Danish', 'pl': 'Polish',
+                       'nl': 'Dutch', 'pt': 'Portuguese', 'en': 'English', 'ro': 'Romanian', 'eo': 'Esperanto',
+                       'ru': 'Russian', 'et': 'Estonian', 'sr': 'Serbian', 'tl': 'Filipino', 'sk': 'Slovak',
+                       'fi': 'Finnish', 'sl': 'Slovenian', 'fr': 'French', 'es': 'Spanish', 'gl': 'Galician',
+                       'sw': 'Swahili', 'ka': 'Georgian', 'sv': 'Swedish', 'de': 'German', 'ta': 'Tamil',
+                       'el': 'Greek', 'te': 'Telugu', 'gu': 'Gujarati', 'th': 'Thai', 'ht': 'Haitian Creole',
+                       'tr': 'Turkish', 'iw': 'Hebrew', 'uk': 'Ukrainian', 'hi': 'Hindi', 'ur': 'Urdu',
+                       'hu': 'Hungarian', 'vi': 'Vietnamese', 'is': 'Icelandic', 'cy': 'Welsh', 'id': 'Indonesian',
+                       'yi': 'Yiddish'}
+
+    @commands.command(aliases=['uc'])
+    async def uchannels(self, ctx, *, member: str = None):
+        if not member:
+            member = ctx.author
+        else:
+            member = await hf.member_converter(ctx, member)
+            if not member:
+                return
+        try:
+            config = self.bot.db['stats'][str(ctx.guild.id)]['messages']
+        except KeyError:
+            return
+
+        message_count = {}
+        for day in config:
+            if str(member.id) in config[day]:
+                user = config[day][str(member.id)]
+                for channel in user:
+                    if channel in ['emoji', 'lang']:
+                        continue
+                    message_count[channel] = message_count.get(channel, 0) + user[channel]
+        sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
+        emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+                            description="Last 30 days",
+                            color=discord.Color(int('00ccFF', 16)),
+                            timestamp=member.joined_at)
+        lb = ''
+        index = 1
+        total = 0
+        for channel_tuple in sorted_msgs:
+            total += channel_tuple[1]
+        for channel_tuple in sorted_msgs:
+            if channel_tuple[0] in self.bot.db['stats'][str(ctx.guild.id)]['hidden']:
+                continue
+            try:
+                channel = ctx.guild.get_channel(int(channel_tuple[0]))
+                lb += f"**{index}) {channel.name}**: {round((channel_tuple[1]/total)*100, 2)}% ({channel_tuple[1]})\n"
+                index += 1
+            except discord.NotFound:
+                pass
+            if index == 26:
+                break
+        emb.add_field(name="Top channels", value=lb[:1024])
+        await ctx.send(embed=emb)
+
     @commands.command(aliases=['u'])
     async def user(self, ctx, *, member: str = None):
         if not member:
@@ -1908,26 +2131,47 @@ class Main(commands.Cog):
             config = self.bot.db['stats'][str(ctx.guild.id)]['messages']
         except KeyError:
             return
+
+        emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
+
         message_count = {}
+        emoji_count = {}
+        lang_count = {}
+        total_msgs_month = 0
+        total_msgs_week = 0
         for day in config:
             if str(member.id) in config[day]:
                 user = config[day][str(member.id)]
                 for channel in user:
-                    try:
-                        message_count[channel] += user[channel]
-                    except KeyError:
-                        message_count[channel] = user[channel]
+                    if channel in ['emoji', 'lang']:
+                        continue
+                    message_count[channel] = message_count.get(channel, 0) + user[channel]
+                    days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                    if days_ago <= 7:
+                        total_msgs_week += user[channel]
+                    total_msgs_month += user[channel]
+                if 'emoji' in user:
+                    for emoji in user['emoji']:
+                        if emoji in emoji_dict:
+                            name = emoji_dict[emoji]
+                        else:
+                            name = emoji
+                        emoji_count[name] = emoji_count.get(name, 0) + user['emoji'][emoji]
+                if 'lang' in user:
+                    for lang in user['lang']:
+                        lang_count[lang] = lang_count.get(lang, 0) + user['lang'][lang]
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
         # looks like [('284045742652260352', 15), ('296491080881537024', 3), ('296013414755598346', 1)]
-        total_msgs = 0
-        for i in sorted_msgs:
-            total_msgs += i[1]
+        sorted_emojis = sorted(emoji_count.items(), key=lambda x: x[1], reverse=True)
+        sorted_langs = sorted(lang_count.items(), key=lambda x: x[1], reverse=True)
+
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
-                            description="Since 2019/05/07)",
+                            description="Last 30 days (I'll improve the languages code when I get more data)",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=member.joined_at)
-        emb.add_field(name="Messages sent",
-                      value=total_msgs)
+        emb.add_field(name="Messages sent M | W",
+                      value=f"{total_msgs_month} | {total_msgs_week}")
+
         good_channels = 0
         hidden = self.bot.db['stats'][str(ctx.guild.id)]['hidden']
         for channel in sorted_msgs.copy():
@@ -1941,17 +2185,21 @@ class Main(commands.Cog):
                 break
         channeltext = ''
         try:
-            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])), round(100 * sorted_msgs[0][1] / total_msgs, 2))
+            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])),
+                        round(100 * sorted_msgs[0][1] / total_msgs_month, 2))
             channeltext += f"**#{channel1[0]}**: {channel1[1]}%⠀\n"
-            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])), round(100 * sorted_msgs[1][1] / total_msgs, 2))
+            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])),
+                        round(100 * sorted_msgs[1][1] / total_msgs_month, 2))
             channeltext += f"**#{channel2[0]}**: {channel2[1]}%⠀\n"
-            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])), round(100 * sorted_msgs[2][1] / total_msgs, 2))
+            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])),
+                        round(100 * sorted_msgs[2][1] / total_msgs_month, 2))
             channeltext += f"**#{channel3[0]}**: {channel3[1]}%⠀\n"
         except IndexError:  # will stop automatically if there's not three channels in the list
             pass
         if channeltext:
             emb.add_field(name="Top Channels:",
                           value=f"{channeltext}")
+
         voice_config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
         voice_time = 0
         for day in voice_config:
@@ -1963,11 +2211,40 @@ class Main(commands.Cog):
         if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=f"{hours}h {minutes}m")
-        if (not total_msgs or not sorted_msgs) and not voice_time:
+        if (not total_msgs_month or not sorted_msgs) and not voice_time:
             emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
                                 description="This user hasn't said anything in the past 30 days",
                                 color=discord.Color(int('00ccFF', 16)),
                                 timestamp=member.joined_at)
+        if sorted_emojis:
+            value = ''
+            counter = 0
+            for emoji_tuple in sorted_emojis:
+                value += f"{str(emoji_tuple[0])} {str(emoji_tuple[1])} times\n"
+                counter += 1
+                if counter == 3:
+                    break
+            emb.add_field(name='Most used emojis', value=value)
+
+        if sorted_langs:
+            value = ''
+            counter = 0
+            total = 0
+            for lang_tuple in sorted_langs:
+                total += lang_tuple[1]
+            for lang_tuple in sorted_langs:
+                if lang_tuple[0] not in self.lang_codes_dict:
+                    continue
+                percentage = round((lang_tuple[1]/total) * 100, 1)
+                if counter in [0, 1]:
+                    value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
+                if counter > 1 and percentage > 5:
+                    value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
+                counter += 1
+                if counter == 5:
+                    break
+            emb.add_field(name='Most used languages', value=value)
+
         emb.set_footer(text="Joined this server")
         await ctx.send(embed=emb)
 
@@ -1975,7 +2252,7 @@ class Main(commands.Cog):
     def make_leaderboard_embed(ctx, channel_in, dict_in, title):
         sorted_dict = sorted(dict_in.items(), reverse=True, key=lambda x: x[1])
         emb = discord.Embed(title=title,
-                            description="Since 2019/05/07)",
+                            description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=datetime.utcnow())
         if channel_in:
@@ -2013,6 +2290,8 @@ class Main(commands.Cog):
         for day in config:
             for user in config[day]:
                 for channel in config[day][user]:
+                    if channel in ['emoji', 'lang']:
+                        continue
                     if channel_in:
                         if str(channel_in.id) != channel:
                             continue
@@ -2058,10 +2337,17 @@ class Main(commands.Cog):
         await ctx.send(embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
 
     @commands.command(name="delete", aliases=['del'])
-    @hf.is_submod()
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for mods (nod admins, submods).  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
+        if not hf.submod_check(ctx):
+            try:
+                if ctx.author.id not in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
+                    return
+            except KeyError:
+                return
+
+        await ctx.message.delete()
         msgs = []
         failed_ids = []
         for msg_id in ids:
@@ -2077,11 +2363,18 @@ class Main(commands.Cog):
         emb = discord.Embed(title=f"Deleted messages", color=discord.Color(int('ff0000', 16)),
                             description=f"by {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})",
                             timestamp=datetime.utcnow())
+        embeds = []
         for msg_index in range(len(msgs)):
             msg = msgs[msg_index]
             await msg.delete()
-            emb.add_field(name=f"Message {msg_index} by {msg.author.name}#{msg.author.discriminator} ({msg.author.id})",
-                          value=f"{msg.content[:1024]}")
+            if msg.embeds:
+                for embed in msg.embeds:
+                    embeds.append(embed)
+                    emb.add_field(name="Embed deleted", value="Content shown below")
+            if msg.content:
+                emb.add_field(name=f"Message {msg_index} by "
+                                   f"{msg.author.name}#{msg.author.discriminator} ({msg.author.id})",
+                              value=f"{msg.content[:1024]}")
             if msg.content[1024:]:
                 emb.add_field(name=f"continued", value=f"...{msg.content[1024:]}")
             if msg.attachments:
@@ -2097,6 +2390,9 @@ class Main(commands.Cog):
                            "`;set_mod_channel` or `;set_submod_channel`")
             return
         await channel.send(embed=emb)
+        if embeds:
+            for embed in embeds:
+                await channel.send(embed=embed)
 
     @commands.command()
     async def lsar(self, ctx, page_num=1):
@@ -2139,7 +2435,7 @@ class Main(commands.Cog):
         if str(ctx.guild.id) not in self.bot.db['SAR']:
             return
         config = self.bot.db['SAR'][str(ctx.guild.id)]
-        desired_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        desired_role = discord.utils.find(lambda role: role.name.casefold() == role_name.casefold(), ctx.guild.roles)
         if not desired_role:
             await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
             return
@@ -2164,7 +2460,7 @@ class Main(commands.Cog):
             return
         config = self.bot.db['SAR'][str(ctx.guild.id)]
 
-        desired_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        desired_role = discord.utils.find(lambda role: role.name.casefold() == role_name.casefold(), ctx.guild.roles)
         if not desired_role:
             await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
             return
@@ -2185,6 +2481,117 @@ class Main(commands.Cog):
 
         await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** That role is not "
                                           f"self-assignable."))
+
+    @commands.command()
+    async def pin(self, ctx, message_id=None):
+        """Pin a message"""
+        if not hf.submod_check(ctx):
+            try:
+                if ctx.author.id not in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
+                    return
+            except KeyError:
+                return
+
+        if not message_id:
+            message_id = ctx.channel.last_message_id
+        to_be_pinned_msg = await ctx.channel.fetch_message(message_id)
+        try:
+            await to_be_pinned_msg.pin()
+        except discord.Forbidden:
+            await ctx.send("I lack permission to pin messages in this channel")
+
+    @commands.command()
+    @commands.bot_has_permissions(ban_members=True)
+    async def ban(self, ctx, *args):
+        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`  Example: `;ban @Ryry013 being mean` or
+        `;ban 2d3h @Abelian posting invite links`.  If crossposting is enabled, you can add -s into the reason to
+        make this ban not crosspost"""
+        timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
+        if timed_ban:
+            if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
+                length = timed_ban[0][:-1].split('d')
+                length = [length[0], length[1]]
+            elif re.findall('^\d+d$', args[0]):  # format: #d
+                length = [timed_ban[0][:-1], '0']
+            else:  # format: #h
+                length = ['0', timed_ban[0][:-1]]
+            unban_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+            target = await hf.member_converter(ctx, args[1])
+            reason = ' '.join(args[2:])
+            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
+        else:
+            target = await hf.member_converter(ctx, args[0])
+            length = []
+            time_string = None
+            reason = ' '.join(args[1:])
+        if not target:
+            return
+        if not reason:
+            reason = '(no reason given)'
+
+        if ctx.guild.id == 243838819743432704:
+            for _ in ['_']:
+                if ctx.guild.get_role(258819531193974784) in ctx.author.roles:
+                    if datetime.utcnow() - target.joined_at < timedelta(minutes=60):
+                        break
+                if hf.admin_check(ctx):
+                    break
+                raise commands.MissingPermissions('ban_members')
+        else:
+            if not hf.admin_check(ctx):
+                raise commands.MissingPermissions('ban_members')
+
+        em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
+        if length:
+            em.description = f"You will be unbanned automatically at {time_string} " \
+                             f"(in {length[0]} days and {length[1]} hours)"
+        else:
+            em.description = "This ban is indefinite."
+        if reason != '(no reason given)':
+            if '-silent' in reason or '-s' in reason:
+                reason = reason.replace('-silent ', '').replace('-s ', '')
+                reason = '⁣' + reason
+            em.add_field(name="Reason:", value=reason)
+        await ctx.send(f"You are about to ban {target.mention}: ", embed=em)
+        msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
+               f"to the user, or `no` to cancel."
+        if ctx.author in self.bot.get_guild(257984339025985546).members and not reason.startswith('⁣'):
+            try:
+                if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                    msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` before the reason)"
+            except KeyError:
+                pass
+        msg2 = await ctx.send(msg2)
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=40.0,
+                                          check=lambda x: x.author == ctx.author and
+                                                          x.content.casefold() in ['yes', 'no', 'send'])
+        except asyncio.TimeoutError:
+            await ctx.send(f"Timed out.  Canceling ban.")
+            return
+        content = msg.content.casefold()
+        if content == 'no':
+            await ctx.send(f"Canceling ban")
+            await msg2.delete()
+            return
+        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
+        if reason.startswith('⁣'):
+            text = '⁣' + text
+        if content == 'send':
+            await target.send(embed=em)
+        try:
+            await target.ban(reason=text)
+        except discord.Forbidden:
+            await ctx.send(f"I couldn't ban that user.  They're probably above me in the role list.")
+            return
+        if length:
+            config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
+                                                    {'enable': False, 'channel': None, 'timed_bans': {}})
+            timed_bans = config.setdefault('timed_bans', {})
+            timed_bans[str(target.id)] = time_string
+            await hf.dump_json()
+        await ctx.send(f"Successfully banned")
 
 
 def setup(bot):

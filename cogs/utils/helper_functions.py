@@ -62,6 +62,17 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
+def add_to_modlog(ctx, user, type, reason, silent, length=None):
+    config = ctx.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': ctx.channel.id})
+    config.setdefault(str(user.id), []).append({'type': type,
+                                                'reason': reason,
+                                                'date': datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
+                                                'silent': silent,
+                                                'length': length,
+                                                'jump_url': ctx.message.jump_url})
+    return config
+
+
 def green_embed(text):
     return discord.Embed(description=text, color=discord.Color(int('00ff00', 16)))
 
@@ -116,7 +127,6 @@ async def member_converter(ctx, user_in):
             return member[2]
         if user_in in member[1]:
             return member[2]
-
 
     if ctx.author != ctx.bot.user:
         await ctx.send('User not found')
@@ -224,6 +234,52 @@ def get_character_spread(text):
     return english, japanese, english + japanese
 
 
+def is_emoji(char):
+    EMOJI_MAPPING = (
+        # (0x0080, 0x02AF),
+        # (0x0300, 0x03FF),
+        # (0x0600, 0x06FF),
+        # (0x0C00, 0x0C7F),
+        # (0x1DC0, 0x1DFF),
+        # (0x1E00, 0x1EFF),
+        # (0x2000, 0x209F),
+        # (0x20D0, 0x214F),
+        (0x2190, 0x23FF),
+        (0x2460, 0x25FF),
+        (0x2600, 0x27EF),
+        (0x2900, 0x2935),
+        (0x2B00, 0x2BFF),
+        (0x2C60, 0x2C7F),
+        (0x2E00, 0x2E7F),
+        (0x3000, 0x303F),
+        (0xA490, 0xA4CF),
+        (0xE000, 0xF8FF),
+        (0xFE00, 0xFE0F),
+        (0xFE30, 0xFE4F),
+        (0x1F000, 0x1F02F),
+        (0x1F0A0, 0x1F0FF),
+        (0x1F100, 0x1F64F),
+        (0x1F680, 0x1F6FF),
+        (0x1F910, 0x1F96B),
+        (0x1F980, 0x1F9E0)
+    )
+    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
+
+
+def is_ignored_emoji(char):
+    EMOJI_MAPPING = (
+        (0x0080, 0x02AF),
+        (0x0300, 0x03FF),
+        (0x0600, 0x06FF),
+        (0x0C00, 0x0C7F),
+        (0x1DC0, 0x1DFF),
+        (0x1E00, 0x1EFF),
+        (0x2000, 0x209F),
+        (0x20D0, 0x214F)
+    )
+    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
+
+
 def is_cjk(char):
     CJK_MAPPING = (
         (0x3040, 0x30FF),  # Hiragana + Katakana
@@ -252,8 +308,8 @@ async def uhc_check(msg):
     try:
         if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
             if here.bot.db['ultraHardcore']['users'].get(str(msg.author.id), [False])[0]:
-                msg.content = msg.content.replace('hat is your native language', '').replace('Welcome', '').\
-                    replace("hat's your native language", "")
+                msg.content = msg.content.casefold().replace('what is your native language', '') \
+                    .replace('welcome', '').replace("what's your native language", "")
                 jpRole = msg.guild.get_role(196765998706196480)
                 ratio = jpenratio(msg)
                 # if I delete a long message
