@@ -171,7 +171,6 @@ class Main(commands.Cog):
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 
-
     # @commands.command(aliases=['r'])
     # async def iam(self, ctx, role):
     #     shortened_names = {'0': 'test0', '1': 'test1', '2': 'test2', '3': 'test3', '4': 'test4', '5': 'test5'}
@@ -298,6 +297,7 @@ class Main(commands.Cog):
         #     await channel.send(f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
         """Message as the bot"""
+
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -316,6 +316,7 @@ class Main(commands.Cog):
         await replace_tatsumaki_posts()
 
         """Ping me if someone says my name"""
+
         async def mention_ping():
             cont = str(msg.content)
             if (
@@ -327,7 +328,8 @@ class Main(commands.Cog):
                             or '来来' in cont.casefold()
                             or '雷来' in cont.casefold()
                     ) and
-                    (not msg.author.bot or msg.author.id == 202995638860906496)  # checks to see if account is a bot account
+                    (not msg.author.bot or msg.author.id == 202995638860906496)
+            # checks to see if account is a bot account
             ):  # random sad face
                 if 'aryan' in cont.casefold():  # why do people say this so often...
                     return
@@ -395,6 +397,7 @@ class Main(commands.Cog):
                         break
 
         """best sex dating"""
+
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
             try:
@@ -445,6 +448,7 @@ class Main(commands.Cog):
             except AttributeError as e:
                 print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
                 pass
+
         await spam_account_bans()
 
         """mods ping on spanish server"""
@@ -473,7 +477,7 @@ class Main(commands.Cog):
                 elif len(args) > 1:
                     await ctx.invoke(self.mute, args[0], member=' '.join(args[1:]))
                 else:
-                 await ctx.send("Use `;mute` instead")
+                    await ctx.send("Use `;mute` instead")
 
         """super_watch"""
         try:
@@ -598,46 +602,46 @@ class Main(commands.Cog):
                                         await hf.long_deleted_msg_notification(msg)
 
         """Spanish server hardcore"""
-        if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
-            if msg.content[0] != '=' and len(msg.content) > 3:
-                if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
-                    role = msg.guild.get_role(526089127611990046)
-                    if role in msg.author.roles:
-                        learning_eng = msg.guild.get_role(247021017740869632)
-                        learning_sp = msg.guild.get_role(297415063302832128)
-                        if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+
+        async def spanish_server_hardcore():
+            if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
+                if msg.content[0] != '=' and len(msg.content) > 3:
+                    if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
+                        role = msg.guild.get_role(526089127611990046)
+                        if role in msg.author.roles:
+                            learning_eng = msg.guild.get_role(247021017740869632)
+                            learning_sp = msg.guild.get_role(297415063302832128)
                             try:
-                                lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
-                                if lang_res.lang == 'es' and lang_res.prob > 0.97:
+                                lang_used = tb(hf.rem_emoji_url(msg)).detect_language()
+                            except textblob.exceptions.TranslatorError:
+                                return
+                            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+                                if lang_used == 'es':
                                     try:
                                         await msg.delete()
                                     except discord.errors.NotFound:
-                                        pass
+                                        return
                                     if len(msg.content) > 30:
                                         await hf.long_deleted_msg_notification(msg)
-                            except langdetect.lang_detect_exception.LangDetectException:
-                                pass
-                        elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
-                            try:
-                                lang_res = langdetect.detect_langs(hf.rem_emoji_url(msg))[0]
-                                if lang_res.lang == 'en' and lang_res.prob > 0.97:
+                            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+                                if lang_used == 'en':
                                     try:
                                         await msg.delete()
                                     except discord.errors.NotFound:
-                                        pass
+                                        return
                                     if len(msg.content) > 30:
                                         await hf.long_deleted_msg_notification(msg)
-                            except langdetect.lang_detect_exception.LangDetectException:
-                                pass
-                        else:
-                            try:
-                                await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                                      "learning role.  Please attach either 'Learning Spanish' or "
-                                                      "'Learning English' to properly use hardcore mode, or take "
-                                                      "off hardcore mode using the reactions in the server rules "
-                                                      "page")
-                            except discord.errors.Forbidden:
-                                pass
+                            else:
+                                try:
+                                    await msg.author.send("You have hardcore enabled but you don't have the proper "
+                                                          "learning role.  Please attach either 'Learning Spanish' or "
+                                                          "'Learning English' to properly use hardcore mode, or take "
+                                                          "off hardcore mode using the reactions in the server rules "
+                                                          "page")
+                                except discord.errors.Forbidden:
+                                    pass
+
+        await spanish_server_hardcore()
 
     @commands.command(aliases=['git'])
     async def github(self, ctx):
@@ -1916,6 +1920,7 @@ class Main(commands.Cog):
     async def mute(self, ctx, time, member=None, *, reason=None):
         """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
         indefinite mute."""
+
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -2121,6 +2126,7 @@ class Main(commands.Cog):
 
     @commands.command(aliases=['u'])
     async def user(self, ctx, *, member: str = None):
+        """Gives info about a user.  Leave the member field blank to get info about yourself."""
         if not member:
             member = ctx.author
         else:
@@ -2132,8 +2138,8 @@ class Main(commands.Cog):
         except KeyError:
             return
 
+        # ### Collect all the data from the database ###
         emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
-
         message_count = {}
         emoji_count = {}
         lang_count = {}
@@ -2160,18 +2166,22 @@ class Main(commands.Cog):
                 if 'lang' in user:
                     for lang in user['lang']:
                         lang_count[lang] = lang_count.get(lang, 0) + user['lang'][lang]
+
+        # ### Sort the data ###
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
         # looks like [('284045742652260352', 15), ('296491080881537024', 3), ('296013414755598346', 1)]
         sorted_emojis = sorted(emoji_count.items(), key=lambda x: x[1], reverse=True)
         sorted_langs = sorted(lang_count.items(), key=lambda x: x[1], reverse=True)
 
+        # ### Make embed ###
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
-                            description="Last 30 days (I'll improve the languages code when I get more data)",
+                            description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=member.joined_at)
         emb.add_field(name="Messages sent M | W",
                       value=f"{total_msgs_month} | {total_msgs_week}")
 
+        # ### Find top 3 most active channels ###
         good_channels = 0
         hidden = self.bot.db['stats'][str(ctx.guild.id)]['hidden']
         for channel in sorted_msgs.copy():
@@ -2183,6 +2193,8 @@ class Main(commands.Cog):
                 good_channels += 1
             if good_channels == 3:  # you have three kept channels
                 break
+
+        # ### Format top 3 channels text field / Add field to embed ###
         channeltext = ''
         try:
             channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])),
@@ -2200,6 +2212,7 @@ class Main(commands.Cog):
             emb.add_field(name="Top Channels:",
                           value=f"{channeltext}")
 
+        # ### Calculate voice time / Add field to embed ###
         voice_config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['total_time']
         voice_time = 0
         for day in voice_config:
@@ -2211,11 +2224,15 @@ class Main(commands.Cog):
         if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=f"{hours}h {minutes}m")
+
+        # ### If no messages or voice in last 30 days ###
         if (not total_msgs_month or not sorted_msgs) and not voice_time:
             emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
                                 description="This user hasn't said anything in the past 30 days",
                                 color=discord.Color(int('00ccFF', 16)),
                                 timestamp=member.joined_at)
+
+        # ### Add emojis field ###
         if sorted_emojis:
             value = ''
             counter = 0
@@ -2226,6 +2243,7 @@ class Main(commands.Cog):
                     break
             emb.add_field(name='Most used emojis', value=value)
 
+        # ### Add top langauges field ###
         if sorted_langs:
             value = ''
             counter = 0
@@ -2235,7 +2253,7 @@ class Main(commands.Cog):
             for lang_tuple in sorted_langs:
                 if lang_tuple[0] not in self.lang_codes_dict:
                     continue
-                percentage = round((lang_tuple[1]/total) * 100, 1)
+                percentage = round((lang_tuple[1] / total) * 100, 1)
                 if counter in [0, 1]:
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
                 if counter > 1 and percentage > 5:
@@ -2245,7 +2263,15 @@ class Main(commands.Cog):
                     break
             emb.add_field(name='Most used languages', value=value)
 
-        emb.set_footer(text="Joined this server")
+        sorted_members_by_join = sorted([(member, member.joined_at) for member in ctx.guild.members],
+                                        key=lambda x: x[1],
+                                        reverse=False)
+        print(sorted_members_by_join)
+        for i in sorted_members_by_join:
+            if i[0].id == member.id:
+                join_order = sorted_members_by_join.index(i)
+
+        emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
         await ctx.send(embed=emb)
 
     @staticmethod
