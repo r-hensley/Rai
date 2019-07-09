@@ -128,11 +128,11 @@ class Logger(commands.Cog):
     @staticmethod
     def make_edit_embed(before, after, levenshtein_distance):
         author = before.author
-        time_dif = round((after.edited_at - before.created_at).total_seconds(), 1)
+        time_dif = round((datetime.utcnow() - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** ({author.id})'
                         f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
-                        f'(https://en.wikipedia.org/wiki/Levenshtein_distance)',
+                        f'(https://en.wikipedia.org/wiki/Levenshtein_distance) - ([Jump URL]({after.jump_url}))',
             colour=0xFF9933,
             timestamp=datetime.utcnow()
         )
@@ -150,7 +150,7 @@ class Logger(commands.Cog):
                 emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
                 emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
 
-        emb.set_footer(text=f'{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
+        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
 
         return emb
 
@@ -167,6 +167,8 @@ class Logger(commands.Cog):
                         distance_limit = guild_config["distance_limit"]
                     except KeyError:
                         channel = self.bot.get_channel(guild_config["channel"])
+                        if not channel:
+                            return
                         await channel.send('Please set a Levenshtein Distance with `;edit set_distance 3`')
                         return
                     levenshtein_distance = LDist(before.content, after.content)
@@ -204,9 +206,11 @@ class Logger(commands.Cog):
     async def make_delete_embed(self, message):
         author = message.author
         time_dif = round((datetime.utcnow() - message.created_at).total_seconds(), 1)
+        async for msg in message.channel.history(limit=1, before=message):
+            jump_url = msg.jump_url
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** ({author.id})'
-                        f'\n**Message deleted after {time_dif} seconds.**',
+                        f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
             colour=0xDB3C3C,
             timestamp=datetime.utcnow()
         )
@@ -250,12 +254,16 @@ class Logger(commands.Cog):
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
+
+
         emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
 
         return emb
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
+        if ';report' in message.content:
+            return  # for keeping anonymous reports anonymous
         guild = str(message.guild.id)
         if not message.author.bot:
             if guild in self.bot.db['deletes']:
@@ -333,7 +341,7 @@ class Logger(commands.Cog):
             await hf.dump_json()
 
     @staticmethod
-    async def make_welcome_embed(member, used_invite, list_of_roles=None):
+    async def make_welcome_embed(member, used_invite, channel, list_of_roles=None):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
@@ -346,7 +354,8 @@ class Logger(commands.Cog):
             colour=0x7BA600,
             timestamp=datetime.utcnow()
         )
-
+        if channel:
+            emb.description += f"\n([Jump URL]({channel.last_message.jump_url}))"
         if used_invite:
             invite_string = f"Used {used_invite.inviter.name}'s link {used_invite.code}"
             footer_text = f'User Join ({member.guild.member_count}) {invite_string}'
@@ -416,6 +425,21 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        """welcome message"""
+        try:
+            guild = str(member.guild.id)
+            if self.bot.db['welcome_message'][guild]['enable']:
+                config = self.bot.db['welcome_message'][guild]
+                channel = self.bot.get_channel(config['channel'])
+                message = config['message']
+                message = message. \
+                    replace('$NAME$', member.name). \
+                    replace('$USERMENTION$', member.mention). \
+                    replace('$SERVER$', member.guild.name)
+                await channel.send(message)
+        except KeyError:
+            pass
+
         """Join logging"""
         guild = str(member.guild.id)
         used_invite = None
@@ -533,7 +557,12 @@ class Logger(commands.Cog):
                             del config['users'][str(member.id)]
 
                 try:
-                    x = await self.make_welcome_embed(member, used_invite, list_of_roles)
+                    if str(member.guild.id) in self.bot.db['welcome_message']:
+                        channel_id = self.bot.db['welcome_message'][str(member.guild.id)]['channel']
+                        welcome_channel = member.guild.get_channel(channel_id)
+                    else:
+                        welcome_channel = None
+                    x = await self.make_welcome_embed(member, used_invite, welcome_channel, list_of_roles)
                     await channel.send(embed=x)
                 except discord.errors.Forbidden:
                     await channel.send('Rai needs permission to post embeds to track joins')
@@ -569,21 +598,6 @@ class Logger(commands.Cog):
                     return
             except KeyError:
                 pass
-
-        """welcome message"""
-        try:
-            guild = str(member.guild.id)
-            if self.bot.db['welcome_message'][guild]['enable']:
-                config = self.bot.db['welcome_message'][guild]
-                channel = self.bot.get_channel(config['channel'])
-                message = config['message']
-                message = message. \
-                    replace('$NAME$', member.name). \
-                    replace('$USERMENTION$', member.mention). \
-                    replace('$SERVER$', member.guild.name)
-                await channel.send(message)
-        except KeyError:
-            pass
 
         """Spanish Server welcome"""
         spanServ = self.bot.get_guild(SPAN_SERV_ID)
@@ -807,8 +821,8 @@ class Logger(commands.Cog):
     @staticmethod
     def make_reaction_embed(reaction, member):
         emb = discord.Embed(
-            description=f'**{member.name}#{member.discriminator}** ({member.id})'
-                        f' removed a reaction.',
+            description=f'**{member.name}#{member.discriminator}** ({member.id}) '
+                        f' removed a reaction. ([Jump URL]({reaction.message.jump_url}))',
             colour=0xD12B2B,
             timestamp=datetime.utcnow()
         )
@@ -843,7 +857,7 @@ class Logger(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['bans'])
     async def ban_logging(self, ctx):
-        """Logs deleted bans, aliases: 'ban', 'bans'"""
+        """Logs deleted bans, aliases: 'bans'"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
             await ctx.send("I lack the permission to either view audit logs or embed links.  Please try again.")
             return
@@ -857,6 +871,12 @@ class Logger(commands.Cog):
         elif result == 4:
             await ctx.send('Before doing this, set a channel for logging with `;ban_logging set`.  '
                            'Then, enable/disable logging by typing `;ban_logging`.')
+
+    @ban_logging.command(name="set_channel")
+    async def bans_set_channel(self, ctx):
+        self.bot.db['bans'][str(ctx.guild.id)]['channel'] = ctx.channel.id
+        await ctx.send(f'Set the ban logging channel as {ctx.channel.name}')
+        await hf.dump_json()
 
     @ban_logging.command(aliases=['set'])
     async def bans_set(self, ctx):
@@ -933,7 +953,8 @@ class Logger(commands.Cog):
                     old_desc = emb.description.split('\n\n')
                     new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
                     emb.description = new_desc
-                    await self.bot.get_channel(329576845949534208).send(member.mention, embed=emb)  # 304110816607862785
+                    crosspost_msg = await self.bot.get_channel(329576845949534208).send(member.mention, embed=emb)
+                    await crosspost_msg.add_reaction('⬆')
             except KeyError:
                 pass
 

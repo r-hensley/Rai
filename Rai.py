@@ -55,6 +55,7 @@ class Rai(Bot):
 
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
         # initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner']
+        # initial_extensions = []
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
                 self.load_extension(extension)
@@ -103,6 +104,10 @@ class Rai(Bot):
                 x = datetime.utcnow()
                 if x.hour == 0 and x.minute == 0:
                     counter = 0
+                    date = datetime.today().strftime("%Y%m%d-%H.%M")
+                    with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
+                        json.dump(self.db, write_file)
+                    await ctx.invoke(self.get_command("_delete_old_stats_days"))
                 if counter % 5 == 0:
                     await ctx.invoke(self.get_command("_unban_users"))
                     await ctx.invoke(self.get_command("_unmute_users"))
@@ -155,8 +160,11 @@ class Rai(Bot):
             if ctx.command.name == 'global_blacklist':
                 return
             try:
-                await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
-                               f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+                if str(ctx.guild.id) in self.db['mod_role']:
+                    await ctx.send("You lack permissions to do that.")
+                else:
+                    await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+                                   f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
             except discord.Forbidden:
                 await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
             return

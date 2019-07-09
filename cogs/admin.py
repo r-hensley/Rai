@@ -71,87 +71,6 @@ class Admin(commands.Cog):
             await ctx.send(f"Hid this channel.  When someone calls their stats page, it will not be shown.")
         await hf.dump_json()
 
-    @commands.command()
-    @hf.is_admin()
-    @commands.bot_has_permissions(ban_members=True)
-    @commands.has_permissions(ban_members=True)
-    async def ban(self, ctx, *args):
-        """Bans a user.  Usage: `;ban [time #d#h] <user> [-s] [reason]`  Example: `;ban @Ryry013 being mean` or
-        `;ban 2d3h @Abelian -s posting invite links`"""
-        timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
-        if timed_ban:
-            if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
-                length = timed_ban[0][:-1].split('d')
-                length = [length[0], length[1]]
-            elif re.findall('^\d+d$', args[0]):  # format: #d
-                length = [timed_ban[0][:-1], '0']
-            else:  # format: #h
-                length = ['0', timed_ban[0][:-1]]
-            unban_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
-            target = await hf.member_converter(ctx, args[1])
-            reason = ' '.join(args[2:])
-            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
-        else:
-            target = await hf.member_converter(ctx, args[0])
-            length = []
-            time_string = None
-            reason = ' '.join(args[1:])
-        if not target:
-            return
-        if not reason:
-            reason = '(no reason given)'
-        em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
-        if length:
-            em.description = f"You will be unbanned automatically at {time_string} " \
-                             f"(in {length[0]} days and {length[1]} hours)"
-        else:
-            em.description = "This ban is indefinite."
-        if reason != '(no reason given)':
-            if '-silent' in reason or '-s' in reason:
-                reason = reason.replace('-silent ', '').replace('-s ', '')
-                reason = '⁣' + reason
-            em.add_field(name="Reason:", value=reason)
-        await ctx.send(f"You are about to ban {target.mention}: ", embed=em)
-        msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
-               f"to the user, or `no` to cancel."
-        if ctx.author in self.bot.get_guild(257984339025985546).members and not reason.startswith('⁣'):
-            try:
-                if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                    msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` before the reason)"
-            except KeyError:
-                pass
-        msg2 = await ctx.send(msg2)
-        try:
-            msg = await self.bot.wait_for('message',
-                                          timeout=40.0,
-                                          check=lambda x: x.author == ctx.author and
-                                                          x.content.casefold() in ['yes', 'no', 'send'])
-        except asyncio.TimeoutError:
-            await ctx.send(f"Timed out.  Canceling ban.")
-            return
-        content = msg.content.casefold()
-        if content == 'no':
-            await ctx.send(f"Canceling ban")
-            await msg2.delete()
-            return
-        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
-        if reason.startswith('⁣'):
-            text = '⁣' + text
-        if content == 'send':
-            await target.send(embed=em)
-        try:
-            await target.ban(reason=text)
-        except discord.Forbidden:
-            await ctx.send(f"I couldn't ban that user.  They're probably above me in the role list.")
-            return
-        if length:
-            config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
-                                                    {'enable': False, 'channel': None, 'timed_bans': {}})
-            timed_bans = config.setdefault('timed_bans', {})
-            timed_bans[str(target.id)] = time_string
-            await hf.dump_json()
-        await ctx.send(f"Successfully banned")
-
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
         """Posts the rules page on the Chinese/Spanish server"""
@@ -1487,6 +1406,149 @@ class Admin(commands.Cog):
                 config[group].remove(role.id)
                 await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** has been removed from the list."))
+
+    @commands.command(aliases=['channel_helper'])
+    async def channel_mod(self, ctx, *, user):
+        """Assigns a channel mod"""
+        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
+        user = await hf.member_converter(ctx, user)
+        if not user:
+            return
+        if str(ctx.channel.id) in config:
+            config[str(ctx.channel.id)].append(user.id)
+        else:
+            config[str(ctx.channel.id)] = [user.id]
+        await ctx.message.delete()
+        await ctx.send(f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
+
+    @commands.command(aliases=['list_channel_helpers'])
+    async def list_channel_mods(self, ctx):
+        """Lists current channel mods"""
+        output_msg = '```md\n'
+        for channel_id in self.bot.db['channel_mods'][str(ctx.guild.id)]:
+            channel = self.bot.get_channel(int(channel_id))
+            output_msg += f"#{channel.name}\n"
+            for user_id in self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id]:
+                user = self.bot.get_user(int(user_id))
+                output_msg += f"{user.display_name}\n"
+            output_msg += '\n'
+        output_msg += '```'
+        await ctx.send(output_msg)
+
+    @commands.command(aliases=['m'])
+    async def warn(self, ctx, user, *, reason="None"):
+        """Log a mod incident"""
+        user = await hf.member_converter(ctx, user)
+        if not user:
+            return
+        emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
+        silent = False
+        if '-s' in reason:
+            silent = True
+            reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+            emb.description = "Warning *(This incident was not sent to the user)*"
+        emb.color = discord.Color(int('ff8800', 16))  # embed
+        emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
+        emb.add_field(name="Reason", value=reason, inline=False)
+        if not silent:
+            await user.send(embed=emb)
+        if not emb.description:
+            emb.description = "Warning"
+        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
+        config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
+        modlog_channel = self.bot.get_channel(config['channel'])
+        await modlog_channel.send(embed=emb)
+        await ctx.message.add_reaction('✅')
+
+    @commands.command()
+    async def set_modlog_channel(self, ctx):
+        """Sets the channel for modlog events"""
+        if str(ctx.guild.id) in self.bot.db['modlog']:
+            self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
+        else:
+            self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
+        await ctx.send(f"Set modlog channel as {ctx.channel.mention}.")
+
+    @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
+    async def modlog(self, ctx, id):
+        """View modlog of a user"""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, id)
+        if member:
+            name = f"{member.name}#{member.discriminator} ({member.id})"
+            user_id = str(member.id)
+        else:
+            name = user_id = id
+        if user_id not in config:
+            await ctx.send("That user was not found in the modlog")
+            return
+        config = config[user_id]
+        emb = hf.green_embed(f"Modlog for {name}")
+        for entry in config[-25:]:
+            name = f"{config.index(entry)}) {entry['type']}"
+            if entry['silent']:
+                name += " (silent)"
+            value = f"{entry['date']}\n"
+            if entry['length']:
+                value += f"*For {entry['length']}*\n"
+            if entry['reason']:
+                value += f"__Reason__: {entry['reason']}\n"
+            value += f"[Jump URL]({entry['jump_url']})\n⠀"  # invisible character at end of this line
+            emb.add_field(name=name,
+                          value=value[:1024],
+                          inline=False)
+        await ctx.send(embed=emb)
+
+    @modlog.command(name='delete', aliases=['del'])
+    async def modlog_delete(self, ctx, user, index):
+        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
+        Alias: `;ml del`"""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, user)
+        if member:
+            user_id = str(member.id)
+        else:
+            user_id = user
+        if user_id not in config:
+            await ctx.send("That user was not found in the modlog")
+            return
+        config = config[user_id]
+        if index in ['-a', '-all']:
+            del config
+            await ctx.send(embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
+        else:
+            del config[int(index)]
+            await ctx.message.add_reaction('✅')
+
+    @modlog.command(name="edit", aliases=['reason'])
+    async def modlog_edit(self, ctx, user, index: int, *, reason):
+        """Edit the reason for a selected modlog.  Example: `;ml edit ryry 2 trolling in voice channels`."""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, user)
+        if member:
+            user_id = str(member.id)
+        else:
+            user_id = user
+        if user_id not in config:
+            await ctx.send("That user was not found in the modlog")
+            return
+        config = config[user_id]
+        old_reason = config[index]['reason']
+        config[index]['reason'] = reason
+        await ctx.send(embed=hf.green_embed(f"Changed the reason for entry #{index} from "
+                                            f"```{old_reason}```to```{reason}```"))
+
+    @commands.command()
+    async def reason(self, ctx, user, index: int, *, reason):
+        """Shortcut for `;modlog reason`"""
+        await ctx.invoke(self.modlog_edit, user, index, reason=reason)
 
 
 def setup(bot):

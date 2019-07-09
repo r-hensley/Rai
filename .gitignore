@@ -44,7 +44,7 @@ stats*
 modified*
 raw*
 usage_stats*
-db.json
+db*
 gcloud*
 cogs/gcloud*
 list*
