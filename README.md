@@ -79,6 +79,8 @@ This is an optional feature.  Submods can 1) ban users within one hour of them j
   
 #### Ban/Mute/Warning + Modlog
 - **`;modlog|warnlog [user]`** Views the modlog for a user.  This contains all incidents of them being warned or muted, and is helpful for times when they ask "What did I do?!?!? You never warned me!!"  Use silent warnings as a form of logging small incidents.
+- **`;warnlog delete|del <user> <index>`** Deletes an entry from someone's warnlog.  Index refers to the number in the list when you call their `;warnlog`.  Example: `;warnlog delete 202995638860906496 2`.
+- **`;warnlog edit|reason <user> <index> <reason>`** Edits the reason for an entry.  Index refers to the number in the list when you call their `;warnlog`.  You can also substitute `;warnlog reason` --> `;reason`.  Example: `;reason 202995638860906496 2 Trolling in voice`.
 - **`;ban [time] <user> [reason]`** Bans a user for an optional amount of time with an optional reason.  Examples:
   - `;ban @Ryry013` Bans me indefinitely.  
   - `;ban 1d2h @Ryry013` Bans me for 1 day and 2 hours.
