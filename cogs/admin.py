@@ -18,6 +18,10 @@ class Admin(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
+        if not ctx.guild:
+            return
+        if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
+            return
         return hf.admin_check(ctx)
 
     @commands.command(hidden=True)
@@ -32,44 +36,76 @@ class Admin(commands.Cog):
         else:
             config = self.bot.db['bans'][str(ctx.guild.id)] = {'enable': False, 'channel': None, 'crosspost': True}
         if config['crosspost']:
-            await ctx.send(f"Rai will now crosspost ban logs")
+            await hf.safe_send(ctx, f"Rai will now crosspost ban logs")
         else:
-            await ctx.send(f"Rai won't crosspost ban logs anymore")
-        await hf.dump_json()
+            await hf.safe_send(ctx, f"Rai won't crosspost ban logs anymore")
+
+    @commands.command(hidden=True)
+    async def echo(self, ctx, *, content: str):
+        """sends back whatever you send"""
+        try:
+            await ctx.message.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
+        await hf.safe_send(ctx, content)
 
     @commands.group(invoke_without_command=True)
     async def stats(self, ctx):
         """Enable/disable keeping of statistics for users (`;u`)"""
         guild = str(ctx.guild.id)
-        if guild in self.bot.db['stats']:
-            self.bot.db['stats'][guild]['enable'] = not self.bot.db['stats'][guild]['enable']
+        if guild in self.bot.stats:
+            self.bot.stats[guild]['enable'] = not self.bot.stats[guild]['enable']
         else:
-            self.bot.db['stats'][guild] = {'enable': True,
+            self.bot.stats[guild] = {'enable': True,
                                            'messages': {},
                                            'hidden': [],
                                            'voice':
                                                {'in_voice': {},
                                                 'total_time': {}}
                                            }
-        await ctx.send(f"Logging of stats is now set to {self.bot.db['stats'][guild]['enable']}.")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Logging of stats is now set to {self.bot.stats[guild]['enable']}.")
 
     @stats.command()
-    async def hide(self, ctx):
-        """Hides the current channel from being shown in user stat pages"""
+    async def hide(self, ctx, flag=None):
+        """Hides the current channel from being shown in user stat pages.  Type `;stats hide view/list` to view a
+        list of the current channels being hidden."""
         try:
-            config = self.bot.db['stats'][str(ctx.guild.id)]['hidden']
+            config = self.bot.stats[str(ctx.guild.id)]['hidden']
         except KeyError:
             return
-        channel = str(ctx.channel.id)
-        if channel in config:
-            config.remove(channel)
-            await ctx.send(f"Removed this channel from the list of hidden channels.  It will now be shown when "
-                           f"someone calls their stats page.")
+        if not flag:
+            channel = str(ctx.channel.id)
+            if channel in config:
+                config.remove(channel)
+                await hf.safe_send(ctx, f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now be shown "
+                               f"when someone calls their stats page.")
+            else:
+                config.append(channel)
+                await hf.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
+                               f"When someone calls their stats page, it will not be shown.")
+        elif flag in ['list', 'view'] and config:
+            msg = 'List of channels currently hidden:\n'
+            for channel_id in config:
+                channel = self.bot.get_channel(int(channel_id))
+                if not channel:
+                    config.remove(channel_id)
+                    continue
+                msg += f"{channel.mention} ({channel.id})\n"
+            await hf.safe_send(ctx, msg)
         else:
-            config.append(channel)
-            await ctx.send(f"Hid this channel.  When someone calls their stats page, it will not be shown.")
-        await hf.dump_json()
+            if re.findall("^<#\d{17,22}>$", flag):
+                flag = flag[2:-1]
+            channel = self.bot.get_channel(int(flag))
+            if channel:
+                if str(channel.id) in config:
+                    config.remove(str(channel.id))
+                    await hf.safe_send(ctx, 
+                        f"Removed {channel.mention} from the list of hidden channels. It will now be shown "
+                        f"when someone calls their stats page.")
+                else:
+                    config.append(str(channel.id))
+                    await hf.safe_send(ctx, f"Hid {channel.mention}. When someone calls their stats page, it will not be shown.")
+
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
@@ -125,13 +161,13 @@ class Admin(commands.Cog):
                     replace('{fluentspanish}', str(fluentspanish)). \
                     replace('{fluentenglish}', str(fluentenglish)). \
                     replace('{mods}', str(mods))
-                msg = await ctx.send(post[7:])
+                msg = await hf.safe_send(ctx, post[7:])
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!roles'):
                 # print('roles', [page])
                 if channel == 0:  # chinese
                     emoji = self.bot.get_emoji(358529029579603969)  # blobflags
                     post = page[8:].replace('{emoji}', str(emoji))
-                    msg = await ctx.send(post)
+                    msg = await hf.safe_send(ctx, post)
                     self.bot.db['roles'][str(ctx.guild.id)]['message'] = msg.id
                     await msg.add_reaction("🔥")  # hardcore
                     await msg.add_reaction("📝")  # correct me
@@ -141,7 +177,7 @@ class Admin(commands.Cog):
                 elif channel == 1 or channel == 2:  # english/spanish
                     emoji = self.bot.get_emoji(513211476790738954)
                     post = page.replace('{table}', str(emoji))
-                    msg = await ctx.send(post[8:])
+                    msg = await hf.safe_send(ctx, post[8:])
                     await msg.add_reaction("🎨")
                     await msg.add_reaction("🐱")
                     await msg.add_reaction("🐶")
@@ -162,16 +198,16 @@ class Admin(commands.Cog):
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
                 else:
-                    await ctx.send(f"Something went wrong")
+                    await hf.safe_send(ctx, f"Something went wrong")
                     return
             else:
-                msg = await ctx.send(page)
+                msg = await hf.safe_send(ctx, page)
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
     @commands.group(invoke_without_command=True, hidden=True)
     async def hardcore(self, ctx):
-        msg = await ctx.send("Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
+        msg = await hf.safe_send(ctx, "Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
                              "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
                              " wish to correct a learner, attach a `*` to your message, and it will not be deleted.  "
                              "\n\nUse the below reaction to enable/disable hardcore mode.")
@@ -181,7 +217,6 @@ class Admin(commands.Cog):
             role = await ctx.guild.create_role(name='🔥Hardcore🔥')
             self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
         await msg.add_reaction("🔥")
-        await hf.dump_json()
 
     @hardcore.command()
     async def ignore(self, ctx):
@@ -192,19 +227,18 @@ class Admin(commands.Cog):
         try:
             if ctx.channel.id not in config['ignore']:
                 config['ignore'].append(ctx.channel.id)
-                await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
             else:
                 config['ignore'].remove(ctx.channel.id)
-                await ctx.send(f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
+                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
         except KeyError:
             config['ignore'] = [ctx.channel.id]
-            await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-        await hf.dump_json()
+            await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
-        await ctx.send('This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
+        await hf.safe_send(ctx, 'This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
                        '\n1) First, do `;captcha toggle` to setup the module'
                        '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
                        '\n3) Then, do `;captcha set_role <role name>` '
@@ -219,14 +253,13 @@ class Admin(commands.Cog):
             guild_config = self.bot.db['captcha'][guild]
             if guild_config['enable']:
                 guild_config['enable'] = False
-                await ctx.send('Captcha module disabled')
+                await hf.safe_send(ctx, 'Captcha module disabled')
             else:
                 guild_config['enable'] = True
-                await ctx.send('Captcha module enabled')
+                await hf.safe_send(ctx, 'Captcha module enabled')
         else:
             self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
-            await ctx.send('Captcha module setup and enabled.')
-        await hf.dump_json()
+            await hf.safe_send(ctx, 'Captcha module setup and enabled.')
 
     @captcha.command(name="set_channel")
     async def captcha_set_channel(self, ctx):
@@ -235,13 +268,12 @@ class Admin(commands.Cog):
             await self.toggle
         guild_config = self.bot.db['captcha'][guild]
         guild_config['channel'] = ctx.channel.id
-        await ctx.send(f'Captcha channel set to {ctx.channel.name}')
-        await hf.dump_json()
+        await hf.safe_send(ctx, f'Captcha channel set to {ctx.channel.name}')
 
     @captcha.command(name="set_role")
     async def captcha_set_role(self, ctx, *, role_input: str = None):
         if not role_input:
-            instr_msg = await ctx.send(f"Please input the exact name of the role new users will receive")
+            instr_msg = await hf.safe_send(ctx, f"Please input the exact name of the role new users will receive")
             try:
                 reply_msg = await self.bot.wait_for('message',
                                                     timeout=20.0,
@@ -249,7 +281,7 @@ class Admin(commands.Cog):
                 await instr_msg.delete()
                 await reply_msg.delete()
             except asyncio.TimeoutError:
-                await ctx.send("Module timed out")
+                await hf.safe_send(ctx, "Module timed out")
                 await instr_msg.delete()
                 return
         guild = str(ctx.guild.id)
@@ -258,12 +290,11 @@ class Admin(commands.Cog):
         guild_config = self.bot.db['captcha'][guild]
         role = discord.utils.find(lambda role: role.name == role_input, ctx.guild.roles)
         if not role:
-            await ctx.send('Failed to find a role.  Please type the name of the role after the command, like '
+            await hf.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
                            '`;captcha set_role New User`')
         else:
             guild_config['role'] = role.id
-            await ctx.send(f'Set role to {role.name} ({role.id})')
-        await hf.dump_json()
+            await hf.safe_send(ctx, f'Set role to {role.name} ({role.id})')
 
     @captcha.command(name="post_message")
     async def captcha_post_message(self, ctx):
@@ -271,25 +302,27 @@ class Admin(commands.Cog):
         if guild in self.bot.db['captcha']:
             guild_config = self.bot.db['captcha'][guild]
             if guild_config['enable']:
-                msg = await ctx.send('Please react with the checkmark to enter the server')
+                msg = await hf.safe_send(ctx, 'Please react with the checkmark to enter the server')
                 guild_config['message'] = msg.id
-                await hf.dump_json()
                 await msg.add_reaction('✅')
 
     @commands.command(aliases=['purge', 'prune'])
     @commands.bot_has_permissions(manage_messages=True)
     async def clear(self, ctx, num=None, *args):
         """Deletes messages from a channel, ;clear <num_of_messages> [user] [after_message_id]"""
+        if not num:
+            await hf.safe_send(ctx, "Please input a number")
+            return
         if len(num) == 18:
             args = ('0', int(num))
             num = 100
         try:
             int(num)
         except ValueError:
-            await ctx.send(f"You need to put a number of messages.  Type `;help clear` for information on syntax.")
+            await hf.safe_send(ctx, f"You need to put a number of messages.  Type `;help clear` for information on syntax.")
             return
         if 100 < int(num):
-            msg = await ctx.send(f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
+            msg = await hf.safe_send(ctx, f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
             try:
                 await self.bot.wait_for('message', timeout=10,
                                         check=lambda m: m.author == ctx.author and m.content == 'y')
@@ -309,7 +342,7 @@ class Admin(commands.Cog):
             try:
                 msg = await ctx.channel.fetch_message(args[1])
             except discord.errors.NotFound:  # invaid message ID given
-                await ctx.send('Message not found')
+                await hf.safe_send(ctx, 'Message not found')
                 return
             except IndexError:  # no message ID given
                 print('>>No message ID found<<')
@@ -339,7 +372,7 @@ class Admin(commands.Cog):
         except TypeError:
             pass
         except ValueError:
-            await ctx.send('You must put a number after the command, like `;await clear 5`')
+            await hf.safe_send(ctx, 'You must put a number after the command, like `;await clear 5`')
             return
 
     @commands.command()
@@ -348,12 +381,11 @@ class Admin(commands.Cog):
         """Auto bans for amazingsexdating/users who join with invite link names"""
         config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
         if config['enable']:
-            await ctx.send('Enabled the auto bans module.  I will now automatically ban all users who join with '
+            await hf.safe_send(ctx, 'Enabled the auto bans module.  I will now automatically ban all users who join with '
                            'a discord invite link username or who join and immediately send an amazingsexdating link')
         else:
-            await ctx.send('Disabled the auto bans module.  I will no longer auto ban users who join with a '
+            await hf.safe_send(ctx, 'Disabled the auto bans module.  I will no longer auto ban users who join with a '
                            'discord invite link username or who spam a link to amazingsexdating.')
-        await hf.dump_json()
 
     @commands.command()
     async def set_submod_role(self, ctx, *, role_name):
@@ -363,25 +395,30 @@ class Admin(commands.Cog):
             del (config['enable'])
         submod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not submod_role:
-            await ctx.send("The role with that name was not found")
+            await hf.safe_send(ctx, "The role with that name was not found")
             return None
         config['id'] = submod_role.id
-        await ctx.send(f"Set the submod role to {submod_role.name} ({submod_role.id})")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Set the submod role to {submod_role.name} ({submod_role.id})")
 
     @commands.command()
     async def set_mod_role(self, ctx, *, role_name):
-        """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`."""
+        """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`.
+        To remove the mod role, type `;set_mod_role none`."""
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
+        print(config)
         if 'enable' in config:
             del (config['enable'])
+        print(role_name)
+        if role_name.casefold() == "none":
+            del self.bot.db['mod_role'][str(ctx.guild.id)]
+            await hf.safe_send(ctx, "Removed mod role setting for this server")
+            return
         mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not mod_role:
-            await ctx.send("The role with that name was not found")
+            await hf.safe_send(ctx, "The role with that name was not found")
             return None
         config['id'] = mod_role.id
-        await ctx.send(f"Set the mod role to {mod_role.name} ({mod_role.id})")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Set the mod role to {mod_role.name} ({mod_role.id})")
 
     @commands.command(aliases=['setmodchannel'])
     async def set_mod_channel(self, ctx, channel_id=None):
@@ -389,8 +426,7 @@ class Admin(commands.Cog):
         if not channel_id:
             channel_id = ctx.channel.id
         self.bot.db['mod_channel'][str(ctx.guild.id)] = channel_id
-        await ctx.send(f"Set the mod channel for this server as {ctx.channel.mention}.")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Set the mod channel for this server as {ctx.channel.mention}.")
 
     @commands.command(aliases=['setsubmodchannel'])
     async def set_submod_channel(self, ctx, channel_id=None):
@@ -398,8 +434,7 @@ class Admin(commands.Cog):
         if not channel_id:
             channel_id = ctx.channel.id
         self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
-        await ctx.send(f"Set the submod channel for this server as {ctx.channel.mention}.")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
 
     @commands.command()
     async def readd_roles(self, ctx):
@@ -407,27 +442,25 @@ class Admin(commands.Cog):
         config = hf.database_toggle(ctx, self.bot.db['readd_roles'])
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
-                await ctx.send("I lack permission to manage roles.  Please fix that before enabling this")
+                await hf.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
                 hf.database_toggle(ctx, self.bot.db['readd_roles'])
                 return
-            await ctx.send(f"I will readd roles to people who have previously left the server")
+            await hf.safe_send(ctx, f"I will readd roles to people who have previously left the server")
         else:
-            await ctx.send("I will NOT readd roles to people who have previously left the server")
+            await hf.safe_send(ctx, "I will NOT readd roles to people who have previously left the server")
         if 'users' not in config:
             config['users'] = {}
-        await hf.dump_json()
 
     @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'], hidden=True)
     async def super_voicewatch(self, ctx):
         """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
-            await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
+            await hf.safe_send(ctx, "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
-        await hf.dump_json()
-        await ctx.send(f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
+        await hf.safe_send(ctx, f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
                        "**About svw:** Puts a message in the mod channel every time someone on the super watchlist "
                        "joins a voice channel.  Use `;super_voicewatch add USER` or `'super_voicewatch remove USER` to "
                        "manipulate the list.  Type `;super_voicewatch list` to see a full list.  Alias: `;svw`")
@@ -436,13 +469,12 @@ class Admin(commands.Cog):
     async def voicewatch_add(self, ctx, member: discord.Member):
         """Add a member to super voice watch"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
-            await ctx.send("Before using this, you have to set your mod channel using `;set_mod_channel` in the "
+            await hf.safe_send(ctx, "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                            "channel you want to designate.")
             return
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
         config['users'].append(member.id)
-        await ctx.send(f"Added `{member.name} ({member.id})` to the super voice watchlist.")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Added `{member.name} ({member.id})` to the super voice watchlist.")
 
     @super_voicewatch.command(name="remove")
     async def voicewatch_remove(self, ctx, member: discord.Member):
@@ -451,10 +483,9 @@ class Admin(commands.Cog):
         try:
             config['users'].remove(member.id)
         except ValueError:
-            await ctx.send("That user was not in the watchlist.")
+            await hf.safe_send(ctx, "That user was not in the watchlist.")
             return
-        await ctx.send(f"Removed `{member.name} ({member.id})` from the super voice watchlist.")
-        await hf.dump_json()
+        await hf.safe_send(ctx, f"Removed `{member.name} ({member.id})` from the super voice watchlist.")
 
     @super_voicewatch.command(name="list")
     async def super_voicewatch_list(self, ctx):
@@ -463,10 +494,10 @@ class Admin(commands.Cog):
         try:
             config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
         except KeyError:
-            await ctx.send("Voice watchlist not set-up yet on this server.  Run `;super_voicewatch`")
+            await hf.safe_send(ctx, "Voice watchlist not set-up yet on this server.  Run `;super_voicewatch`")
             return
         if not config['users']:
-            await ctx.send("The voice watchlist is empty")
+            await hf.safe_send(ctx, "The voice watchlist is empty")
             return
         for ID in config['users']:
             member = ctx.guild.get_member(ID)
@@ -475,10 +506,10 @@ class Admin(commands.Cog):
             else:
                 string += f"{ID}\n"
         try:
-            await ctx.send(string)
+            await hf.safe_send(ctx, string)
         except discord.errors.HTTPException:
-            await ctx.send(string[0:2000])
-            await ctx.send(string[2000:])
+            await hf.safe_send(ctx, string[0:2000])
+            await hf.safe_send(ctx, string[2000:])
 
     @commands.command(hidden=True)
     async def command_into_voice(self, ctx, member, after):
@@ -493,7 +524,7 @@ class Admin(commands.Cog):
             return
         guild = str(member.guild.id)
         member_id = str(member.id)
-        config = self.bot.db['stats'][guild]['voice']
+        config = self.bot.stats[guild]['voice']
         if member_id not in config['in_voice']:
             config['in_voice'][member_id] = datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC")
 
@@ -506,7 +537,7 @@ class Admin(commands.Cog):
     async def out_of_voice(self, member, date_str=None):
         guild = str(member.guild.id)
         member_id = str(member.id)
-        config = self.bot.db['stats'][guild]['voice']
+        config = self.bot.stats[guild]['voice']
         if member_id not in config['in_voice']:
             return
 
@@ -539,8 +570,8 @@ class Admin(commands.Cog):
                 return
             if member.id in config['users'] and not before.channel and after.channel:
                 channel = self.bot.get_channel(config['channel'])
-                await channel.send(f"{member.mention} is on the voice superwatch list and has joined a voice channel "
-                                   f"({after.channel.name})")
+                await hf.safe_send(channel, f"{member.mention} is on the voice superwatch list and has joined the "
+                                   f"voice channel ({after.channel.name})")
 
         await superwatch_check()
 
@@ -554,11 +585,11 @@ class Admin(commands.Cog):
         # 		user1: hours
         async def voice_update():
             guild = str(member.guild.id)
-            if guild not in self.bot.db['stats']:
+            if guild not in self.bot.stats:
                 return
-            if not self.bot.db['stats'][guild]['enable']:
+            if not self.bot.stats[guild]['enable']:
                 return
-            if str(member.id) not in self.bot.db['stats'][guild]['voice']['in_voice']:  # not in DB
+            if str(member.id) not in self.bot.stats[guild]['voice']['in_voice']:  # not in DB
                 if after.self_deaf or after.deaf or after.afk or not after.channel:
                     await self.out_of_voice(member)
                     return
@@ -586,13 +617,12 @@ class Admin(commands.Cog):
         config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
                                                        {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
-        await ctx.send(f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
+        await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
                        f"({ctx.channel.id}).  \n\n"
                        f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
                        f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
                        f"sends posts to in the future by typing `;super_watch` again.  \n\n"
                        f"Aliases for this command are: `;superwatch`, `;sw`.")
-        await hf.dump_json()
 
     @super_watch.command(name="add")
     async def superwatch_add(self, ctx, *, target):
@@ -604,10 +634,9 @@ class Admin(commands.Cog):
             return
         if target.id not in config:
             config.append(target.id)
-            await ctx.send(f"Added {target.name} to super_watch list")
-            await hf.dump_json()
+            await hf.safe_send(ctx, f"Added {target.name} to super_watch list")
         else:
-            await ctx.send(f"{target.name} is already on the super_watch list")
+            await hf.safe_send(ctx, f"{target.name} is already on the super_watch list")
 
     @super_watch.command(name="remove")
     async def superwatch_remove(self, ctx, *, target):
@@ -618,31 +647,29 @@ class Admin(commands.Cog):
         target = target.id
         try:
             config.remove(target)
-            await ctx.send(f"Removed <@{target}> from super_watch list")
-            await hf.dump_json()
+            await hf.safe_send(ctx, f"Removed <@{target}> from super_watch list")
         except ValueError:
-            await ctx.send(f"That user wasn't on the super_watch list")
+            await hf.safe_send(ctx, f"That user wasn't on the super_watch list")
 
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
-            await ctx.send(f"Users currently on the super_watch list: {', '.join(users)}")
+            await hf.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
         else:
-            await ctx.send("There's currently no one on the super_watch list")
+            await hf.safe_send(ctx, "There's currently no one on the super_watch list")
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
         """Sets a custom prefix for the bot"""
         if prefix:
             self.bot.db['prefix'][str(ctx.guild.id)] = prefix
-            await ctx.send(f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset` "
+            await hf.safe_send(ctx, f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset` "
                            f"to reset it back to the default prefix of `;`")
-            await hf.dump_json()
         else:
             prefix = self.bot.db['prefix'].get(str(ctx.guild.id), ';')
-            await ctx.send(f"This is the command to set a custom prefix for the bot.  The current prefix is "
+            await hf.safe_send(ctx, f"This is the command to set a custom prefix for the bot.  The current prefix is "
                            f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
                            f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the default prefix.")
 
@@ -651,10 +678,9 @@ class Admin(commands.Cog):
         try:
             prefix = self.bot.db['prefix']
             del prefix[str(ctx.guild.id)]
-            await ctx.send("The command prefix for this guild has successfully been reset to `;`")
-            await hf.dump_json()
+            await hf.safe_send(ctx, "The command prefix for this guild has successfully been reset to `;`")
         except KeyError:
-            await ctx.send("This guild already uses the default command prefix.")
+            await hf.safe_send(ctx, "This guild already uses the default command prefix.")
 
     def make_options_embed(self, list_in):  # makes the options menu
         emb = discord.Embed(title='Options Menu',
@@ -672,13 +698,13 @@ class Admin(commands.Cog):
     async def wait_menu(self, ctx, menu, emb_in, choices_in):  # posts wait menu, gets a response, returns choice
         if menu:
             await menu.delete()
-        menu = await ctx.send(embed=emb_in)
+        menu = await hf.safe_send(ctx, embed=emb_in)
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=60.0,
                                           check=lambda x: x.content.casefold() in choices_in and x.author == ctx.author)
         except asyncio.TimeoutError:
-            await ctx.send("Menu timed out")
+            await hf.safe_send(ctx, "Menu timed out")
             await menu.delete()
             return 'time_out', menu
         await msg.delete()
@@ -711,13 +737,13 @@ class Admin(commands.Cog):
             try:
                 choice, menu = await self.wait_menu(ctx, menu, emb, choices)
             except discord.Forbidden:
-                await ctx.send(f"I lack the ability to manage messages, which I require for the options module")
+                await hf.safe_send(ctx, f"I lack the ability to manage messages, which I require for the options module")
                 return
             if choice == 'time_out':
                 return
             elif choice == 'x':
                 await menu.delete()
-                await ctx.send(f"Closing options menu")
+                await hf.safe_send(ctx, f"Closing options menu")
                 return
 
 
@@ -743,11 +769,11 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
-                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                        instr_msg = await hf.safe_send(ctx, "Please input the exact name of the role you wish to set as "
                                                    "the mod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
@@ -758,11 +784,11 @@ class Admin(commands.Cog):
                     elif choice == '2':
                         try:
                             del self.bot.db['mod_role'][str(ctx.guild.id)]
-                            await ctx.send("Removed the setting for a mod role")
+                            await hf.safe_send(ctx, "Removed the setting for a mod role")
                         except KeyError:
-                            await ctx.send("You currently don't have a mod role set")
+                            await hf.safe_send(ctx, "You currently don't have a mod role set")
                     elif choice == '3':
-                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                        instr_msg = await hf.safe_send(ctx, "Please input the exact name of the role you wish to set as "
                                                    "the submod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
@@ -773,9 +799,9 @@ class Admin(commands.Cog):
                     elif choice == '4':
                         try:
                             del self.bot.db['submod_role'][str(ctx.guild.id)]
-                            await ctx.send("Removed the setting for a submod role")
+                            await hf.safe_send(ctx, "Removed the setting for a submod role")
                         except KeyError:
-                            await ctx.send("You currently don't have a submod role set")
+                            await hf.safe_send(ctx, "You currently don't have a submod role set")
 
 
             #           main > set mod channel
@@ -799,7 +825,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
@@ -807,9 +833,9 @@ class Admin(commands.Cog):
                     elif choice == '2':
                         try:
                             del config[str(ctx.guild.id)]
-                            await ctx.send("Unset the mod channel")
+                            await hf.safe_send(ctx, "Unset the mod channel")
                         except KeyError:
-                            await ctx.send("There is no mod channel set")
+                            await hf.safe_send(ctx, "There is no mod channel set")
                     elif choice == '3':
                         await ctx.invoke(self.set_submod_channel)
 
@@ -832,11 +858,11 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closing options menu")
+                        await hf.safe_send(ctx, f"Closing options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
-                        instr_msg = await ctx.send(f"Please input the custom prefix you wish to use on this server")
+                        instr_msg = await hf.safe_send(ctx, f"Please input the custom prefix you wish to use on this server")
                         try:
                             reply_msg = await self.bot.wait_for('message',
                                                                 timeout=20.0,
@@ -845,7 +871,7 @@ class Admin(commands.Cog):
                             await reply_msg.delete()
                             await ctx.invoke(self.set_prefix, reply_msg.content)
                         except asyncio.TimeoutError:
-                            await ctx.send("Module timed out")
+                            await hf.safe_send(ctx, "Module timed out")
                             await instr_msg.delete()
                             return
                     elif choice == '2':
@@ -874,7 +900,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closing options menu")
+                        await hf.safe_send(ctx, f"Closing options menu")
                         await menu.delete()
                         return
 
@@ -904,7 +930,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -938,7 +964,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -973,7 +999,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1009,7 +1035,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1043,7 +1069,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1076,7 +1102,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1110,7 +1136,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1145,7 +1171,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await ctx.send(f"Closing options menu")
+                                await hf.safe_send(ctx, f"Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1182,13 +1208,13 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
 
                     # set mod role
                     elif choice == '1':
-                        instr_msg = await ctx.send("Please input the exact name of the role you wish to set as "
+                        instr_msg = await hf.safe_send(ctx, "Please input the exact name of the role you wish to set as "
                                                    "the mod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
@@ -1267,7 +1293,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
 
@@ -1312,7 +1338,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
 
@@ -1350,7 +1376,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await ctx.send(f"Closed options menu")
+                        await hf.safe_send(ctx, f"Closed options menu")
                         await menu.delete()
                         return
 
@@ -1363,36 +1389,33 @@ class Admin(commands.Cog):
                         await ctx.invoke(self.super_watch_list)
 
             else:
-                await ctx.send("Something went wrong")
+                await hf.safe_send(ctx, "Something went wrong")
                 return
-            await hf.dump_json()
 
     @commands.command()
     async def asar(self, ctx, *args):
         """Adds a self-assignable role to the list of self-assignable roles"""
+        print(args)
         try:
             group = str(int(args[0]))  # I want a string, but want to see if it's a number first
             role_name = ' '.join(args[1:])
         except ValueError:
             group = '0'
             role_name = ' '.join(args[0:])
-
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
         role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not role:
-            await ctx.send("The role with that name was not found")
+            await hf.safe_send(ctx, "The role with that name was not found")
             return None
         if group not in config:
             config[group] = []
-
-        for group in config:
-            if role.id in config[group]:
-                await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+        for config_group in config:
+            if role.id in config[config_group]:
+                await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** is already in the list."))
                 return
-
         config[group].append(role.id)
-        await ctx.send(embed=hf.green_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+        await hf.safe_send(ctx, embed=hf.green_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                             f"**{role.name}** has been added to the list in group "
                                             f"**{group}**."))
 
@@ -1401,10 +1424,13 @@ class Admin(commands.Cog):
         """Removes a self-assignable role"""
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
         role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        if not role:
+            await hf.safe_send(ctx, "Role not found")
+            return
         for group in config:
             if role.id in config[group]:
                 config[group].remove(role.id)
-                await ctx.send(embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+                await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** has been removed from the list."))
 
     @commands.command(aliases=['channel_helper'])
@@ -1419,7 +1445,7 @@ class Admin(commands.Cog):
         else:
             config[str(ctx.channel.id)] = [user.id]
         await ctx.message.delete()
-        await ctx.send(f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
+        await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
 
     @commands.command(aliases=['list_channel_helpers'])
     async def list_channel_mods(self, ctx):
@@ -1433,7 +1459,7 @@ class Admin(commands.Cog):
                 output_msg += f"{user.display_name}\n"
             output_msg += '\n'
         output_msg += '```'
-        await ctx.send(output_msg)
+        await hf.safe_send(ctx, output_msg)
 
     @commands.command(aliases=['m'])
     async def warn(self, ctx, user, *, reason="None"):
@@ -1451,15 +1477,15 @@ class Admin(commands.Cog):
         emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
         emb.add_field(name="Reason", value=reason, inline=False)
         if not silent:
-            await user.send(embed=emb)
+            await hf.safe_send(user, embed=emb)
         if not emb.description:
             emb.description = "Warning"
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
         emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
         config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
         modlog_channel = self.bot.get_channel(config['channel'])
-        await modlog_channel.send(embed=emb)
-        await ctx.message.add_reaction('✅')
+        await hf.safe_send(modlog_channel, embed=emb)
+        await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
     async def set_modlog_channel(self, ctx):
@@ -1468,7 +1494,7 @@ class Admin(commands.Cog):
             self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
         else:
             self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
-        await ctx.send(f"Set modlog channel as {ctx.channel.mention}.")
+        await hf.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     async def modlog(self, ctx, id):
@@ -1483,7 +1509,7 @@ class Admin(commands.Cog):
         else:
             name = user_id = id
         if user_id not in config:
-            await ctx.send("That user was not found in the modlog")
+            await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
         emb = hf.green_embed(f"Modlog for {name}")
@@ -1500,7 +1526,7 @@ class Admin(commands.Cog):
             emb.add_field(name=name,
                           value=value[:1024],
                           inline=False)
-        await ctx.send(embed=emb)
+        await hf.safe_send(ctx, embed=emb)
 
     @modlog.command(name='delete', aliases=['del'])
     async def modlog_delete(self, ctx, user, index):
@@ -1515,12 +1541,12 @@ class Admin(commands.Cog):
         else:
             user_id = user
         if user_id not in config:
-            await ctx.send("That user was not found in the modlog")
+            await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
         if index in ['-a', '-all']:
             del config
-            await ctx.send(embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
         else:
             del config[int(index)]
             await ctx.message.add_reaction('✅')
@@ -1537,13 +1563,13 @@ class Admin(commands.Cog):
         else:
             user_id = user
         if user_id not in config:
-            await ctx.send("That user was not found in the modlog")
+            await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
         old_reason = config[index]['reason']
         config[index]['reason'] = reason
-        await ctx.send(embed=hf.green_embed(f"Changed the reason for entry #{index} from "
-                                            f"```{old_reason}```to```{reason}```"))
+        await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
+                                                     f"```{old_reason}```to```{reason}```"))
 
     @commands.command()
     async def reason(self, ctx, user, index: int, *, reason):
