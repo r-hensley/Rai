@@ -10,7 +10,7 @@ Discord bot for Discord langauge servers (Python).  Some key features:
 - Unlimited duration timed mutes and bans.
 - Stats module for showing most active users in the server and per channel for the last month.
 
-Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=3072
+Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=27776
 
 Questions to: Ryry013#9234
 
