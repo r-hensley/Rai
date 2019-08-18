@@ -46,12 +46,15 @@ class Rai(Bot):
         self.num_of_errors = 0
 
         with open(f"{dir_path}/db.json", "r") as read_file:
-            db = json.load(read_file)
+            self.db = json.load(read_file)
+        with open(f"{dir_path}/stats.json", "r") as read_file:
+            self.stats = json.load(read_file)
 
-        self.db = db
         date = datetime.today().strftime("%d%m%Y%H%M")
         with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
             json.dump(self.db, write_file)
+        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
+            json.dump(self.stats, write_file)
 
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
         # initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner']
@@ -89,7 +92,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
         await self.testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
-        await self.change_presence(activity=discord.Game(';help'))
+        await self.change_presence(activity=discord.Game(';help | Ping/message me for questions'))
 
     async def background_tasks(self):
         await self.wait_until_ready()
@@ -102,17 +105,22 @@ class Rai(Bot):
             while not self.is_closed():
                 counter += 1
                 x = datetime.utcnow()
+
                 if x.hour == 0 and x.minute == 0:
                     counter = 0
                     date = datetime.today().strftime("%Y%m%d-%H.%M")
                     with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
                         json.dump(self.db, write_file)
+                    with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
+                        json.dump(self.stats, write_file)
                     await ctx.invoke(self.get_command("_delete_old_stats_days"))
+
+                await hf.dump_json()
+
                 if counter % 5 == 0:
                     await ctx.invoke(self.get_command("_unban_users"))
                     await ctx.invoke(self.get_command("_unmute_users"))
                     await ctx.invoke(self.get_command("_check_desync_voice"))
-                    await hf.dump_json()
                 await asyncio.sleep(60)
         except Exception as error:
             error = getattr(error, 'original', error)
@@ -137,6 +145,12 @@ class Rai(Bot):
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
             return
 
+        elif isinstance(error, discord.Forbidden):
+            try:
+                await ctx.author.send("Rai lacked permissions to do something there")
+            except discord.Forbidden:
+                pass
+
         elif isinstance(error, commands.BotMissingPermissions):
             await ctx.send(f"To do that command, Rai is missing the following permissions: "
                            f"`{'`, `'.join(error.missing_perms)}`")
@@ -144,7 +158,12 @@ class Rai(Bot):
 
         elif isinstance(error, commands.CommandInvokeError):
             command = ctx.command.qualified_name
-            await ctx.send(f"I couldn't execute the command.  I probably have a bug.  This has been reported to Ryan.")
+            try:
+                await ctx.send(f"I couldn't execute the command.  I probably have a bug.  "
+                               f"This has been reported to Ryan.")
+            except discord.Forbidden:
+                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.  "
+                                      f"I probably have a bug.  This has been reported to Ryan.")
             pass
 
         elif isinstance(error, commands.CommandNotFound):
@@ -158,6 +177,18 @@ class Rai(Bot):
         elif isinstance(error, commands.CheckFailure):
             # the predicates in Command.checks have failed.
             if ctx.command.name == 'global_blacklist':
+                return
+            if ctx.command.cog.qualified_name in ['Admin', 'Logger'] and \
+                    (str(ctx.guild.id) not in self.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
+                try:
+                    await ctx.send(
+                        "Please set a mod channel or logging channel for Rai to send important error messages to"
+                        " by typing `;set_mod_channel` in some channel.")
+                except discord.Forbidden:
+                    try:
+                        await ctx.author.send("Rai lacks permission to send messages in that channel.")
+                    except discord.Forbidden:
+                        pass
                 return
             try:
                 if str(ctx.guild.id) in self.db['mod_role']:

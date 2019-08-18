@@ -6,12 +6,14 @@ from discord.ext import commands
 import json
 import sys
 from datetime import datetime, timedelta
+from copy import deepcopy
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 here = sys.modules[__name__]
 here.bot = None
 
+BANS_CHANNEL_ID = 329576845949534208
 
 def setup(bot):
     if here.bot is None:
@@ -56,7 +58,7 @@ _url = re.compile("""
             (?:[/?#]\S*)?
         """, re.VERBOSE | re.I)
 
-_emoji = re.compile(r'<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
+_emoji = re.compile(r'<a?(:[A-Za-z0-9\_]+:|#|@|@&)!?[0-9]{17,20}>')
 
 _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
@@ -79,6 +81,42 @@ def green_embed(text):
 
 def red_embed(text):
     return discord.Embed(description=text, color=discord.Color(int('ff0000', 16)))
+
+
+async def safe_send(destination, content=None, *, wait=False, embed=None):
+    """A command to be clearer about permission errors when sending messages"""
+    if not content and not embed:
+        return
+    perms_set = perms = False
+    if isinstance(destination, commands.Context):
+        if destination.guild:
+            perms = destination.channel.permissions_for(destination.guild.me)
+            perms_set = True
+    elif isinstance(destination, discord.TextChannel):
+        perms = destination.permissions_for(destination.guild.me)
+        perms_set = True
+
+    if perms_set:
+        if embed and not perms.embed_links and perms.send_messages:
+            await destination.send("I lack permission to upload embeds here.")
+            raise discord.Forbidden
+
+    try:
+        return await destination.send(content, embed=embed)
+    except discord.Forbidden:
+        if isinstance(destination, commands.Context):
+            ctx = destination  # shorter and more accurate name
+            msg_content = f"Rai tried to a message to #{ctx.channel.name} but lacked permissions to do so (either " \
+                          f"messages or embeds)."
+            # if ctx.guild:
+            # if str(ctx.guild.id) in ctx.bot.db['mod_channel']:
+            #     await safe_send(ctx.bot.get_channel(int(ctx.bot.db['mod_channel'][str(ctx.guild.id)])), msg_content)
+            # else:
+            await safe_send(ctx.author, msg_content)
+            # else:
+            #     if isinstance(ctx.channel, discord.DMChannel):
+            #         pass
+        raise
 
 
 def parse_time(time):
@@ -135,9 +173,12 @@ async def member_converter(ctx, user_in):
 
 def _predump_json():
     with open(f'{dir_path}/db_2.json', 'w') as write_file:
-        json.dump(here.bot.db.copy(), write_file, indent=4)
-
+        json.dump(deepcopy(here.bot.db), write_file, indent=4)
     os.replace(f'{dir_path}/db_2.json', f'{dir_path}/db.json')
+
+    with open(f'{dir_path}/stats_2.json', 'w') as write_file:
+        json.dump(deepcopy(here.bot.stats), write_file, indent=1)
+    os.replace(f'{dir_path}/stats_2.json', f'{dir_path}/stats.json')
 
 
 async def dump_json():
@@ -214,8 +255,21 @@ def database_toggle(ctx, module_name):
 def rem_emoji_url(msg):
     if isinstance(msg, discord.Message):
         msg = msg.content
-    return _emoji.sub('', _url.sub('', msg))
+    new_msg = _emoji.sub('', _url.sub('', msg))
+    for char in msg:
+        if is_emoji(char):
+            new_msg = new_msg.replace(char, '').replace('  ', '')
+    return new_msg
 
+async def ban_check_servers(bot, bans_channel, member):
+    in_servers_msg = f"__I have found the user {member.name} ({member.id}) in the following guilds:\n__"
+    found = False
+    for guild in bot.guilds:
+        if member in guild.members:
+            found = True
+            in_servers_msg += f"{guild.name}\n"
+    if found:
+        await bans_channel.send(in_servers_msg)
 
 def jpenratio(msg):
     text = _emoji.sub('', _url.sub('', msg.content))
@@ -244,14 +298,14 @@ def is_emoji(char):
         # (0x1E00, 0x1EFF),
         # (0x2000, 0x209F),
         # (0x20D0, 0x214F),
-        (0x2190, 0x23FF),
-        (0x2460, 0x25FF),
-        (0x2600, 0x27EF),
-        (0x2900, 0x2935),
-        (0x2B00, 0x2BFF),
-        (0x2C60, 0x2C7F),
-        (0x2E00, 0x2E7F),
-        (0x3000, 0x303F),
+        # (0x2190, 0x23FF),
+        # (0x2460, 0x25FF),
+        # (0x2600, 0x27EF),
+        # (0x2900, 0x2935),
+        # (0x2B00, 0x2BFF),
+        # (0x2C60, 0x2C7F),
+        # (0x2E00, 0x2E7F),
+        # (0x3000, 0x303F),
         (0xA490, 0xA4CF),
         (0xE000, 0xF8FF),
         (0xFE00, 0xFE0F),
@@ -313,6 +367,9 @@ async def uhc_check(msg):
                 jpRole = msg.guild.get_role(196765998706196480)
                 ratio = jpenratio(msg)
                 # if I delete a long message
+
+                if not msg.content:
+                    return
 
                 # allow Kotoba bot commands
                 if msg.content[0:2] in ['k!', 't!'] \
