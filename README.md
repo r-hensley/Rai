@@ -26,6 +26,7 @@ List of commands for Rai bot.
   - [Super_watch lists: an anti-raid tool](#super_watch-lists-an-anti-raid-tool)
   - [Invite link/amazingsexdating spam auto-banning](#invite-linkamazingsexdating-spam-auto-banning)
   - [Stats](#stats)
+  - [Self-assignable roles](#roles)
   - [Chinese server only commands](#chinese-server-only)
   - [Spanish server only commands](#spanish-server-only)
   - [Japanese server only commands](#japanese-server-only)
@@ -41,7 +42,6 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;github`** Shows my github page
 - **`;invite`** Gives an invite to invite Rai to your server
 - **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
-- **`;kawaii`** Try it
 - **`;lb`** Shows the guild leaderboard.
 - **`;nadeko_flip_test`** A command to simulate the Martingale strategy for Nadeko's coin flip gambling module (alias `;nft`)
 - **`;ping`** Doesn't actually perform a ping test but still a good test
@@ -64,17 +64,26 @@ Important messages from the bot will go here.  This channel doesn't have to actu
 #### Setting the mod role  
 - **`;set_mod_role [role name]`** Sets the mod role for the server.  Type the name of the role exactly in [role name].
 - **`;set_submod_role [role name]`** If you want to optionally allow a secondary role to be able to mute users, use this.  Otherwise, `;mute` will default to the main mod role.
+
+#### Setting the submod role
+This is an optional feature.  Submods can 1) ban users within one hour of them joining (for trolls spamming porn or something when there are no mods online), 2) mute users, 3) delete messages using a special command, and the log of the message will be left in the submod channel, and 4) pin messages using a special command.
+` **`;set_submod_channel`** Sets the current channel as the submod channel
+
+#### Setting the submod role  
+- **`;set_submod_role [role name]`** Sets the mod role for the server.  Type the name of the role exactly in [role name].
   
 #### Setting a custom prefix
 - **`;set_prefix [prefix]`** Sets a custom prefix, for example, `;set_prefix !`
   - **`<prefix>set_prefix reset`** Resets the prefix to `;`
   
-#### Ban/Mute
+#### Ban/Mute/Warning + Modlog
+- **`;modlog|warnlog [user]`** Views the modlog for a user.  This contains all incidents of them being warned or muted, and is helpful for times when they ask "What did I do?!?!? You never warned me!!"  Use silent warnings as a form of logging small incidents.
 - **`;ban [time] <user> [reason]`** Bans a user for an optional amount of time with an optional reason.  Examples:
   - `;ban @Ryry013` Bans me indefinitely.  
   - `;ban 1d2h @Ryry013` Bans me for 1 day and 2 hours.
   ` `;ban @Ryry013 for being mean` Bans me indefinitely for being mean.
 - **`;mute [time] <user>`** Mutes a user from all text and voice chat.  Similar usage to the above `;ban` command.
+- **`;warn [user] <reason> <-s>`** Warns a user and sends them a PM.  Add `-s` into the reason to make it not send the PM (makes it silent).  Use this for either warning the user when they've done something, or use the silent warnings to log incidents 
   
 #### Captcha to enter a server
 Sets up a requirement to react to a message with a checkmark to enter a server / get a role.  Follow these steps:
@@ -110,6 +119,8 @@ Other commands:
 - **`;report clear_waiting_list`** Clears the waiting list
 - **`;report [USER / ID]`** Pulls a user into the report room if you want to ask them questions about something.  It is recommended to tell the user you will do this before you do it.
 - **`;report reset`** If something bugs out with the report room, use this to reset it.  Make sure to also manually reset the permission overrides of the channel for the last user to have been in the room.
+- **`;report_room_ping`** Enable/disable a `@here` ping when someone joins the report room.
+- **`;report_anonymous_ping`** Enable/disable a `@here` ping when someone makes an anonymous report.
 
 ⠀
 #### Super_watch lists: an anti-raid tool
@@ -147,9 +158,18 @@ Formatting variables: Put any of these in the welcome message to have them repla
 #### Stats
 Will keep track of the top posters in a server, and also per channel.  Give users their most-talked-in channels.
 - **`;stats`** Enable/disable the stats module
-- **`;u`** Shows your profile information
+- **`;u (member)`** Shows your profile information.  Leave the `member` field blank to look up yourself.
 - **`;lb`** Shows the guild leaderboard.
 - **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
+- **`;vc|v|vclb|vlb|voicechat`** Lots of names for this command.  Prints a leaderboard of who has the most time in voice.
+- **`;uchannels|uc (member)`** Shows a full list of channel data for a user.  Leave the `member` field blank to look up yourself.
+
+#### Self-Assignable Roles
+Modeled after Nadeko's self-assignable role system.  Allows users to assign themselves roless.
+- **`;asar <role_name>`** Assigns a self-assignable role.
+- **`;lsar <page_number>`** Lists all self-assignable roles.
+- **`;iam <role_name>`** Assign a role to yourself.
+- **`;iamnott|iamn <role_name>`** Remove a role from yourself.
 
 #### Chinese server only
 - **`;hardcore`** Posts a message in that channel with a reaction for people to click to assign hardcore mode to themselves
