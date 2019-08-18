@@ -12,7 +12,11 @@ Discord bot for Discord langauge servers (Python).  Some key features:
 
 Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=27776
 
-Questions to: Ryry013#9234
+First time setup guide can be found here: https://github.com/ryry013/Rai/wiki/First-time-setup
+
+A guide on effective moderation is here: https://github.com/ryry013/Rai/wiki/How-to-use-Rai-to-moderate-effectively
+
+Questions to my Discord account: Ryry013#9234
 
 # Commands
 List of commands for Rai bot.
