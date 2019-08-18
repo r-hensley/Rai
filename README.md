@@ -159,6 +159,7 @@ Formatting variables: Put any of these in the welcome message to have them repla
 #### Stats
 Will keep track of the top posters in a server, and also per channel.  Give users their most-talked-in channels.
 - **`;stats`** Enable/disable the stats module
+- **`;stats hide`** Type this in your mod channels.  It hides these channels from showing up in the `;u` command in public channels.  Typing `;u` in one of the specified mod channels will include all the information for the mod channels.  
 - **`;u (member)`** Shows your profile information.  Leave the `member` field blank to look up yourself.
 - **`;lb`** Shows the guild leaderboard.
 - **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
