@@ -237,7 +237,7 @@ class Logger(commands.Cog):
                     continue
                 # asyncio black magic from here:
                 # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
-                task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=True)
+                task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=False)
                 task = self.bot.loop.run_in_executor(None, task)
                 try:
                     image = await asyncio.wait_for(task, timeout=10)
@@ -946,7 +946,6 @@ class Logger(commands.Cog):
 
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
-            print(guild.name, member.name)
             guild_config: dict = self.bot.db['bans'][guild_id]
             try:
                 emb = await self.make_ban_embed(guild, member)
@@ -958,10 +957,8 @@ class Logger(commands.Cog):
                 await hf.safe_send(channel, embed=emb)
 
             try:
-                print('1')
                 if (guild_config['crosspost'] and not emb.description.startswith('⁣')) or \
                         (emb.description.startswith('⠀')):
-                    print('2')
                     old_desc = emb.description.split('\n\n')
                     new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
                     emb.description = new_desc
@@ -969,7 +966,6 @@ class Logger(commands.Cog):
                     crosspost_msg = await bans_channel.send(member.mention, embed=emb)
 
                     if member.id == 270366726737231884:
-                        print('3')
                         return
 
                     await hf.ban_check_servers(self.bot, bans_channel, member)

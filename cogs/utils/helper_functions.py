@@ -83,7 +83,7 @@ def red_embed(text):
     return discord.Embed(description=text, color=discord.Color(int('ff0000', 16)))
 
 
-async def safe_send(destination, content=None, *, wait=False, embed=None):
+async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed:
         return
@@ -102,7 +102,7 @@ async def safe_send(destination, content=None, *, wait=False, embed=None):
             raise discord.Forbidden
 
     try:
-        return await destination.send(content, embed=embed)
+        return await destination.send(content, embed=embed, delete_after=delete_after)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
@@ -213,9 +213,7 @@ def admin_check(ctx):
         ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
         mod_role = ctx.guild.get_role(ID)
         return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
-    except KeyError:
-        return ctx.channel.permissions_for(ctx.author).administrator
-    except TypeError:
+    except (KeyError, TypeError):
         return ctx.channel.permissions_for(ctx.author).administrator
 
 
@@ -264,10 +262,12 @@ def rem_emoji_url(msg):
 async def ban_check_servers(bot, bans_channel, member):
     in_servers_msg = f"__I have found the user {member.name} ({member.id}) in the following guilds:\n__"
     found = False
+    guilds = []
     for guild in bot.guilds:
         if member in guild.members:
+            guilds.append(guild)
             found = True
-            in_servers_msg += f"{guild.name}\n"
+    in_servers_msg += '\n'.join(sorted([guild.name for guild in guilds]))
     if found:
         await bans_channel.send(in_servers_msg)
 

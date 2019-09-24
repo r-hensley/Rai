@@ -8,6 +8,7 @@ import sys, traceback
 import json
 from cogs.utils import helper_functions as hf
 
+
 from datetime import datetime, timedelta
 from pytz import reference
 
@@ -92,7 +93,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
         await self.testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
-        await self.change_presence(activity=discord.Game(';help | Ping/message me for questions'))
+        await self.change_presence(activity=discord.Game(';help | Questions⇛Ping/DM me'))
 
     async def background_tasks(self):
         await self.wait_until_ready()
@@ -152,8 +153,14 @@ class Rai(Bot):
                 pass
 
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(f"To do that command, Rai is missing the following permissions: "
-                           f"`{'`, `'.join(error.missing_perms)}`")
+            msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
+            try:
+                await ctx.send(msg)
+            except discord.Forbidden:
+                try:
+                    await ctx.author.send(msg)
+                except discord.Forbidden:
+                    pass
             return
 
         elif isinstance(error, commands.CommandInvokeError):
@@ -178,6 +185,11 @@ class Rai(Bot):
             # the predicates in Command.checks have failed.
             if ctx.command.name == 'global_blacklist':
                 return
+            if str(ctx.guild.id) in self.db['modsonly']:
+                if self.db['modsonly'][str(ctx.guild.id)]['enable']:
+                    if not hf.admin_check(ctx):
+                        return
+
             if ctx.command.cog.qualified_name in ['Admin', 'Logger'] and \
                     (str(ctx.guild.id) not in self.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
                 try:
