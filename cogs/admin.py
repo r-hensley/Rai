@@ -24,6 +24,29 @@ class Admin(commands.Cog):
             return
         return hf.admin_check(ctx)
 
+    async def bot_check(self, ctx):
+        if not ctx.guild:
+            return True
+        if str(ctx.guild.id) in self.bot.db['modsonly']:
+            if self.bot.db['modsonly'][str(ctx.guild.id)]['enable']:
+                if not hf.admin_check(ctx):
+                    return
+        return True
+
+    @commands.command(aliases=['baibairai'])
+    async def modsonly(self, ctx):
+        """Sets Rai to ignore commands from users"""
+        config = self.bot.db['modsonly']
+        if str(ctx.guild.id) in config:
+            config[str(ctx.guild.id)]['enable'] = not config[str(ctx.guild.id)]['enable']
+        else:
+            config[str(ctx.guild.id)] = {'enable': True}
+        value = config[str(ctx.guild.id)]['enable']
+        if value:
+            await ctx.send("Rai will now only respond to commands from mods.  Type `;modsonly` again to disable this.")
+        else:
+            await ctx.send("Rai will now respond to all users.")
+
     @commands.command(hidden=True)
     async def crosspost(self, ctx):
         """Makes Rai crosspost all your ban audits"""
@@ -201,7 +224,11 @@ class Admin(commands.Cog):
                     await hf.safe_send(ctx, f"Something went wrong")
                     return
             else:
-                msg = await hf.safe_send(ctx, page)
+                try:
+                    msg = await hf.safe_send(ctx, page)
+                except Exception as e:
+                    await ctx.send(e)
+                    raise
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
@@ -405,10 +432,8 @@ class Admin(commands.Cog):
         """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`.
         To remove the mod role, type `;set_mod_role none`."""
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
-        print(config)
         if 'enable' in config:
             del (config['enable'])
-        print(role_name)
         if role_name.casefold() == "none":
             del self.bot.db['mod_role'][str(ctx.guild.id)]
             await hf.safe_send(ctx, "Removed mod role setting for this server")
@@ -1225,12 +1250,10 @@ class Admin(commands.Cog):
 
                     # set mod channel
                     elif choice == '2':
-                        print(ctx)
                         await ctx.invoke(self.set_mod_channel)
 
                     # Set the report room
                     elif choice == '3':
-                        print(ctx)
                         await ctx.invoke(self.bot.get_command('report setup'))
 
                     # Check waiting list
@@ -1395,7 +1418,6 @@ class Admin(commands.Cog):
     @commands.command()
     async def asar(self, ctx, *args):
         """Adds a self-assignable role to the list of self-assignable roles"""
-        print(args)
         try:
             group = str(int(args[0]))  # I want a string, but want to see if it's a number first
             role_name = ' '.join(args[1:])
@@ -1433,7 +1455,7 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** has been removed from the list."))
 
-    @commands.command(aliases=['channel_helper'])
+    @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     async def channel_mod(self, ctx, *, user):
         """Assigns a channel mod"""
         config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
@@ -1441,7 +1463,11 @@ class Admin(commands.Cog):
         if not user:
             return
         if str(ctx.channel.id) in config:
-            config[str(ctx.channel.id)].append(user.id)
+            if user.id in config[str(ctx.channel.id)]:
+                await hf.safe_send(ctx, "That user is already a channel mod in this channel.")
+                return
+            else:
+                config[str(ctx.channel.id)].append(user.id)
         else:
             config[str(ctx.channel.id)] = [user.id]
         await ctx.message.delete()
@@ -1461,7 +1487,27 @@ class Admin(commands.Cog):
         output_msg += '```'
         await hf.safe_send(ctx, output_msg)
 
-    @commands.command(aliases=['m'])
+    @commands.command(aliases=['rcm', 'rch'])
+    async def remove_channel_mod(self, ctx, user):
+        """Removes a channel mod"""
+        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
+        user = await hf.member_converter(ctx, user)
+        if not user:
+            return
+        if str(ctx.channel.id) in config:
+            if user.id not in config[str(ctx.channel.id)]:
+                await hf.safe_send(ctx, "That user is not a channel mod in this channel.")
+                return
+            else:
+                config[str(ctx.channel.id)].remove(user.id)
+                if not config[str(ctx.channel.id)]:
+                    del config[str(ctx.channel.id)]
+        else:
+            return
+        await ctx.message.delete()
+        await hf.safe_send(ctx, f"Removed {user.name} as a channel mod for this channel", delete_after=5.0)
+
+    @commands.command(aliases=['w'])
     async def warn(self, ctx, user, *, reason="None"):
         """Log a mod incident"""
         user = await hf.member_converter(ctx, user)

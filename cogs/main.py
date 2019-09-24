@@ -6,6 +6,8 @@ from .utils import helper_functions as hf
 import re
 from textblob import TextBlob as tb
 import textblob
+import requests
+import json
 
 import os
 
@@ -39,6 +41,7 @@ class Main(commands.Cog):
         hf.setup(bot)
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def new_help(self, ctx):
         x = self.bot.commands
         msg_dict = {}
@@ -124,9 +127,10 @@ class Main(commands.Cog):
                 for i in unbanned_users:
                     user = self.bot.get_user(int(i))
                     text_list.append(f"{user.mention} ({user.name})")
-                await hf.safe_send(mod_channel, embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as"
-                                                                       f"the time for their temporary ban has expired",
-                                                           color=discord.Color(int('00ffaa', 16))))
+                await hf.safe_send(mod_channel,
+                                   embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as"
+                                                                   f"the time for their temporary ban has expired",
+                                                       color=discord.Color(int('00ffaa', 16))))
 
     @commands.command(hidden=True)
     async def _unmute_users(self, ctx):
@@ -153,9 +157,10 @@ class Main(commands.Cog):
                         text_list.append(f"{user.mention} ({user.name})")
                     if not user:
                         text_list.append(f"{i}")
-                await hf.safe_send(mod_channel, embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
-                                                                       f"the time for their temporary mute has expired",
-                                                           color=discord.Color(int('00ffaa', 16))))
+                await hf.safe_send(mod_channel,
+                                   embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
+                                                                   f"the time for their temporary mute has expired",
+                                                       color=discord.Color(int('00ffaa', 16))))
 
     @commands.command(hidden=True)
     async def _delete_old_stats_days(self, ctx):
@@ -403,9 +408,8 @@ class Main(commands.Cog):
         ##########################################
 
         """check for servers of banned IDs"""
-
         async def check_guilds():
-            if msg.channel.id in [BANS_CHANNEL_ID, MODERATING_CHANNEL_ID]:
+            if msg.guild.id == 257984339025985546:
                 async def check_user(content):
                     bans_channel = msg.channel
                     re_result = re.findall('(?:^| |\n)(\d{17,22})', content)
@@ -443,8 +447,9 @@ class Main(commands.Cog):
                         try:
                             await msg.delete()
                         except discord.Forbidden:
-                            await hf.safe_send(mod_channel, f"Rai is lacking the permission to delete messages for the Chinese "
-                                                   f"spam message.")
+                            await hf.safe_send(mod_channel,
+                                               f"Rai is lacking the permission to delete messages for the Chinese "
+                                               f"spam message.")
                         except discord.NotFound:
                             pass
 
@@ -456,19 +461,21 @@ class Main(commands.Cog):
                                                         f"**Reason: **Automatic ban: Chinese banned words spam\n"
                                                         f"{msg.content[:100]}")
                         except discord.Forbidden:
-                            await hf.safe_send(mod_channel, f"I tried to ban someone for the Chinese spam message, but I lack "
-                                                   f"the permission to ban users.")
+                            await hf.safe_send(mod_channel,
+                                               f"I tried to ban someone for the Chinese spam message, but I lack "
+                                               f"the permission to ban users.")
 
                         await hf.safe_send(log_channel, f"Banned {msg.author.name} for the banned words spam message."
-                                               f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                               f"\n```{msg.content}"[:1850] + '```')
+                                                        f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                                        f"\n```{msg.content}"[:1850] + '```')
 
                         break
                     else:
 
-                        await hf.safe_send(mod_channel, f"Warning: {msg.author.name} may have said the banned words spam message"
-                                               f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                               f"\n```{msg.content}"[:1995] + '```')
+                        await hf.safe_send(mod_channel,
+                                           f"Warning: {msg.author.name} may have said the banned words spam message"
+                                           f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                           f"\n```{msg.content}"[:1995] + '```')
                         break
 
         """best sex dating"""
@@ -547,7 +554,6 @@ class Main(commands.Cog):
                 ctx = await self.bot.get_context(msg)
                 if not hf.submod_check(ctx):
                     return
-                print(ctx.author)
                 args = msg.content.split()[1:]
                 if len(args) == 1:
                     await ctx.invoke(self.bot.get_command('mute'), args[0])
@@ -560,9 +566,9 @@ class Main(commands.Cog):
         try:
             if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]['users']:
                 channel = self.bot.get_channel(self.bot.db['super_watch'][str(msg.guild.id)]['channel'])
-                await hf.safe_send(channel, 
-                    f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
-                    f"\n{msg.content}")
+                await hf.safe_send(channel,
+                                   f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
+                                   f"\n{msg.content}")
         except KeyError:
             pass
 
@@ -722,12 +728,92 @@ class Main(commands.Cog):
 
         await spanish_server_hardcore()
 
+    @commands.command(aliases=['emojis', 'emoji'])
+    @commands.bot_has_permissions(embed_links=True)
+    async def emotes(self, ctx, args=None):
+        """Shows top emojis usage of the server.  Type `;emojis` to display top 25, and type `;emojis -a` to show all
+        emojis. Type `;emojis -l` to show least used emojis."""
+        if str(ctx.guild.id) not in self.bot.stats:
+            return
+        config = self.bot.stats[str(ctx.guild.id)]['messages']
+        emojis = {}
+        for date in config:
+            for user_id in config[date]:
+                for emoji in config[date][user_id]['emoji']:
+                    if emoji in emojis:
+                        emojis[emoji] += config[date][user_id]['emoji'][emoji]
+                    else:
+                        emojis[emoji] = config[date][user_id]['emoji'][emoji]
+
+        emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
+        msg = 'Top Emojis:\n'
+        if args == '-s':
+            for emoji in emojis:
+                print(emoji)
+                if emoji not in emoji_dict:
+                    continue
+                emoji_obj = emoji_dict[emoji]
+                x = datetime.utcnow() - emoji_obj.created_at
+                if x < timedelta(days=30):
+                    emojis[emoji] = int(emojis[emoji] * 30 / (x.days + 1))
+            args = '-a'
+            msg = 'Scaled Emoji Counts (last 30 days, emojis created in the last 30 days have ' \
+                  'numbers scaled to 30 days):\n'
+        top_emojis = sorted(list(emojis.items()), key=lambda x: x[1], reverse=True)
+
+        saved_msgs = []
+        fields_count = 0
+
+        if args == '-a':
+            for emoji in top_emojis:
+                if emoji[0] in emoji_dict:
+                    emoji_obj = emoji_dict[emoji[0]]
+                    addition = f"{str(emoji_obj)}: {emoji[1]}\n"
+                    if len(msg + addition) < 2000:
+                        msg += addition
+                    else:
+                        saved_msgs.append(msg)
+                        msg = addition
+            if saved_msgs:
+                if saved_msgs[-1] != msg:
+                    saved_msgs.append(msg)
+                for msg in saved_msgs:
+                    await hf.safe_send(ctx, msg)
+            else:
+                await hf.safe_send(ctx, msg)
+
+        elif args == '-l':
+            emb = hf.red_embed("Least Used Emojis (last 30 days)")
+            for emoji in top_emojis[::-1]:
+                if fields_count < 25:
+                    if emoji[0] in emoji_dict:
+                        emoji_obj = emoji_dict[emoji[0]]
+                        fields_count += 1
+                        emb.add_field(name=f"{fields_count}) {str(emoji_obj)}", value=emoji[1])
+                else:
+                    break
+            await hf.safe_send(ctx, embed=emb)
+
+        else:
+            emb = hf.green_embed("Most Used Emojis (last 30 days)")
+            for emoji in top_emojis:
+                if fields_count < 25:
+                    if emoji[0] in emoji_dict:
+                        emoji_obj = emoji_dict[emoji[0]]
+                        emb.add_field(name=f"{fields_count + 1}) {str(emoji_obj)}", value=emoji[1])
+                        fields_count += 1
+                else:
+                    break
+            await hf.safe_send(ctx, embed=emb)
+
     @commands.command(aliases=['git'])
+    @commands.bot_has_permissions(send_messages=True)
     async def github(self, ctx):
         """Gives my github page"""
         await hf.safe_send(ctx, 'https://github.com/ryry013/Rai')
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def punch(self, ctx, user: discord.Member = None):
         """A punch command I made as a test"""
         if not user:
@@ -735,12 +821,13 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, "ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def ping(self, ctx, x=4):
         """sends back 'hello'"""
         await hf.safe_send(ctx, str(round(self.bot.latency, x)) + 's')
-        await hf.safe_send(self.bot.testChan, 'hello')
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def invite(self, ctx):
         """Gives an invite to bring this bot to your server"""
         await hf.safe_send(ctx,
@@ -748,6 +835,7 @@ class Main(commands.Cog):
                                                    permissions=discord.Permissions(permissions=27776)))
 
     @commands.group(invoke_without_command=True)
+    @commands.bot_has_permissions(send_messages=True)
     async def report(self, ctx, *, user=None):
         """Make a report to the mods"""
         if isinstance(ctx.channel, discord.DMChannel):
@@ -854,6 +942,7 @@ class Main(commands.Cog):
 
     @report.command(name='setup')
     @hf.is_admin()
+    @commands.bot_has_permissions(send_messages=True)
     async def report_setup(self, ctx):
         """Sets the channel"""
         perms = ctx.channel.permissions_for(ctx.me)
@@ -1059,9 +1148,10 @@ class Main(commands.Cog):
             await user.send(msg)  # someone is in the room, you've been added to waiting list
             try:
                 mod_channel = ctx.guild.get_channel(ctx.cog.bot.db['mod_channel'][str(ctx.guild.id)])
-                await hf.safe_send(mod_channel, f"{user.mention} ({user.name}) tried to enter the report room, but someone "
-                                       f"else is already in it.  Try typing `;report done` in the report room, "
-                                       f"and type `;report check_waiting_list` to see who is waiting.")
+                await hf.safe_send(mod_channel,
+                                   f"{user.mention} ({user.name}) tried to enter the report room, but someone "
+                                   f"else is already in it.  Try typing `;report done` in the report room, "
+                                   f"and type `;report check_waiting_list` to see who is waiting.")
             except KeyError:
                 await report_room.send(f"Note to the mods: I tried to send you a notification about the report room, "
                                        f"but you haven't set a mod channel yet.  Please type `;set_mod_channel` in "
@@ -1118,6 +1208,25 @@ class Main(commands.Cog):
             if reaction.message.author == self.bot.user:
                 await reaction.message.delete()
 
+        if user.bot:
+            return
+        if str(user.guild.id) not in self.bot.stats:
+            return
+        if not self.bot.stats[str(user.guild.id)]['enable']:
+            return
+
+        try:
+            emoji = reaction.emoji.name
+        except AttributeError:
+            emoji = reaction.emoji
+        config = self.bot.stats[str(user.guild.id)]
+        date_str = datetime.utcnow().strftime("%Y%m%d")
+        if date_str not in config['messages']:
+            config['messages'][date_str] = {}
+        today = config['messages'][date_str]
+        today[str(user.id)].setdefault('emoji', {})
+        today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         if payload.user_id == self.bot.user.id:
@@ -1139,27 +1248,27 @@ class Main(commands.Cog):
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
                             await ctx.invoke(self.blacklist_add, args=user_id)
                 else:
-                    await hf.safe_send(ctx.author, "Please claim residency on a server first with `;global_blacklist residency`")
+                    await hf.safe_send(ctx.author,
+                                       "Please claim residency on a server first with `;global_blacklist residency`")
                     return
 
             elif payload.channel_id == BANS_CHANNEL_ID:
                 channel = self.bot.get_channel(BANS_CHANNEL_ID)
-                try:
-                    message = await channel.fetch_message(payload.message_id)
-                except discord.errors.NotFound:
-                    print(payload.message_id, payload.user_id)
-                    raise
+                message = await channel.fetch_message(payload.message_id)
                 ctx = await self.bot.get_context(message)
                 ctx.author = self.bot.get_user(payload.user_id)
                 ctx.reacted_user_id = payload.user_id
                 user_id = re.search('\((\d{17,22})\)', message.embeds[0].description).group(1)
-                reason = re.search('\*\*Reason\*\*: (.*)$', message.embeds[0].description, flags=re.S).group(1)
+                try:
+                    reason = re.search('\*\*Reason\*\*: (.*)$', message.embeds[0].description, flags=re.S).group(1)
+                except AttributeError:
+                    return
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
                         await ctx.invoke(self.blacklist_add, args=f"{user_id} {reason}")
                 else:
-                    await hf.safe_send(ctx.author, "Please claim residency on a server first with `;global_blacklist residency`")
+                    await hf.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
                     return
 
         if payload.emoji.name == '✅':  # captcha
@@ -1234,6 +1343,10 @@ class Main(commands.Cog):
     async def on_raw_reaction_remove(self, payload):
         if not payload.guild_id:
             return
+        if not payload.emoji.name:
+            print(payload)
+            print(payload.channel_id)
+            print(payload.emoji)
         if payload.guild_id == 266695661670367232:  # chinese
             if payload.emoji.name in '🔥📝🖋🗣🎙':
                 roles = {'🔥': 496659040177487872,
@@ -1287,6 +1400,7 @@ class Main(commands.Cog):
                     f'<#{payload.guild_id}>')
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def pencil(self, ctx):
         try:
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
@@ -1298,6 +1412,7 @@ class Main(commands.Cog):
             await ctx.message.add_reaction('💢')
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def eraser(self, ctx):
         try:
             await ctx.author.edit(nick=ctx.author.display_name[:-1])
@@ -1306,6 +1421,7 @@ class Main(commands.Cog):
             await hf.safe_send(ctx, "I lack the permissions to change your nickname")
 
     @commands.command(aliases=['ryry'])
+    @commands.bot_has_permissions(send_messages=True)
     async def ryan(self, ctx):
         """Posts a link to the help docs server for my bot"""
         await hf.safe_send(ctx, "You can find some shitty docs for how to use my bot here: "
@@ -1318,6 +1434,7 @@ class Main(commands.Cog):
         pass
 
     @commands.command(aliases=['cl', 'checklanguage'])
+    @commands.bot_has_permissions(send_messages=True)
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your
         message was typed in, and display the results.  Note that this is non-deterministic code, which means
@@ -1412,7 +1529,15 @@ class Main(commands.Cog):
             except discord.errors.Forbidden:
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
+        if target_message.author != ctx.author:
+            msg_text = f"Hello, someone has marked one of your questions using my questions log feature.  It is now " \
+                       f"logged in <#{config['log_channel']}>.  This will" \
+                       f" help make sure you receive an answer.  When someone answers your question, please type " \
+                       f"`;q a` to mark the question as answered.  Thanks!"
+            await hf.safe_send(target_message.author, msg_text)
+
     @commands.group(invoke_without_command=True, aliases=['q'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def question(self, ctx, *, args):
         """A module for asking questions, put the title of your quesiton like `;question <title>`"""
         args = args.split(' ')
@@ -1572,7 +1697,7 @@ class Main(commands.Cog):
         try:
             question_message = await ctx.channel.fetch_message(question['question_message'])
             if ctx.author.id not in [question_message.author.id, question['command_caller']] \
-                    and not hf.admin_check(ctx):
+                    and not hf.submod_check(ctx):
                 await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
                                         f"originally can mark it as answered.")
                 return
@@ -1627,8 +1752,6 @@ class Main(commands.Cog):
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except discord.NotFound:
                 pass
-            await asyncio.sleep(7)
-            await ctx.message.delete()
 
     @question.command(aliases=['reopen', 'bump'])
     @hf.is_admin()
@@ -1763,6 +1886,7 @@ class Main(commands.Cog):
             await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True)
     async def jisho(self, ctx, *, text):
         """Provides a link to a Jisho search"""
         await ctx.message.delete()
@@ -1771,6 +1895,7 @@ class Main(commands.Cog):
 
     @commands.command(aliases=['server', 'info', 'sinfo'])
     @commands.cooldown(1, 30, type=commands.BucketType.channel)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def serverinfo(self, ctx):
         """Shows info about this server"""
         guild = ctx.guild
@@ -1979,7 +2104,8 @@ class Main(commands.Cog):
             try:  # the guild ID that the person trying to add a vote belongs to
                 user_residency = config['residency'][str(ctx.author.id)]  # a guild id
             except KeyError:
-                await hf.safe_send(ctx.author, "Please claim residency on a server first with `;global_blacklist residency`")
+                await hf.safe_send(ctx.author,
+                                   "Please claim residency on a server first with `;global_blacklist residency`")
                 return
 
             if user in config['blacklist']:  # already blacklisted
@@ -2006,11 +2132,9 @@ class Main(commands.Cog):
                 num_of_votes = result.group(3)
                 emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
                 if num_of_votes == '1':  # 1-->2
-                    print('gbl: 1-->2')
                     emb.title = emb.title.replace('vote', 'votes')
                     config['votes2'][user]['votes'].append(user_residency)
                 if num_of_votes == '2':  # 2-->3
-                    print('gbl: 2-->3')
                     emb.color = discord.Color(int('ff0000', 16))
                     del config['votes2'][user]
                     config['blacklist'].append(int(user))
@@ -2043,7 +2167,7 @@ class Main(commands.Cog):
 
     @commands.command()
     @hf.is_submod()
-    @commands.bot_has_permissions(manage_roles=True)
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def mute(self, ctx, time, member=None, *, reason=None):
         """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
         indefinite mute."""
@@ -2160,7 +2284,7 @@ class Main(commands.Cog):
 
     @commands.command()
     @hf.is_submod()
-    @commands.bot_has_permissions(manage_roles=True, )
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def unmute(self, ctx, target_in, guild=None):
         """Unmutes a user"""
         if not guild:
@@ -2214,6 +2338,7 @@ class Main(commands.Cog):
                        'yi': 'Yiddish'}
 
     @commands.command(aliases=['uc'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def uchannels(self, ctx, *, member: str = None):
         if not member:
             member = ctx.author
@@ -2262,6 +2387,7 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command(aliases=['u'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def user(self, ctx, *, member: str = None):
         """Gives info about a user.  Leave the member field blank to get info about yourself."""
         if not member:
@@ -2404,11 +2530,13 @@ class Main(commands.Cog):
         sorted_members_by_join = sorted([(member, member.joined_at) for member in ctx.guild.members],
                                         key=lambda x: x[1],
                                         reverse=False)
+        join_order = 0
         for i in sorted_members_by_join:
-            if i[0].id == ctx.author.id:
+            if i[0].id == member.id:
                 join_order = sorted_members_by_join.index(i)
                 break
-        emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
+        if join_order + 1:
+            emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
 
         # ### Send ###
         try:
@@ -2476,19 +2604,19 @@ class Main(commands.Cog):
                                embed=self.make_leaderboard_embed(ctx, channel_in, msg_count, "Messages Leaderboard"))
         except discord.Forbidden:
             try:
-                print('they tried lb')
                 await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
                 await hf.safe_send(ctx.author, embed=emb)
             except discord.Forbidden:
-                print('and still failed lb')
                 await hf.safe_send(ctx.author, "I lack the permission to send messages in that channel")
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def lb(self, ctx):
         """Shows a leaderboard of the top 25 most active users this month"""
         await self.make_lb(ctx, False)
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def chlb(self, ctx, channel=None):
         if not channel:
             channel = ctx.channel
@@ -2504,6 +2632,7 @@ class Main(commands.Cog):
         await self.make_lb(ctx, channel)
 
     @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def vc(self, ctx):
         """Prints a leaderboard of who has the most time in voice"""
         try:
@@ -2520,6 +2649,7 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
 
     @commands.command(name="delete", aliases=['del'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for mods (nod admins, submods).  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
@@ -2532,6 +2662,7 @@ class Main(commands.Cog):
                 return
         msgs = []
         failed_ids = []
+        invalid_ids = []
 
         # search ctx.channel for the ids
         for msg_id in ids:
@@ -2540,6 +2671,11 @@ class Main(commands.Cog):
                 msgs.append(msg)
             except discord.NotFound:
                 failed_ids.append(msg_id)
+            except discord.HTTPException:
+                invalid_ids.append(msg_id)
+
+        if invalid_ids:
+            await hf.safe_send(ctx, f"The following IDs were not properly formatted: `{'`, `'.join(invalid_ids)}`")
 
         # search every channel, not just ctx.channel for the missing IDs
         if failed_ids:
@@ -2556,7 +2692,7 @@ class Main(commands.Cog):
                 if not failed_ids:
                     break
         if failed_ids:
-            await hf.safe_send(ctx, f"Unable to find ID(s) {', '.join(failed_ids)}.")
+            await hf.safe_send(ctx, f"Unable to find ID(s) `{'`, `'.join(failed_ids)}`.")
 
         if not msgs:
             return  # no messages found
@@ -2573,6 +2709,9 @@ class Main(commands.Cog):
                 await msg.delete()
             except discord.NotFound:
                 continue
+            except discord.Forbidden:
+                await ctx.send(f"I lack the permission to delete messages in {msg.channel.mention}.")
+                return
             if msg.embeds:
                 for embed in msg.embeds:
                     embeds.append(embed)
@@ -2643,6 +2782,7 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def iam(self, ctx, *, role_name):
         """Command used to self-assign a role"""
         if not ctx.guild:
@@ -2671,6 +2811,7 @@ class Main(commands.Cog):
                     return
 
     @commands.command(aliases=['iamn'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def iamnot(self, ctx, *, role_name):
         """Command used to remove a self-assigned role"""
         if str(ctx.guild.id) not in self.bot.db['SAR']:
@@ -2702,6 +2843,7 @@ class Main(commands.Cog):
                                                    f"self-assignable."))
 
     @commands.command()
+    @commands.bot_has_permissions(send_messages=True, manage_messages=True)
     async def pin(self, ctx, message_id=None):
         """Pin a message"""
         if not hf.submod_check(ctx):
@@ -2732,7 +2874,7 @@ class Main(commands.Cog):
             await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
 
     @commands.command()
-    @commands.bot_has_permissions(ban_members=True)
+    @commands.bot_has_permissions(embed_links=True, ban_members=True)
     async def ban(self, ctx, *args):
         """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`  Example: `;ban @Ryry013 being mean` or
         `;ban 2d3h @Abelian posting invite links`.  If crossposting is enabled, you can add `-s` into the reason to
@@ -2791,14 +2933,19 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, f"You are about to ban {target.mention}: ", embed=em)
         msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
                f"to the user, or `no` to cancel."
+
         if ctx.author in self.bot.get_guild(257984339025985546).members:
-            if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
-                if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
-                    if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                        msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` in the reason)"
-                if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
-                    if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                        msg2 += "\n(To specifically crosspost this message, cancel the ban and put `-c` in the reason)"
+            try:
+                if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
+                    if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
+                        if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                            msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` in the reason)"
+                    if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
+                        if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                            msg2 += "\n(To specifically crosspost this message, " \
+                                    "cancel the ban and put `-c` in the reason)"
+            except KeyError:
+                pass
         msg2 = await hf.safe_send(ctx, msg2)
         try:
             msg = await self.bot.wait_for('message',
@@ -2834,6 +2981,138 @@ class Main(commands.Cog):
             timed_bans = config.setdefault('timed_bans', {})
             timed_bans[str(target.id)] = time_string
         await hf.safe_send(ctx, f"Successfully banned")
+
+    @commands.command(aliases=['tk', 't', 'taekim', 'gram', 'g'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.cooldown(1, 5, type=commands.BucketType.user)
+    async def grammar(self, ctx, *, search_term=None):
+        """Searches for grammar articles.  Use: `;grammar <search term>`.  To specify a certain website, put
+        it in the beginning of your search term from one of the following options:
+        `[taekim-complete, taekim-grammar, taekim, maggie, japanesetest4you, imabi, jlptsensei, ejlx]`. \n
+        Aliases = `[tk, t, taekim, gram, g, imabi]`"""
+        if not search_term:
+            await hf.safe_send(ctx, ctx.command.help)
+            return
+
+        # ### Check if you specify a certain site ###
+        sites = {'taekim-grammar': 'www.guidetojapanese.org/learn/grammar/',
+                 'taekim-complete': 'www.guidetojapanese.org/learn/complete/',
+                 'taekim': "www.guidetojapanese.org/learn/grammar/",
+                 'maggie': 'maggiesensei.com/',
+                 'japanesetest4you': 'https://japanesetest4you.com/',
+                 'imabi': 'https://www.imabi.net/',
+                 'jlptsensei': 'https://jlptsensei.com/',
+                 'ejlx': 'https://ejlx.blogspot.com/'}
+        space_split = search_term.split()
+        if space_split[0] in sites:
+            site = sites[space_split[0]]
+            search_term = ' '.join(space_split[1:])
+        else:
+            site = None
+
+        # ### Call the search ###
+        engine_id = '013657184909367434363:djogpwlkrc0'
+        with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
+            url = f'https://www.googleapis.com/customsearch/v1' \
+                  f'?q={search_term}' \
+                  f'&cx={engine_id}' \
+                  f'&key={read_file.read()}'
+        if site:
+            url += f"&siteSearch={site}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Error {response.status_code}: {response.reason}"))
+            return
+        jr = json.loads(response.content)
+        if 'items' in jr:
+            results = jr['items']
+        else:
+            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            return
+        search_term = jr['queries']['request'][0]['searchTerms']
+
+        def format_title(title, url):
+            if url.startswith('https://japanesetest4you.com/'):
+                try:
+                    return title.split(' Grammar: ')[1].split(' – Japanesetest4you.com')[0]
+                except IndexError:
+                    return title
+            if url.startswith('http://maggiesensei.com/'):
+                return title.split(' – Maggie Sensei')[0]
+            if url.startswith('https://www.imabi.net/'):
+                return title
+            if url.startswith('http://www.guidetojapanese.org/learn/grammar/'):
+                return title.split(' – Learn Japanese')[0]
+            if url.startswith('http://www.guidetojapanese.org/learn/complete/'):
+                return title
+            if url.startswith('https://jlptsensei.com/'):
+                if " Grammar: " in title:
+                    return ''.join(title.split(' Grammar: ')[1:]).split(' - Learn Japanese')[0]
+                else:
+                    return title
+            return title
+
+        def format_url(url):
+            if url.startswith('https://japanesetest4you.com/'):
+                return f"[Japanesetest4you]({url})"
+            if url.startswith('http://maggiesensei.com/'):
+                return f"[Maggie Sensei]({url})"
+            if url.startswith('https://www.imabi.net/'):
+                return f"[Imabi]({url})"
+            if url.startswith('http://www.guidetojapanese.org/learn/grammar/'):
+                return f"[Tae Kim Grammar Guide]({url})"
+            if url.startswith('http://www.guidetojapanese.org/learn/complete/'):
+                return f"[Tae Kim Complete Guide]({url})"
+            if url.startswith('https://jlptsensei.com/'):
+                return f"[JLPT Sensei]({url})"
+            return url
+
+        def make_embed(page):
+            emb = hf.green_embed(f"Search for {search_term}")
+            for result in results[page * 3:(page + 1) * 3]:
+                title = result['title']
+                url = result['link']
+                snippet = result['snippet'].replace('\n', '')
+                if ' ... ' in snippet:
+                    snippet = snippet.split(' ... ')[1]
+                for word in search_term.split():
+                    final_snippet = ''
+                    for snippet_word in snippet.split():
+                        if not snippet_word.startswith('**') and word in snippet_word:
+                            final_snippet += f"**{snippet_word}** "
+                        else:
+                            final_snippet += f"{snippet_word} "
+                    snippet = final_snippet
+                emb.description += f"\n\n**{format_title(title, url)}**\n{format_url(url)}\n{snippet}"
+            return emb
+
+        page = 0
+        msg = await hf.safe_send(ctx, embed=make_embed(0))
+        await msg.add_reaction('⬅')
+        await msg.add_reaction('➡')
+
+        def check(reaction, user):
+            if ((str(reaction.emoji) == '⬅' and page != 0) or
+                (str(reaction.emoji) == '➡' and page != len(results) // 3)) and user == ctx.author and \
+                    reaction.message.id == msg.id:
+                return True
+
+        while True:
+            try:
+                reaction, user = await ctx.bot.wait_for('reaction_add', timeout=30.0, check=check)
+            except asyncio.TimeoutError:
+                try:
+                    await msg.clear_reactions()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                return
+
+            if str(reaction.emoji) == '⬅':
+                page -= 1
+            if str(reaction.emoji) == '➡':
+                page += 1
+            await msg.edit(embed=make_embed(page))
+            await reaction.remove(user)
 
 
 def setup(bot):

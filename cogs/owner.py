@@ -44,8 +44,10 @@ class Owner(commands.Cog):
         """Sends a message to the channel ID specified"""
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            await hf.safe_send(ctx, "Invalid ID")
-            return
+            channel = self.bot.get_user(channel_id)
+            if not channel:
+                await hf.safe_send(ctx, "Invalid ID")
+                return
         await channel.send(msg)
         await ctx.message.add_reaction("✅")
 
@@ -332,7 +334,7 @@ class Owner(commands.Cog):
 
         ping_party_list = ''
         for member in mSorted:
-            # print(member[0].name)
+            # print( member[0].name)
             try:
                 if ping_party_role in member[0].roles and welcoming_party_role not in member[0].roles:
                     ping_party_list += f'{member[0].name}: {member[1]}\n'
@@ -493,6 +495,17 @@ class Owner(commands.Cog):
         await self.bot.get_user(202995638860906496).send(msg)
         await self.bot.get_user(202995638860906496).send("Channels: \n" +
                                                          '\n'.join([channel.name for channel in guild.channels]))
+
+        msg_text = "Thanks for inviting me!  See a first-time setup guide here: " \
+                   "https://github.com/ryry013/Rai/wiki/First-time-setup"
+        if guild.system_channel:
+            if guild.system_channel.permissions_for(guild.me).send_messages:
+                await guild.system_channel.send(msg_text)
+                return
+        for channel in guild.text_channels:
+            if channel.permissions_for(guild.me).send_messages:
+                await channel.send(msg_text)
+                return
 
     @commands.command()
     async def embed_test(self, ctx, color='FFFF00'):
