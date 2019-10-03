@@ -50,3 +50,5 @@ cogs/gcloud*
 list*
 .vs
 cogs/~local cogs.lnk
+*messages.txt
+*api.txt
