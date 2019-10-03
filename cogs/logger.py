@@ -602,18 +602,18 @@ class Logger(commands.Cog):
             except KeyError:
                 pass
 
-        """Spanish Server welcome"""
-        spanServ = self.bot.get_guild(SPAN_SERV_ID)
-        if member.guild == spanServ:
-            nadeko_obj = spanServ.get_member(NADEKO_ID)
-            if str(nadeko_obj.status) == 'offline':
-                await self.bot.get_channel(SPAN_WELCOME_CHAN_ID).send(
-                    'Welcome to the server.  Nadeko is currently down, '
-                    'so please state your roles and someone in welcoming party will come to'
-                    ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
-                    'Thanks! '
-                    '(<@&470364944479813635>)'
-                )
+        # """Spanish Server welcome"""
+        # spanServ = self.bot.get_guild(SPAN_SERV_ID)
+        # if member.guild == spanServ:
+        #     nadeko_obj = spanServ.get_member(NADEKO_ID)
+        #     if str(nadeko_obj.status) == 'offline':
+        #         await self.bot.get_channel(SPAN_WELCOME_CHAN_ID).send(
+        #             'Welcome to the server.  Nadeko is currently down, '
+        #             'so please state your roles and someone in welcoming party will come to'
+        #             ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
+        #             'Thanks! '
+        #             '(<@&470364944479813635>)'
+        #         )
 
     @commands.group(invoke_without_command=True, aliases=['leave', 'leaves'])
     async def leave_logging(self, ctx):
