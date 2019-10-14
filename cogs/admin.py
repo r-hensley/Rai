@@ -229,6 +229,10 @@ class Admin(commands.Cog):
                 except Exception as e:
                     await ctx.send(e)
                     raise
+            if not msg:
+                await hf.safe_send(ctx, "⠀\n⠀\n⠀\nThere was an error with one of your posts in the Google Doc.  Maybe "
+                                        "check your usage of `########`.  Eight hashes means a new message.")
+                return
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
@@ -261,6 +265,23 @@ class Admin(commands.Cog):
         except KeyError:
             config['ignore'] = [ctx.channel.id]
             await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+
+    @hardcore.command()
+    async def list(self, ctx):
+        channels = []
+        try:
+            for channel_id in self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    channels.append(channel)
+                else:
+                    self.bot.db['hardcore'][str(ctx.guild.id)]['ignore'].remove(channel_id)
+                    await hf.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
+        except KeyError:
+            return
+        if channels:
+            string = "__List of channels excepted from hardcore__:\n#" + '\n#'.join([c.name for c in channels])
+            await hf.safe_send(ctx, string)
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
@@ -1482,6 +1503,10 @@ class Admin(commands.Cog):
             output_msg += f"#{channel.name}\n"
             for user_id in self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id]:
                 user = self.bot.get_user(int(user_id))
+                if not user:
+                    await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
+                    self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id].remove(user_id)
+                    continue
                 output_msg += f"{user.display_name}\n"
             output_msg += '\n'
         output_msg += '```'
@@ -1523,7 +1548,12 @@ class Admin(commands.Cog):
         emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
         emb.add_field(name="Reason", value=reason, inline=False)
         if not silent:
-            await hf.safe_send(user, embed=emb)
+            try:
+                await hf.safe_send(user, embed=emb)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I could not send the message, maybe the user has DMs disabled. Canceling "
+                                        "warn (consider using the -s tag to not send a message).")
+                return
         if not emb.description:
             emb.description = "Warning"
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)

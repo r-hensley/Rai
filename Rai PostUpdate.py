@@ -18,6 +18,7 @@ client = Bot(description="Basic Bot by Ryry013#9234", command_prefix="r!", pm_he
 @client.event
 async def on_ready():
     client.germanicServListChan = client.get_channel(413491181171900416)
+    client.everydayLanguages = client.get_channel(561685815625908265)
 
     client.hubServListChan = client.get_channel(250884951535255553)
     client.hubServMobileChan = client.get_channel(368564776386953226)
@@ -34,6 +35,7 @@ async def on_ready():
     client.spanServ = client.get_guild(243838819743432704)
 
     to_delete_channels = [
+        client.everydayLanguages
         client.modServListChan,
         client.mass_languages,
         client.romance_langauges,
@@ -95,7 +97,7 @@ async def on_ready():
                 hub_channel = client.get_channel(int(part))
                 continue
             main_iterator += 1
-            for channel in [client.germanicServListChan, client.modServListChan]:
+            for channel in [client.germanicServListChan, client.modServListChan, client.everydayLanguages]:
                 print(f'Posting message {main_iterator}/{listFullLen} to {channel.guild}, {channel.name}')
                 await channel.send(part)
 

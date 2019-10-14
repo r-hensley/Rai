@@ -1210,6 +1210,8 @@ class Main(commands.Cog):
 
         if user.bot:
             return
+        if not hasattr(user, guild):
+            return
         if str(user.guild.id) not in self.bot.stats:
             return
         if not self.bot.stats[str(user.guild.id)]['enable']:
@@ -1224,6 +1226,7 @@ class Main(commands.Cog):
         if date_str not in config['messages']:
             config['messages'][date_str] = {}
         today = config['messages'][date_str]
+        today.setdefault(str(user.id), {})
         today[str(user.id)].setdefault('emoji', {})
         today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
 
