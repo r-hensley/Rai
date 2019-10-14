@@ -528,8 +528,8 @@ class Logger(commands.Cog):
                                 if str(used_invite.code) in japanese_links:
                                     await jpJHO.send(
                                         f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                                elif member.id != 414873201349361664:
-                                    await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                            elif member.id != 414873201349361664:
+                                await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
                         if member.id == 414873201349361664:
                             async for message in self.bot.jpJHO.history(limit=10):
                                 if message.author.id == 159985870458322944:
