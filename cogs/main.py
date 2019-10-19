@@ -1210,7 +1210,7 @@ class Main(commands.Cog):
 
         if user.bot:
             return
-        if not hasattr(user, guild):
+        if not hasattr(user, 'guild'):
             return
         if str(user.guild.id) not in self.bot.stats:
             return
@@ -2274,7 +2274,11 @@ class Main(commands.Cog):
         if reason:
             emb.add_field(name="Reason", value=reason)
         if not silent:
-            await target.send(embed=emb)
+            try:
+                await target.send(embed=emb)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
+                return
 
         emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
         emb.description = "Mute"
@@ -2972,7 +2976,7 @@ class Main(commands.Cog):
             try:
                 await target.send(embed=em)
             except discord.Forbidden:
-                await hf.safe_send(ctx, "The target user has PMs disabled.")
+                await hf.safe_send(ctx, "The target user has PMs disabled so I didn't send the notification.")
         try:
             await target.ban(reason=text)
         except discord.Forbidden:
