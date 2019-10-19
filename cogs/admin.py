@@ -167,8 +167,7 @@ class Admin(commands.Cog):
             # print([page[:30]])
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
-                with open('image', 'wb') as f:
-                    urllib.request.urlretrieve(url, "image_file.png")
+                urllib.request.urlretrieve(url, "image_file.png")
                 msg = await ctx.send(file=discord.File('image_file.png'))
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
                 # print('lang', [page])
