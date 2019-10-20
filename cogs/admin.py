@@ -1531,37 +1531,6 @@ class Admin(commands.Cog):
         await ctx.message.delete()
         await hf.safe_send(ctx, f"Removed {user.name} as a channel mod for this channel", delete_after=5.0)
 
-    @commands.command(aliases=['w'])
-    async def warn(self, ctx, user, *, reason="None"):
-        """Log a mod incident"""
-        user = await hf.member_converter(ctx, user)
-        if not user:
-            return
-        emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
-        silent = False
-        if '-s' in reason:
-            silent = True
-            reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
-            emb.description = "Warning *(This incident was not sent to the user)*"
-        emb.color = discord.Color(int('ff8800', 16))  # embed
-        emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
-        emb.add_field(name="Reason", value=reason, inline=False)
-        if not silent:
-            try:
-                await hf.safe_send(user, embed=emb)
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "I could not send the message, maybe the user has DMs disabled. Canceling "
-                                        "warn (consider using the -s tag to not send a message).")
-                return
-        if not emb.description:
-            emb.description = "Warning"
-        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
-        config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
-        modlog_channel = self.bot.get_channel(config['channel'])
-        await hf.safe_send(modlog_channel, embed=emb)
-        await hf.safe_send(ctx, embed=emb)
-
     @commands.command()
     async def set_modlog_channel(self, ctx):
         """Sets the channel for modlog events"""
