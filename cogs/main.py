@@ -8,6 +8,8 @@ from textblob import TextBlob as tb
 import textblob
 import requests
 import json
+from Levenshtein import distance as LDist
+import string
 
 import os
 
@@ -349,7 +351,6 @@ class Main(commands.Cog):
         await message_to_bot()
 
         """Message as the bot"""
-
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -358,7 +359,6 @@ class Main(commands.Cog):
         await message_as_bot()
 
         """Replace tatsumaki/nadeko serverinfo posts"""
-
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
@@ -368,7 +368,6 @@ class Main(commands.Cog):
         await replace_tatsumaki_posts()
 
         """Ping me if someone says my name"""
-
         async def mention_ping():
             cont = str(msg.content)
             if (
@@ -479,7 +478,6 @@ class Main(commands.Cog):
                         break
 
         """best sex dating"""
-
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
             try:
@@ -531,6 +529,66 @@ class Main(commands.Cog):
                 pass
 
         await spam_account_bans()
+
+        async def smart_welcome(msg):
+            if msg.channel.id == 243838819743432704:
+                english_role = msg.guild.get_role(243853718758359040)
+                spanish_role = msg.guild.get_role(243854128424550401)
+                other_role = msg.guild.get_role(247020385730691073)
+                for role in [english_role, spanish_role, other_role]:
+                    if role in msg.author.roles:
+                        return
+                if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
+                    return
+
+                async def check_msg(msg):
+                    content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
+                    english = ['english', 'inglés', 'anglohablante', 'angloparlante']
+                    spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante']
+                    txt1 = ''
+                    for language_word in english:
+                        for content_word in content.split():
+                            if txt1:
+                                continue
+                            if LDist(language_word, content_word) < 3:
+                                await msg.author.add_roles(english_role)
+                                txt1 = " I've given you the `English Native` role! " \
+                                       "¡Te he asignado el rol de `English Native`! "
+                    for language_word in spanish:
+                        for content_word in content.split():
+                            if txt1:
+                                continue
+                            if LDist(language_word, content_word) < 3:
+                                await msg.author.add_roles(spanish_role)
+                                txt1 = " I've given you the `Spanish Native` role! " \
+                                       "¡Te he asignado el rol de `Spanish Native!` "
+                    return txt1
+                txt1 = await check_msg(msg)
+
+                if not txt1:
+                    await asyncio.sleep(7)  # if the user starts with 'hello' or 'thank you' or something, this lets
+                    for role in [english_role, spanish_role, other_role]:  # the code run a second time on the next
+                        if role in msg.author.roles:  # message possibly before actually assigning a language here
+                            return
+                    await msg.author.add_roles(other_role)
+                    txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n "
+
+                txt2 = "You can add more roles/edit the roles I gave you by using the following commands:\n" \
+                       "Puedes añadirte más roles/editar los roles que te di usando los siguientes comandos:\n\n" \
+                       "`;iam <role name>` - Adds a role/Te añade un rol!\n" \
+                       "    (example/ejemplo: `;iam English Native`)\n\n" \
+                       "`;iamnot <role name>` - Removes a role/Te quita un rol!\n" \
+                       "    (example/ejemplo: `;iamnot Spanish Native`)\n\n" \
+                       "The list of autoassignable roles are/Los roles autoasignables son: \n" \
+                       "    1) `English Native`, `Spanish Native`, `Other Native`\n" \
+                       "    2) `Fluent English`, `Fluent Spanish`.\n" \
+                       "    3) `Learning English`, `Learning Spanish`\n" \
+                       "For an even longer list of roles, type `;lsar`! Before using the server, please read the " \
+                       "rules in <#243859172268048385>.\n" \
+                       "¡Para visualizar todos los roles autoasignables, escribe `;lsar`! Antes de usar el servidor, " \
+                       "por favor lee las reglas en <#499544213466120192>."
+                await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
+        await smart_welcome(msg)
 
         """mods ping on spanish server"""
         if msg.guild.id == 243838819743432704:
