@@ -7,6 +7,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 from copy import deepcopy
+import shutil
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -172,13 +173,21 @@ async def member_converter(ctx, user_in):
 
 
 def _predump_json():
-    with open(f'{dir_path}/db_2.json', 'w') as write_file:
-        json.dump(deepcopy(here.bot.db), write_file, indent=4)
-    os.replace(f'{dir_path}/db_2.json', f'{dir_path}/db.json')
+    db_copy = deepcopy(here.bot.db)
+    stats_copy = deepcopy(here.bot.stats)
+    shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
+    shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
+    shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+    with open(f'{dir_path}/db_temp.json', 'w') as write_file:
+        json.dump(db_copy, write_file, indent=4)
+    shutil.copy(f'{dir_path}/db_temp.json', f'{dir_path}/db.json')
 
-    with open(f'{dir_path}/stats_2.json', 'w') as write_file:
-        json.dump(deepcopy(here.bot.stats), write_file, indent=1)
-    os.replace(f'{dir_path}/stats_2.json', f'{dir_path}/stats.json')
+    shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
+    shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
+    shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
+    with open(f'{dir_path}/stats_temp.json', 'w') as write_file:
+        json.dump(stats_copy, write_file, indent=1)
+    shutil.copy(f'{dir_path}/stats_temp.json', f'{dir_path}/stats.json')
 
 
 async def dump_json():
