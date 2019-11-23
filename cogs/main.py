@@ -136,33 +136,38 @@ class Main(commands.Cog):
 
     @commands.command(hidden=True)
     async def _unmute_users(self, ctx):
-        config = self.bot.db['mutes']
-        for guild_id in config:
-            unmuted_users = []
-            guild_config = config[guild_id]
-            try:
-                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
-            except KeyError:
-                mod_channel = None
-            if 'timed_mutes' in guild_config:
-                for member_id in guild_config['timed_mutes'].copy():
-                    unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
-                    if unmute_time < datetime.utcnow():
-                        result = await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
-                        if result:
-                            unmuted_users.append(member_id)
-            if unmuted_users and mod_channel:
-                text_list = []
-                for i in unmuted_users:
-                    user = self.bot.get_user(int(i))
-                    if user:
-                        text_list.append(f"{user.mention} ({user.name})")
-                    if not user:
-                        text_list.append(f"{i}")
-                await hf.safe_send(mod_channel,
-                                   embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
-                                                                   f"the time for their temporary mute has expired",
-                                                       color=discord.Color(int('00ffaa', 16))))
+        configs = ['mutes', 'voice_mutes']
+        for db_name in configs:
+            config = self.bot.db[db_name]
+            for guild_id in config:
+                unmuted_users = []
+                guild_config = config[guild_id]
+                try:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
+                except KeyError:
+                    mod_channel = None
+                if 'timed_mutes' in guild_config:
+                    for member_id in guild_config['timed_mutes'].copy():
+                        unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
+                        if unmute_time < datetime.utcnow():
+                            if db_name == 'mutes':
+                                result = await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
+                            else:
+                                result = await ctx.invoke(self.bot.get_command('voiceunmute'), member_id, int(guild_id))
+                            if result:
+                                unmuted_users.append(member_id)
+                if unmuted_users and mod_channel:
+                    text_list = []
+                    for i in unmuted_users:
+                        user = self.bot.get_user(int(i))
+                        if user:
+                            text_list.append(f"{user.mention} ({user.name})")
+                        if not user:
+                            text_list.append(f"{i}")
+                    await hf.safe_send(mod_channel,
+                                       embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
+                                                                       f"the time for their temporary mute has expired",
+                                                           color=discord.Color(int('00ffaa', 16))))
 
     @commands.command(hidden=True)
     async def _delete_old_stats_days(self, ctx):
@@ -351,6 +356,7 @@ class Main(commands.Cog):
         await message_to_bot()
 
         """Message as the bot"""
+
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -359,6 +365,7 @@ class Main(commands.Cog):
         await message_as_bot()
 
         """Replace tatsumaki/nadeko serverinfo posts"""
+
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
@@ -368,6 +375,7 @@ class Main(commands.Cog):
         await replace_tatsumaki_posts()
 
         """Ping me if someone says my name"""
+
         async def mention_ping():
             cont = str(msg.content)
             if (
@@ -407,6 +415,7 @@ class Main(commands.Cog):
         ##########################################
 
         """check for servers of banned IDs"""
+
         async def check_guilds():
             if msg.guild.id == 257984339025985546:
                 async def check_user(content):
@@ -470,7 +479,6 @@ class Main(commands.Cog):
 
                         break
                     else:
-
                         await hf.safe_send(mod_channel,
                                            f"Warning: {msg.author.name} may have said the banned words spam message"
                                            f"\nMessage was posted in {msg.channel.mention}.  Message:"
@@ -478,6 +486,7 @@ class Main(commands.Cog):
                         break
 
         """best sex dating"""
+
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
             try:
@@ -532,6 +541,12 @@ class Main(commands.Cog):
 
         async def smart_welcome(msg):
             if msg.channel.id == 243838819743432704:
+                content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
+                for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
+                    if content == word:
+                        return
+                if msg.content == '<@270366726737231884>':  # ping to Rai
+                    return
                 english_role = msg.guild.get_role(243853718758359040)
                 spanish_role = msg.guild.get_role(243854128424550401)
                 other_role = msg.guild.get_role(247020385730691073)
@@ -541,37 +556,61 @@ class Main(commands.Cog):
                 if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
                     return
 
-                async def check_msg(msg):
-                    content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
-                    english = ['english', 'inglés', 'anglohablante', 'angloparlante']
-                    spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante']
-                    txt1 = ''
-                    for language_word in english:
-                        for content_word in content.split():
-                            if txt1:
-                                continue
-                            if LDist(language_word, content_word) < 3:
-                                await msg.author.add_roles(english_role)
-                                txt1 = " I've given you the `English Native` role! " \
-                                       "¡Te he asignado el rol de `English Native`! "
-                    for language_word in spanish:
-                        for content_word in content.split():
-                            if txt1:
-                                continue
-                            if LDist(language_word, content_word) < 3:
-                                await msg.author.add_roles(spanish_role)
-                                txt1 = " I've given you the `Spanish Native` role! " \
-                                       "¡Te he asignado el rol de `Spanish Native!` "
-                    return txt1
-                txt1 = await check_msg(msg)
+                english = ['english', 'inglés', 'anglohablante', 'angloparlante']
+                spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante']
+                other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
+                         'brazil', 'portuguesa', 'brazilian']
+                both = ['both', 'ambos', 'los dos']
 
-                if not txt1:
-                    await asyncio.sleep(7)  # if the user starts with 'hello' or 'thank you' or something, this lets
-                    for role in [english_role, spanish_role, other_role]:  # the code run a second time on the next
-                        if role in msg.author.roles:  # message possibly before actually assigning a language here
-                            return
+                txt1 = ''
+                bools = [0, 0, 0, 0]  # eng, sp, other, both
+                split = content.split()
+
+                def check_language(language, index):
+                    skip_next_word = False
+                    for language_word in language:
+                        for content_word in split:
+                            if skip_next_word:
+                                skip_next_word = False
+                                continue
+                            if content_word.startswith("learn") or content_word.startswith('aprend') \
+                                    or content_word.startswith('estud') or content_word.startswith('stud'):
+                                skip_next_word = True
+                                continue
+                            if LDist(language_word, content_word) < 3:
+                                bools[index] += 1
+
+                check_language(english, 0)
+                check_language(spanish, 1)
+                check_language(other, 2)
+                check_language(both, 3)
+
+                bool_results = 0
+                for bool in bools:
+                    if bool:
+                        bool_results += 1
+                if bool_results != 1:
+                    await msg.channel.send(f"Hello! Welcome to the {msg.guild.name}, {msg.author.mention}!"
+                                           f" Is your native language English, Spanish, both, or neither?\n\n"
+                                           f"¡Hola! ¡Bienvenido(a) a {msg.guild.name}, {msg.author.mention}!"
+                                           f" ¿Tu idioma materno es el inglés, el español, ambos u otro?")
+                    return
+
+                if msg.content.startswith(';') or msg.content.startswith('.'):
+                    return
+
+                if bools[0]:
+                    txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
+                    await msg.author.add_roles(english_role)
+                if bools[1]:
+                    txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
+                    await msg.author.add_roles(spanish_role)
+                if bools[2]:
+                    txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
                     await msg.author.add_roles(other_role)
-                    txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n "
+                if bools[3]:
+                    txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
+                    await msg.author.add_roles(english_role, spanish_role)
 
                 txt2 = "You can add more roles/edit the roles I gave you by using the following commands:\n" \
                        "Puedes añadirte más roles/editar los roles que te di usando los siguientes comandos:\n\n" \
@@ -588,6 +627,7 @@ class Main(commands.Cog):
                        "¡Para visualizar todos los roles autoasignables, escribe `;lsar`! Antes de usar el servidor, " \
                        "por favor lee las reglas en <#499544213466120192>."
                 await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
+
         await smart_welcome(msg)
 
         """mods ping on spanish server"""
@@ -633,34 +673,34 @@ class Main(commands.Cog):
         """Message counting"""
 
         # stats:
-        # 	guild1:
-        # 		enable = True/False
-        # 		messages (for ,u):
-        # 			{5/6/2019:
-        # 				{user_id1:
+        #     guild1:
+        #         enable = True/False
+        #         messages (for ,u):
+        #             {5/6/2019:
+        #                 {user_id1:
         #                   emoji: {emoji1: 1, emoji2: 3}
         #                   lang: {'eng': 25, 'sp': 30}
-        # 					channel1: 30,
-        # 					channel2: 20
-        # 				user_id2:
+        #                     channel1: 30,
+        #                     channel2: 20
+        #                 user_id2:
         #                   emoji: {emoji1: 1, emoji2: 3}
         #                   lang: {'eng': 25, 'sp': 30}
-        # 					channel1: 40,
-        # 					channel2: 10
-        # 				...}
-        # 			5/5/2019:
-        # 				{user_id1:
+        #                     channel1: 40,
+        #                     channel2: 10
+        #                 ...}
+        #             5/5/2019:
+        #                 {user_id1:
         #                   emoji: {emoji1: 1, emoji2: 3}
         #                   lang: {'eng': 25, 'sp': 30}
-        # 					channel1: 30,
-        # 					channel2: 20
-        # 				user_id2:
+        #                     channel1: 30,
+        #                     channel2: 20
+        #                 user_id2:
         #                   emoji: {emoji1: 1, emoji2: 3}
         #                   lang: {'eng': 25, 'sp': 30}
-        # 					channel1: 40,
-        # 					channel2: 10
-        # 				...}
-        # 			...
+        #                     channel1: 40,
+        #                     channel2: 10
+        #                 ...}
+        #             ...
         def msg_count():
             if msg.author.bot:
                 return
@@ -1589,13 +1629,20 @@ class Main(commands.Cog):
                 await target_message.add_reaction(number_map[str(question_number)])
             except discord.errors.Forbidden:
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+            except discord.NotFound:
+                await hf.safe_send(ctx, "I can't find the question message.")
+                await ctx.invoke(self.answer, args=str(question_number))
+                return
 
         if target_message.author != ctx.author:
             msg_text = f"Hello, someone has marked one of your questions using my questions log feature.  It is now " \
                        f"logged in <#{config['log_channel']}>.  This will" \
                        f" help make sure you receive an answer.  When someone answers your question, please type " \
                        f"`;q a` to mark the question as answered.  Thanks!"
-            await hf.safe_send(target_message.author, msg_text)
+            try:
+                await hf.safe_send(target_message.author, msg_text)
+            except discord.Forbidden:
+                pass
 
     @commands.group(invoke_without_command=True, aliases=['q'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -1671,6 +1718,8 @@ class Main(commands.Cog):
             await hf.safe_send(ctx,
                                f"This channel is not setup as a questions channel.  Please make sure you mark your "
                                f"question as 'answered' in the channel you asked it in.")
+            return
+        except AttributeError: # NoneType object has no attribute 'id' (used in a DM)
             return
         questions = config['questions']
         args = args.split(' ')
@@ -2226,166 +2275,105 @@ class Main(commands.Cog):
         emb.description += users_str
         await hf.safe_send(ctx, embed=emb)
 
-    @commands.command()
+    @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @hf.is_submod()
-    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    async def mute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
-        indefinite mute."""
-
-        async def set_channel_overrides(role):
-            failed_channels = []
-            for channel in ctx.guild.voice_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, speak=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.name)
-            for channel in ctx.guild.text_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, send_messages=False, add_reactions=False,
-                                                      attach_files=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.name)
-            return failed_channels
-
-        if str(ctx.guild.id) not in self.bot.db['mutes']:
-            await hf.safe_send(ctx, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
-                                    "add then a permission override for it to every channel to prevent communication")
-            role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
-            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
-            failed_channels = await set_channel_overrides(role)
-            if failed_channels:
-                await hf.safe_send(ctx,
-                                   f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
-                                   f"member joins this (these) channel(s), they'll be able to type/speak.")
+    async def modlog(self, ctx, id):
+        """View modlog of a user"""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, id)
+        if member:
+            name = f"{member.name}#{member.discriminator} ({member.id})"
+            user_id = str(member.id)
         else:
-            config = self.bot.db['mutes'][str(ctx.guild.id)]
-            role = ctx.guild.get_role(config['role'])
-            await set_channel_overrides(role)
-
-        time_string, length = hf.parse_time(str(time))
-        if not time_string:  # indefinite mute
-            if not reason:
-                reason = ''
-            if member:
-                reason = f"{member} {reason}"
-            member = time
-            time = None
-
-        silent = False
-        if reason:
-            if '-s' in reason or '-n' in reason:
-                if ctx.guild.id == JP_SERVER_ID:
-                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
-                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
-                silent = True
-
-        target = await hf.member_converter(ctx, member)
-        if not target:
+            name = user_id = id
+        if user_id not in config:
+            await hf.safe_send(ctx, "That user was not found in the modlog")
             return
-        if role in target.roles:
-            await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
-            return
-        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
-
-        if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            voice_state = target.voice
-            try:
-                if ctx.guild.afk_channel:
-                    await target.move_to(ctx.guild.afk_channel)
-                    await target.move_to(voice_state.channel)
-                else:
-                    for channel in ctx.guild.voice_channels:
-                        if not channel.members:
-                            await target.move_to(channel)
-                            await target.move_to(voice_state.channel)
-                            break
-            except discord.Forbidden:
-                pass
-
-        if time_string:
-            config['timed_mutes'][str(target.id)] = time_string
-
-        notif_text = f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat."
-        if time_string:
-            notif_text = notif_text[:-1] + f" for {time}."
-        if reason:
-            notif_text += f"\nReason: {reason}"
-        emb = hf.red_embed(notif_text)
-        if time_string:
-            emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
-        if silent:
-            emb.description += " (The user was not notified of this)"
+        config = config[user_id]
+        emb = hf.green_embed(f"Modlog for {name}")
+        for entry in config[-25:]:
+            name = f"{config.index(entry)}) {entry['type']}"
+            if entry['silent']:
+                name += " (silent)"
+            value = f"{entry['date']}\n"
+            if entry['length']:
+                value += f"*For {entry['length']}*\n"
+            if entry['reason']:
+                value += f"__Reason__: {entry['reason']}\n"
+            value += f"[Jump URL]({entry['jump_url']})\n⠀"  # invisible character at end of this line
+            emb.add_field(name=name,
+                          value=value[:1024],
+                          inline=False)
         await hf.safe_send(ctx, embed=emb)
 
-        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
-        modlog_channel = self.bot.get_channel(modlog_config['channel'])
-
-        emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
-        emb.color = discord.Color(int('ffff00', 16))  # embed
-        if time_string:
-            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
+    @commands.command()
+    @hf.is_admin()
+    async def set_modlog_channel(self, ctx):
+        """Sets the channel for modlog events"""
+        if str(ctx.guild.id) in self.bot.db['modlog']:
+            self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
         else:
-            emb.add_field(name="Length", value="Indefinite", inline=False)
-        if reason:
-            emb.add_field(name="Reason", value=reason)
-        if not silent:
-            try:
-                await target.send(embed=emb)
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
-                return
+            self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
+        await hf.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
 
-        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
-        emb.description = "Mute"
-        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
-        try:
-            await hf.safe_send(modlog_channel, embed=emb)
-        except AttributeError:
-            await hf.safe_send(ctx, embed=emb)
+    @modlog.command(name='delete', aliases=['del'])
+    @hf.is_admin()
+    async def modlog_delete(self, ctx, user, index):
+        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
+        Alias: `;ml del`"""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, user)
+        if member:
+            user_id = str(member.id)
+        else:
+            user_id = user
+        if user_id not in config:
+            await hf.safe_send(ctx, "That user was not found in the modlog")
+            return
+        config = config[user_id]
+        if index in ['-a', '-all']:
+            del config
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
+        else:
+            try:
+                del config[int(index)]
+            except IndexError:
+                await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
+                return
+            await ctx.message.add_reaction('✅')
+
+    @modlog.command(name="edit", aliases=['reason'])
+    @hf.is_admin()
+    async def modlog_edit(self, ctx, user, index: int, *, reason):
+        """Edit the reason for a selected modlog.  Example: `;ml edit ryry 2 trolling in voice channels`."""
+        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
+            return
+        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
+        member = await hf.member_converter(ctx, user)
+        if member:
+            user_id = str(member.id)
+        else:
+            user_id = user
+        if user_id not in config:
+            await hf.safe_send(ctx, "That user was not found in the modlog")
+            return
+        config = config[user_id]
+        old_reason = config[index]['reason']
+        config[index]['reason'] = reason
+        await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
+                                                     f"```{old_reason}```to```{reason}```"))
 
     @commands.command()
-    @hf.is_submod()
-    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    async def unmute(self, ctx, target_in, guild=None):
-        """Unmutes a user"""
-        if not guild:
-            guild = ctx.guild
-            target: discord.Member = await hf.member_converter(ctx, target_in)
-        else:
-            guild = self.bot.get_guild(int(guild))
-            target: discord.Member = guild.get_member(int(target_in))
-        config = self.bot.db['mutes'][str(guild.id)]
-        role = guild.get_role(config['role'])
+    @hf.is_admin()
+    async def reason(self, ctx, user, index: int, *, reason):
+        """Shortcut for `;modlog reason`"""
+        await ctx.invoke(self.modlog_edit, user, index, reason=reason)
 
-        failed = False
-        if target:
-            target_id = target.id
-            try:
-                await target.remove_roles(role)
-                failed = False
-            except discord.HTTPException:
-                pass
 
-        else:
-            if ctx.author == ctx.bot.user:
-                target_id = target_in
-            else:
-                return
-
-        if str(target_id) in config['timed_mutes']:
-            del config['timed_mutes'][str(target_id)]
-
-        if ctx.author != ctx.bot.user:
-            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
-                                color=discord.Color(int('00ffaa', 16)))
-            await hf.safe_send(ctx, embed=emb)
-
-        if not failed:
-            return True
 
     lang_codes_dict = {'af': 'Afrikaans', 'ga': 'Irish', 'sq': 'Albanian', 'it': 'Italian', 'ar': 'Arabic',
                        'ja': 'Japanese', 'az': 'Azerbaijani', 'kn': 'Kannada', 'eu': 'Basque', 'ko': 'Korean',
@@ -2448,6 +2436,8 @@ class Main(commands.Cog):
                 pass
             if index == 26:
                 break
+        if not lb:
+            await hf.safe_send(ctx, "This user has not said anything in the past 30 days.")
         emb.add_field(name="Top channels", value=lb[:1024])
         await hf.safe_send(ctx, embed=emb)
 
@@ -2592,7 +2582,11 @@ class Main(commands.Cog):
             emb.add_field(name='Most used languages', value=value)
 
         # ### Calculate join position ###
-        sorted_members_by_join = sorted([(member, member.joined_at) for member in ctx.guild.members],
+        member_list = ctx.guild.members
+        for member_in_list in member_list.copy():
+            if not member_in_list.joined_at:
+                member_list.remove(member_in_list)
+        sorted_members_by_join = sorted([(member, member.joined_at) for member in member_list],
                                         key=lambda x: x[1],
                                         reverse=False)
         join_order = 0
@@ -2714,11 +2708,10 @@ class Main(commands.Cog):
         await hf.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
 
     @commands.command(name="delete", aliases=['del'])
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_messages=True)
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for mods (nod admins, submods).  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
-        await ctx.message.delete()
         if not hf.submod_check(ctx):
             try:
                 if ctx.author.id not in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
@@ -2947,9 +2940,22 @@ class Main(commands.Cog):
                     return
             except KeyError:
                 return
-            
-        user = await hf.member_converter(ctx, user)
+
+        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', user)
+        if re_result:
+            id = int(re_result.group(1))
+            user = ctx.guild.get_member(id)
+            if not user:
+                reason += " -s"
+                try:
+                    user = await self.bot.fetch_user(id)
+                except discord.NotFound:
+                    user = None
+        else:
+            user = None
         if not user:
+            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
+                                    "a mention to the user (this is to prevent mistaking people).")
             return
         emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
         silent = False
@@ -3074,7 +3080,7 @@ class Main(commands.Cog):
             except discord.Forbidden:
                 await hf.safe_send(ctx, "The target user has PMs disabled so I didn't send the notification.")
         try:
-            await target.ban(reason=text)
+            await target.ban(reason=text, delete_message_days=0)
         except discord.Forbidden:
             await hf.safe_send(ctx, f"I couldn't ban that user.  They're probably above me in the role list.")
             return
@@ -3216,7 +3222,173 @@ class Main(commands.Cog):
                 page += 1
             await msg.edit(embed=make_embed(page))
             await reaction.remove(user)
+            
+    @commands.command(aliases=['vmute', 'vm'])
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    async def voicemute(self, ctx, time, member=None, *, reason=None):
+        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
+        indefinite mute."""
+        if not hf.submod_check(ctx):
+            if not hf.mod_check(ctx):
+                if ctx.author.id not in [166903700026163200, 398548209141678094]:
+                    return
 
+        async def set_channel_overrides(role):
+            failed_channels = []
+            for channel in ctx.guild.voice_channels:
+                if role not in channel.overwrites:
+                    try:
+                        await channel.set_permissions(role, speak=False)
+                    except discord.Forbidden:
+                        failed_channels.append(channel.name)
+            return failed_channels
+
+        if str(ctx.guild.id) not in self.bot.db['voice_mutes']:
+            await hf.safe_send(ctx, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
+                                    "add then a permission override for it to every channel to prevent communication")
+            role = await ctx.guild.create_role(name='rai-voice-mute', reason="For use with ;voicemute command")
+            config = self.bot.db['voice_mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+            failed_channels = await set_channel_overrides(role)
+            if failed_channels:
+                await hf.safe_send(ctx,
+                                   f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
+                                   f"member joins this (these) channel(s), they'll be able to speak.")
+        else:
+            config = self.bot.db['voice_mutes'][str(ctx.guild.id)]
+            role = ctx.guild.get_role(config['role'])
+            await set_channel_overrides(role)
+
+        time_string, length = hf.parse_time(str(time))
+        if not time_string:  # indefinite mute
+            if not reason:
+                reason = ''
+            if member:
+                reason = f"{member} {reason}"
+            member = time
+            time = None
+
+        silent = False
+        if reason:
+            if '-s' in reason or '-n' in reason:
+                if ctx.guild.id == JP_SERVER_ID:
+                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
+                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+                silent = True
+
+        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)
+        if re_result:
+            id = int(re_result.group(1))
+            target = ctx.guild.get_member(id)
+        else:
+            target = None
+        if not target:
+            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
+                                    "a mention to the user (this is to prevent mistaking people).")
+            return
+
+        if role in target.roles:
+            await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
+            return
+        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+
+        if target.voice:  # if they're in a channel, move them out then in to trigger the mute
+            voice_state = target.voice
+            try:
+                if ctx.guild.afk_channel:
+                    await target.move_to(ctx.guild.afk_channel)
+                    await target.move_to(voice_state.channel)
+                else:
+                    for channel in ctx.guild.voice_channels:
+                        if not channel.members:
+                            await target.move_to(channel)
+                            await target.move_to(voice_state.channel)
+                            break
+            except discord.Forbidden:
+                pass
+
+        if time_string:
+            config['timed_mutes'][str(target.id)] = time_string
+
+        notif_text = f"**{target.name}#{target.discriminator}** has been **voice muted** from voice chat."
+        if time_string:
+            notif_text = notif_text[:-1] + f" for {time}."
+        if reason:
+            notif_text += f"\nReason: {reason}"
+        emb = hf.red_embed(notif_text)
+        if time_string:
+            emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
+        if silent:
+            emb.description += " (The user was not notified of this)"
+        await hf.safe_send(ctx, embed=emb)
+
+        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
+        modlog_channel = self.bot.get_channel(modlog_config['channel'])
+
+        emb = hf.red_embed(f"You have been voice muted on {ctx.guild.name} server")
+        emb.color = discord.Color(int('ffff00', 16))  # embed
+        if time_string:
+            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
+        else:
+            emb.add_field(name="Length", value="Indefinite", inline=False)
+        if reason:
+            emb.add_field(name="Reason", value=reason)
+        if not silent:
+            try:
+                await target.send(embed=emb)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
+                return
+
+        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
+        emb.description = "Voice Mute"
+        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        emb.set_footer(text=f"Voice muted by {ctx.author.name} ({ctx.author.id})")
+        try:
+            await hf.safe_send(modlog_channel, embed=emb)
+        except AttributeError:
+            await hf.safe_send(ctx, embed=emb)
+
+    @commands.command(aliases=['vum', 'vunmute'])
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    async def voiceunmute(self, ctx, target_in, guild=None):
+        """Unmutes a user"""
+        if not guild:
+            guild = ctx.guild
+            target: discord.Member = await hf.member_converter(ctx, target_in)
+        else:
+            guild = self.bot.get_guild(int(guild))
+            target: discord.Member = guild.get_member(int(target_in))
+        try:
+            config = self.bot.db['voice_mutes'][str(guild.id)]
+        except IndexError:
+            return
+        role = guild.get_role(config['role'])
+
+        failed = False
+        if target:
+            target_id = target.id
+            try:
+                await target.remove_roles(role)
+                failed = False
+            except discord.HTTPException:
+                pass
+
+        else:
+            if ctx.author == ctx.bot.user:
+                target_id = target_in
+            else:
+                return
+
+        if str(target_id) in config['timed_mutes']:
+            del config['timed_mutes'][str(target_id)]
+
+        if ctx.author != ctx.bot.user:
+            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+                                color=discord.Color(int('00ffaa', 16)))
+            await hf.safe_send(ctx, embed=emb)
+
+        if not failed:
+            return True
 
 def setup(bot):
     bot.add_cog(Main(bot))

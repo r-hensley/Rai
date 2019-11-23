@@ -35,7 +35,7 @@ async def on_ready():
     client.spanServ = client.get_guild(243838819743432704)
 
     to_delete_channels = [
-        client.everydayLanguages
+        # client.everydayLanguages,
         client.modServListChan,
         client.mass_languages,
         client.romance_langauges,
@@ -75,6 +75,9 @@ async def on_ready():
                 pass
             except discord.errors.Forbidden:
                 pass
+            except AttributeError:
+                print(channel)
+                return
             async for message in channel.history():
                 if is_me(message):
                     delete_iterator += 1
@@ -97,7 +100,7 @@ async def on_ready():
                 hub_channel = client.get_channel(int(part))
                 continue
             main_iterator += 1
-            for channel in [client.germanicServListChan, client.modServListChan, client.everydayLanguages]:
+            for channel in [client.germanicServListChan, client.modServListChan]:
                 print(f'Posting message {main_iterator}/{listFullLen} to {channel.guild}, {channel.name}')
                 await channel.send(part)
 

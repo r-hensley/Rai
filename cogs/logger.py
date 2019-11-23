@@ -204,6 +204,7 @@ class Logger(commands.Cog):
                            f'logging by typing `;delete_logging`.')
 
     async def make_delete_embed(self, message):
+        print(imgur_client.credits)
         author = message.author
         time_dif = round((datetime.utcnow() - message.created_at).total_seconds(), 1)
         jump_url = ''
@@ -226,31 +227,47 @@ class Logger(commands.Cog):
         if message.attachments:
             list_of_attachments = []
             attachment_names = []
-            failed = True  # will be True unless the code manages to successfully upload an image to imgur
+            success = None  # will be True unless the code manages to successfully upload an image to imgur
             file_bool = False  # marks if someone uploaded a non-picture file
-            for attachment in message.attachments:
-
-                if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
-                                                                         'apng', 'tiff', 'mov', 'mp4']:
-                    attachment_names.append(attachment.filename)
-                    file_bool = True
-                    continue
-                # asyncio black magic from here:
-                # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
-                task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=False)
-                task = self.bot.loop.run_in_executor(None, task)
-                try:
-                    image = await asyncio.wait_for(task, timeout=10)
-                    list_of_attachments.append(image['link'])
-                    failed = None
-                except (asyncio.TimeoutError, ImgurClientError, ImgurClientRateLimitError):
+            if int(imgur_client.credits['UserRemaining']) < 5:
+                rate_limit = True  # marks if the rate limit was hit
+                for attachment in message.attachments:
                     list_of_attachments.append(attachment.proxy_url)
+            else:
+                rate_limit = False
+                for attachment in message.attachments:
+                    list_of_attachments.append(attachment.proxy_url)
+                    continue
+                    if imgur_client.credits['ClientRemaining'] < 5:
+                        rate_limit = True
+                    if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
+                                                                             'apng', 'tiff', 'mov', 'mp4']:
+                        attachment_names.append(attachment.filename)
+                        file_bool = True
+                        continue
+                    # asyncio black magic from here:
+                    # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
+                    task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=False)
+                    task = self.bot.loop.run_in_executor(None, task)
+                    try:
+                        image = await asyncio.wait_for(task, timeout=10)
+                        list_of_attachments.append(image['link'])
+                        success = True
+                    except (asyncio.TimeoutError, ImgurClientError):
+                        list_of_attachments.append(attachment.proxy_url)
+                    except ImgurClientRateLimitError:
+                        rate_limit = True
+                        list_of_attachments.append(attachment.proxy_url)
 
             if list_of_attachments:
+                if rate_limit:
+                    failure_msg = "I hit my Imgur rate limit for today, the above link may quickly 404."
+                else:
+                    failure_msg = 'Failed to reupload to imgur.  The above link may quickly 404.'
                 emb.add_field(name='**Attachments:**', value='\n'.join(list_of_attachments))
-                if failed:
+                if not success:
                     emb.add_field(name='**Warning:**',
-                                  value='Failed to reupload to imgur.  The above link may quickly 404')
+                                  value=failure_msg)
                 emb.set_thumbnail(url=list_of_attachments[0])
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
@@ -524,12 +541,15 @@ class Logger(commands.Cog):
                                 del config['users'][str(member.id)]
                     finally:
                         if post_message:
-                            if used_invite:
-                                if str(used_invite.code) in japanese_links:
-                                    await jpJHO.send(
-                                        f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                            elif member.id != 414873201349361664:
-                                await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                            try:
+                                if used_invite:
+                                    if str(used_invite.code) in japanese_links:
+                                        await jpJHO.send(
+                                            f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+                                elif member.id != 414873201349361664:
+                                    await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                            except discord.Forbidden:
+                                pass
                         if member.id == 414873201349361664:
                             async for message in self.bot.jpJHO.history(limit=10):
                                 if message.author.id == 159985870458322944:
@@ -780,34 +800,37 @@ class Logger(commands.Cog):
                         pass
                     else:  # no nickname changes
                         return
-                    await hf.safe_send(channel, embed=embed)
-
-        """Nadeko updates"""
-        if self.bot.user.name == 'Rai':
-            spanServ = self.bot.get_guild(SPAN_SERV_ID)
-            if before == spanServ.get_member(116275390695079945) and before.guild == spanServ:
-                if str(before.status) == 'online' and str(after.status) == 'offline':
-                    def check(beforecheck, aftercheck):
-                        return after.id == beforecheck.id and \
-                               str(beforecheck.status) == 'offline' and \
-                               str(aftercheck.status) == 'online'
-
                     try:
-                        await self.bot.wait_for('member_update', check=check, timeout=1200)
-                        self.bot.waited = False
-                    except asyncio.TimeoutError:
-                        self.bot.waited = True
+                        await hf.safe_send(channel, embed=embed)
+                    except discord.Forbidden:
+                        pass
 
-                    if self.bot.waited:
-                        await self.bot.spanSP.send(  # nadeko was offline for 20 mins
-                            "Nadeko has gone offline.  New users won't be able to tag themselves, "
-                            "and therefore will not be able to join the server.  Please be careful of this."
-                        )
-
-                if str(before.status) == 'offline' and str(after.status) == 'online':
-                    if self.bot.waited:
-                        self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
-                        await self.bot.spanSP.send('Nadeko is back online now.')
+        # """Nadeko updates"""
+        # if self.bot.user.name == 'Rai':
+        #     spanServ = self.bot.get_guild(SPAN_SERV_ID)
+        #     if before == spanServ.get_member(116275390695079945) and before.guild == spanServ:
+        #         if str(before.status) == 'online' and str(after.status) == 'offline':
+        #             def check(beforecheck, aftercheck):
+        #                 return after.id == beforecheck.id and \
+        #                        str(beforecheck.status) == 'offline' and \
+        #                        str(aftercheck.status) == 'online'
+        #
+        #             try:
+        #                 await self.bot.wait_for('member_update', check=check, timeout=1200)
+        #                 self.bot.waited = False
+        #             except asyncio.TimeoutError:
+        #                 self.bot.waited = True
+        #
+        #             if self.bot.waited:
+        #                 await self.bot.spanSP.send(  # nadeko was offline for 20 mins
+        #                     "Nadeko has gone offline.  New users won't be able to tag themselves, "
+        #                     "and therefore will not be able to join the server.  Please be careful of this."
+        #                 )
+        #
+        #         if str(before.status) == 'offline' and str(after.status) == 'online':
+        #             if self.bot.waited:
+        #                 self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
+        #                 await self.bot.spanSP.send('Nadeko is back online now.')
 
     @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
     async def reaction_logging(self, ctx):

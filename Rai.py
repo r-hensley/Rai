@@ -14,7 +14,8 @@ from pytz import reference
 
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
+print(os.stat(f'{dir_path}/stats.json'))
+print(os.stat(f"{dir_path}/db.json"))
 # import logging
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
@@ -45,11 +46,13 @@ class Rai(Bot):
         self.bg_task = self.loop.create_task(self.background_tasks())
         self.last_error = datetime.utcnow()
         self.num_of_errors = 0
-
-        with open(f"{dir_path}/db.json", "r") as read_file:
-            self.db = json.load(read_file)
-        with open(f"{dir_path}/stats.json", "r") as read_file:
-            self.stats = json.load(read_file)
+        print('starting loading of jsons')
+        with open(f"{dir_path}/db.json", "r") as read_file1:
+            read_file1.seek(0)
+            self.db = json.load(read_file1)
+        with open(f"{dir_path}/stats.json", "r") as read_file2:
+            read_file2.seek(0)
+            self.stats = json.load(read_file2)
 
         date = datetime.today().strftime("%d%m%Y%H%M")
         with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
@@ -84,8 +87,8 @@ class Rai(Bot):
         self.spanServ = self.get_guild(243838819743432704)
         self.spanSP = self.get_channel(277511392972636161)
 
-        if self.user.name == "Rai":
-            self.waited = str(self.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
+        #  if self.user.name == "Rai":
+            #  self.waited = str(self.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
         self.selfMute = False
 
 
