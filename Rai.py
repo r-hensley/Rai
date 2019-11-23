@@ -60,9 +60,8 @@ class Rai(Bot):
         with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
             json.dump(self.stats, write_file)
 
-        initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner', 'cogs.math', 'cogs.logger', 'cogs.jpserv']
-        # initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.owner']
-        # initial_extensions = []
+        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
                 self.load_extension(extension)
@@ -100,6 +99,8 @@ class Rai(Bot):
 
     async def background_tasks(self):
         await self.wait_until_ready()
+        if bot.user.name != "Rai":
+            return
         try:
             await self.wait_until_ready()
             counter = 4  # counts minutes (x4: 360, x24: 1440)
@@ -155,16 +156,16 @@ class Rai(Bot):
             except discord.Forbidden:
                 pass
 
-        elif isinstance(error, commands.BotMissingPermissions):
-            msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
-            try:
-                await ctx.send(msg)
-            except discord.Forbidden:
-                try:
-                    await ctx.author.send(msg)
-                except discord.Forbidden:
-                    pass
-            return
+        # elif isinstance(error, commands.BotMissingPermissions):
+        #     msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
+        #     try:
+        #         await ctx.send(msg)
+        #     except discord.Forbidden:
+        #         try:
+        #             await ctx.author.send(msg)
+        #         except discord.Forbidden:
+        #             pass
+        #     return
 
         elif isinstance(error, commands.CommandInvokeError):
             command = ctx.command.qualified_name
@@ -205,15 +206,15 @@ class Rai(Bot):
                     except discord.Forbidden:
                         pass
                 return
-            try:
-                if str(ctx.guild.id) in self.db['mod_role']:
-                    await ctx.send("You lack permissions to do that.")
-                else:
-                    await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
-                                   f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
-            except discord.Forbidden:
-                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
-            return
+            #try:
+            #   if str(ctx.guild.id) in self.db['mod_role']:
+            #        await ctx.send("You lack permissions to do that.")
+            #    else:
+            #        await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+            #                       f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+            #except discord.Forbidden:
+            #    await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
+            #return
 
         elif isinstance(error, commands.MissingRequiredArgument):
             # parsing a command and a parameter that is required is not encountered

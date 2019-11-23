@@ -89,13 +89,13 @@ class Logger(commands.Cog):
         else:
             channel = self.bot.get_channel(channel)
             await hf.safe_send(channel, f"Disabled the {module_name} logs due to Rai possibly lacking some permission "
-                               f"(possibly `Send Messages`, `Embed Links`, or for bans, `View Audit Log`)")
+                                        f"(possibly `Send Messages`, `Embed Links`, or for bans, `View Audit Log`)")
         finally:
             guild_config['enable'] = False
 
-    @commands.group(invoke_without_command=True, aliases=['edits'])
+    @commands.group(invoke_without_command=True, name='edits')
     async def edit_logging(self, ctx):
-        """Logs edited messages, aliases: 'edit', 'edits'"""
+        """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['edits'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled edit logging for this server')
@@ -106,20 +106,22 @@ class Logger(commands.Cog):
         elif result == 4:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;edit_logging set`.  '
-                           'Then, enable/disable logging by typing `;edit_logging`.')
+                                    'Then, enable/disable logging by typing `;edit_logging`.')
 
-    @edit_logging.command(aliases=['set'])
+    @edit_logging.command(name='set')
     async def edits_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['edits'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the edit logging channel as {ctx.channel.name}')
         elif result == 2:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            await hf.safe_send(ctx, f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;edit_logging`.')
+            await hf.safe_send(ctx, f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  '
+                                    f'Enable/disable logging by typing `;edit_logging`.')
 
     @edit_logging.command(aliases=['set_distance'])
-    async def distance_set(self, ctx, distance_limit: int):
+    async def distance_set(self, ctx, distance_limit: int = 3):
+        """Sets the Levenshtein Distance limit for edited messages logs. Anything below this limit won't get counted\
+        as an edit (the Levenshtein Distance measures the distance between strings)."""
         guild = str(ctx.guild.id)
         guild_config: dict = self.bot.db['edits'][guild]
         guild_config['distance_limit'] = distance_limit
@@ -180,9 +182,9 @@ class Logger(commands.Cog):
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
 
-    @commands.group(invoke_without_command=True, aliases=['deletes'])
+    @commands.group(invoke_without_command=True, name='deletes')
     async def delete_logging(self, ctx):
-        """Logs deleted messages, aliases: 'delete', 'deletes'"""
+        """Logs deleted messages"""
         result = await self.module_logging(ctx, self.bot.db['deletes'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled delete logging for this server')
@@ -192,16 +194,17 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'You have not yet set a channel for delete logging yet. Run `;delete_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;delete_logging set`.  '
-                           'Then, enable/disable logging by typing `;delete_logging`.')
+                                    'Then, enable/disable logging by typing `;delete_logging`.')
 
-    @delete_logging.command(aliases=['set'])
+    @delete_logging.command(name='set')
     async def deletes_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['deletes'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the delete logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;delete_logging`.')
+            await hf.safe_send(ctx,
+                               f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'logging by typing `;delete_logging`.')
 
     async def make_delete_embed(self, message):
         print(imgur_client.credits)
@@ -272,8 +275,6 @@ class Logger(commands.Cog):
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
-
-
         emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
 
         return emb
@@ -303,9 +304,9 @@ class Logger(commands.Cog):
                     except discord.errors.Forbidden:
                         await self.module_disable_notification(message.guild, guild_config, 'message deletes')
 
-    @commands.group(invoke_without_command=True, aliases=['welcome', 'welcomes', 'join', 'joins'])
-    async def welcome_logging(self, ctx):
-        """Logs server joins + tracks invite links, aliases: 'welcome', 'welcomes', 'join', 'joins'"""
+    @commands.group(invoke_without_command=True, name='joins')
+    async def join_logging(self, ctx):
+        """Logs server joins + tracks invite links."""
         result = await self.module_logging(ctx, self.bot.db['welcomes'])
         server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
         if result == 1:
@@ -314,21 +315,23 @@ class Logger(commands.Cog):
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
-                await hf.safe_send(ctx, 'Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
-                               ' invite tracking)')
+                await hf.safe_send(ctx,
+                                   'Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
+                                   ' invite tracking)')
             except discord.errors.Forbidden:
                 await hf.safe_send(ctx, "I've enabled welcome tracking, but I lack permissions to get invite codes.  "
-                               "If you want invite tracking too, give me `Manage Server` and then type "
-                               f"`{ctx.message.content} invites` to enable invite tracking for future joins.")
+                                        "If you want invite tracking too, give me `Manage Server` and then type "
+                                        f"`{ctx.message.content} invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
 
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
+            await hf.safe_send(ctx,
+                               'You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;welcome_logging set`.  '
-                           'Then, enable/disable logging by typing `;welcome_logging`.')
+                                    'Then, enable/disable logging by typing `;welcome_logging`.')
 
-    @welcome_logging.command(aliases=['set'])
+    @join_logging.command(name='set')
     async def welcomes_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['welcomes'])
         server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
@@ -338,15 +341,16 @@ class Logger(commands.Cog):
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
-                await hf.safe_send(ctx, f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.'
-                               f'  Enable/disable logging by typing `;welcome_logging`.')
+                await hf.safe_send(ctx,
+                                   f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.'
+                                   f'  Enable/disable logging by typing `;welcome_logging`.')
             except discord.errors.Forbidden:
                 await hf.safe_send(ctx, "I've enabled welcome message, but I lack permissions to get invite codes.  "
-                               "If you want invite tracking too, give me `Manage Server` and then type "
-                               "`;invites` to enable invite tracking for future joins.")
+                                        "If you want invite tracking too, give me `Manage Server` and then type "
+                                        "`;invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
 
-    @welcome_logging.command(aliases=['invites', 'invite'])
+    @join_logging.command(name='invites')
     async def invites_enable(self, ctx):
         """Enables/disables the identification of used invite links when people join"""
         guild = str(ctx.guild.id)
@@ -412,9 +416,9 @@ class Logger(commands.Cog):
     async def set_message(self, ctx, *, message: str = None):
         if not message:
             await hf.safe_send(ctx, 'Please put your welcome message after the command invocation.  For example: \n'
-                           '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
-                           "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
-                           "the user\n`$SERVER$` = The name of the server")
+                                    '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
+                                    "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
+                                    "the user\n`$SERVER$` = The name of the server")
         else:
             try:
                 config = self.bot.db['welcome_message'][str(ctx.guild.id)]
@@ -468,7 +472,8 @@ class Logger(commands.Cog):
                 except KeyError:
                     server_config['invites_enable'] = False
                     invites_enable = server_config['invites_enable']
-                    await hf.safe_send(channel, "I've added a toggle for invite tracking since it requires `Manage Server` "
+                    await hf.safe_send(channel,
+                                       "I've added a toggle for invite tracking since it requires `Manage Server` "
                                        "permission.  If you wish Rai to track used invite links for joins, please type "
                                        "`welcomes invites`.")
                 if invites_enable:
@@ -477,10 +482,10 @@ class Logger(commands.Cog):
                         invites = await member.guild.invites()
                     except discord.errors.Forbidden:
                         server_config['invites_enable'] = False
-                        await hf.safe_send(channel, 
-                            "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
-                            "invite link tracking.  If you wish to reenable it, type `;welcomes invites` or use "
-                            "the options menu (`;options`)")
+                        await hf.safe_send(channel,
+                                           "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
+                                           "invite link tracking.  If you wish to reenable it, type `;welcomes invites` or use "
+                                           "the options menu (`;options`)")
                     else:
                         if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
                             old_invites = {invite.code: invite.uses for invite in invites}
@@ -558,7 +563,7 @@ class Logger(commands.Cog):
                             try:
                                 msg = await self.bot.wait_for('message', timeout=10.0,
                                                               check=lambda m: m.author.id == 299335689558949888 and
-                                                              m.channel == jpJHO)
+                                                                              m.channel == jpJHO)
                                 await msg.delete()
                             except asyncio.TimeoutError:
                                 pass
@@ -590,7 +595,6 @@ class Logger(commands.Cog):
                 except discord.errors.Forbidden:
                     await hf.safe_send(channel, 'Rai needs permission to post embeds to track joins')
 
-
         """ban invite link names"""
         try:
             if self.bot.db['auto_bans'][guild]['enable']:
@@ -603,9 +607,9 @@ class Logger(commands.Cog):
                     await self.bot.get_channel(BANS_CHANNEL_ID).send(message)
                     self.bot.db['global_blacklist']['blacklist'].append(member.id)
                     channel = self.bot.get_channel(533863928263082014)
-                    await hf.safe_send(channel, 
-                        f"❌ Automatically added `{member.name} ({member.id}`) to the blacklist for "
-                        f"being an invite-link name")
+                    await hf.safe_send(channel,
+                                       f"❌ Automatically added `{member.name} ({member.id}`) to the blacklist for "
+                                       f"being an invite-link name")
                     return  # stops execution of the rest of the code if was invite link name
         except KeyError:
             pass
@@ -635,9 +639,9 @@ class Logger(commands.Cog):
         #             '(<@&470364944479813635>)'
         #         )
 
-    @commands.group(invoke_without_command=True, aliases=['leave', 'leaves'])
+    @commands.group(invoke_without_command=True, name='leaves')
     async def leave_logging(self, ctx):
-        """Logs leaves + shows list of roles at time of leave, aliases: 'leave', 'leaves'"""
+        """Logs leaves + shows list of roles at time of leave"""
         result = await self.module_logging(ctx, self.bot.db['leaves'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled leave logging for this server')
@@ -647,16 +651,17 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'You have not yet set a channel for leave logging yet. Run `;leave_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;leave_logging set`.  '
-                           'Then, enable/disable logging by typing `;leave_logging`.')
+                                    'Then, enable/disable logging by typing `;leave_logging`.')
 
-    @leave_logging.command(aliases=['set'])
+    @leave_logging.command(name='set')
     async def leaves_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['leaves'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the leave logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;leave_logging`.')
+            await hf.safe_send(ctx,
+                               f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'logging by typing `;leave_logging`.')
 
     @staticmethod
     def make_leave_embed(member):
@@ -730,28 +735,30 @@ class Logger(commands.Cog):
                 if emb:
                     await hf.safe_send(channel, embed=emb)
 
-    @commands.group(invoke_without_command=True, aliases=['nickname', 'nicknames'])
+    @commands.group(invoke_without_command=True, name='nicknames')
     async def nickname_logging(self, ctx):
-        """Logs nicknames changes, aliases: 'nickname', 'nicknames'"""
+        """Logs nicknames changes"""
         result = await self.module_logging(ctx, self.bot.db['nicknames'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled nickname logging for this server')
         elif result == 2:
             await hf.safe_send(ctx, 'Enabled nickname logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for nickname logging yet. Run `;nickname_logging set`')
+            await hf.safe_send(ctx,
+                               'You have not yet set a channel for nickname logging yet. Run `;nickname_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;nickname_logging set`.  '
-                           'Then, enable/disable logging by typing `;nickname_logging`.')
+                                    'Then, enable/disable logging by typing `;nickname_logging`.')
 
-    @nickname_logging.command(aliases=['set'])
+    @nickname_logging.command(name='set')
     async def nicknames_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['nicknames'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the nickname logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;nickname_logging`.')
+            await hf.safe_send(ctx,
+                               f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'logging by typing `;nickname_logging`.')
 
     @staticmethod
     def make_nickname_embed(before, after):
@@ -832,28 +839,30 @@ class Logger(commands.Cog):
         #                 self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
         #                 await self.bot.spanSP.send('Nadeko is back online now.')
 
-    @commands.group(invoke_without_command=True, aliases=['reaction', 'reactions'])
+    @commands.group(invoke_without_command=True, name='reactions')
     async def reaction_logging(self, ctx):
-        """Logs deleted reactions, aliases: 'reaction', 'reactions'"""
+        """Logs deleted reactions"""
         result = await self.module_logging(ctx, self.bot.db['reactions'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled reaction logging for this server')
         elif result == 2:
             await hf.safe_send(ctx, 'Enabled reaction logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for reaction logging yet. Run `;reaction_logging set`')
+            await hf.safe_send(ctx,
+                               'You have not yet set a channel for reaction logging yet. Run `;reaction_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;reaction_logging set`.  '
-                           'Then, enable/disable logging by typing `;reaction_logging`.')
+                                    'Then, enable/disable logging by typing `;reaction_logging`.')
 
-    @reaction_logging.command(aliases=['set'])
+    @reaction_logging.command(name='set')
     async def reactions_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the reaction logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;reaction_logging`.')
+            await hf.safe_send(ctx,
+                               f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'logging by typing `;reaction_logging`.')
 
     @staticmethod
     def make_reaction_embed(reaction, member):
@@ -894,11 +903,12 @@ class Logger(commands.Cog):
                         except AttributeError:
                             del guild_config
 
-    @commands.group(invoke_without_command=True, aliases=['bans'])
+    @commands.group(invoke_without_command=True, name='bans')
     async def ban_logging(self, ctx):
-        """Logs deleted bans, aliases: 'bans'"""
+        """Logs deleted bans"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
-            await hf.safe_send(ctx, "I lack the permission to either view audit logs or embed links.  Please try again.")
+            await hf.safe_send(ctx,
+                               "I lack the permission to either view audit logs or embed links.  Please try again.")
             return
         result = await self.module_logging(ctx, self.bot.db['bans'])
         if result == 1:
@@ -909,16 +919,17 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'You have not yet set a channel for ban logging yet. Run `;ban_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;ban_logging set`.  '
-                           'Then, enable/disable logging by typing `;ban_logging`.')
+                                    'Then, enable/disable logging by typing `;ban_logging`.')
 
-    @ban_logging.command(aliases=['set'])
+    @ban_logging.command(name='set', short_name='set')
     async def bans_set(self, ctx):
+        self.short_name = 'set'
         result = await self.module_set(ctx, self.bot.db['bans'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;ban_logging`.')
+                                    f'logging by typing `;ban_logging`.')
 
     async def make_ban_embed(self, guild, member):
         ban_entry = None
@@ -952,7 +963,7 @@ class Logger(commands.Cog):
         else:
             emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
                                f'{by}\n**Reason**: {reason}'
-        
+
         emb.set_footer(text=f'User Banned',
                        icon_url=member.avatar_url_as(static_format="png"))
         return emb
@@ -1031,9 +1042,9 @@ class Logger(commands.Cog):
                     await self.module_disable_notification(guild, guild_config, 'unban')
                     return
 
-    @commands.group(invoke_without_command=True, aliases=['kick', 'kicks'])
+    @commands.group(invoke_without_command=True, name='kicks')
     async def kick_logging(self, ctx):
-        """Logs deleted kicks, aliases: 'kick', 'kicks'"""
+        """Logs deleted kicks"""
         result = await self.module_logging(ctx, self.bot.db['kicks'])
         if result == 1:
             await hf.safe_send(ctx, 'Disabled kick logging for this server')
@@ -1043,16 +1054,16 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'You have not yet set a channel for kick logging yet. Run `;kick_logging set`')
         elif result == 4:
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;kick_logging set`.  '
-                           'Then, enable/disable logging by typing `;kick_logging`.')
+                                    'Then, enable/disable logging by typing `;kick_logging`.')
 
-    @kick_logging.command(aliases=['set'])
+    @kick_logging.command(name='set')
     async def kicks_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['kicks'])
         if result == 1:
             await hf.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                           f'logging by typing `;kick_logging`.')
+                                    f'logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
         # await asyncio.sleep(1)
