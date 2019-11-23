@@ -12,10 +12,12 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 class Admin(commands.Cog):
-    """Stuff for admins"""
+    """Stuff for admins. Commands in this module require either the mod role set by `;set_mod_role` or the\
+    Administrator permission."""
 
     def __init__(self, bot):
         self.bot = bot
+        self.modlog = bot.get_command('modlog')
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -71,64 +73,6 @@ class Admin(commands.Cog):
         except (discord.NotFound, discord.Forbidden):
             pass
         await hf.safe_send(ctx, content)
-
-    @commands.group(invoke_without_command=True)
-    async def stats(self, ctx):
-        """Enable/disable keeping of statistics for users (`;u`)"""
-        guild = str(ctx.guild.id)
-        if guild in self.bot.stats:
-            self.bot.stats[guild]['enable'] = not self.bot.stats[guild]['enable']
-        else:
-            self.bot.stats[guild] = {'enable': True,
-                                           'messages': {},
-                                           'hidden': [],
-                                           'voice':
-                                               {'in_voice': {},
-                                                'total_time': {}}
-                                           }
-        await hf.safe_send(ctx, f"Logging of stats is now set to {self.bot.stats[guild]['enable']}.")
-
-    @stats.command()
-    async def hide(self, ctx, flag=None):
-        """Hides the current channel from being shown in user stat pages.  Type `;stats hide view/list` to view a
-        list of the current channels being hidden."""
-        try:
-            config = self.bot.stats[str(ctx.guild.id)]['hidden']
-        except KeyError:
-            return
-        if not flag:
-            channel = str(ctx.channel.id)
-            if channel in config:
-                config.remove(channel)
-                await hf.safe_send(ctx, f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now be shown "
-                               f"when someone calls their stats page.")
-            else:
-                config.append(channel)
-                await hf.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
-                               f"When someone calls their stats page, it will not be shown.")
-        elif flag in ['list', 'view'] and config:
-            msg = 'List of channels currently hidden:\n'
-            for channel_id in config:
-                channel = self.bot.get_channel(int(channel_id))
-                if not channel:
-                    config.remove(channel_id)
-                    continue
-                msg += f"{channel.mention} ({channel.id})\n"
-            await hf.safe_send(ctx, msg)
-        else:
-            if re.findall("^<#\d{17,22}>$", flag):
-                flag = flag[2:-1]
-            channel = self.bot.get_channel(int(flag))
-            if channel:
-                if str(channel.id) in config:
-                    config.remove(str(channel.id))
-                    await hf.safe_send(ctx, 
-                        f"Removed {channel.mention} from the list of hidden channels. It will now be shown "
-                        f"when someone calls their stats page.")
-                else:
-                    config.append(str(channel.id))
-                    await hf.safe_send(ctx, f"Hid {channel.mention}. When someone calls their stats page, it will not be shown.")
-
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
@@ -435,17 +379,13 @@ class Admin(commands.Cog):
                            'discord invite link username or who spam a link to amazingsexdating.')
 
     @commands.command()
-    async def set_submod_role(self, ctx, *, role_name):
-        """Set the submod role for your server.  Type the exact name of the role like `;set_submod_role Mods`."""
-        config = hf.database_toggle(ctx, self.bot.db['submod_role'])
-        if 'enable' in config:
-            del (config['enable'])
-        submod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
-        if not submod_role:
-            await hf.safe_send(ctx, "The role with that name was not found")
-            return None
-        config['id'] = submod_role.id
-        await hf.safe_send(ctx, f"Set the submod role to {submod_role.name} ({submod_role.id})")
+    async def set_modlog_channel(self, ctx):
+        """Sets the channel for modlog events"""
+        if str(ctx.guild.id) in self.bot.db['modlog']:
+            self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
+        else:
+            self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
+        await hf.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
 
     @commands.command()
     async def set_mod_role(self, ctx, *, role_name):
@@ -472,14 +412,6 @@ class Admin(commands.Cog):
             channel_id = ctx.channel.id
         self.bot.db['mod_channel'][str(ctx.guild.id)] = channel_id
         await hf.safe_send(ctx, f"Set the mod channel for this server as {ctx.channel.mention}.")
-
-    @commands.command(aliases=['setsubmodchannel'])
-    async def set_submod_channel(self, ctx, channel_id=None):
-        """Sets the channel for submods"""
-        if not channel_id:
-            channel_id = ctx.channel.id
-        self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
-        await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
 
     @commands.command()
     async def readd_roles(self, ctx):
@@ -758,7 +690,7 @@ class Admin(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def options(self, ctx, menu=None):
+    async def config(self, ctx, menu=None):
         """A comprehensive options and configuration menu for the bot"""
         if menu:
             if not isinstance(menu, discord.Message):
@@ -1474,63 +1406,6 @@ class Admin(commands.Cog):
                 config[group].remove(role.id)
                 await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** has been removed from the list."))
-
-    @commands.command(aliases=['channel_helper', 'cm', 'ch'])
-    async def channel_mod(self, ctx, *, user):
-        """Assigns a channel mod"""
-        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-        user = await hf.member_converter(ctx, user)
-        if not user:
-            await ctx.invoke(self.list_channel_mods)
-            return
-        if str(ctx.channel.id) in config:
-            if user.id in config[str(ctx.channel.id)]:
-                await hf.safe_send(ctx, "That user is already a channel mod in this channel.")
-                return
-            else:
-                config[str(ctx.channel.id)].append(user.id)
-        else:
-            config[str(ctx.channel.id)] = [user.id]
-        await ctx.message.delete()
-        await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
-
-    @commands.command(aliases=['list_channel_helpers'])
-    async def list_channel_mods(self, ctx):
-        """Lists current channel mods"""
-        output_msg = '```md\n'
-        for channel_id in self.bot.db['channel_mods'][str(ctx.guild.id)]:
-            channel = self.bot.get_channel(int(channel_id))
-            output_msg += f"#{channel.name}\n"
-            for user_id in self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id]:
-                user = self.bot.get_user(int(user_id))
-                if not user:
-                    await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
-                    self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id].remove(user_id)
-                    continue
-                output_msg += f"{user.display_name}\n"
-            output_msg += '\n'
-        output_msg += '```'
-        await hf.safe_send(ctx, output_msg)
-
-    @commands.command(aliases=['rcm', 'rch'])
-    async def remove_channel_mod(self, ctx, user):
-        """Removes a channel mod"""
-        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-        user = await hf.member_converter(ctx, user)
-        if not user:
-            return
-        if str(ctx.channel.id) in config:
-            if user.id not in config[str(ctx.channel.id)]:
-                await hf.safe_send(ctx, "That user is not a channel mod in this channel.")
-                return
-            else:
-                config[str(ctx.channel.id)].remove(user.id)
-                if not config[str(ctx.channel.id)]:
-                    del config[str(ctx.channel.id)]
-        else:
-            return
-        await ctx.message.delete()
-        await hf.safe_send(ctx, f"Removed {user.name} as a channel mod for this channel", delete_after=5.0)
 
     @commands.command()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
