@@ -1,15 +1,13 @@
 import discord
 from discord.ext import commands
-import asyncio
 from datetime import datetime, timedelta, date
 from .utils import helper_functions as hf
 import re
 from textblob import TextBlob as tb
 import textblob
-import requests
-import json
 from Levenshtein import distance as LDist
 import string
+import asyncio
 
 import os
 
@@ -40,36 +38,15 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
+        bot.help_command = None
         hf.setup(bot)
 
-    @commands.command()
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def new_help(self, ctx):
-        x = self.bot.commands
-        msg_dict = {}
-        emb = discord.Embed(title='Help', description="Type `;help <command>` for more info on any command or category")
-        for command in x:
-            if await command.can_run(ctx) and not command.hidden:
-                if command.cog_name in msg_dict:
-                    msg_dict[command.cog_name].append(command)
-                else:
-                    msg_dict[command.cog_name] = [command]
-        for cog in msg_dict:
-            str = ''
-            for command in msg_dict[cog]:
-                if command.short_doc:
-                    str += f"⠀⠀**{command.name}**\n{command.short_doc}\n"
-                else:
-                    str += f"⠀⠀**{command.name}**\n"
-            emb.add_field(name=f"⁣\n__{command.cog_name}__",
-                          value=str, inline=False)
-        await hf.safe_send(ctx, embed=emb)
-
     @commands.command(hidden=True)
-    @commands.bot_has_permissions(send_messages=True)
-    async def help2(self, ctx, *, arg=''):
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def help(self, ctx, *, arg=''):
         async def check_command(command):
             return await command.can_run(ctx) and not command.hidden
+        
         if arg:  # user wants help on a specific command/cog
             requested = self.bot.get_command(arg)
             which = 'command'
@@ -230,6 +207,23 @@ class General(commands.Cog):
                                        embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
+
+    @commands.command(hidden=True)
+    async def _unselfmute_users(self, ctx):
+        config = self.bot.db['selfmute']
+        for guild_id in config:
+            unmuted_users = []
+            guild_config = config[guild_id]
+            for user_id in guild_config.copy():
+                unmute_time = datetime.strptime(guild_config[user_id]['time'], "%Y/%m/%d %H:%M UTC")
+                print(unmute_time, datetime.utcnow(), user_id)
+                if unmute_time < datetime.utcnow():
+                    del(guild_config[user_id])
+                    unmuted_users.append(user_id)
+            if unmuted_users:
+                for user_id in unmuted_users:
+                    user = self.bot.get_user(int(user_id))
+                    await hf.safe_send(user, "Your selfmute has expired.")
 
     @commands.command(hidden=True)
     async def _delete_old_stats_days(self, ctx):
@@ -463,11 +457,11 @@ class General(commands.Cog):
         await mention_ping()
 
         """Self mute"""
-        if msg.author.id == self.bot.owner_id and self.bot.selfMute:
-            try:
+        try:
+            if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
                 await msg.delete()
-            except discord.errors.NotFound:
-                pass
+        except KeyError:
+            pass
 
         ##########################################
 
@@ -477,7 +471,6 @@ class General(commands.Cog):
         ##########################################
 
         """check for servers of banned IDs"""
-
         async def check_guilds():
             if msg.guild.id == 257984339025985546:
                 async def check_user(content):
@@ -636,7 +629,8 @@ class General(commands.Cog):
                                 skip_next_word = False
                                 continue
                             if content_word.startswith("learn") or content_word.startswith('aprend') \
-                                    or content_word.startswith('estud') or content_word.startswith('stud'):
+                                    or content_word.startswith('estud') or content_word.startswith('stud') or \
+                                    content_word.startswith('fluent'):
                                 skip_next_word = True
                                 continue
                             if LDist(language_word, content_word) < 3:
@@ -846,10 +840,9 @@ class General(commands.Cog):
                                         await hf.long_deleted_msg_notification(msg)
 
         """Spanish server hardcore"""
-
         async def spanish_server_hardcore():
             if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
-                if msg.content[0] != '=' and len(msg.content) > 3:
+                if msg.content[0] not in '=;' and len(msg.content) > 3:
                     if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
                         role = msg.guild.get_role(526089127611990046)
                         if role in msg.author.roles:
@@ -1137,6 +1130,7 @@ class General(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
     async def pencil(self, ctx):
+        """Adds a pencil to your name. Rai cannot edit the nickname of someone above it on the role list"""
         try:
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
             await hf.safe_send(ctx,
@@ -1149,6 +1143,7 @@ class General(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
     async def eraser(self, ctx):
+        """Erases the pencil from `;pencil`. Rai cannot edit the nicknames of users above it on the role list."""
         try:
             await ctx.author.edit(nick=ctx.author.display_name[:-1])
             await ctx.message.add_reaction('◀')
@@ -1171,9 +1166,11 @@ class General(commands.Cog):
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
     async def check_language(self, ctx, *, msg: str):
-        """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your
-        message was typed in, and display the results.  Note that this is non-deterministic code, which means
-        repeated results of the same exact message might give different results every time."""
+        """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
+        message was typed in, and display the results.  Note that this is non-deterministic code, which means\
+        repeated results of the same exact message might give different results every time.
+
+        Usage: `;cl <text you wish to check>`"""
         stripped_msg = hf.rem_emoji_url(msg)
         if not stripped_msg:
             stripped_msg = ' '
@@ -1729,6 +1726,49 @@ class General(commands.Cog):
 
         if not failed:
             return True
+
+    @commands.command(aliases=['selfmute'])
+    async def self_mute(self, ctx, time: int=0):
+        """Irreversably mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
+
+        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
+        to end people asking for it."""
+        if time:
+            try:
+                if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
+                    await hf.safe_send(ctx, "You're already muted. No undoing it now.")
+                    return
+            except KeyError:
+                pass
+        else:
+            await hf.safe_send(ctx, ctx.command.help)
+            return
+
+        if time > 24:
+            time = 24
+            await hf.safe_send(ctx, "Maxing out at 24h")
+
+        await hf.safe_send(ctx, f"You are about to irreversably mute yourself for {time} hours. "
+                                f"Is this really what you want to do? The mods of this server CANNOT undo "
+                                f"this.\nType 'Yes' to confirm.")
+
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=15,
+                                          check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+
+            if msg.content.casefold() == 'yes':  # confirm
+                config = self.bot.db['selfmute'].setdefault(str(ctx.guild.id), {})
+                time_string, length = hf.parse_time(f"{time}h")
+                print(time_string, length)
+                config[str(ctx.author.id)] = {'enable': True, 'time': time_string}
+                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {time} hours. This is irreversable. "
+                                        f"The mods have nothing to do with this so no matter what you ask them, "
+                                        f"they can't help you. You alone chose to do this.")
+
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Canceling.")
+            return
 
 def setup(bot):
     bot.add_cog(General(bot))

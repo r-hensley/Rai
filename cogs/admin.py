@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
+JP_SERVER_ID = 189571157446492161
 
 class Admin(commands.Cog):
     """Stuff for admins. Commands in this module require either the mod role set by `;set_mod_role` or the\

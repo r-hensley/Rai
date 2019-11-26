@@ -98,6 +98,7 @@ class Rai(Bot):
         await self.change_presence(activity=discord.Game(';help | Questions⇛Ping/DM me'))
 
     async def background_tasks(self):
+        return
         await self.wait_until_ready()
         if bot.user.name != "Rai":
             return
@@ -125,6 +126,7 @@ class Rai(Bot):
                 if counter % 5 == 0:
                     await ctx.invoke(self.get_command("_unban_users"))
                     await ctx.invoke(self.get_command("_unmute_users"))
+                    await ctx.invoke(self.get_command("_unselfmute_users"))
                     await ctx.invoke(self.get_command("_check_desync_voice"))
                 await asyncio.sleep(60)
         except Exception as error:
@@ -145,6 +147,7 @@ class Rai(Bot):
                                    f"❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗")
 
     async def on_command_error(self, ctx, error):
+        print('hello???')
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
@@ -156,16 +159,16 @@ class Rai(Bot):
             except discord.Forbidden:
                 pass
 
-        # elif isinstance(error, commands.BotMissingPermissions):
-        #     msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
-        #     try:
-        #         await ctx.send(msg)
-        #     except discord.Forbidden:
-        #         try:
-        #             await ctx.author.send(msg)
-        #         except discord.Forbidden:
-        #             pass
-        #     return
+        elif isinstance(error, commands.BotMissingPermissions):
+            msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
+            try:
+                await ctx.send(msg)
+            except discord.Forbidden:
+                try:
+                    await ctx.author.send(msg)
+                except discord.Forbidden:
+                    pass
+            return
 
         elif isinstance(error, commands.CommandInvokeError):
             command = ctx.command.qualified_name
@@ -187,6 +190,7 @@ class Rai(Bot):
 
         elif isinstance(error, commands.CheckFailure):
             # the predicates in Command.checks have failed.
+            print('hello')
             if ctx.command.name == 'global_blacklist':
                 return
             if str(ctx.guild.id) in self.db['modsonly']:
@@ -194,7 +198,7 @@ class Rai(Bot):
                     if not hf.admin_check(ctx):
                         return
 
-            if ctx.command.cog.qualified_name in ['Admin', 'Logger'] and \
+            if ctx.command.cog.qualified_name in ['Admin', 'Logger', 'ChannelMods', 'Submod'] and \
                     (str(ctx.guild.id) not in self.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
                 try:
                     await ctx.send(
@@ -206,15 +210,15 @@ class Rai(Bot):
                     except discord.Forbidden:
                         pass
                 return
-            #try:
-            #   if str(ctx.guild.id) in self.db['mod_role']:
-            #        await ctx.send("You lack permissions to do that.")
-            #    else:
-            #        await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
-            #                       f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
-            #except discord.Forbidden:
-            #    await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
-            #return
+            try:
+                if str(ctx.guild.id) in self.db['mod_role']:
+                    await ctx.send("You lack permissions to do that.")
+                else:
+                    await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+                                   f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+            except discord.Forbidden:
+                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
+            return
 
         elif isinstance(error, commands.MissingRequiredArgument):
             # parsing a command and a parameter that is required is not encountered

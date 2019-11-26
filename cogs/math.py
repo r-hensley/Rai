@@ -175,7 +175,10 @@ class Math(commands.Cog):
             await ctx.send('Setting n to 100,000')
         n += 1
         if n > 1000:
-            await ctx.message.add_reaction('\u2705')
+            try:
+                await ctx.message.add_reaction('\u2705')
+            except NotFound:
+                pass
         for i in range(n):
             rand = round(random.random(), 3)
             if rand < 0.5:  # from [0.000, 0.499]
