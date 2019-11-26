@@ -2,6 +2,19 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
+import discord
+from discord.ext import commands
+from .utils import helper_functions as hf
+import asyncio
+from datetime import datetime, timedelta, date
+from .utils import helper_functions as hf
+import re
+from textblob import TextBlob as tb
+import textblob
+import requests
+import json
+from Levenshtein import distance as LDist
+import string
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -14,8 +27,8 @@ class Reports(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
-        if not ctx.guild:
-            return
+        if ctx.guild:
+            return True
 
     @commands.group(invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True)

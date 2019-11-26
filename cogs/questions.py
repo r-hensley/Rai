@@ -4,6 +4,7 @@ from .utils import helper_functions as hf
 import asyncio
 import requests
 import json
+from datetime import datetime, date
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -16,8 +17,8 @@ class Submod(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
-        if not ctx.guild:
-            return
+        if ctx.guild:
+            return True
 
     @commands.command(aliases=['tk', 't', 'taekim', 'gram', 'g'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)

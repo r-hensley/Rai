@@ -1,16 +1,7 @@
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
-import asyncio
-from datetime import datetime, timedelta, date
-from .utils import helper_functions as hf
 import re
-from textblob import TextBlob as tb
-import textblob
-import requests
-import json
-from Levenshtein import distance as LDist
-import string
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -43,6 +34,9 @@ class ChannelMods(commands.Cog):
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for submods.  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
+        await hf.safe_send(ctx.author, f"I'm gonna delete your message to potentially keep your privacy, but in case "
+                                       f"something goes wrong, here was what you sent: \n{ctx.message.content}")
+        await ctx.message.delete()
         msgs = []
         failed_ids = []
         invalid_ids = []
@@ -56,6 +50,7 @@ class ChannelMods(commands.Cog):
                 failed_ids.append(msg_id)
             except discord.HTTPException:
                 invalid_ids.append(msg_id)
+                raise
 
         if invalid_ids:
             await hf.safe_send(ctx, f"The following IDs were not properly formatted: `{'`, `'.join(invalid_ids)}`")
