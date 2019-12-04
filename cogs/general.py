@@ -215,8 +215,12 @@ class General(commands.Cog):
             unmuted_users = []
             guild_config = config[guild_id]
             for user_id in guild_config.copy():
-                unmute_time = datetime.strptime(guild_config[user_id]['time'], "%Y/%m/%d %H:%M UTC")
-                print(unmute_time, datetime.utcnow(), user_id)
+                try:
+                    unmute_time = datetime.strptime(guild_config[user_id]['time'], "%Y/%m/%d %H:%M UTC")
+                except TypeError:
+                    print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'])
+                    del(guild_config[user_id])
+                    continue
                 if unmute_time < datetime.utcnow():
                     del(guild_config[user_id])
                     unmuted_users.append(user_id)
@@ -459,7 +463,10 @@ class General(commands.Cog):
         """Self mute"""
         try:
             if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
-                await msg.delete()
+                try:
+                    await msg.delete()
+                except discord.NotFound:
+                    pass
         except KeyError:
             pass
 
