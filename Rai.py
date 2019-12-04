@@ -98,7 +98,6 @@ class Rai(Bot):
         await self.change_presence(activity=discord.Game(';help | Questions⇛Ping/DM me'))
 
     async def background_tasks(self):
-        return
         await self.wait_until_ready()
         if bot.user.name != "Rai":
             return
@@ -147,7 +146,6 @@ class Rai(Bot):
                                    f"❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗")
 
     async def on_command_error(self, ctx, error):
-        print('hello???')
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
@@ -190,7 +188,6 @@ class Rai(Bot):
 
         elif isinstance(error, commands.CheckFailure):
             # the predicates in Command.checks have failed.
-            print('hello')
             if ctx.command.name == 'global_blacklist':
                 return
             if str(ctx.guild.id) in self.db['modsonly']:
@@ -256,7 +253,7 @@ class Rai(Bot):
         print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
 
         e = discord.Embed(title='Command Error', colour=0xcc3366)
-        e.add_field(name='Name', value=qualified_name)
+        e.add_field(name='Name  ', value=qualified_name)
         e.add_field(name='Command', value=ctx.message.content[:1000])
         e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
 

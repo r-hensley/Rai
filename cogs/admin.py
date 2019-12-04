@@ -37,7 +37,7 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=['baibairai'])
     async def modsonly(self, ctx):
-        """Sets Rai to ignore commands from users"""
+        """Sets Rai to ignore commands from users."""
         config = self.bot.db['modsonly']
         if str(ctx.guild.id) in config:
             config[str(ctx.guild.id)]['enable'] = not config[str(ctx.guild.id)]['enable']
@@ -52,6 +52,10 @@ class Admin(commands.Cog):
     @commands.command(hidden=True)
     async def crosspost(self, ctx):
         """Makes Rai crosspost all your ban audits"""
+        if not ctx.guild:
+            return
+        if ctx.author not in ctx.bot.get_guild(257984339025985546).members:
+            return
         if str(ctx.guild.id) in self.bot.db['bans']:
             config = self.bot.db['bans'][str(ctx.guild.id)]
             try:
@@ -67,7 +71,7 @@ class Admin(commands.Cog):
 
     @commands.command(hidden=True)
     async def echo(self, ctx, *, content: str):
-        """sends back whatever you send"""
+        """Sends back whatever you send. Usage: `;echo <text>`"""
         try:
             await ctx.message.delete()
         except (discord.NotFound, discord.Forbidden):
@@ -76,7 +80,8 @@ class Admin(commands.Cog):
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
-        """Posts the rules page on the Chinese/Spanish server"""
+        """Posts the rules page on the Chinese/Spanish server. See my personal server with `;ryry` for more \
+        instructions."""
         if ctx.channel.id in [511097200030384158, 450170164059701268]:  # chinese server
             download_link = 'https://docs.google.com/document/u/0/export?format=txt' \
                             '&id=159L5Z1UEv7tJs_RurM1-GkoZeYAxTpvF5D4n6enqMuE' \
@@ -181,6 +186,7 @@ class Admin(commands.Cog):
 
     @commands.group(invoke_without_command=True, hidden=True)
     async def hardcore(self, ctx):
+        """Posts the hardcore reaction message for the Chinese server"""
         msg = await hf.safe_send(ctx, "Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
                              "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
                              " wish to correct a learner, attach a `*` to your message, and it will not be deleted.  "
@@ -194,6 +200,7 @@ class Admin(commands.Cog):
 
     @hardcore.command()
     async def ignore(self, ctx):
+        """Ignores a channel for hardcore mode."""
         if str(ctx.guild.id) in self.bot.db['hardcore']:
             config = self.bot.db['hardcore'][str(ctx.guild.id)]
         else:
@@ -211,6 +218,7 @@ class Admin(commands.Cog):
 
     @hardcore.command()
     async def list(self, ctx):
+        """Lists the channels in hardcore mode."""
         channels = []
         try:
             for channel_id in self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']:
@@ -239,6 +247,7 @@ class Admin(commands.Cog):
     @captcha.command()
     @commands.bot_has_permissions(manage_roles=True)
     async def toggle(self, ctx):
+        """Enable/disable the captcha post."""
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
             guild_config = self.bot.db['captcha'][guild]
@@ -254,6 +263,7 @@ class Admin(commands.Cog):
 
     @captcha.command(name="set_channel")
     async def captcha_set_channel(self, ctx):
+        """Sets the channel that the captcha will be posted in."""
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -263,6 +273,7 @@ class Admin(commands.Cog):
 
     @captcha.command(name="set_role")
     async def captcha_set_role(self, ctx, *, role_input: str = None):
+        """Sets the role that will be given when captcha is completed. Usage: `;captcha set_role <role_name>`"""
         if not role_input:
             instr_msg = await hf.safe_send(ctx, f"Please input the exact name of the role new users will receive")
             try:
@@ -289,6 +300,7 @@ class Admin(commands.Cog):
 
     @captcha.command(name="post_message")
     async def captcha_post_message(self, ctx):
+        """Posts the captcha message into the channel set by `;captcha set_channel`."""
         guild = str(ctx.guild.id)
         if guild in self.bot.db['captcha']:
             guild_config = self.bot.db['captcha'][guild]
@@ -300,7 +312,8 @@ class Admin(commands.Cog):
     @commands.command(aliases=['purge', 'prune'])
     @commands.bot_has_permissions(manage_messages=True)
     async def clear(self, ctx, num=None, *args):
-        """Deletes messages from a channel, ;clear <num_of_messages> [user] [after_message_id]"""
+        """Deletes messages from a channel, ;clear <num_of_messages> [user] [after_message_id]. See the docs for \
+        more instructions."""
         if not num:
             await hf.safe_send(ctx, "Please input a number")
             return
@@ -389,7 +402,7 @@ class Admin(commands.Cog):
 
     @commands.command()
     async def set_mod_role(self, ctx, *, role_name):
-        """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`.
+        """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`. \
         To remove the mod role, type `;set_mod_role none`."""
         config = hf.database_toggle(ctx, self.bot.db['mod_role'])
         if 'enable' in config:
@@ -591,6 +604,7 @@ class Admin(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'], hidden=True)
     async def super_watch(self, ctx):
+        """Sets the super_watch channel."""
         config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
                                                        {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
@@ -603,6 +617,7 @@ class Admin(commands.Cog):
 
     @super_watch.command(name="add")
     async def superwatch_add(self, ctx, *, target):
+        """Adds a user to the superwatch list."""
         if str(ctx.guild.id) not in self.bot.db['super_watch']:
             await ctx.invoke(self.super_watch)
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
@@ -617,6 +632,7 @@ class Admin(commands.Cog):
 
     @super_watch.command(name="remove")
     async def superwatch_remove(self, ctx, *, target):
+        """Removes a user from the superwatch list."""
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         target = await hf.member_converter(ctx, target)
         if not target:
@@ -630,6 +646,7 @@ class Admin(commands.Cog):
 
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
+        """Lists the users in superwatch list."""
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
@@ -1369,7 +1386,7 @@ class Admin(commands.Cog):
 
     @commands.command()
     async def asar(self, ctx, *args):
-        """Adds a self-assignable role to the list of self-assignable roles"""
+        """Adds a self-assignable role to the list of self-assignable roles."""
         try:
             group = str(int(args[0]))  # I want a string, but want to see if it's a number first
             role_name = ' '.join(args[1:])
@@ -1410,8 +1427,7 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def mute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
-        indefinite mute."""
+        """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
 
         async def set_channel_overrides(role):
             failed_channels = []
@@ -1480,6 +1496,7 @@ class Admin(commands.Cog):
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
             voice_state = target.voice
+            first_channel = voice_state.channel
             try:
                 if ctx.guild.afk_channel:
                     await target.move_to(ctx.guild.afk_channel)
@@ -1491,6 +1508,11 @@ class Admin(commands.Cog):
                             await target.move_to(voice_state.channel)
                             break
             except discord.Forbidden:
+                await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
+                                        "give Rai this permission, then it'll move the user to the AFK channel and "
+                                        "back to force the mute into effect. Otherwise, Discord's implementation of "
+                                        "the mute won't take effect until the next time the user connects to a "
+                                        "new voice channel.")
                 pass
 
         if time_string:

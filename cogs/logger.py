@@ -207,7 +207,6 @@ class Logger(commands.Cog):
                                f'logging by typing `;delete_logging`.')
 
     async def make_delete_embed(self, message):
-        print(imgur_client.credits)
         author = message.author
         time_dif = round((datetime.utcnow() - message.created_at).total_seconds(), 1)
         jump_url = ''
