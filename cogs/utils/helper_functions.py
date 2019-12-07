@@ -215,8 +215,8 @@ def is_submod():
     return commands.check(pred)
 
 def voicemod_check(ctx):
-    if submod_check(ctx) or ctx.author.id not in [398548209141678094]:  # hardcoded mods
-        return
+    if submod_check(ctx) or ctx.author.id in [398548209141678094]:  # hardcoded mods
+        return True
 
 def is_voicemod():
     async def pred(ctx):
