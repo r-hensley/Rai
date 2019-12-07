@@ -8,6 +8,7 @@ import textblob
 from Levenshtein import distance as LDist
 import string
 import asyncio
+from urllib.error import HTTPError
 
 import os
 
@@ -792,7 +793,7 @@ class General(commands.Cog):
             lang_used = None
             try:
                 lang_used = tb(hf.rem_emoji_url(msg)).detect_language()
-            except textblob.exceptions.TranslatorError:
+            except (textblob.exceptions.TranslatorError, HTTPError):
                 pass
 
             today.setdefault(author, {})
