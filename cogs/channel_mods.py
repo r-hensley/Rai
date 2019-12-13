@@ -142,6 +142,17 @@ class ChannelMods(commands.Cog):
             except discord.Forbidden:
                 await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
 
+    @commands.command()
+    async def log(self, ctx, user, *, reason="None"):
+        warn = self.bot.get_command('warn')
+        if not await warn.can_run(ctx):
+            raise commands.CheckFailure
+        if reason:
+            reason += ' -s'
+        else:
+            reason = ' -s'
+        await ctx.invoke(warn, user, reason=reason)
+
     @commands.command(aliases=['w'])
     async def warn(self, ctx, user, *, reason="None"):
         """Log a mod incident"""
