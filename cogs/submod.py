@@ -42,9 +42,10 @@ class Submod(commands.Cog):
             name = f"{member.name}#{member.discriminator} ({member.id})"
             user_id = str(member.id)
         else:
-            name = user_id = id
+            return  # member_converter prints the "user not found"
         if user_id not in config:
-            await hf.safe_send(ctx, "That user was not found in the modlog")
+            em = hf.red_embed(f"{name} was not found in the modlog.")
+            await hf.safe_send(ctx, embed=em)
             return
         config = config[user_id]
         emb = hf.green_embed(f"Modlog for {name}")

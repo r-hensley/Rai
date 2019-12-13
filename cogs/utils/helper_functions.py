@@ -215,7 +215,7 @@ def is_submod():
     return commands.check(pred)
 
 def voicemod_check(ctx):
-    if submod_check(ctx) or ctx.author.id in [398548209141678094]:  # hardcoded mods
+    if submod_check(ctx) or ctx.author.id in [650044067194863647]:  # hardcoded mods
         return True
 
 def is_voicemod():
@@ -279,7 +279,8 @@ def rem_emoji_url(msg):
     return new_msg
 
 async def ban_check_servers(bot, bans_channel, member):
-    in_servers_msg = f"__I have found the user {member.name} ({member.id}) in the following guilds:\n__"
+    in_servers_msg = f"__I have found the user {member.name}#{member.discriminator} ({member.id}) " \
+                     f"in the following guilds:\n__"
     found = False
     guilds = []
     for guild in bot.guilds:

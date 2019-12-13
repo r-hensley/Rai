@@ -348,8 +348,9 @@ class Submod(commands.Cog):
     @commands.command(aliases=['emojis', 'emoji'])
     @commands.bot_has_permissions(embed_links=True)
     async def emotes(self, ctx, args=None):
-        """Shows top emojis usage of the server.  Type `;emojis` to display top 25, and type `;emojis -a` to show all
-        emojis. Type `;emojis -l` to show least used emojis."""
+        """Shows top emojis usage of the server.  Type `;emojis` to display top 25, and type `;emojis -a` to show all \
+        emojis. Type `;emojis -l` to show least used emojis. Type `;emojis -s` to scale emoji data to 30 days for \
+        emojis not 30 days old yet."""
         if str(ctx.guild.id) not in self.bot.stats:
             return
         config = self.bot.stats[str(ctx.guild.id)]['messages']
@@ -364,6 +365,7 @@ class Submod(commands.Cog):
 
         emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
         msg = 'Top Emojis:\n'
+
         if args == '-s':
             for emoji in emojis:
                 print(emoji)
@@ -405,8 +407,9 @@ class Submod(commands.Cog):
                 if fields_count < 25:
                     if emoji[0] in emoji_dict:
                         emoji_obj = emoji_dict[emoji[0]]
-                        fields_count += 1
-                        emb.add_field(name=f"{fields_count}) {str(emoji_obj)}", value=emoji[1])
+                        if not emoji_obj.animated:
+                            fields_count += 1
+                            emb.add_field(name=f"{fields_count}) {str(emoji_obj)}", value=emoji[1])
                 else:
                     break
             await hf.safe_send(ctx, embed=emb)

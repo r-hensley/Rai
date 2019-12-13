@@ -441,7 +441,7 @@ class Admin(commands.Cog):
         if 'users' not in config:
             config['users'] = {}
 
-    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch'], hidden=True)
+    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'voicewatch', 'vw'], hidden=True)
     async def super_voicewatch(self, ctx):
         """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:

@@ -46,7 +46,12 @@ class General(commands.Cog):
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def help(self, ctx, *, arg=''):
         async def check_command(command):
-            return await command.can_run(ctx) and not command.hidden
+            try:
+                a = await command.can_run(ctx)
+            except commands.BotMissingPermissions:
+                a = True
+            b = command.hidden
+            return a and not b
         
         if arg:  # user wants help on a specific command/cog
             requested = self.bot.get_command(arg)
@@ -461,6 +466,13 @@ class General(commands.Cog):
 
         await mention_ping()
 
+        ##########################################
+
+        if not msg.guild:  # all code after this has msg.guild requirement
+            return
+
+        ##########################################
+
         """Self mute"""
         try:
             if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
@@ -470,13 +482,6 @@ class General(commands.Cog):
                     pass
         except KeyError:
             pass
-
-        ##########################################
-
-        if not msg.guild:  # all code after this has msg.guild requirement
-            return
-
-        ##########################################
 
         """check for servers of banned IDs"""
         async def check_guilds():
@@ -620,7 +625,7 @@ class General(commands.Cog):
                     return
 
                 english = ['english', 'inglés', 'anglohablante', 'angloparlante']
-                spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante']
+                spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante', 'castellano']
                 other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
                          'brazil', 'portuguesa', 'brazilian']
                 both = ['both', 'ambos', 'los dos']
@@ -1467,7 +1472,7 @@ class General(commands.Cog):
 
     @commands.command()
     async def lsar(self, ctx, page_num=1):
-        """Lists self-assignable roles"""
+        """Lists self-assignable roles (type `;lsar <page number>` to view other pages, example: `;lsar 2`)."""
         if not ctx.guild:
             return
         roles_list = []
@@ -1503,7 +1508,11 @@ class General(commands.Cog):
             role_list_str += f"⠀{role.name}\n"
 
         emb = discord.Embed(description=role_list_str, color=discord.Color(int('00ff00', 16)))
-        emb.set_footer(text=f"{page_num} / {(len(roles_list)//20)+1}")
+        num_of_pages = (len(roles_list)//20)+1
+        footer_text = f"{page_num} / {num_of_pages}"
+        if page_num <= num_of_pages:
+            footer_text += f" ・ (view the next page: ;lsar {page_num + 1})"
+        emb.set_footer(text=footer_text)
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
@@ -1737,9 +1746,9 @@ class General(commands.Cog):
 
     @commands.command(aliases=['selfmute'])
     async def self_mute(self, ctx, time: int=0):
-        """Irreversably mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
+        """Irreversible mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
 
-        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
+        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half \
         to end people asking for it."""
         if time:
             try:
