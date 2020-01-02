@@ -1234,7 +1234,7 @@ class General(commands.Cog):
             top_roles = '\n'.join(f"{role}: {count}"
                                        for role, count in role_count.most_common(5))
 
-            em.add_field(name=f"Top 6 roles (out of {len(guild.roles)})", value=top_roles)
+            em.add_field(name=f"Top 5 roles (out of {len(guild.roles)})", value=top_roles)
         else:
             em.add_field(name="Roles", value=str(len(guild.roles)))
 
