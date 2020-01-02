@@ -9,6 +9,7 @@ from Levenshtein import distance as LDist
 import string
 import asyncio
 from urllib.error import HTTPError
+from collections import Counter
 
 import os
 
@@ -1225,24 +1226,14 @@ class General(commands.Cog):
         if guild.id not in [189571157446492161, 243838819743432704]:
             em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
 
-        list_of_members = guild.members
-        if len(list_of_members) < 20000:
-            role_count = {}
-            for member in list_of_members:
-                for role in member.roles:
-                    if role.name in role_count:
-                        role_count[role.name] += 1
-                    else:
-                        role_count[role.name] = 1
-            sorted_list = sorted(list(role_count.items()), key=lambda x: x[1], reverse=True)
-            top_five_roles = ''
-            counter = 0
-            for role in sorted_list[1:7]:
-                counter += 1
-                top_five_roles += f"{role[0]}: {role[1]}\n"
-                # if counter == 3:
-                #    top_five_roles += '\n'
-            top_five_roles = top_five_roles[:-1]
+        # count top 6 member roles
+        if len(guild.members) < 20000:
+            role_count = Counter(role.name for member in guild.members
+                                 for role in member.roles if not role.is_default())
+
+            top_five_roles = '\n'.join(f"{role}: {count}"
+                                       for role, count in role_count.most_common(6))
+
             em.add_field(name=f"Top 6 roles (out of {len(guild.roles)})", value=top_five_roles)
         else:
             em.add_field(name="Roles", value=str(len(guild.roles)))
