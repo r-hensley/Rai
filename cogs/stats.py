@@ -8,7 +8,7 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Submod(commands.Cog):
+class Stats(commands.Cog):
     """A module for tracking stats of messages on servers for users to view. Enable/disable the module with `"""
 
     def __init__(self, bot):
@@ -62,6 +62,9 @@ class Submod(commands.Cog):
         for channel_tuple in sorted_msgs:
             total += channel_tuple[1]
         for channel_tuple in sorted_msgs:
+            if ctx.channel.id != 277511392972636161 and channel_tuple[0] == '277511392972636161':
+                print('hello')
+                continue
             if str(ctx.channel.id) not in self.bot.stats[str(ctx.guild.id)]['hidden']:
                 if channel_tuple[0] in self.bot.stats[str(ctx.guild.id)]['hidden']:
                     continue
@@ -141,6 +144,11 @@ class Submod(commands.Cog):
         # ### Find top 3 most active channels ###
         good_channels = 0
         hidden = self.bot.stats[str(ctx.guild.id)]['hidden']
+        if ctx.channel.id != 277511392972636161 and ctx.guild.id == 243838819743432704:
+            for channel in sorted_msgs:
+                if channel[0] == '277511392972636161':
+                    sorted_msgs.remove(channel)
+                    break
         for channel in sorted_msgs.copy():
             if str(ctx.channel.id) in hidden:  # you're in a hidden channel, keep all
                 break
@@ -254,7 +262,10 @@ class Submod(commands.Cog):
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=datetime.utcnow())
         if channel_in:
-            emb.title = f"Leaderboard for #{channel_in.name}"
+            if isinstance(channel_in, list):
+                emb.title = "Leaderboard for #" + ', #'.join([c.name for c in channel_in])
+            else:
+                emb.title = f"Leaderboard for #{channel_in.name}"
         number_of_users_found = 0
         found_yourself = False
         for i in range(len(sorted_dict)):
@@ -279,19 +290,21 @@ class Submod(commands.Cog):
                 break
         return emb
 
-    async def make_lb(self, ctx, channel_in):
+    async def make_lb(self, ctx, channels_in):
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
             return
         msg_count = {}
+        if isinstance(channels_in, list):
+            channel_ids = [c.id for c in channels_in]
         for day in config:
             for user in config[day]:
                 for channel in config[day][user]:
                     if channel in ['emoji', 'lang']:
                         continue
-                    if channel_in:
-                        if str(channel_in.id) != channel:
+                    if channels_in:
+                        if int(channel) not in channel_ids:
                             continue
                     try:
                         msg_count[user] += config[day][user][channel]
@@ -299,7 +312,7 @@ class Submod(commands.Cog):
                         msg_count[user] = config[day][user][channel]
         try:
             await hf.safe_send(ctx,
-                               embed=self.make_leaderboard_embed(ctx, channel_in, msg_count, "Messages Leaderboard"))
+                               embed=self.make_leaderboard_embed(ctx, channels_in, msg_count, "Messages Leaderboard"))
         except discord.Forbidden:
             try:
                 await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
@@ -314,19 +327,25 @@ class Submod(commands.Cog):
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def chlb(self, ctx, channel=None):
-        if not channel:
-            channel = ctx.channel
+    async def chlb(self, ctx, *channels):
+        if not channels:
+            channel_obs = [ctx.channel]
         else:
-            channel_id = channel[2:-1]
-            try:
-                channel = ctx.guild.get_channel(int(channel_id))
-            except ValueError:
-                await hf.safe_send(ctx,
-                                   f"Please provide a link to a channel, not just the channel name (e.g. `;chlb #general`),"
-                                   f"or if you just type `;chlb` it will show the leaderboard for the current channel.")
-                return
-        await self.make_lb(ctx, channel)
+            channel_ids = []
+            channel_obs = []
+            for channel in channels:
+                channel_ids.append(channel[2:-1])
+            for channel_id in channel_ids:
+                try:
+                    channel_obs.append(ctx.guild.get_channel(int(channel_id)))
+                except ValueError:
+                    await hf.safe_send(ctx,
+                                       f"Please provide a link to a channel, not just the channel name "
+                                       f"(e.g. `;chlb #general`), or if you just type `;chlb` "
+                                       f"it will show the leaderboard for the current channel.")
+                    return
+        print(channels)
+        await self.make_lb(ctx, channel_obs)
 
     @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -347,6 +366,7 @@ class Submod(commands.Cog):
 
     @commands.command(aliases=['emojis', 'emoji'])
     @commands.bot_has_permissions(embed_links=True)
+    @commands.cooldown(3, 120, commands.BucketType.user)
     async def emotes(self, ctx, args=None):
         """Shows top emojis usage of the server.  Type `;emojis` to display top 25, and type `;emojis -a` to show all \
         emojis. Type `;emojis -l` to show least used emojis. Type `;emojis -s` to scale emoji data to 30 days for \
@@ -488,4 +508,4 @@ class Submod(commands.Cog):
                                        f"Hid {channel.mention}. When someone calls their stats page, it will not be shown.")
 
 def setup(bot):
-    bot.add_cog(Submod(bot))
+    bot.add_cog(Stats(bot))

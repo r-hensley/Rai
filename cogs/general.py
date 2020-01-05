@@ -20,6 +20,7 @@ MODERATING_CHANNEL_ID = 257990571103223809
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
 JP_SERVER_ID = 189571157446492161
+SP_SERVER_ID = 243838819743432704
 
 
 def blacklist_check():
@@ -78,7 +79,7 @@ class General(commands.Cog):
                     message += requested.help
                 emb = hf.green_embed(message)
                 await hf.safe_send(ctx, embed=emb)
-            else:
+            else:  # requested a cog
                 message = f"**;{requested.qualified_name}**\n"
                 c_list = sorted([c.name for c in requested.get_commands() if await check_command(c)])
                 if c_list:
@@ -434,7 +435,7 @@ class General(commands.Cog):
 
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
-                if msg.guild.id in [189571157446492161, 243838819743432704, 275146036178059265]:
+                if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, 275146036178059265]:
                     new_ctx = await self.bot.get_context(msg)
                     await new_ctx.invoke(self.serverinfo)
 
@@ -444,25 +445,27 @@ class General(commands.Cog):
 
         async def mention_ping():
             cont = str(msg.content)
-            if (
-                    (
-                            'ryry' in cont.casefold()
-                            or ('ryan' in cont.casefold() and msg.guild != self.bot.spanServ)
-                            or 'らいらい' in cont.casefold()
-                            or 'ライライ' in cont.casefold()
-                            or '来来' in cont.casefold()
-                            or '雷来' in cont.casefold()
-                    ) and
-                    (not msg.author.bot or msg.author.id == 202995638860906496)
-                    # checks to see if account is a bot account
-            ):  # random sad face
-                if 'aryan' in cont.casefold():  # why do people say this so often...
-                    return
-                else:
-                    await self.bot.spamChan.send(
-                        f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
-                        f'\n{msg.content}'
-                        f'\n{msg.jump_url} <@202995638860906496>'[:2000])
+            if msg.author.bot or msg.author.id == 202995638860906496:
+                return
+
+            found_word = False
+            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold']
+            for word in ignored_words:
+                if word in cont.casefold():  # why do people say these so often...
+                    cont = re.sub(word, '', cont, flags=re.IGNORECASE)
+                if msg.guild.id == SP_SERVER_ID:
+                    cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
+                    
+            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来来', '来雷', '雷来']
+            for word in to_check_words:
+                if word in cont.casefold():
+                    found_word = True
+
+            if found_word:
+                await self.bot.spamChan.send(
+                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'\n{msg.content}'
+                    f'\n{msg.jump_url} <@202995638860906496>'[:2000])
 
         await mention_ping()
 
@@ -485,7 +488,7 @@ class General(commands.Cog):
 
         """check for servers of banned IDs"""
         async def check_guilds():
-            if msg.guild.id == 257984339025985546:
+            if msg.guild.id == MODCHAT_SERVER_ID:
                 async def check_user(content):
                     bans_channel = msg.channel
                     re_result = re.findall('(?:^| |\n)(\d{17,22})', content)
@@ -592,7 +595,7 @@ class General(commands.Cog):
                                           f"\n**Message:** {msg.content}"
                                 emb2 = hf.red_embed(message)
                                 emb2.color = discord.Color(int('000000', 16))
-                                await self.bot.get_channel(329576845949534208).send(embed=emb2)
+                                await self.bot.get_channel(BANS_CHANNEL_ID).send(embed=emb2)
                                 if str(msg.guild.id) in self.bot.db['bans']:
                                     if self.bot.db['bans'][str(msg.guild.id)]['channel']:
                                         channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
@@ -608,7 +611,7 @@ class General(commands.Cog):
         await spam_account_bans()
 
         async def smart_welcome(msg):
-            if msg.channel.id == 243838819743432704:
+            if msg.channel.id == SP_SERVER_ID:
                 content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
                 for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
                     if content == word:
@@ -700,7 +703,7 @@ class General(commands.Cog):
         await smart_welcome(msg)
 
         """mods ping on spanish server"""
-        if msg.guild.id == 243838819743432704:
+        if msg.guild.id == SP_SERVER_ID:
             if '<@&258806166770024449>' in msg.content:
                 ch = self.bot.get_channel(563448201139716136)
                 me = self.bot.get_user(202995638860906496)
@@ -716,7 +719,7 @@ class General(commands.Cog):
                 await fourteen.send(embed=em)
 
         """Replace .mute on spanish server"""
-        if msg.guild.id == 243838819743432704:
+        if msg.guild.id == SP_SERVER_ID:
             if msg.content.startswith('.mute'):
                 ctx = await self.bot.get_context(msg)
                 if not hf.submod_check(ctx):
@@ -854,9 +857,9 @@ class General(commands.Cog):
 
         """Spanish server hardcore"""
         async def spanish_server_hardcore():
-            if msg.guild.id == 243838819743432704 and '*' not in msg.content and len(msg.content):
+            if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(msg.content):
                 if msg.content[0] not in '=;' and len(msg.content) > 3:
-                    if msg.channel.id not in self.bot.db['hardcore']['243838819743432704']['ignore']:
+                    if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
                         role = msg.guild.get_role(526089127611990046)
                         if role in msg.author.roles:
                             learning_eng = msg.guild.get_role(247021017740869632)
@@ -1028,16 +1031,17 @@ class General(commands.Cog):
                                 f' <#{payload.guild_id}>')
 
         if payload.guild_id == 266695661670367232:  # chinese
-            if payload.emoji.name in '🔥📝🖋🗣🎙':
+            if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
                          '📝': 509446402016018454,
                          '🗣': 266713757030285313,
                          '🖋': 344126772138475540,
-                         '🎙': 454893059080060930}
+                         '🎙': 454893059080060930,
+                         '📖': 655082146494545924}
                 server = 0
             else:
                 return
-        elif payload.guild_id == 243838819743432704:  # spanish/english
+        elif payload.guild_id == SP_SERVER_ID:  # spanish/english
             if payload.emoji.name in '🎨🐱🐶🎮table👪🎥❗👚💻📔✏🔥📆':
                 roles = {'🎨': 401930364316024852,
                          '🐱': 254791516659122176,
@@ -1089,16 +1093,17 @@ class General(commands.Cog):
             print(payload.channel_id)
             print(payload.emoji)
         if payload.guild_id == 266695661670367232:  # chinese
-            if payload.emoji.name in '🔥📝🖋🗣🎙':
+            if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
                          '📝': 509446402016018454,
                          '🗣': 266713757030285313,
                          '🖋': 344126772138475540,
-                         '🎙': 454893059080060930}
+                         '🎙': 454893059080060930,
+                         '📖': 655082146494545924}
                 server = 0
             else:
                 return
-        elif payload.guild_id == 243838819743432704:  # spanish/english
+        elif payload.guild_id == SP_SERVER_ID:  # spanish/english
             if payload.emoji.name in '🎨🐱🐶🎮table👪🎥❗👚💻📔✏🔥📆':
                 roles = {'🎨': 401930364316024852,
                          '🐱': 254791516659122176,
@@ -1227,7 +1232,7 @@ class General(commands.Cog):
         if guild.explicit_content_filter != "disabled":
             em.add_field(name="Explicit Content Filter", value=guild.explicit_content_filter)
 
-        if guild.id not in [189571157446492161, 243838819743432704]:
+        if guild.id not in [JP_SERVER_ID, SP_SERVER_ID]:
             em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
 
         list_of_members = guild.members
@@ -1765,7 +1770,7 @@ class General(commands.Cog):
             time = 24
             await hf.safe_send(ctx, "Maxing out at 24h")
 
-        await hf.safe_send(ctx, f"You are about to irreversably mute yourself for {time} hours. "
+        await hf.safe_send(ctx, f"You are about to irreversibly mute yourself for {time} hours. "
                                 f"Is this really what you want to do? The mods of this server CANNOT undo "
                                 f"this.\nType 'Yes' to confirm.")
 
@@ -1779,7 +1784,7 @@ class General(commands.Cog):
                 time_string, length = hf.parse_time(f"{time}h")
                 print(time_string, length)
                 config[str(ctx.author.id)] = {'enable': True, 'time': time_string}
-                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {time} hours. This is irreversable. "
+                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {time} hours. This is irreversible. "
                                         f"The mods have nothing to do with this so no matter what you ask them, "
                                         f"they can't help you. You alone chose to do this.")
 

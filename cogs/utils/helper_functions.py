@@ -214,9 +214,15 @@ def is_submod():
 
     return commands.check(pred)
 
+
 def voicemod_check(ctx):
     if submod_check(ctx) or ctx.author.id in [650044067194863647]:  # hardcoded mods
         return True
+    try:
+        return ctx.author.id in here.bot.db['voicemod'][str(ctx.guild.id)]
+    except KeyError:
+        pass
+
 
 def is_voicemod():
     async def pred(ctx):

@@ -40,7 +40,8 @@ class Submod(commands.Cog):
                  'japanesetest4you': 'https://japanesetest4you.com/',
                  'imabi': 'https://www.imabi.net/',
                  'jlptsensei': 'https://jlptsensei.com/',
-                 'ejlx': 'https://ejlx.blogspot.com/'}
+                 'ejlx': 'https://ejlx.blogspot.com/',
+                 'se': 'https://japanese.stackexchange.com/'}
         space_split = search_term.split()
         if space_split[0] in sites:
             site = sites[space_split[0]]
