@@ -50,7 +50,7 @@ class Submod(commands.Cog):
         config = config[user_id]
         emb = hf.green_embed(f"Modlog for {name}")
         for entry in config[-25:]:
-            name = f"{config.index(entry)}) {entry['type']}"
+            name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
                 name += " (silent)"
             value = f"{entry['date']}\n"
@@ -86,7 +86,7 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
         else:
             try:
-                del config[int(index)]
+                del config[int(index) - 1]
             except IndexError:
                 await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
                 return
@@ -108,8 +108,8 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
-        old_reason = config[index]['reason']
-        config[index]['reason'] = reason
+        old_reason = config[index - 1]['reason']
+        config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
                                                      f"```{old_reason}```to```{reason}```"))
 

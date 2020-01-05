@@ -22,8 +22,8 @@ class ChannelMods(commands.Cog):
             return
         if not hf.submod_check(ctx):
             try:
-                if ctx.author.id not in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
-                    return
+                if ctx.author.id in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
+                    return True
             except KeyError:
                 return
         else:
@@ -34,9 +34,9 @@ class ChannelMods(commands.Cog):
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for submods.  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
+        await ctx.message.delete()
         await hf.safe_send(ctx.author, f"I'm gonna delete your message to potentially keep your privacy, but in case "
                                        f"something goes wrong, here was what you sent: \n{ctx.message.content}")
-        await ctx.message.delete()
         msgs = []
         failed_ids = []
         invalid_ids = []
@@ -201,6 +201,12 @@ class ChannelMods(commands.Cog):
         emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
         config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
         modlog_channel = self.bot.get_channel(config['channel'])
+        try:
+            num_of_entries = len(self.bot.db['modlog'][str(ctx.guild.id)][str(user.id)])
+            if num_of_entries > 1:
+                emb.add_field(name="Total number of modlog entries", value=num_of_entries)
+        except KeyError:
+            pass
         await hf.safe_send(modlog_channel, embed=emb)
         await hf.safe_send(ctx, embed=emb)
 

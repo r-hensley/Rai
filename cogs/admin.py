@@ -113,13 +113,11 @@ class Admin(commands.Cog):
                                                 '__')  # google uses '__' page breaks so this gets around that
         rules = rules.split('########')
         for page in rules:
-            # print([page[:30]])
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
                 urllib.request.urlretrieve(url, "image_file.png")
                 msg = await ctx.send(file=discord.File('image_file.png'))
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
-                # print('lang', [page])
                 spanishnative = self.bot.get_emoji(524733330525257729)
                 englishnative = self.bot.get_emoji(524733316193058817)
                 othernative = self.bot.get_emoji(524733977991315477)
@@ -134,7 +132,6 @@ class Admin(commands.Cog):
                     replace('{mods}', str(mods))
                 msg = await hf.safe_send(ctx, post[7:])
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!roles'):
-                # print('roles', [page])
                 if channel == 0:  # chinese
                     emoji = self.bot.get_emoji(358529029579603969)  # blobflags
                     post = page[8:].replace('{emoji}', str(emoji))
@@ -145,6 +142,7 @@ class Admin(commands.Cog):
                     await msg.add_reaction("🗣")  # debate
                     await msg.add_reaction("🖋")  # handwriting
                     await msg.add_reaction("🎙")  # VC all
+                    await msg.add_reaction('📖')  # book club
                 elif channel == 1 or channel == 2:  # english/spanish
                     emoji = self.bot.get_emoji(513211476790738954)
                     post = page.replace('{table}', str(emoji))
@@ -1393,6 +1391,9 @@ class Admin(commands.Cog):
         except ValueError:
             group = '0'
             role_name = ' '.join(args[0:])
+        except IndexError:
+            await hf.safe_send(ctx, "Type the name of the role you wish to make self assignable.")
+            return
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
         role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not role:
@@ -1428,7 +1429,6 @@ class Admin(commands.Cog):
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def mute(self, ctx, time, member=None, *, reason=None):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -1520,12 +1520,10 @@ class Admin(commands.Cog):
 
         notif_text = f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat."
         if time_string:
-            notif_text = notif_text[:-1] + f" for {time}."
+            notif_text = f"{notif_text[:-1]} for {time}."
         if reason:
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)
-        if time_string:
-            emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
         if silent:
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)

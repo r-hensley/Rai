@@ -529,6 +529,7 @@ class Logger(commands.Cog):
                         pass
                     else:
                         if config['enable'] and str(member.id) in config['users']:
+                            print(f'readding roles maybe {member.name}')
                             post_message = False
                             list_of_roles = get_list_of_roles()
                             new_user_role = member.guild.get_role(249695630606336000)
@@ -544,15 +545,20 @@ class Logger(commands.Cog):
                                     pass
                                 del config['users'][str(member.id)]
                     finally:
+                        print('at if post_message')
                         if post_message:
+                            print('it was true')
                             try:
                                 if used_invite:
+                                    print('1')
                                     if str(used_invite.code) in japanese_links:
                                         await jpJHO.send(
                                             f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                                elif member.id != 414873201349361664:
-                                    await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                                    elif member.id != 414873201349361664:
+                                        print('2')
+                                        await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
                             except discord.Forbidden:
+                                print('3')
                                 pass
                         if member.id == 414873201349361664:
                             async for message in self.bot.jpJHO.history(limit=10):
