@@ -545,20 +545,17 @@ class Logger(commands.Cog):
                                     pass
                                 del config['users'][str(member.id)]
                     finally:
-                        print('at if post_message')
                         if post_message:
-                            print('it was true')
+                            sent = False
                             try:
                                 if used_invite:
-                                    print('1')
                                     if str(used_invite.code) in japanese_links:
                                         await jpJHO.send(
                                             f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                                    elif member.id != 414873201349361664:
-                                        print('2')
-                                        await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+                                        sent = True
+                                if member.id != 414873201349361664 and not sent:
+                                    await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
                             except discord.Forbidden:
-                                print('3')
                                 pass
                         if member.id == 414873201349361664:
                             async for message in self.bot.jpJHO.history(limit=10):
