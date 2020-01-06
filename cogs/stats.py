@@ -63,7 +63,6 @@ class Stats(commands.Cog):
             total += channel_tuple[1]
         for channel_tuple in sorted_msgs:
             if ctx.channel.id != 277511392972636161 and channel_tuple[0] == '277511392972636161':
-                print('hello')
                 continue
             if str(ctx.channel.id) not in self.bot.stats[str(ctx.guild.id)]['hidden']:
                 if channel_tuple[0] in self.bot.stats[str(ctx.guild.id)]['hidden']:
@@ -344,7 +343,6 @@ class Stats(commands.Cog):
                                        f"(e.g. `;chlb #general`), or if you just type `;chlb` "
                                        f"it will show the leaderboard for the current channel.")
                     return
-        print(channels)
         await self.make_lb(ctx, channel_obs)
 
     @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
@@ -388,7 +386,6 @@ class Stats(commands.Cog):
 
         if args == '-s':
             for emoji in emojis:
-                print(emoji)
                 if emoji not in emoji_dict:
                     continue
                 emoji_obj = emoji_dict[emoji]
