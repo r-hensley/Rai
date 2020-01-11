@@ -42,7 +42,15 @@ class Submod(commands.Cog):
             name = f"{member.name}#{member.discriminator} ({member.id})"
             user_id = str(member.id)
         else:
-            return  # member_converter prints the "user not found"
+            try:
+                user = await self.bot.fetch_user(int(id))
+                name = f"{user.name}#{user.discriminator} ({user.id})"
+                user_id = id
+            except discord.NotFound:
+                name = user_id = id
+            except discord.HTTPException:
+                await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
+                return
         if user_id not in config:
             em = hf.red_embed(f"{name} was not found in the modlog.")
             await hf.safe_send(ctx, embed=em)
