@@ -10,7 +10,7 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Submod(commands.Cog):
+class Questions(commands.Cog):
     """Help"""
 
     def __init__(self, bot):
@@ -253,17 +253,14 @@ class Submod(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['q'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def question(self, ctx, *, args):
+    async def question(self, ctx, *, args=None):
         """A module for asking questions, put the title of your quesiton like `;question <title>`"""
-        args = args.split(' ')
         if not args:
-            msg = f"This is a module to help you ask your questions.  To ask a question, decide a title for your " \
-                  f"question and type `;question <title>`.  For example, if your question is about the meaning " \
-                  f"of a word in a sentence, you could format the command like `;question Meaning of <word> " \
-                  f"in <sentence>`. Put that command in the questions channel and you're good to go!  " \
-                  f"(Alias: `;q <title>`)"
+            msg = f"Type `;q <question text>` to make a question, or do `;help q`. For now, here's the questions list:"
             await hf.safe_send(ctx, msg)
+            await ctx.invoke(self.question_list)
             return
+        args = args.split(' ')
 
         try:  # there is definitely some text in the arguments
             target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
@@ -606,4 +603,4 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
 def setup(bot):
-    bot.add_cog(Submod(bot))
+    bot.add_cog(Questions(bot))
