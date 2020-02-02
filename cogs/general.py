@@ -9,6 +9,8 @@ from Levenshtein import distance as LDist
 import string
 import asyncio
 from urllib.error import HTTPError
+import requests
+from bs4 import BeautifulSoup
 
 import os
 
@@ -176,7 +178,7 @@ class General(commands.Cog):
                     user = self.bot.get_user(int(i))
                     text_list.append(f"{user.mention} ({user.name})")
                 await hf.safe_send(mod_channel,
-                                   embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as"
+                                   embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as "
                                                                    f"the time for their temporary ban has expired",
                                                        color=discord.Color(int('00ffaa', 16))))
 
@@ -261,119 +263,17 @@ class General(commands.Cog):
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 
-    # @commands.command(aliases=['r'])
-    # async def iam(self, ctx, role):
-    #     shortened_names = {'0': 'test0', '1': 'test1', '2': 'test2', '3': 'test3', '4': 'test4', '5': 'test5'}
-    #     if role in shortened_names:
-    #         desired_role = shortened_names[role]
-    #     else:
-    #         desired_role = role
-    #     role_dict = {}
-    #     if desired_role not in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
-    #         return
-    #     for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
-    #         role_dict[role_name] = discord.utils.get(ctx.guild.roles, name=role_name)
-    #     old_role = None
-    #     for role_name in role_dict:
-    #         if role_dict[role_name] in ctx.author.roles:
-    #             await ctx.author.remove_roles(role_dict[role_name])
-    #             old_role = role_name
-    #     if not old_role:
-    #         await hf.safe_send(ctx, "You must have one of the test roles first before using this.")
-    #         return
-    #     await ctx.author.add_roles(role_dict[desired_role])
-    #     old = role_dict[old_role]
-    #     new = role_dict[desired_role]
-    #     await hf.safe_send(ctx, embed=discord.Embed(description=f"Changed {ctx.author.display_name} "
-    #                                                    f"from {old.mention} to {new.mention}.",
-    #                                        color=role_dict[desired_role].color))
-    #
-    # @commands.group(aliases=['c', 'color'], invoke_without_command=True)
-    # async def color_change(self, ctx, role_name_in=None, color_in=None):
-    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
-    #     shortened_names = {'0': 'test0', '1': 'test1', '2': 'test2', '3': 'test3', '4': 'test4', '5': 'test5',
-    #                        '6': 'test6', '7': 'test7'}
-    #     role_names = {'test0': 'NE', 'test1': 'FE', 'test2': 'OL', 'test3': 'NS', 'test4': 'FS', 'test5': 'Mods'}
-    #     if role_name_in in shortened_names:
-    #         role_name_in = shortened_names[role_name_in]
-    #     if ctx.guild.id == 243838819743432704:
-    #         if not color_in:
-    #             color_str = "The current colors are: \n"
-    #             for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7']:
-    #                 role = discord.utils.get(ctx.guild.roles, name=role_name)
-    #                 if not role:
-    #                     continue
-    #                 color_str += f"{role.mention}: #{role.color.r:02X},{role.color.g:02X},{role.color.b:02X}"
-    #                 if role_name in role_names:
-    #                     color_str += f" ({role_names[role_name]})\n"
-    #                 else:
-    #                     color_str += '\n'
-    #             await hf.safe_send(ctx, color_str)
-    #             return
-    #         if role_name_in in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7']:
-    #             if not ctx.channel == colors_channel:
-    #                 return
-    #             role = discord.utils.get(ctx.guild.roles, name=role_name_in)
-    #             if not role:
-    #                 await hf.safe_send(ctx, f"{role_name_in} not found.")
-    #                 return
-    #             try:
-    #                 color = discord.Color(int(color_in, 16))
-    #             except ValueError:
-    #                 await hf.safe_send(ctx, f"Invalid color code used.  You may only use numbers 0-9 and letters a-f.")
-    #                 return
-    #             await hf.safe_send(ctx, embed=discord.Embed(description=f"Changed the color of {role.mention} to {color_in}.",
-    #                                                color=color))
-    #             await role.edit(color=color)
-    #
-    # @color_change.command(name="save")
-    # @hf.is_submod()
-    # async def color_save(self, ctx):
-    #     """Save the current color set"""
-    #     config = self.bot.db['colors']
-    #     color_str = ""
-    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
-    #     for role_name in ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']:
-    #         if not ctx.channel == colors_channel:
-    #             return
-    #         role = discord.utils.get(ctx.guild.roles, name=role_name)
-    #         if not role:
-    #             await hf.safe_send(ctx, f"{role_name} not found.")
-    #             return
-    #         color_str += f"{role.name}: #{role.color.r:02X},{role.color.g:02X},{role.color.b:02X}\n"
-    #     config[str(len(config)+1)] = color_str
-    #    #
-    # @color_change.command(name="load")
-    # @hf.is_submod()
-    # async def color_load(self, ctx, index=None):
-    #     try:
-    #         config = self.bot.db['colors'][str(index)]
-    #         new_colors = []
-    #         for color_str in config.split('\n')[:-1]:
-    #             new_colors.append(color_str.split('#')[1].replace(',', ''))
-    #     except ValueError:
-    #         await hf.safe_send(ctx, "Input a single number that you get from `;c list`.")
-    #         return
-    #     colors_channel = self.bot.get_channel(COLOR_CHANNEL_ID)
-    #     role_names = ['test0', 'test1', 'test2', 'test3', 'test4', 'test5']
-    #     for index in range(6):
-    #         if not ctx.channel == colors_channel:
-    #             return
-    #         role = discord.utils.get(ctx.guild.roles, name=role_names[index])
-    #         if not role:
-    #             await hf.safe_send(ctx, f"{role_name} not found.")
-    #             return
-    #         color = discord.Color(int(new_colors[index], 16))
-    #         await role.edit(color=color)
-    #     await ctx.invoke(self.color_change)
-    #
-    # @color_change.command(name='list')
-    # async def color_list(self, ctx):
-    #     config = self.bot.db['colors']
-    #     to_send = 'Saved configs:\n\n'
-    #     for index in range(len(config)):
-    #         to_send += f"〰〰({index+1})〰〰\n{config[str(index+1)]}\n"
-    #     await hf.safe_send(ctx, to_send)
+    @commands.command(hidden=True)
+    async def _check_lhscan(self, ctx):
+        for url in self.bot.db['lhscan']:
+            result = await self.lhscan_get_chapter(url)
+            chapter = f"https://loveheaven.net/{result['href']}"
+            if chapter == self.bot.db['lhscan'][url]['last']:
+                continue
+            for user in self.bot.db['lhscan'][url]['subscribers']:
+                u = self.bot.get_user(user)
+                await hf.safe_send(u, f"New chapter: https://loveheaven.net/{result['href']}")
+            self.bot.db['lhscan'][url]['last'] = chapter
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -896,6 +796,76 @@ class General(commands.Cog):
                                     pass
 
         await spanish_server_hardcore()
+
+    async def lhscan_get_chapter(self, url):
+        try:
+            r = requests.get(url)
+        except requests.exceptions.MissingSchema:
+            return f'invalid_url:  Your URL was invalid ({url})'
+        if r.status_code != 200:
+            return f'html_error: Error {r.status_code}: {r.reason} ({url})'
+        soup = BeautifulSoup(r.content, 'html.parser')
+        return soup.find('a', attrs={'class': 'chapter'})
+
+    @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
+    async def lhscan(self, ctx, url=None):
+        """A command group for subscribing to LHScan mangas."""
+        await ctx.invoke(self.lhscan_add, url)
+
+    @lhscan.command(name='add')
+    async def lhscan_add(self, ctx, url):
+        """Adds a URL to your subscriptions."""
+        search = await self.lhscan_get_chapter(url)
+        if isinstance(search, str):
+            if search.startswith('html_error'):
+                await hf.safe_send(ctx, search)
+                return
+            if search.startswith('invalid_url'):
+                await hf.safe_send(ctx, search)
+                return
+        if not search:
+            await hf.safe_send(ctx, "The search failed to find a chapter")
+            return
+        if url not in self.bot.db['lhscan']:
+            self.bot.db['lhscan'][url] = {'last': f"https://loveheaven.net/{search['href']}",
+                                          'subscribers': [ctx.author.id]}
+        else:
+            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
+                self.bot.db['lhscan'][url]['subscribers'].append(ctx.author.id)
+            else:
+                await hf.safe_send("You're already subscribed to this manga.")
+                return
+        await hf.safe_send(ctx, f"The latest chapter is: https://loveheaven.net/{search['href']}\n\n"
+                                f"I'll tell you next time a chapter is uploaded.")
+
+    @lhscan.command(name='remove')
+    async def lhscan_remove(self, ctx, url):
+        """Unsubscribes you from a manga. Input the URL: `;lh remove <url>`."""
+        if url not in self.bot.db['lhscan']:
+            await hf.safe_send(ctx, "No one is subscribed to that manga. Check your URL.")
+            return
+        else:
+            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
+                self.bot.db['lhscan'][url]['subscribers'].remove(ctx.author.id)
+                await hf.safe_send(ctx, "You've been unsubscribed from that manga.")
+                if len(self.bot.db['lhscan'][url]['subscribers']) == 0:
+                    del self.bot.db['lhscan'][url]
+            else:
+                await hf.safe_send("You're not subscribed to that manga.")
+                return
+
+    @lhscan.command(name='list')
+    async def lhscan_list(self, ctx):
+        """Lists the manga you subscribed to."""
+        subscriptions = []
+        for url in self.bot.db['lhscan']:
+            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
+                subscriptions.append(f"<{url}>")
+        subs_list = '\n'.join(subscriptions)
+        if subscriptions:
+            await hf.safe_send(ctx, f"The list of mangas you're subscribed to:\n{subs_list}")
+        else:
+            await hf.safe_send(ctx, "You're not subscribed to any mangas.")
 
     @commands.command(aliases=['git'])
     @commands.bot_has_permissions(send_messages=True)
@@ -1520,6 +1490,13 @@ class General(commands.Cog):
         emb.set_footer(text=footer_text)
         await hf.safe_send(ctx, embed=emb)
 
+    @commands.command(hidden=True)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
+    async def i(self, ctx, *, role_name):
+        print(role_name)
+        if role_name[:2] == 'am':
+            await ctx.invoke(self.iam, role_name=role_name[3:])
+
     @commands.command()
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def iam(self, ctx, *, role_name):
@@ -1674,7 +1651,7 @@ class General(commands.Cog):
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)
         if time_string:
-            emb.description = emb.description[:-1] + f" for {length[0]}d{length[1]}h."
+            emb.description = emb.description + f" for {length[0]}d{length[1]}h."
         if silent:
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)

@@ -21,11 +21,10 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         if not hf.submod_check(ctx):
-            try:
-                if ctx.author.id in self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
-                    return True
-            except KeyError:
-                return
+            if ctx.author.id in self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(ctx.channel.id), {}):
+                return True
+            if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
+                return True
         else:
             return True
 
@@ -235,6 +234,8 @@ class ChannelMods(commands.Cog):
     async def list_channel_mods(self, ctx):
         """Lists current channel mods"""
         output_msg = '```md\n'
+        if str(ctx.guild.id) not in self.bot.db['channel_mods']:
+            return
         for channel_id in self.bot.db['channel_mods'][str(ctx.guild.id)]:
             channel = self.bot.get_channel(int(channel_id))
             output_msg += f"#{channel.name}\n"
