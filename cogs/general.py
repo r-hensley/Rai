@@ -7,7 +7,7 @@ from textblob import TextBlob as tb
 import textblob
 from Levenshtein import distance as LDist
 import string
-import asyncio
+import asyncio, aiohttp
 from urllib.error import HTTPError
 import requests
 from bs4 import BeautifulSoup
@@ -699,10 +699,12 @@ class General(commands.Cog):
 
             # languages
             lang_used = None
-            try:
-                lang_used = tb(hf.rem_emoji_url(msg)).detect_language()
-            except (textblob.exceptions.TranslatorError, HTTPError):
-                pass
+            stripped_msg = hf.rem_emoji_url(msg)
+            if len(stripped_msg) > 15:
+                try:
+                    lang_used = tb(stripped_msg).detect_language()
+                except (textblob.exceptions.TranslatorError, HTTPError):
+                    pass
 
             today.setdefault(author, {})
             today[author][channel] = today[author].get(channel, 0) + 1
@@ -799,12 +801,15 @@ class General(commands.Cog):
 
     async def lhscan_get_chapter(self, url):
         try:
-            r = requests.get(url)
-        except requests.exceptions.MissingSchema:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    r = resp
+                    data = await resp.text()
+        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
             return f'invalid_url:  Your URL was invalid ({url})'
-        if r.status_code != 200:
+        if r.status != 200:
             return f'html_error: Error {r.status_code}: {r.reason} ({url})'
-        soup = BeautifulSoup(r.content, 'html.parser')
+        soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'class': 'chapter'})
 
     @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
@@ -830,10 +835,10 @@ class General(commands.Cog):
             self.bot.db['lhscan'][url] = {'last': f"https://loveheaven.net/{search['href']}",
                                           'subscribers': [ctx.author.id]}
         else:
-            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
+            if ctx.author.id not in self.bot.db['lhscan'][url]['subscribers']:
                 self.bot.db['lhscan'][url]['subscribers'].append(ctx.author.id)
             else:
-                await hf.safe_send("You're already subscribed to this manga.")
+                await hf.safe_send(ctx, "You're already subscribed to this manga.")
                 return
         await hf.safe_send(ctx, f"The latest chapter is: https://loveheaven.net/{search['href']}\n\n"
                                 f"I'll tell you next time a chapter is uploaded.")
@@ -1153,6 +1158,7 @@ class General(commands.Cog):
 
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
+    @commands.cooldown(1, 15, type=commands.BucketType.user)
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
         message was typed in, and display the results.  Note that this is non-deterministic code, which means\

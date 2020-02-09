@@ -35,6 +35,100 @@ class Admin(commands.Cog):
                     return
         return True
 
+    @commands.group(invoke_without_command=True, aliases=['voicemods'])
+    async def voicemod(self, ctx, *, user):
+        """Sets a voice mod. Type `;voicemod <user/ID>`."""
+        config = self.bot.db['voicemod']
+        if str(ctx.guild.id) not in config:
+            return
+        user = await hf.member_converter(ctx, user)
+        config2 = config[str(ctx.guild.id)]
+        if not user:
+            return
+        if user.id in config2:
+            await hf.safe_send(ctx, embed=hf.red_embed(f"{user.mention} is already a voice mod."))
+            return
+        config2.append(user.id)
+        await hf.safe_send(ctx, embed=hf.green_embed(f"{user.mention} is now a voice mod."))
+
+    @voicemod.command(name="list")
+    async def voicemod_list(self, ctx):
+        """Lists the current voicemods"""
+        config = self.bot.db['voicemod']
+        if str(ctx.guild.id) not in config:
+            return
+        mod_ids = config[str(ctx.guild.id)]
+        mods = []
+        for mod_id in mod_ids:
+            mod = await hf.member_converter(ctx, mod_id)
+            if mod:
+                mods.append(f"{mod.mention} ({mod.name})")
+            else:
+                try:
+                    user = await self.bot.fetch_user(mod_id)
+                except discord.NotFound:
+                    continue
+                await hf.safe_send(ctx, f"Could not find {user.name} ({mod_id}), so I'm removing them from the list.")
+                config[str(ctx.guild.id)].remove(mod_id)
+        list_of_mods = '\n'.join(mods)
+        await hf.safe_send(ctx, embed=hf.green_embed(f"__List of voice mods__\n{list_of_mods}"))
+
+    @voicemod.command(name="remove")
+    async def voicemod_remove(self, ctx, *, user):
+        """Removes a voice mod. Type `;voicemod remove <user/ID>`."""
+        config = self.bot.db['voicemod']
+        if str(ctx.guild.id) not in config:
+            return
+        user = await hf.member_converter(ctx, user)
+        config2 = config[str(ctx.guild.id)]
+        if not user:
+            return
+        if user.id not in config2:
+            await hf.safe_send(ctx, embed=hf.red_embed(f"{user.mention} is not a voice mod."))
+            return
+        config2.remove(user.id)
+        await hf.safe_send(ctx, embed=hf.green_embed(f"{user.mention} is no longer a voice mod."))
+
+    @commands.command(aliases=['mutes', 'incidents', 'ai'])
+    async def activeincidents(self, ctx):
+        """Lists the current active incidents (timed mutes and bans)"""
+        try:
+            mute_config = self.bot.db['mutes'][str(ctx.guild.id)]['timed_mutes']
+            mutes = []
+            for user_id in mute_config:
+                modlog = self.bot.db['modlog'][str(ctx.guild.id)][user_id]
+                reason = "Unknown"
+                for incident in modlog[::-1]:
+                    if incident['type'] == "Mute":
+                        reason = incident['reason']
+                        sju = incident['jump_url'].split('/')  # split jump url
+                        message = await self.bot.get_channel(int(sju[-2])).fetch_message(int(sju[-1]))
+                        author = message.author
+                        break
+                mutes.append({'id': user_id, 'type': 'Mute', 'until': mute_config[user_id], 'reason': reason,
+                              'author': author})
+        except KeyError:
+            # mutes = None
+            raise
+        embed_text = "__Current Mutes__\n"
+        for mute in mutes:
+            member = await hf.member_converter(ctx, mute['id'])
+            if member:
+                member_text = f"{member.mention} ({member.id})"
+            else:
+                try:
+                    user = await self.bot.fetch_user(mute['id'])
+                except discord.NotFound:
+                    continue
+                member_text = f"{user.name} ({user.id})"
+            seconds = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC") - datetime.utcnow()).total_seconds()
+            hours = int(seconds // 3600)
+            minutes = int((3600 % 3600) // 60)
+            embed_text += f"• {member_text}\n" \
+                          f"Until {mute['until']} (in {hours}h{minutes}m)\n" \
+                          f"{mute['reason']} (by {author.name})\n"
+        await hf.safe_send(ctx, embed=hf.green_embed(embed_text))
+
     @commands.command(aliases=['baibairai'])
     async def modsonly(self, ctx):
         """Sets Rai to ignore commands from users."""

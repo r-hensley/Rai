@@ -264,6 +264,8 @@ class Owner(commands.Cog):
         """Rai is a killer"""
         try:
             await ctx.message.add_reaction('💀')
+            await ctx.invoke(self.flush)
+            await ctx.invoke(self.savedatabase)
             await self.bot.logout()
             await self.bot.close()
         except Exception as e:

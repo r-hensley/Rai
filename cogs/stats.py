@@ -218,11 +218,8 @@ class Stats(commands.Cog):
                 if lang_tuple[0] not in self.lang_codes_dict:
                     continue
                 percentage = round((lang_tuple[1] / total) * 100, 1)
-                if counter in [0, 1]:
+                if (counter in [0, 1] and percentage > 2.5) or (percentage > 5):
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
-                if counter > 1 and percentage > 5:
-                    value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
-                counter += 1
                 if counter == 5:
                     break
             emb.add_field(name='Most used languages', value=value)
