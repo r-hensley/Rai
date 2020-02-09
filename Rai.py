@@ -127,6 +127,7 @@ class Rai(Bot):
                     await ctx.invoke(self.get_command("_unmute_users"))
                     await ctx.invoke(self.get_command("_unselfmute_users"))
                     await ctx.invoke(self.get_command("_check_desync_voice"))
+                if counter % 250 == 0:
                     await ctx.invoke(self.get_command("_check_lhscan"))
                 await asyncio.sleep(60)
         except Exception as error:
