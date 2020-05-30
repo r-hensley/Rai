@@ -6,8 +6,10 @@ from discord.ext import commands
 import json
 import sys
 from datetime import datetime, timedelta
-from copy import deepcopy
+from copy import copy, deepcopy
 import shutil
+from textblob import TextBlob as tb
+from functools import partial
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -65,14 +67,40 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
+def count_messages(member):
+    """Returns an integer of number of messages sent in the last month"""
+    config = here.bot.stats[str(member.guild.id)]['messages']
+    msgs = 0
+    try:
+        for day in config:
+            if str(member.id) in config[day]:
+                user = config[day][str(member.id)]
+                msgs += sum([user['channels'][c] for c in user['channels']])
+    except KeyError:
+        return 0
+    return msgs
+
+
 def add_to_modlog(ctx, user, type, reason, silent, length=None):
-    config = ctx.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': ctx.channel.id})
+    if ctx:
+        jump_url = ctx.message.jump_url
+        config = here.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': ctx.channel.id})
+    else:  # "user" is actually a list of [member, guild] here, forgive me for how shitty that is lol
+        guild = user[1]
+        user = user[0]
+        jump_url = None  # this would be the case for entries that come from the the logger module
+        if str(guild.id) in here.bot.db['modlog']:
+            config = here.bot.db['modlog'][str(guild.id)]
+
+        else:
+            return  # this should only happen from on_member_ban events from logger module
+
     config.setdefault(str(user.id), []).append({'type': type,
                                                 'reason': reason,
                                                 'date': datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
                                                 'silent': silent,
                                                 'length': length,
-                                                'jump_url': ctx.message.jump_url})
+                                                'jump_url': jump_url})
     return config
 
 
@@ -84,10 +112,18 @@ def red_embed(text):
     return discord.Embed(description=text, color=discord.Color(int('ff0000', 16)))
 
 
+def _predetect(text):
+    return tb(text).detect_language()
+
+
+async def detect_language(text):
+    return await _loop.run_in_executor(None, partial(_predetect, text))
+
+
 async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed:
-        return
+        raise SyntaxError("You maybe didn't state a destination")
     perms_set = perms = False
     if isinstance(destination, commands.Context):
         if destination.guild:
@@ -96,11 +132,13 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
     elif isinstance(destination, discord.TextChannel):
         perms = destination.permissions_for(destination.guild.me)
         perms_set = True
+    if not destination:
+        return
 
     if perms_set:
         if embed and not perms.embed_links and perms.send_messages:
             await destination.send("I lack permission to upload embeds here.")
-            raise discord.Forbidden
+            return
 
     try:
         return await destination.send(content, embed=embed, delete_after=delete_after)
@@ -192,7 +230,11 @@ def _predump_json():
 
 async def dump_json():
     with await _lock:
-        await _loop.run_in_executor(None, _predump_json)
+        try:
+            await _loop.run_in_executor(None, _predump_json)
+        except RuntimeError:
+            print("Restarting dump_json on a RuntimeError")
+            await _loop.run_in_executor(None, _predump_json)
 
 
 def submod_check(ctx):
@@ -204,6 +246,9 @@ def submod_check(ctx):
         role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
     except KeyError:
         return
+    if ctx.guild.id == 243838819743432704:
+        if ctx.channel.id == ctx.bot.db['submod_channel'][str(ctx.guild.id)]:
+            return True
     submod_role = ctx.guild.get_role(role_id)
     return submod_role in ctx.author.roles
 
@@ -249,23 +294,6 @@ def is_admin():
     return commands.check(pred)
 
 
-async def long_deleted_msg_notification(msg):
-    try:
-        notification = 'I may have deleted a message of yours that was long.  Here it was:'
-        await msg.author.send(notification)
-        await msg.author.send(msg.content)
-    except discord.errors.Forbidden:
-        if msg.author.id == 401683644529377290:
-            return
-        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
-                               f"but you seem to have DMs disabled so I couldn't send it to you.")
-        notification = \
-            f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
-        me = here.bot.get_user(here.bot.owner_id)
-        await me.send(notification)
-        # await me.send(msg.author.name, msg.content)
-
-
 def database_toggle(ctx, module_name):
     try:
         config = module_name[str(ctx.guild.id)]
@@ -297,8 +325,8 @@ async def ban_check_servers(bot, bans_channel, member):
     if found:
         await bans_channel.send(in_servers_msg)
 
-def jpenratio(msg):
-    text = _emoji.sub('', _url.sub('', msg.content))
+def jpenratio(msg_content):
+    text = _emoji.sub('', _url.sub('', msg_content))
     en, jp, total = get_character_spread(text)
     return en / total if total else None
 
@@ -313,6 +341,37 @@ def get_character_spread(text):
             english += 1
     return english, japanese, english + japanese
 
+def generous_is_emoji(char):
+    EMOJI_MAPPING = (
+        (0x0080, 0x02AF),
+        (0x0300, 0x03FF),
+        (0x0600, 0x06FF),
+        (0x0C00, 0x0C7F),
+        (0x1DC0, 0x1DFF),
+        (0x1E00, 0x1EFF),
+        (0x2000, 0x209F),
+        (0x20D0, 0x214F),
+        (0x2190, 0x23FF),
+        (0x2460, 0x25FF),
+        (0x2600, 0x27EF),
+        (0x2900, 0x2935),
+        (0x2B00, 0x2BFF),
+        (0x2C60, 0x2C7F),
+        (0x2E00, 0x2E7F),
+        (0x3000, 0x303F),
+        (0xA490, 0xA4CF),
+        (0xE000, 0xF8FF),
+        (0xFE00, 0xFE0F),
+        (0xFE30, 0xFE4F),
+        (0x2757, 0x2757),
+        (0x1F000, 0x1F02F),
+        (0x1F0A0, 0x1F0FF),
+        (0x1F100, 0x1F64F),
+        (0x1F680, 0x1F6FF),
+        (0x1F910, 0x1F96B),
+        (0x1F980, 0x1F9E0),
+    )
+    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
 
 def is_emoji(char):
     EMOJI_MAPPING = (
@@ -341,7 +400,7 @@ def is_emoji(char):
         (0x1F100, 0x1F64F),
         (0x1F680, 0x1F6FF),
         (0x1F910, 0x1F96B),
-        (0x1F980, 0x1F9E0)
+        (0x1F980, 0x1F9E0),
     )
     return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
 
@@ -384,17 +443,34 @@ def is_english(char):
     return any(start <= ord(char) <= end for start, end in RANGE_CHECK)
 
 
+async def long_deleted_msg_notification(msg):
+    try:
+        notification = 'Hardcore deleted a long message:'
+        await msg.author.send(f"{notification}```{msg.content[:1962]}```")
+    except discord.errors.Forbidden:
+        if msg.author.id == 401683644529377290:
+            return
+        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
+                               f"but you seem to have DMs disabled so I couldn't send it to you.")
+        notification = \
+            f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
+        me = here.bot.get_user(here.bot.owner_id)
+        await me.send(notification)
+        # await me.send(msg.author.name, msg.content)
+
+
 async def uhc_check(msg):
     try:
         if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
             if here.bot.db['ultraHardcore']['users'].get(str(msg.author.id), [False])[0]:
-                msg.content = msg.content.casefold().replace('what is your native language', '') \
+                lowercase_msg_content = msg.content.casefold().replace('what is your native language', '') \
                     .replace('welcome', '').replace("what's your native language", "")
                 jpRole = msg.guild.get_role(196765998706196480)
-                ratio = jpenratio(msg)
+
+                ratio = jpenratio(lowercase_msg_content)
                 # if I delete a long message
 
-                if not msg.content:
+                if not lowercase_msg_content:
                     return
 
                 # allow Kotoba bot commands

@@ -1,15 +1,16 @@
 import discord
 from discord.ext import commands
 import json
-import urllib.request
 from .utils import helper_functions as hf
 import asyncio
 import re
 from datetime import datetime, timedelta
 import os
+import aiohttp, aiofiles, io
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161
+SP_SERVER_ID = 243838819743432704
 
 class Admin(commands.Cog):
     """Stuff for admins. Commands in this module require either the mod role set by `;set_mod_role` or the\
@@ -34,6 +35,187 @@ class Admin(commands.Cog):
                 if not hf.admin_check(ctx):
                     return
         return True
+
+    @commands.group(invoke_without_command=True, aliases=['rr', 'reactionroles'])
+    async def reaction_roles(self, ctx, *, args=''):
+        """The setup command for reaction roles. If you type just `;rr`, you'll be taken through a guide for setting \
+        up one role."""
+        inputs = []
+        if len(args) == 0:  # take a user through the slow guide menu
+            x = await self.reaction_roles_guide(ctx)
+            if not x:
+                return
+            inputs.append(x)
+        else:  # a user inputs all three necessary arguments
+            for i_input in args.split('\n'):
+                if len(i_input.split()) < 3:
+                    await hf.safe_send(ctx, "One of your lines didn't have enough arguments. Please check "
+                                            "the help command.")
+                    return
+                x = i_input.split()
+                x = await self.quick_reaction_roles(ctx, x[0], x[1], ' '.join(x[2:]))
+                if not x:
+                    return
+                inputs.append(x)
+
+        config = self.bot.db['reactionroles'].setdefault(str(ctx.guild.id), {})
+        msg_emoji_dict = {}
+        for i_input in inputs:
+            reaction_msg = i_input[0]
+            emoji = i_input[1]
+            role = i_input[2]
+            
+            if reaction_msg in msg_emoji_dict:
+                msg_emoji_dict[reaction_msg].append(emoji)
+            else:
+                msg_emoji_dict[reaction_msg] = [emoji]
+                
+            if type(emoji) == discord.Emoji:
+                emoji_str = str(emoji.id)  # a discord emoji
+            else:
+                emoji_str = emoji  # a str unicode emoji
+
+            config.setdefault(str(reaction_msg.id), {})[emoji_str] = role.id
+        
+        for i_message in msg_emoji_dict:
+            await i_message.add_reaction(*[i for i in msg_emoji_dict[i_message]])
+        await ctx.message.add_reaction('✅')
+
+    async def get_reaction_msg(self, ctx, text):
+        msg_id = re.findall('^\d{17,22}$', text)
+        if msg_id:
+            msg_id = msg_id[0]
+        else:
+            await hf.safe_send(ctx, f"{text} is an invalid response. Please make sure to only respond with a message "
+                                    "ID that looks like 708540770323529758. Please start over.")
+            return
+
+        try:
+            return await ctx.channel.fetch_message(msg_id)
+        except discord.NotFound:
+            await hf.safe_send(ctx, f"I was not able to find the message you linked to with {text}. Make sure it is a"
+                                    " message in this channel. Please start over.")
+            return
+
+    async def get_role(self, ctx, text):
+        role_id = re.findall('^<@&(\d{17,22})>$', text)  # a mention like <@&380195245071138816>
+        if role_id:
+            role_id = int(role_id[0])
+        else:
+            role_id = re.findall('^\d{17,22}$', text)  # only the ID like 380195245071138816
+            if role_id:
+                role_id = int(role_id[0])
+            else:  # gives the name of the role in text
+                role = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
+                if not role:
+                    await hf.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
+                    return
+                else:
+                    return role
+        if role_id:
+            role = ctx.guild.get_role(role_id)
+            if not role:
+                await hf.safe_send(ctx, f"I couldn't find the role of {text}. Please start over.")
+                return
+            return role
+
+    async def reaction_roles_guide(self, ctx):  # returns 1) reaction_msg 2) emoji 3) role
+        # ########### STEP 1: MSG_ID ################# # gives "reaction_msg"
+        emb = hf.green_embed("First, please paste the `message id` of the reaction roles message. It must be a "
+                             "message in this channel. Example: `708540770323529758`")
+        emb.title = "Reaction Roles - Step 1"
+        msg = await hf.safe_send(ctx, embed=emb)
+
+        try:
+            resp = await self.bot.wait_for('message', check=lambda m: m.author.id == ctx.author.id, timeout=60.0)
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            return
+
+        try:
+            await resp.delete()
+        except discord.Forbidden:
+            pass
+
+        reaction_msg = await self.get_reaction_msg(ctx, resp.content)
+        if not reaction_msg:
+            return
+
+        # ############## STEP 2: EMOJI ###################  # gives "emoji"
+        emb = hf.green_embed("Next, please react to this message with the emoji you wish to associate with your "
+                             "reaction role. It must be an emoji from a guild I have access to.")
+        emb.title = "Reaction Roles - Step 2"
+        await msg.edit(embed=emb)
+
+        try:
+            r, _ = await self.bot.wait_for('reaction_add',
+                                           check=lambda r, u: u.id == ctx.author.id and r.message.id == msg.id,
+                                           timeout=60.0)
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            return
+        emoji = r.emoji
+
+        # ############## STEP 3: ROLE NAME ################# # gives "role"
+        emb = hf.green_embed("Finally, please ping or write the ID or name of the role you wish to give.")
+        emb.title = "Reaction Roles - Step 3"
+        await msg.edit(embed=emb)
+
+        try:
+            resp = await self.bot.wait_for('message', check=lambda m: m.author.id == ctx.author.id, timeout=60.0)
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            return
+
+        try:
+            await resp.delete()
+        except discord.Forbidden:
+            pass
+
+        role = await self.get_role(ctx, resp.content)
+        if not role:
+            return
+
+        # ############## FINISHED #######################
+        emb = hf.green_embed("Finished! You can now delete all messages except for the message you selected as your "
+                             "reaction roles message.\n\nIn the future, you can speed up this process by using this "
+                             f"command in the pattern of `;rr <reaction_msg_id> <emoji> <role_id_mention_or_name>`.\n\n"
+                             f"For you, that would've been: `;rr {reaction_msg.id} {str(emoji)} {role.id}`. You can "
+                             f"also do this for multiple roles in one command, just add new lines between each new "
+                             f"emoji you want to add.")
+        await msg.edit(embed=emb)
+
+        return reaction_msg, emoji, role
+
+    async def quick_reaction_roles(self, ctx, reaction_msg, emoji, role):
+        # ######### reaction_msg ########
+        reaction_msg = await self.get_reaction_msg(ctx, reaction_msg)
+        if not reaction_msg:
+            return
+
+        # ######## emoji #############
+        if len(emoji) == 1:
+            if hf.generous_is_emoji(emoji):
+                pass
+            else:
+                await hf.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
+                return
+        else:
+            emoji_id = re.findall('^<:\w+:(\d{17,22})>$', emoji)
+            if not emoji_id:
+                await hf.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
+                return
+            emoji = self.bot.get_emoji(int(emoji_id[0]))
+            if not emoji:
+                await hf.safe_send(ctx, f"I couldn't find the emoji {emoji} in any of my servers. Please start over.")
+                return
+        # ######## role ###########
+        role = await self.get_role(ctx, role)
+        if not role:
+            return
+        # ############ finished ################
+        return reaction_msg, emoji, role
+
 
     @commands.group(invoke_without_command=True, aliases=['voicemods'])
     async def voicemod(self, ctx, *, user):
@@ -90,6 +272,7 @@ class Admin(commands.Cog):
         await hf.safe_send(ctx, embed=hf.green_embed(f"{user.mention} is no longer a voice mod."))
 
     @commands.command(aliases=['mutes', 'incidents', 'ai'])
+    @commands.bot_has_permissions(embed_links=True)
     async def activeincidents(self, ctx):
         """Lists the current active incidents (timed mutes and bans)"""
         try:
@@ -202,15 +385,34 @@ class Admin(commands.Cog):
                 await message.delete()
             except discord.errors.NotFound:
                 pass
-        rules = urllib.request.urlopen(download_link).read().decode('utf-8-sig')
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(download_link) as resp:
+                    response = resp
+                    rules = await resp.text(encoding='utf-8-sig')
+        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+            return
+        if response.status != 200:
+            await hf.safe_send(ctx, f'html_error: Error {r.status_code}: {r.reason} ({url})')
+            return
         rules = rules.replace('__', '').replace('{und}',
                                                 '__')  # google uses '__' page breaks so this gets around that
         rules = rules.split('########')
         for page in rules:
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
-                urllib.request.urlretrieve(url, "image_file.png")
-                msg = await ctx.send(file=discord.File('image_file.png'))
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as resp:
+                            buffer = io.BytesIO(await resp.read())
+                except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+                    await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+                    return
+                if response.status != 200:
+                    await hf.safe_send(ctx, f'html_error: Error {r.status_code}: {r.reason} ({url})')
+                    return
+                msg = await ctx.send(file=discord.File(buffer, filename="image.png"))
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
                 spanishnative = self.bot.get_emoji(524733330525257729)
                 englishnative = self.bot.get_emoji(524733316193058817)
@@ -276,56 +478,6 @@ class Admin(commands.Cog):
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
 
-    @commands.group(invoke_without_command=True, hidden=True)
-    async def hardcore(self, ctx):
-        """Posts the hardcore reaction message for the Chinese server"""
-        msg = await hf.safe_send(ctx, "Hardcore mode: if you have the `Learning English` role, you can not use any kind of "
-                             "Chinese in  your messages.  Otherwise, your messages must consist of Chinese.  If you"
-                             " wish to correct a learner, attach a `*` to your message, and it will not be deleted.  "
-                             "\n\nUse the below reaction to enable/disable hardcore mode.")
-        try:
-            self.bot.db['hardcore'][str(ctx.guild.id)]['message'] = msg.id
-        except KeyError:
-            role = await ctx.guild.create_role(name='🔥Hardcore🔥')
-            self.bot.db['hardcore'][str(ctx.guild.id)] = {'message': msg.id, 'role': role.id}
-        await msg.add_reaction("🔥")
-
-    @hardcore.command()
-    async def ignore(self, ctx):
-        """Ignores a channel for hardcore mode."""
-        if str(ctx.guild.id) in self.bot.db['hardcore']:
-            config = self.bot.db['hardcore'][str(ctx.guild.id)]
-        else:
-            return
-        try:
-            if ctx.channel.id not in config['ignore']:
-                config['ignore'].append(ctx.channel.id)
-                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-            else:
-                config['ignore'].remove(ctx.channel.id)
-                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
-        except KeyError:
-            config['ignore'] = [ctx.channel.id]
-            await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-
-    @hardcore.command()
-    async def list(self, ctx):
-        """Lists the channels in hardcore mode."""
-        channels = []
-        try:
-            for channel_id in self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']:
-                channel = self.bot.get_channel(int(channel_id))
-                if channel:
-                    channels.append(channel)
-                else:
-                    self.bot.db['hardcore'][str(ctx.guild.id)]['ignore'].remove(channel_id)
-                    await hf.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
-        except KeyError:
-            return
-        if channels:
-            string = "__List of channels excepted from hardcore__:\n#" + '\n#'.join([c.name for c in channels])
-            await hf.safe_send(ctx, string)
-
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
@@ -371,7 +523,7 @@ class Admin(commands.Cog):
             try:
                 reply_msg = await self.bot.wait_for('message',
                                                     timeout=20.0,
-                                                    check=lambda x: x.author == ctx.author)
+                                                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
                 await instr_msg.delete()
                 await reply_msg.delete()
             except asyncio.TimeoutError:
@@ -415,10 +567,12 @@ class Admin(commands.Cog):
         try:
             int(num)
         except ValueError:
-            await hf.safe_send(ctx, f"You need to put a number of messages.  Type `;help clear` for information on syntax.")
+            await hf.safe_send(ctx, f"You need to put a number of messages. "
+                                    f"Type `;help clear` for information on syntax.")
             return
         if 100 < int(num):
-            msg = await hf.safe_send(ctx, f"You're trying to delete the last {num} messages.  Please type `y` to confirm this.")
+            msg = await hf.safe_send(ctx, f"You're trying to delete the last {num} messages. "
+                                          f"Please type `y` to confirm this.")
             try:
                 await self.bot.wait_for('message', timeout=10,
                                         check=lambda m: m.author == ctx.author and m.content == 'y')
@@ -521,11 +675,25 @@ class Admin(commands.Cog):
     @commands.command()
     async def readd_roles(self, ctx):
         """Automatically readd roles to users who left the server and then rejoin."""
-        config = hf.database_toggle(ctx, self.bot.db['readd_roles'])
+        if str(ctx.guild.id) not in self.bot.db['joins']:  # guild not in 'joins'
+            config = self.bot.db['joins'][str(ctx.guild.id)] = {'enable': False,
+                                                                'channel': ctx.channel.id,
+                                                                'invites': {},
+                                                                'invites_enable': False,
+                                                                'readd_roles': {'enable': True,
+                                                                                'users': {},
+                                                                                'roles': {}
+                                                                                }
+                                                                }
+        try:
+            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles']
+            config['enable'] = not config['enable']
+        except KeyError:  # the guild was in 'joins' but it didn't have 'readd_roles'
+            config['readd_roles'] = {'enable': True, 'users': {}, 'roles': {}}
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
                 await hf.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
-                hf.database_toggle(ctx, self.bot.db['readd_roles'])
+                config['readd_roles']['enable'] = False
                 return
             await hf.safe_send(ctx, f"I will readd roles to people who have previously left the server")
         else:
@@ -533,7 +701,79 @@ class Admin(commands.Cog):
         if 'users' not in config:
             config['users'] = {}
 
-    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'voicewatch', 'vw'], hidden=True)
+    @commands.command(aliases=['newuserwatch'])
+    async def new_user_watch(self, ctx):
+        """Enables/disables the posting of watching for messages of new users. If enabled, all users that have new \
+        accounts less than ten messages in the server will have their messages crossposted by whichever channel is \
+        set by the `;super_watch` command."""
+        config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
+                                                       {"users": [], "channel": ctx.channel.id, 'enable': False})
+        if 'enable' not in config:
+            config['enable'] = False
+        if not config['enable']:
+            config['enable'] = True
+            await hf.safe_send(ctx, "I've enabled the watching of new users.")
+        else:
+            config['enable'] = False
+            await hf.safe_send(ctx, "Ive disabled the watching of new users.")
+
+    @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
+    async def super_watch(self, ctx):
+        """Sets the super_watch channel."""
+        config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
+                                                       {"users": [], "channel": ctx.channel.id})
+        config['channel'] = ctx.channel.id
+        await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
+                                f"({ctx.channel.id}).  \n\n"
+                                f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
+                                f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
+                                f"sends posts to in the future by typing `;super_watch` again.  \n\n"
+                                f"Aliases for this command are: `;superwatch`, `;sw`.")
+
+    @super_watch.command(name="add")
+    async def superwatch_add(self, ctx, target):
+        """Adds a user to the superwatch list."""
+        if str(ctx.guild.id) not in self.bot.db['super_watch']:
+            await ctx.invoke(self.super_watch)
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        target = await hf.member_converter(ctx, target)
+        if not target:  # invalid user given
+            return
+        if target.id not in config:
+            config[str(target.id)] = ctx.message.jump_url
+            await hf.safe_send(ctx, f"Added {target.name} to super_watch list")
+        else:
+            await hf.safe_send(ctx, f"{target.name} is already on the super_watch list")
+
+    @super_watch.command(name="remove")
+    async def superwatch_remove(self, ctx, *, target):
+        """Removes a user from the superwatch list."""
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        target_obj = await hf.member_converter(ctx, target)
+        if not target_obj:
+            try:
+                id = int(target)
+            except ValueError:
+                return
+        else:
+            id = target_obj.id
+        try:
+            del (config[str(id)])
+            await hf.safe_send(ctx, f"Removed <@{id}> from super_watch list")
+        except ValueError:
+            await hf.safe_send(ctx, f"That user wasn't on the super_watch list")
+
+    @super_watch.command(name="list")
+    async def super_watch_list(self, ctx):
+        """Lists the users in superwatch list."""
+        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        users = [f"<@{ID}>" for ID in config]
+        if config:
+            await hf.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
+        else:
+            await hf.safe_send(ctx, "There's currently no one on the super_watch list")
+
+    @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'voicewatch', 'vw'])
     async def super_voicewatch(self, ctx):
         """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
@@ -559,15 +799,25 @@ class Admin(commands.Cog):
         await hf.safe_send(ctx, f"Added `{member.name} ({member.id})` to the super voice watchlist.")
 
     @super_voicewatch.command(name="remove")
-    async def voicewatch_remove(self, ctx, member: discord.Member):
+    async def voicewatch_remove(self, ctx, member):
         """Remove a user from super voice watch"""
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
+        target_obj = await hf.member_converter(ctx, member)
+        if not target_obj:
+            try:
+                id = int(member)
+                msg = f"Removed `{id}` from the super voice watchlist."
+            except ValueError:
+                return
+        else:
+            id = target_obj.id
+            msg = f"Removed `{target_obj.name} ({id})` from the super voice watchlist."
         try:
-            config['users'].remove(member.id)
+            config['users'].remove(id)
         except ValueError:
             await hf.safe_send(ctx, "That user was not in the watchlist.")
             return
-        await hf.safe_send(ctx, f"Removed `{member.name} ({member.id})` from the super voice watchlist.")
+        await hf.safe_send(ctx, msg)
 
     @super_voicewatch.command(name="list")
     async def super_voicewatch_list(self, ctx):
@@ -645,20 +895,7 @@ class Admin(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        async def superwatch_check():
-            try:
-                config = self.bot.db['super_voicewatch'][str(member.guild.id)]
-            except KeyError:
-                return
-            if member.id in config['users'] and not before.channel and after.channel:
-                channel = self.bot.get_channel(config['channel'])
-                await hf.safe_send(channel, f"{member.mention} is on the voice superwatch list and has joined the "
-                                   f"voice channel ({after.channel.name})")
-
-        await superwatch_check()
-
         """voice stats"""
-
         # voice
         # 	in_voice:
         # 		user1:
@@ -693,58 +930,6 @@ class Admin(commands.Cog):
                     return
 
         await voice_update()
-
-    @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'], hidden=True)
-    async def super_watch(self, ctx):
-        """Sets the super_watch channel."""
-        config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
-                                                       {"users": [], "channel": ctx.channel.id})
-        config['channel'] = ctx.channel.id
-        await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
-                       f"({ctx.channel.id}).  \n\n"
-                       f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
-                       f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
-                       f"sends posts to in the future by typing `;super_watch` again.  \n\n"
-                       f"Aliases for this command are: `;superwatch`, `;sw`.")
-
-    @super_watch.command(name="add")
-    async def superwatch_add(self, ctx, *, target):
-        """Adds a user to the superwatch list."""
-        if str(ctx.guild.id) not in self.bot.db['super_watch']:
-            await ctx.invoke(self.super_watch)
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        target = await hf.member_converter(ctx, target)
-        if not target:  # invalid user given
-            return
-        if target.id not in config:
-            config.append(target.id)
-            await hf.safe_send(ctx, f"Added {target.name} to super_watch list")
-        else:
-            await hf.safe_send(ctx, f"{target.name} is already on the super_watch list")
-
-    @super_watch.command(name="remove")
-    async def superwatch_remove(self, ctx, *, target):
-        """Removes a user from the superwatch list."""
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        target = await hf.member_converter(ctx, target)
-        if not target:
-            return
-        target = target.id
-        try:
-            config.remove(target)
-            await hf.safe_send(ctx, f"Removed <@{target}> from super_watch list")
-        except ValueError:
-            await hf.safe_send(ctx, f"That user wasn't on the super_watch list")
-
-    @super_watch.command(name="list")
-    async def super_watch_list(self, ctx):
-        """Lists the users in superwatch list."""
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        users = [f"<@{ID}>" for ID in config]
-        if config:
-            await hf.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
-        else:
-            await hf.safe_send(ctx, "There's currently no one on the super_watch list")
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
@@ -797,7 +982,7 @@ class Admin(commands.Cog):
 
         return msg.content, menu
 
-    @commands.command()
+    @commands.command(aliases=['options'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def config(self, ctx, menu=None):
         """A comprehensive options and configuration menu for the bot"""
@@ -1065,7 +1250,7 @@ class Admin(commands.Cog):
                                    "Enable/disable tracking of invite links people used to join (`;joins invites`)"]
                         emb = self.make_options_embed(options)
                         emb.title = "Logging > Joins/Invite Tracking"
-                        config = self.bot.db['welcomes'][str(ctx.guild.id)]
+                        config = self.bot.db['joins'][str(ctx.guild.id)]
 
                         while True:
                             if config['enable']:
@@ -1506,7 +1691,7 @@ class Admin(commands.Cog):
                                             f"**{group}**."))
 
     @commands.command()
-    async def rsar(self, ctx, role_name):
+    async def rsar(self, ctx, *, role_name):
         """Removes a self-assignable role"""
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
         role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
@@ -1626,7 +1811,7 @@ class Admin(commands.Cog):
         modlog_channel = self.bot.get_channel(modlog_config['channel'])
 
         emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
-        emb.color = discord.Color(int('ffff00', 16))  # embed
+        emb.color = discord.Color(int('ff8800', 16))  # embed
         if time_string:
             emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
         else:
@@ -1688,6 +1873,18 @@ class Admin(commands.Cog):
         if not failed:
             return True
 
+    @commands.command()
+    @commands.check(lambda x: x.guild.id == 243838819743432704 or x.author.id == 202995638860906496)
+    async def send(self, ctx, channel_id: int, *, msg):
+        """Sends a message to the channel ID specified"""
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            channel = self.bot.get_user(channel_id)
+            if not channel:
+                await hf.safe_send(ctx, "Invalid ID")
+                return
+        await channel.send(msg)
+        await ctx.message.add_reaction("✅")
 
 def setup(bot):
     bot.add_cog(Admin(bot))

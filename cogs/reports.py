@@ -2,19 +2,7 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
-import discord
-from discord.ext import commands
-from .utils import helper_functions as hf
-import asyncio
-from datetime import datetime, timedelta, date
-from .utils import helper_functions as hf
-import re
-from textblob import TextBlob as tb
-import textblob
-import requests
 import json
-from Levenshtein import distance as LDist
-import string
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -34,6 +22,7 @@ class Reports(commands.Cog):
     @commands.bot_has_permissions(send_messages=True)
     async def report(self, ctx, *, user=None):
         """Make a report to the mods"""
+        print("report", ctx.author.id)
         if isinstance(ctx.channel, discord.DMChannel):
             return
         guild_id = str(ctx.guild.id)
@@ -118,6 +107,8 @@ class Reports(commands.Cog):
             await report_room.send(f"I tried to delete the invocation for a ;report in {ctx.channel.mention} but I "
                                    f"lacked the `Manage Messages` permission so I could not.  Please delete"
                                    f"the `;report` message that the user sent to maintain their privacy.")
+        except discord.NotFound:
+            pass
 
         reaction = await self.report_options(ctx, report_text)  # presents users with options for what they want to do
         if not reaction:
@@ -234,7 +225,6 @@ class Reports(commands.Cog):
 
         if config['waiting_list']:
             config['waiting_list'] = []
-            hf.dump_json()
             await hf.safe_send(ctx, 'Waiting list cleared')
         else:
             await hf.safe_send(ctx, 'There was no one on the waiting list.')
@@ -249,7 +239,6 @@ class Reports(commands.Cog):
             return
         config['current_user'] = config['entry_message'] = None
         config['waiting_list'] = []
-        hf.dump_json()
         await hf.safe_send(ctx,
                            f"The report module has been reset on this server.  Check the permission overrides on the "
                            f"report channel to make sure there are no users left there.")
@@ -296,7 +285,6 @@ class Reports(commands.Cog):
             await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                     f"from server members enabled.")
             ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None
-            hf.dump_json()
             return
 
         await msg.add_reaction("1⃣")  # Send a report (report room)
@@ -323,6 +311,10 @@ class Reports(commands.Cog):
             msg = await ctx.bot.wait_for('message', timeout=300.0, check=check)
             await hf.safe_send(ctx.author, report_text[2])  # "thank you for the report"
             mod_channel = ctx.bot.get_channel(ctx.bot.db['mod_channel'][str(ctx.guild.id)])
+            if not mod_channel:
+                await hf.safe_send(ctx, "Unfortunately this server has hidden their mod channel from me, so I "
+                                        "can't send your report anymore.")
+                return
             initial_msg = 'Received report from a user: \n\n'
             if ctx.bot.db['report'][str(ctx.guild.id)].setdefault('anonymous_ping', False):
                 initial_msg = '@here ' + initial_msg
@@ -369,7 +361,6 @@ class Reports(commands.Cog):
                 await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                         f"from server members enabled.")
                 ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None
-                hf.dump_json()
                 return
         else:
             await user.send(report_text[3])  # please go to the report room
