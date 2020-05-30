@@ -33,7 +33,10 @@ class ChannelMods(commands.Cog):
     async def msg_delete(self, ctx, *ids):
         """A command to delete messages for submods.  Usage: `;del <list of IDs>`\n\n
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except discord.NotFound:
+            pass
         await hf.safe_send(ctx.author, f"I'm gonna delete your message to potentially keep your privacy, but in case "
                                        f"something goes wrong, here was what you sent: \n{ctx.message.content}")
         msgs = []
@@ -106,40 +109,54 @@ class ChannelMods(commands.Cog):
         emb.set_footer(text=f"In #{msgs[0].channel.name} - Message sent at:")
         if str(ctx.guild.id) in self.bot.db['submod_channel']:
             channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
+            if not channel:
+                await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
+                                        "set it again.")
+                del(self.bot.db['submod_channel'][str(ctx.guild.id)])
+                return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
             channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+            if not channel:
+                await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
+                                        "set it again.")
+                del(self.bot.db['submod_channel'][str(ctx.guild.id)])
+                return
         else:
             await hf.safe_send(ctx, "Please set either a mod channel or a submod channel with "
                                     "`;set_mod_channel` or `;set_submod_channel`")
             return
+
         await hf.safe_send(channel, embed=emb)
         if embeds:
             for embed in embeds:
+                if not embed:
+                    continue
                 await hf.safe_send(channel, embed=embed)
 
-        @commands.command()
-        @commands.bot_has_permissions(send_messages=True, manage_messages=True)
-        async def pin(self, ctx, message_id=None):
-            """Pin a message"""
-            to_be_pinned_msg = None
-            if not message_id:
-                async for message in ctx.channel.history(limit=2):
-                    if message.content == ';pin':
-                        continue
-                    to_be_pinned_msg = message
-            else:
-                if not re.search('\d{17,22}', message_id):
-                    await hf.safe_send(ctx, "Please input a valid ID")
-                    return
-                to_be_pinned_msg = await ctx.channel.fetch_message(message_id)
-            try:
-                await ctx.message.delete()
-            except discord.Forbidden:
-                pass
-            try:
-                await to_be_pinned_msg.pin()
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
+    @commands.command(name="pin")
+    # @commands.bot_has_permissions(send_messages=True, manage_messages=True)
+    async def pin_message(self, ctx, message_id=None):
+        """Pin a message. Type the message ID afterwards like `;pin 700749853021438022` or include no ID to pin
+        the last message in the channel (just type `;pin`)."""
+        to_be_pinned_msg = None
+        if not message_id:
+            async for message in ctx.channel.history(limit=2):
+                if message.content == ';pin':
+                    continue
+                to_be_pinned_msg = message
+        else:
+            if not re.search('\d{17,22}', message_id):
+                await hf.safe_send(ctx, "Please input a valid ID")
+                return
+            to_be_pinned_msg = await ctx.channel.fetch_message(message_id)
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+        try:
+            await to_be_pinned_msg.pin()
+        except discord.Forbidden:
+            await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
 
     @commands.command()
     async def log(self, ctx, user, *, reason="None"):
@@ -183,8 +200,8 @@ class ChannelMods(commands.Cog):
         if '-s' in reason:
             silent = True
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
-            emb.description = "Warning *(This incident was not sent to the user)*"
-        emb.color = discord.Color(int('ff8800', 16))  # embed
+            emb.description = "Log *(This incident was not sent to the user)*"
+        emb.color = discord.Color(int('ffff00', 16))  # embed ff8800
         emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
         emb.add_field(name="Reason", value=reason, inline=False)
         if not silent:
@@ -229,7 +246,7 @@ class ChannelMods(commands.Cog):
         await ctx.message.delete()
         await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
 
-    @commands.command(aliases=['list_channel_helpers'])
+    @commands.command(aliases=['list_channel_helpers', 'lcm', 'lch'])
     @hf.is_admin()
     async def list_channel_mods(self, ctx):
         """Lists current channel mods"""
@@ -253,14 +270,15 @@ class ChannelMods(commands.Cog):
     @commands.command(aliases=['rcm', 'rch'])
     @hf.is_admin()
     async def remove_channel_mod(self, ctx, user):
-        """Removes a channel mod"""
+        """Removes a channel mod. You must do this in the channel they're a channel mod in."""
         config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
         user = await hf.member_converter(ctx, user)
         if not user:
             return
         if str(ctx.channel.id) in config:
             if user.id not in config[str(ctx.channel.id)]:
-                await hf.safe_send(ctx, "That user is not a channel mod in this channel.")
+                await hf.safe_send(ctx, "That user is not a channel mod in this channel. You must call this command "
+                                        "in their channel.")
                 return
             else:
                 config[str(ctx.channel.id)].remove(user.id)

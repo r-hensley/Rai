@@ -9,8 +9,8 @@ from Levenshtein import distance as LDist
 import string
 import asyncio, aiohttp
 from urllib.error import HTTPError
-import requests
 from bs4 import BeautifulSoup
+import io
 
 import os
 
@@ -23,6 +23,7 @@ MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
+CH_SERVER_ID = 266695661670367232
 
 
 def blacklist_check():
@@ -37,24 +38,604 @@ def blacklist_check():
 
 
 class General(commands.Cog):
-    """My custom cog that does stuff!"""
+    """My cus+tom cog that does stuff!"""
 
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
-        bot.help_command = None
         hf.setup(bot)
 
+    @commands.Cog.listener()
+    async def on_message(self, msg):
+        if msg.author.bot:
+            return
+
+        # "Experimental global watch list"
+        # if msg.author.id == 202979770235879427:
+        #     channel = self.bot.get_channel(374489744974807040)
+        #     await hf.safe_send(channel, f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
+
+        """PM Bot"""
+        async def pm_modbot_before():
+            if msg.author.id == self.bot.owner_id:
+                if msg.channel.id != 304110816607862785 or msg.author.id in self.bot.db['pmbot']['inpms']:
+                    return
+                try:
+                    self.bot.db['pmbot']['inpms'].append(msg.author.id)
+                    await self.pm_modbot(msg)
+                except Exception:
+                    self.bot.db['pmbot']['inpms'].remove(msg.author.id)
+                    raise
+                self.bot.db['pmbot']['inpms'].remove(msg.author.id)
+        await pm_modbot_before()
+
+        """Messages/pings to Rai"""
+        async def message_to_bot():
+            if msg.content:
+                if msg.content[0] == ';':
+                    return
+            if (msg.channel == msg.author.dm_channel and msg.author.id not in [202995638860906496, 414873201349361664]) \
+                    or '270366726737231884' in msg.content:
+                if isinstance(msg.channel, discord.DMChannel):
+                    embed = hf.green_embed(f"DM from {msg.author.mention} "
+                                           f"({msg.author.name}#{msg.author.discriminator}) - "
+                                           f"[Jump URL]({msg.jump_url})")
+                    async for message in msg.channel.history(limit=2):
+                        if 'report' in message.content.casefold() and message.author == self.bot.user:
+                            return
+                else:
+                    embed = hf.green_embed(f"Ping from {msg.author.mention} "
+                                           f"({msg.author.name}#{msg.author.discriminator}) in {msg.channel.mention} "
+                                           f"({msg.guild.name}) - [Jump URL]({msg.jump_url})")
+                if msg.content:
+                    embed.add_field(name="Text", value=msg.content[:1024])
+                if msg.content[1024:]:
+                    embed.add_field(name="Text pt. 2", value=msg.content[1024:])
+                if msg.attachments:
+                    for attachment in msg.attachments:
+                        embed.add_field(name="Attachment", value=attachment.url)
+
+                channel_id = str(msg.channel.id)
+                length = len(channel_id)
+                i = [channel_id[round(0 * length / 3): round(1 * length / 3)],
+                     channel_id[round(1 * length / 3): round(2 * length / 3)],
+                     channel_id[round(2 * length / 3): round(3 * length / 3)]]
+                color = {'r': int(i[0]) % 255, 'g': int(i[1]) % 255, 'b': int(i[2]) % 255}
+                embed.color = discord.Color.from_rgb(color['r'], color['g'], color['b'])
+
+                spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
+                await spam_chan.send(f"{msg.channel.id} <@202995638860906496>", embed=embed)
+
+        await message_to_bot()
+
+        """Message as the bot"""
+
+        async def message_as_bot():
+            if isinstance(msg.channel, discord.DMChannel) \
+                    and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
+                await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
+
+        await message_as_bot()
+
+        """Replace tatsumaki/nadeko serverinfo posts"""
+        async def replace_tatsumaki_posts():
+            if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
+                if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, 275146036178059265]:
+                    new_ctx = await self.bot.get_context(msg)
+                    await new_ctx.invoke(self.serverinfo)
+
+        await replace_tatsumaki_posts()
+
+        """Ping me if someone says my name"""
+        async def mention_ping():
+            cont = str(msg.content)
+            if msg.author.bot or msg.author.id == 202995638860906496:
+                return
+
+            found_word = False
+            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold']
+            for word in ignored_words:
+                if word in cont.casefold():  # why do people say these so often...
+                    cont = re.sub(word, '', cont, flags=re.IGNORECASE)
+                if msg.guild:
+                    if msg.guild.id == SP_SERVER_ID:
+                        cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
+
+            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来来', '来雷', '雷来']
+            for word in to_check_words:
+                if word in cont.casefold():
+                    found_word = True
+
+            if found_word:
+                await self.bot.spamChan.send(
+                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'\n{msg.content}'
+                    f'\n{msg.jump_url} <@202995638860906496>'[:2000])
+
+        await mention_ping()
+
+        ##########################################
+
+        if not msg.guild:  # all code after this has msg.guild requirement
+            return
+
+        ##########################################
+
+        """Self mute"""
+        try:
+            if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
+                try:
+                    await msg.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+        except KeyError:
+            pass
+
+        """check for servers of banned IDs"""
+        async def check_guilds():
+            if msg.guild.id == MODCHAT_SERVER_ID:
+                async def check_user(content):
+                    bans_channel = msg.channel
+                    re_result = re.findall('(?:^| |\n)(\d{17,22})', content)
+                    users = []
+                    if re_result:
+                        for user_id in [int(user_id) for user_id in re_result]:
+                            if user_id == 270366726737231884:
+                                continue
+                            user = self.bot.get_user(user_id)
+                            if user:
+                                users.append(user)
+                    for user in users:
+                        await hf.ban_check_servers(self.bot, bans_channel, user)
+
+                await check_user(msg.content)
+                for embed in msg.embeds:
+                    if embed.description:
+                        await check_user(embed.description)
+
+        await check_guilds()
+
+        """chinese server banned words"""
+        words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
+                 '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
+                 '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
+        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, 320439136236601344, 275146036178059265]:
+            word_count = 0
+            for word in words:
+                if word in msg.content:
+                    word_count += 1
+                if word_count == 5:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                    log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
+                    if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
+                        try:
+                            await msg.delete()
+                        except discord.Forbidden:
+                            await hf.safe_send(mod_channel,
+                                               f"Rai is lacking the permission to delete messages for the Chinese "
+                                               f"spam message.")
+                        except discord.NotFound:
+                            pass
+
+                        # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
+                        #                       "get their internet shut down or get them arrested or anything.  "
+                        #                       "It's just annoying, so please stop trying it.")
+                        try:
+                            await msg.author.ban(reason=f"*by* Rai\n"
+                                                        f"**Reason: **Automatic ban: Chinese banned words spam\n"
+                                                        f"{msg.content[:100]}")
+                        except discord.Forbidden:
+                            await hf.safe_send(mod_channel,
+                                               f"I tried to ban someone for the Chinese spam message, but I lack "
+                                               f"the permission to ban users.")
+
+                        await hf.safe_send(log_channel, f"Banned {msg.author.name} for the banned words spam message."
+                                                        f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                                        f"\n```{msg.content}"[:1850] + '```')
+
+                        break
+                    else:
+                        await hf.safe_send(mod_channel,
+                                           f"Warning: {msg.author.name} may have said the banned words spam message"
+                                           f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                           f"\n```{msg.content}"[:1995] + '```')
+                        break
+
+        """best sex dating"""
+        async def spam_account_bans():
+            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
+            try:
+                for word in words:
+                    if word in msg.content:
+                        time_ago = datetime.utcnow() - msg.author.joined_at
+                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by {msg.author.name}" \
+                                   f" (joined {time_ago.seconds//3600}h {time_ago.seconds%3600//60}m ago [{time_ago}])" \
+                                   f"```{msg.content}```"
+                        await self.bot.get_user(self.bot.owner_id).send(msg_text)
+                        if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
+                            return
+                        if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
+                            if time_ago < timedelta(minutes=10) or \
+                                    (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
+                                if msg.author.id in [202995638860906496, 414873201349361664]:
+                                    return
+                                await msg.author.ban(reason=f'For posting spam link: {msg.content}',
+                                                     delete_message_days=1)
+                                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
+                                channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+                                emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
+                                emb.add_field(name="Reason", value=msg.content)
+                                await hf.safe_send(channel, embed=emb)
+                                created_ago = datetime.utcnow() - msg.author.created_at
+                                joined_ago = datetime.utcnow() - msg.author.joined_at
+                                message = f"**Banned a user for posting a {word} link.**" \
+                                          f"\n**ID:** {msg.author.id}" \
+                                          f"\n**Server:** {msg.author.guild.name}" \
+                                          f"\n**Name:** {msg.author.name} {msg.author.mention}" \
+                                          f"\n**Account creation:** {msg.author.created_at} " \
+                                          f"({created_ago.days}d {created_ago.seconds//3600}h ago)" \
+                                          f"\n**Server join:** {msg.author.joined_at} " \
+                                          f"({joined_ago.days}d {joined_ago.seconds//3600}h ago)" \
+                                          f"\n**Message:** {msg.content}"
+                                emb2 = hf.red_embed(message)
+                                emb2.color = discord.Color(int('000000', 16))
+                                await self.bot.get_channel(BANS_CHANNEL_ID).send(embed=emb2)
+                                if str(msg.guild.id) in self.bot.db['bans']:
+                                    if self.bot.db['bans'][str(msg.guild.id)]['channel']:
+                                        channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
+                                        await self.bot.get_channel(channel_id).send(embed=emb2)
+
+            except KeyError as e:
+                print(f'>>passed for key error on amazingsexdating: {e}<<')
+                pass
+            except AttributeError as e:
+                print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
+                pass
+
+        await spam_account_bans()
+
+        """spanish server welcome channel module"""
+        async def smart_welcome(msg):
+            if msg.channel.id == SP_SERVER_ID:
+                content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
+                for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
+                    if content == word:
+                        return
+                if msg.content == '<@270366726737231884>':  # ping to Rai
+                    return
+                english_role = msg.guild.get_role(243853718758359040)
+                spanish_role = msg.guild.get_role(243854128424550401)
+                other_role = msg.guild.get_role(247020385730691073)
+                for role in [english_role, spanish_role, other_role]:
+                    if role in msg.author.roles:
+                        return
+                if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
+                    return
+
+                english = ['english', 'inglés', 'anglohablante', 'angloparlante']
+                spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante', 'castellano']
+                other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
+                         'brazil', 'portuguesa', 'brazilian']
+                both = ['both', 'ambos', 'los dos']
+                txt1 = ''
+                bools = [0, 0, 0, 0]  # eng, sp, other, both
+                split = content.split()
+
+                def check_language(language, index):
+                    skip_next_word = False
+                    for language_word in language:
+                        for content_word in split:
+                            if len(content_word) <= 3:
+                                continue
+                            if content_word in ['there']:
+                                continue
+                            if skip_next_word:
+                                skip_next_word = False
+                                continue
+                            if content_word.startswith("learn") or content_word.startswith('aprend') \
+                                    or content_word.startswith('estud') or content_word.startswith('stud') or \
+                                    content_word.startswith('fluent'):
+                                skip_next_word = True
+                                continue
+                            if LDist(language_word, content_word) < 3:
+                                bools[index] += 1
+
+                check_language(english, 0)
+                check_language(spanish, 1)
+                check_language(other, 2)
+                check_language(both, 3)
+
+                bool_results = 0
+                for bool in bools:
+                    if bool:
+                        bool_results += 1
+                if bool_results != 1:
+                    await msg.channel.send(f"{msg.author.mention}\n"
+                                           f"Hello! Welcome to the server!          Is your **native language**: "
+                                           f"__English__, __Spanish__, __both__, or __neither__?\n"
+                                           f"¡Hola! ¡Bienvenido(a) al servidor!    ¿Tu **idioma materno** es: "
+                                           f"__el inglés__, __el español__, __ambos__ u __otro__?")
+                    return
+
+                if msg.content.startswith(';') or msg.content.startswith('.'):
+                    return
+
+                if bools[0]:
+                    txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
+                    await msg.author.add_roles(english_role)
+                if bools[1]:
+                    txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
+                    await msg.author.add_roles(spanish_role)
+                if bools[2]:
+                    txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
+                    await msg.author.add_roles(other_role)
+                if bools[3]:
+                    txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
+                    await msg.author.add_roles(english_role, spanish_role)
+
+                txt2 = "You can add more roles in <#703075065016877066>:\n" \
+                       "Puedes añadirte más en <#703075065016877066>:\n\n" \
+                       "Before using the server, please read the rules in <#243859172268048385>.\n" \
+                       "Antes de usar el servidor, por favor lee las reglas en <#499544213466120192>."
+                await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
+
+        await smart_welcome(msg)
+
+        """mods ping on spanish server"""
+        if msg.guild.id == SP_SERVER_ID:
+            if '<@&642782671109488641>' in msg.content:
+                em = discord.Embed(title=f"Staff Ping",
+                                   description=f"From {msg.author.mention} ({msg.author.name}) "
+                                               f"in {msg.channel.mention}\n{msg.jump_url}",
+                                   color=discord.Color(int('FFAA00', 16)),
+                                   timestamp=datetime.utcnow())
+                em.add_field(name="Content", value=f"{msg.content}\n⁣".replace('<@&642782671109488641>', ''))
+                for user in self.bot.db['staff_ping'][str(SP_SERVER_ID)]:
+                    await hf.safe_send(self.bot.get_user(user), embed=em)
+                await hf.safe_send(msg.guild.get_channel(643077231534407690), embed=em)
+
+        """Replace .mute on spanish server"""
+        if msg.guild.id == SP_SERVER_ID:
+            if msg.content.startswith('.mute'):
+                ctx = await self.bot.get_context(msg)
+                if not hf.submod_check(ctx):
+                    return
+                args = msg.content.split()[1:]
+                if len(args) == 1:
+                    await ctx.invoke(self.bot.get_command('mute'), args[0])
+                elif len(args) > 1:
+                    await ctx.invoke(self.bot.get_command('mute'), args[0], member=' '.join(args[1:]))
+                else:
+                    await hf.safe_send(ctx, "Use `;mute` instead")
+
+        """super_watch"""
+        async def super_watch():
+            try:
+                config = self.bot.db['super_watch'][str(msg.guild.id)]
+            except KeyError:
+                return
+            if str(msg.author.id) in config['users']:
+                desc = "❗ "
+                which = 'sw'
+            elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
+                minutes_ago_created = int(((datetime.utcnow() - msg.author.created_at).total_seconds()) // 60)
+                if minutes_ago_created > 60 or msg.channel.id == 243838819743432704:
+                    return
+                desc = '🆕 '
+                which = 'new'
+            else:
+                return
+
+            desc += f"**{msg.author.name}#{msg.author.discriminator}** ({msg.author.id})"
+            emb = discord.Embed(description=desc, color=0x00FFFF, timestamp=datetime.utcnow())
+            emb.set_footer(text=f"#{msg.channel.name}")
+
+            link = f"\n([Jump URL]({msg.jump_url})"
+            if which == 'sw':
+                if config['users'][str(msg.author.id)]:
+                    link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
+            link += ')'
+            emb.add_field(name="Message:", value=msg.content[:2000-len(link)] + link)
+
+            await hf.safe_send(self.bot.get_channel(config['channel']), embed=emb)
+        await super_watch()
+
+        """Lang check: will check if above 3 characters + hardcore, or if above 15 characters + stats"""
+        async def lang_check():
+            lang = None
+            hardcore = False
+            if str(msg.guild.id) not in self.bot.stats:
+                return None, False
+            stripped_msg = hf.rem_emoji_url(msg)
+            check_lang = False
+
+            if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
+                if stripped_msg[0] not in '=;>' and len(stripped_msg) > 3:
+                    if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                        hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
+                        if hardcore_role in msg.author.roles:
+                            check_lang = True
+                            hardcore = True
+
+            if str(msg.guild.id) in self.bot.stats:
+                if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
+                    check_lang = True
+
+            if check_lang:
+                try:
+                    pass
+                    lang = await hf.detect_language(stripped_msg)
+                except (textblob.exceptions.TranslatorError, HTTPError):
+                    pass
+            return lang, hardcore
+        lang, hardcore = await lang_check()
+
+        """Message counting"""
+        # 'stats':
+        #     guild id: str:
+        #         'enable' = True/False
+        #         'messages' (for ,u):
+        #             {20200403:
+        #                 {user id: str:
+        #                   'emoji': {emoji1: 1, emoji2: 3},
+        #                   'lang': {'eng': 25, 'sp': 30},
+        #                   'channels': {
+        #                     channel id: str: 30,
+        #                     channel id: str: 20}
+        #                 user_id2:
+        #                   emoji: {emoji1: 1, emoji2: 3},
+        #                   lang: {'eng': 25, 'sp': 30},
+        #                   channels: {
+        #                     channel1: 40,
+        #                     channel2: 10}
+        #                 ...}
+        #             20200404:
+        #                 {user_id1:
+        #                   emoji: {emoji1: 1, emoji2: 3},
+        #                   lang: {'eng': 25, 'sp': 30},
+        #                   channels: {
+        #                     channel1: 30,
+        #                     channel2: 20}
+        #                 user_id2:
+        #                   emoji: {emoji1: 1, emoji2: 3},
+        #                   lang: {'eng': 25, 'sp': 30},
+        #                   channels: {
+        #                     channel1: 40,
+        #                     channel2: 10}
+        #                 ...}
+        #             ...
+        async def msg_count():
+            if msg.author.bot:
+                return
+            if str(msg.guild.id) not in self.bot.stats:
+                return
+            if not self.bot.stats[str(msg.guild.id)]['enable']:
+                return
+
+            config = self.bot.stats[str(msg.guild.id)]
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            if date_str not in config['messages']:
+                config['messages'][date_str] = {}
+            today = config['messages'][date_str]
+            author = str(msg.author.id)
+            channel = str(msg.channel.id)
+
+            # message count
+            today.setdefault(author, {})
+            today[author].setdefault('channels', {})
+            today[author]['channels'][channel] = today[author]['channels'].get(channel, 0) + 1
+
+            # emojis
+            emojis = re.findall(':([A-Za-z0-9\_]+):', msg.content)
+            for character in msg.content:
+                if hf.is_emoji(character):
+                    emojis.append(character)
+                if hf.is_ignored_emoji(character) and character not in self.ignored_characters:
+                    self.ignored_characters.append(character)
+
+            if emojis:
+                today[author].setdefault('emoji', {})
+                for emoji in emojis:
+                    if emoji in ['、']:
+                        continue
+                    today[author]['emoji'][emoji] = today[author]['emoji'].get(emoji, 0) + 1
+            if lang:  # language is detected in separate lang_check function
+                today[author].setdefault('lang', {})
+                today[author]['lang'][lang] = today[author]['lang'].get(lang, 0) + 1
+        await msg_count()
+
+        """Ultra Hardcore"""
+        await hf.uhc_check(msg)
+
+        """Chinese server hardcore mode"""
+        if msg.guild.id == CH_SERVER_ID:
+            if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore'][str(CH_SERVER_ID)][
+                'ignore']:
+                if len(msg.content) > 3:
+                    try:
+                        role = msg.guild.get_role(self.bot.db['hardcore'][str(msg.guild.id)]['role'])
+                    except (KeyError, AttributeError):
+                        return
+                    if not hasattr(msg.author, 'roles'):
+                        return
+                    if role in msg.author.roles:
+                        learning_eng = msg.guild.get_role(266778623631949826)
+                        ratio = hf.jpenratio(msg.content)
+                        if ratio is not None:
+                            if learning_eng in msg.author.roles:
+                                if ratio < .55:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 30:
+                                        await hf.long_deleted_msg_notification(msg)
+                            else:
+                                if ratio > .45:
+                                    try:
+                                        await msg.delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    if len(msg.content) > 60:
+                                        await hf.long_deleted_msg_notification(msg)
+
+        """Spanish server hardcore"""
+        async def spanish_server_hardcore():
+            # if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(msg.content):
+            #     if msg.content[0] not in '=;' and len(msg.content) > 3:
+            #         if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+            #             role = msg.guild.get_role(526089127611990046)
+            #             if role in msg.author.roles:
+            #
+            #                 try:
+            #                     i_see = hf.rem_emoji_url(msg)  # i have no idea why I named the variable this
+            #                     lang_used = await hf.detect_language(i_see)  # nor what it means
+            #                 except textblob.exceptions.TranslatorError:
+            #                     return
+            if not hardcore:  # this should be set in the lang_check function
+                return
+            learning_eng = msg.guild.get_role(247021017740869632)
+            learning_sp = msg.guild.get_role(297415063302832128)
+            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+                if lang == 'es':
+                    try:
+                        await msg.delete()
+                    except discord.errors.NotFound:
+                        return
+                    if len(msg.content) > 30:
+                        await hf.long_deleted_msg_notification(msg)
+            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+                if lang == 'en':
+                    try:
+                        await msg.delete()
+                    except discord.errors.NotFound:
+                        return
+                    if len(msg.content) > 30:
+                        await hf.long_deleted_msg_notification(msg)
+            else:
+                try:
+                    await msg.author.send("You have hardcore enabled but you don't have the proper "
+                                          "learning role.  Please attach either 'Learning Spanish' or "
+                                          "'Learning English' to properly use hardcore mode, or take "
+                                          "off hardcore mode using the reactions in the server rules "
+                                          "page")
+                except discord.errors.Forbidden:
+                    pass
+
+        await spanish_server_hardcore()
+
     @commands.command(hidden=True)
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.bot_has_permissions(send_messages=True)
     async def help(self, ctx, *, arg=''):
         async def check_command(command):
             try:
                 a = await command.can_run(ctx)
             except commands.BotMissingPermissions:
-                a = True
-            b = command.hidden
-            return a and not b
+                a = False
+            except commands.CheckFailure:
+                a = False
+            b = not command.hidden
+            return a and b
         
         if arg:  # user wants help on a specific command/cog
             requested = self.bot.get_command(arg)
@@ -81,6 +662,7 @@ class General(commands.Cog):
                     message += requested.help
                 emb = hf.green_embed(message)
                 await hf.safe_send(ctx, embed=emb)
+
             else:  # requested a cog
                 message = f"**;{requested.qualified_name}**\n"
                 c_list = sorted([c.name for c in requested.get_commands() if await check_command(c)])
@@ -91,6 +673,7 @@ class General(commands.Cog):
                 message += requested.description
                 emb = hf.green_embed(message)
                 await hf.safe_send(ctx, embed=emb)
+
         else:  # user wants to see full command list
             cmd_dict = {}
             to_send = "Type `;help <command>` for more info on any command or category. For (subcommands), chain with" \
@@ -275,530 +858,6 @@ class General(commands.Cog):
                 await hf.safe_send(u, f"New chapter: https://loveheaven.net/{result['href']}")
             self.bot.db['lhscan'][url]['last'] = chapter
 
-    @commands.Cog.listener()
-    async def on_message(self, msg):
-        if msg.author.bot:
-            return
-
-        # "Experimental global watch list"
-        # if msg.author.id == 202979770235879427:
-        #     channel = self.bot.get_channel(374489744974807040)
-        #     await hf.safe_send(channel, f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
-
-        """Messages/pings to Rai"""
-
-        async def message_to_bot():
-            if (msg.channel == msg.author.dm_channel and msg.author.id not in [202995638860906496, 414873201349361664]) \
-                    or '270366726737231884' in msg.content:
-                if isinstance(msg.channel, discord.DMChannel):
-                    embed = hf.green_embed(f"DM from {msg.author.mention} "
-                                           f"({msg.author.name}#{msg.author.discriminator}) - "
-                                           f"[Jump URL]({msg.jump_url})")
-                    async for message in msg.channel.history(limit=2):
-                        if 'report' in message.content.casefold() and message.author == self.bot.user:
-                            return
-                else:
-                    embed = hf.green_embed(f"Ping from {msg.author.mention} "
-                                           f"({msg.author.name}#{msg.author.discriminator}) in {msg.channel.mention} "
-                                           f"({msg.guild.name}) - [Jump URL]({msg.jump_url})")
-                if msg.content:
-                    embed.add_field(name="Text", value=msg.content[:1024])
-                if msg.content[1024:]:
-                    embed.add_field(name="Text pt. 2", value=msg.content[1024:])
-                if msg.attachments:
-                    for attachment in msg.attachments:
-                        embed.add_field(name="Attachment", value=attachment.url)
-
-                channel_id = str(msg.channel.id)
-                length = len(channel_id)
-                i = [channel_id[round(0 * length / 3): round(1 * length / 3)],
-                     channel_id[round(1 * length / 3): round(2 * length / 3)],
-                     channel_id[round(2 * length / 3): round(3 * length / 3)]]
-                color = {'r': int(i[0]) % 255, 'g': int(i[1]) % 255, 'b': int(i[2]) % 255}
-                embed.color = discord.Color.from_rgb(color['r'], color['g'], color['b'])
-
-                spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
-                await spam_chan.send(f"{msg.channel.id} <@202995638860906496>", embed=embed)
-
-        await message_to_bot()
-
-        """Message as the bot"""
-
-        async def message_as_bot():
-            if isinstance(msg.channel, discord.DMChannel) \
-                    and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
-                await self.bot.get_channel(int(msg.content[4:22])).send(str(msg.content[22:]))
-
-        await message_as_bot()
-
-        """Replace tatsumaki/nadeko serverinfo posts"""
-
-        async def replace_tatsumaki_posts():
-            if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
-                if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, 275146036178059265]:
-                    new_ctx = await self.bot.get_context(msg)
-                    await new_ctx.invoke(self.serverinfo)
-
-        await replace_tatsumaki_posts()
-
-        """Ping me if someone says my name"""
-
-        async def mention_ping():
-            cont = str(msg.content)
-            if msg.author.bot or msg.author.id == 202995638860906496:
-                return
-
-            found_word = False
-            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold']
-            for word in ignored_words:
-                if word in cont.casefold():  # why do people say these so often...
-                    cont = re.sub(word, '', cont, flags=re.IGNORECASE)
-                if msg.guild.id == SP_SERVER_ID:
-                    cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
-                    
-            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来来', '来雷', '雷来']
-            for word in to_check_words:
-                if word in cont.casefold():
-                    found_word = True
-
-            if found_word:
-                await self.bot.spamChan.send(
-                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
-                    f'\n{msg.content}'
-                    f'\n{msg.jump_url} <@202995638860906496>'[:2000])
-
-        await mention_ping()
-
-        ##########################################
-
-        if not msg.guild:  # all code after this has msg.guild requirement
-            return
-
-        ##########################################
-
-        """Self mute"""
-        try:
-            if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
-                try:
-                    await msg.delete()
-                except discord.NotFound:
-                    pass
-        except KeyError:
-            pass
-
-        """check for servers of banned IDs"""
-        async def check_guilds():
-            if msg.guild.id == MODCHAT_SERVER_ID:
-                async def check_user(content):
-                    bans_channel = msg.channel
-                    re_result = re.findall('(?:^| |\n)(\d{17,22})', content)
-                    users = []
-                    if re_result:
-                        for user_id in [int(user_id) for user_id in re_result]:
-                            if user_id == 270366726737231884:
-                                continue
-                            user = self.bot.get_user(user_id)
-                            if user:
-                                users.append(user)
-                    for user in users:
-                        await hf.ban_check_servers(self.bot, bans_channel, user)
-
-                await check_user(msg.content)
-                for embed in msg.embeds:
-                    if embed.description:
-                        await check_user(embed.description)
-
-        await check_guilds()
-
-        """chinese server banned words"""
-        words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
-                 '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
-                 '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id in [266695661670367232, 494502230385491978, 320439136236601344, 275146036178059265]:
-            word_count = 0
-            for word in words:
-                if word in msg.content:
-                    word_count += 1
-                if word_count == 5:
-                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
-                    log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
-                    if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
-                        try:
-                            await msg.delete()
-                        except discord.Forbidden:
-                            await hf.safe_send(mod_channel,
-                                               f"Rai is lacking the permission to delete messages for the Chinese "
-                                               f"spam message.")
-                        except discord.NotFound:
-                            pass
-
-                        # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
-                        #                       "get their internet shut down or get them arrested or anything.  "
-                        #                       "It's just annoying, so please stop trying it.")
-                        try:
-                            await msg.author.ban(reason=f"*by* Rai\n"
-                                                        f"**Reason: **Automatic ban: Chinese banned words spam\n"
-                                                        f"{msg.content[:100]}")
-                        except discord.Forbidden:
-                            await hf.safe_send(mod_channel,
-                                               f"I tried to ban someone for the Chinese spam message, but I lack "
-                                               f"the permission to ban users.")
-
-                        await hf.safe_send(log_channel, f"Banned {msg.author.name} for the banned words spam message."
-                                                        f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                                        f"\n```{msg.content}"[:1850] + '```')
-
-                        break
-                    else:
-                        await hf.safe_send(mod_channel,
-                                           f"Warning: {msg.author.name} may have said the banned words spam message"
-                                           f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                           f"\n```{msg.content}"[:1995] + '```')
-                        break
-
-        """best sex dating"""
-
-        async def spam_account_bans():
-            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
-            try:
-                for word in words:
-                    if word in msg.content:
-                        time_ago = datetime.utcnow() - msg.author.joined_at
-                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by {msg.author.name}" \
-                                   f" (joined {time_ago.seconds//3600}h {time_ago.seconds%3600//60}m ago [{time_ago}])" \
-                                   f"```{msg.content}```"
-                        await self.bot.get_user(self.bot.owner_id).send(msg_text)
-                        if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
-                            return
-                        if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
-                            if time_ago < timedelta(minutes=10) or \
-                                    (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
-                                if msg.author.id in [202995638860906496, 414873201349361664]:
-                                    return
-                                await msg.author.ban(reason=f'For posting spam link: {msg.content}',
-                                                     delete_message_days=1)
-                                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
-                                channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-                                emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
-                                emb.add_field(name="Reason", value=msg.content)
-                                await hf.safe_send(channel, embed=emb)
-                                created_ago = datetime.utcnow() - msg.author.created_at
-                                joined_ago = datetime.utcnow() - msg.author.joined_at
-                                message = f"**Banned a user for posting a {word} link.**" \
-                                          f"\n**ID:** {msg.author.id}" \
-                                          f"\n**Server:** {msg.author.guild.name}" \
-                                          f"\n**Name:** {msg.author.name} {msg.author.mention}" \
-                                          f"\n**Account creation:** {msg.author.created_at} " \
-                                          f"({created_ago.days}d {created_ago.seconds//3600}h ago)" \
-                                          f"\n**Server join:** {msg.author.joined_at} " \
-                                          f"({joined_ago.days}d {joined_ago.seconds//3600}h ago)" \
-                                          f"\n**Message:** {msg.content}"
-                                emb2 = hf.red_embed(message)
-                                emb2.color = discord.Color(int('000000', 16))
-                                await self.bot.get_channel(BANS_CHANNEL_ID).send(embed=emb2)
-                                if str(msg.guild.id) in self.bot.db['bans']:
-                                    if self.bot.db['bans'][str(msg.guild.id)]['channel']:
-                                        channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
-                                        await self.bot.get_channel(channel_id).send(embed=emb2)
-
-            except KeyError as e:
-                print(f'>>passed for key error on amazingsexdating: {e}<<')
-                pass
-            except AttributeError as e:
-                print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
-                pass
-
-        await spam_account_bans()
-
-        async def smart_welcome(msg):
-            if msg.channel.id == SP_SERVER_ID:
-                content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
-                for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
-                    if content == word:
-                        return
-                if msg.content == '<@270366726737231884>':  # ping to Rai
-                    return
-                english_role = msg.guild.get_role(243853718758359040)
-                spanish_role = msg.guild.get_role(243854128424550401)
-                other_role = msg.guild.get_role(247020385730691073)
-                for role in [english_role, spanish_role, other_role]:
-                    if role in msg.author.roles:
-                        return
-                if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
-                    return
-
-                english = ['english', 'inglés', 'anglohablante', 'angloparlante']
-                spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante', 'castellano']
-                other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
-                         'brazil', 'portuguesa', 'brazilian']
-                both = ['both', 'ambos', 'los dos']
-
-                txt1 = ''
-                bools = [0, 0, 0, 0]  # eng, sp, other, both
-                split = content.split()
-
-                def check_language(language, index):
-                    skip_next_word = False
-                    for language_word in language:
-                        for content_word in split:
-                            if skip_next_word:
-                                skip_next_word = False
-                                continue
-                            if content_word.startswith("learn") or content_word.startswith('aprend') \
-                                    or content_word.startswith('estud') or content_word.startswith('stud') or \
-                                    content_word.startswith('fluent'):
-                                skip_next_word = True
-                                continue
-                            if LDist(language_word, content_word) < 3:
-                                bools[index] += 1
-
-                check_language(english, 0)
-                check_language(spanish, 1)
-                check_language(other, 2)
-                check_language(both, 3)
-
-                bool_results = 0
-                for bool in bools:
-                    if bool:
-                        bool_results += 1
-                if bool_results != 1:
-                    await msg.channel.send(f"Hello! Welcome to the {msg.guild.name}, {msg.author.mention}!"
-                                           f" Is your native language English, Spanish, both, or neither?\n\n"
-                                           f"¡Hola! ¡Bienvenido(a) a {msg.guild.name}, {msg.author.mention}!"
-                                           f" ¿Tu idioma materno es el inglés, el español, ambos u otro?")
-                    return
-
-                if msg.content.startswith(';') or msg.content.startswith('.'):
-                    return
-
-                if bools[0]:
-                    txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
-                    await msg.author.add_roles(english_role)
-                if bools[1]:
-                    txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
-                    await msg.author.add_roles(spanish_role)
-                if bools[2]:
-                    txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
-                    await msg.author.add_roles(other_role)
-                if bools[3]:
-                    txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
-                    await msg.author.add_roles(english_role, spanish_role)
-
-                txt2 = "You can add more roles/edit the roles I gave you by using the following commands:\n" \
-                       "Puedes añadirte más roles/editar los roles que te di usando los siguientes comandos:\n\n" \
-                       "`;iam <role name>` - Adds a role/Te añade un rol!\n" \
-                       "    (example/ejemplo: `;iam English Native`)\n\n" \
-                       "`;iamnot <role name>` - Removes a role/Te quita un rol!\n" \
-                       "    (example/ejemplo: `;iamnot Spanish Native`)\n\n" \
-                       "The list of autoassignable roles are/Los roles autoasignables son: \n" \
-                       "    1) `English Native`, `Spanish Native`, `Other Native`\n" \
-                       "    2) `Fluent English`, `Fluent Spanish`.\n" \
-                       "    3) `Learning English`, `Learning Spanish`\n" \
-                       "For an even longer list of roles, type `;lsar`! Before using the server, please read the " \
-                       "rules in <#243859172268048385>.\n" \
-                       "¡Para visualizar todos los roles autoasignables, escribe `;lsar`! Antes de usar el servidor, " \
-                       "por favor lee las reglas en <#499544213466120192>."
-                await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
-
-        await smart_welcome(msg)
-
-        """mods ping on spanish server"""
-        if msg.guild.id == SP_SERVER_ID:
-            if '<@&258806166770024449>' in msg.content:
-                ch = self.bot.get_channel(563448201139716136)
-                me = self.bot.get_user(202995638860906496)
-                fourteen = self.bot.get_user(136444391777763328)
-                em = discord.Embed(title=f"Mods Ping",
-                                   description=f"From {msg.author.mention} ({msg.author.name}) "
-                                               f"in {msg.channel.mention}\n{msg.jump_url}",
-                                   color=discord.Color(int('FFAA00', 16)),
-                                   timestamp=datetime.utcnow())
-                em.add_field(name="Content", value=f"{msg.content}\n⁣".replace('<@&258806166770024449>', ''))
-                await ch.send(embed=em)
-                await me.send(embed=em)
-                await fourteen.send(embed=em)
-
-        """Replace .mute on spanish server"""
-        if msg.guild.id == SP_SERVER_ID:
-            if msg.content.startswith('.mute'):
-                ctx = await self.bot.get_context(msg)
-                if not hf.submod_check(ctx):
-                    return
-                args = msg.content.split()[1:]
-                if len(args) == 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args[0])
-                elif len(args) > 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args[0], member=' '.join(args[1:]))
-                else:
-                    await hf.safe_send(ctx, "Use `;mute` instead")
-
-        """super_watch"""
-        try:
-            if msg.author.id in self.bot.db['super_watch'][str(msg.guild.id)]['users']:
-                channel = self.bot.get_channel(self.bot.db['super_watch'][str(msg.guild.id)]['channel'])
-                await hf.safe_send(channel,
-                                   f"<#{msg.channel.id}> Message from super_watch user {msg.author.name}: "
-                                   f"\n{msg.content}")
-        except KeyError:
-            pass
-
-        """Message counting"""
-
-        # stats:
-        #     guild1:
-        #         enable = True/False
-        #         messages (for ,u):
-        #             {5/6/2019:
-        #                 {user_id1:
-        #                   emoji: {emoji1: 1, emoji2: 3}
-        #                   lang: {'eng': 25, 'sp': 30}
-        #                     channel1: 30,
-        #                     channel2: 20
-        #                 user_id2:
-        #                   emoji: {emoji1: 1, emoji2: 3}
-        #                   lang: {'eng': 25, 'sp': 30}
-        #                     channel1: 40,
-        #                     channel2: 10
-        #                 ...}
-        #             5/5/2019:
-        #                 {user_id1:
-        #                   emoji: {emoji1: 1, emoji2: 3}
-        #                   lang: {'eng': 25, 'sp': 30}
-        #                     channel1: 30,
-        #                     channel2: 20
-        #                 user_id2:
-        #                   emoji: {emoji1: 1, emoji2: 3}
-        #                   lang: {'eng': 25, 'sp': 30}
-        #                     channel1: 40,
-        #                     channel2: 10
-        #                 ...}
-        #             ...
-        def msg_count():
-            if msg.author.bot:
-                return
-            if str(msg.guild.id) not in self.bot.stats:
-                return
-            if not self.bot.stats[str(msg.guild.id)]['enable']:
-                return
-
-            config = self.bot.stats[str(msg.guild.id)]
-            date_str = datetime.utcnow().strftime("%Y%m%d")
-            if date_str not in config['messages']:
-                config['messages'][date_str] = {}
-            today = config['messages'][date_str]
-            author = str(msg.author.id)
-            channel = str(msg.channel.id)
-
-            # emojis
-            emojis = re.findall(':([A-Za-z0-9\_]+):', msg.content)
-            for character in msg.content:
-                if hf.is_emoji(character):
-                    emojis.append(character)
-                if hf.is_ignored_emoji(character) and character not in self.ignored_characters:
-                    self.ignored_characters.append(character)
-
-            # languages
-            lang_used = None
-            stripped_msg = hf.rem_emoji_url(msg)
-            if len(stripped_msg) > 15:
-                try:
-                    lang_used = tb(stripped_msg).detect_language()
-                except (textblob.exceptions.TranslatorError, HTTPError):
-                    pass
-
-            today.setdefault(author, {})
-            today[author][channel] = today[author].get(channel, 0) + 1
-            today[author].setdefault('emoji', {})
-            for emoji in emojis:
-                if emoji in ['、']:
-                    continue
-                today[author]['emoji'][emoji] = today[author]['emoji'].get(emoji, 0) + 1
-            if lang_used:
-                today[author].setdefault('lang', {})
-                today[author]['lang'][lang_used] = today[author]['lang'].get(lang_used, 0) + 1
-
-        msg_count()
-
-        """Ultra Hardcore"""
-        await hf.uhc_check(msg)
-
-        """Chinese server hardcore mode"""
-        if msg.guild.id == 266695661670367232:
-            if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore']["266695661670367232"][
-                'ignore']:
-                if len(msg.content) > 3:
-                    try:
-                        ROLE_ID = self.bot.db['hardcore'][str(msg.guild.id)]['role']
-                        role = msg.guild.get_role(ROLE_ID)
-                    except KeyError:
-                        return
-                    except AttributeError:
-                        return
-                    if not hasattr(msg.author, 'roles'):
-                        return
-                    if role in msg.author.roles:
-                        learning_eng = msg.guild.get_role(266778623631949826)
-                        ratio = hf.jpenratio(msg)
-                        if ratio is not None:
-                            if learning_eng in msg.author.roles:
-                                if ratio < .55:
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        pass
-                                    if len(msg.content) > 30:
-                                        await hf.long_deleted_msg_notification(msg)
-                            else:
-                                if ratio > .45:
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        pass
-                                    if len(msg.content) > 60:
-                                        await hf.long_deleted_msg_notification(msg)
-
-        """Spanish server hardcore"""
-        async def spanish_server_hardcore():
-            if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(msg.content):
-                if msg.content[0] not in '=;' and len(msg.content) > 3:
-                    if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
-                        role = msg.guild.get_role(526089127611990046)
-                        if role in msg.author.roles:
-                            learning_eng = msg.guild.get_role(247021017740869632)
-                            learning_sp = msg.guild.get_role(297415063302832128)
-                            try:
-                                i_see = hf.rem_emoji_url(msg)
-                                lang_used = tb(i_see).detect_language()
-                            except textblob.exceptions.TranslatorError:
-                                return
-                            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
-                                if lang_used == 'es':
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        return
-                                    if len(msg.content) > 30:
-                                        await hf.long_deleted_msg_notification(msg)
-                            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
-                                if lang_used == 'en':
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        return
-                                    if len(msg.content) > 30:
-                                        await hf.long_deleted_msg_notification(msg)
-                            else:
-                                try:
-                                    await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                                          "learning role.  Please attach either 'Learning Spanish' or "
-                                                          "'Learning English' to properly use hardcore mode, or take "
-                                                          "off hardcore mode using the reactions in the server rules "
-                                                          "page")
-                                except discord.errors.Forbidden:
-                                    pass
-
-        await spanish_server_hardcore()
-
     async def lhscan_get_chapter(self, url):
         try:
             async with aiohttp.ClientSession() as session:
@@ -811,6 +870,266 @@ class General(commands.Cog):
             return f'html_error: Error {r.status_code}: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'class': 'chapter'})
+
+    async def pm_modbot(self, msg):
+        shared_guilds = sorted([g for g in self.bot.guilds if msg.author in g.members], key=lambda x: x.name)
+        if len(shared_guilds) == 0:
+            await msg.channel.send("I couldn't find any common guilds between us. Frankly, I don't know how you're "
+                                   "messaging me. Have a nice day.")
+            return
+        elif len(shared_guilds) == 1:
+            guild = shared_guilds[0]
+        else:
+            msg_text = "Hello, thank you for messaging. We share multiple servers, so please select which "\
+                       "server you're trying to make a report to by replying with the `number` before your "\
+                       "server (for example, you could reply with the single number `3`.)"
+            index = 1
+            msg_embed = '`1)` '
+            for i_guild in shared_guilds:
+                index += 1
+                msg_embed += f"{i_guild.name}"
+                if index < len(shared_guilds) + 1:
+                    msg_embed += f"\n`{index})` "
+            await msg.channel.send(msg_text, embed=discord.Embed(description=msg_embed, color=0x00FF00))
+            try:
+                resp = await self.bot.wait_for('message',
+                                               check=lambda m: m.author == msg.author and m.channel == msg.channel,
+                                               timeout=60.0)
+            except asyncio.TimeoutError:
+                await msg.channel.send("You've waited too long. Module closing.")
+                return
+            guild_selection = re.findall("^\d{1,2}$", resp.content)
+            if guild_selection:
+                guild_selection = guild_selection[0]
+                guild = shared_guilds[int(guild_selection) - 1]
+            else:
+                await msg.channel.send("I didn't understand which guild you responded with. "
+                                       "Please respond with only a single number.")
+                return
+
+        config = self.bot.db['pmbot']
+        if str(guild.id) not in config:
+            return
+        config = config[str(guild.id)]
+
+        if config['currentuser']:
+            if msg.author.id in config['waitinglist']:
+                await msg.channel.send(
+                    "The report room is not open yet. You are still on the waiting list. If it is urgent, "
+                    "please message a mod directly.")
+
+            if config['waitinglist'] and config['currentuser'] != msg.author.id:
+                config['waitinglist'].append(msg.author.id)
+                await msg.channel.send(
+                    "There is currently someone else in the report room. You've been added to the waiting list. "
+                    "You'll be messaged when the room opens up.")
+            return
+        else:
+            config['currentuser'] = msg.author.id
+
+        report_channel = self.bot.get_channel(config['channel'])
+        try:
+            await report_channel.send(f"The user {msg.author.mention} has entered the report room. I'll relay any of "
+                                      f"their messages to this channel. Any messages you type will be sent to them.\n\n"
+                                      f"To end this chat, type `end` or `done`.\n\nTo *not* send a certain message, "
+                                      f"start the message with `_`. For example, `Hello` would be sent and `_What "
+                                      f"should we do` would not be sent.")
+        except discord.Forbidden:
+            await msg.channel.send("Sorry, actually I can't send messages to the channel the mods had setup for me "
+                                   "anymore. Please tell them to check the permissions on the channel or to run the "
+                                   "setup command again.")
+            config['currentuser'] = None
+            return
+
+        await msg.channel.send("You are now connected to the report room. Any messages you send will be relayed there, "
+                               "and you'll receive messages from the mods.")
+
+        def check(m):
+            return (m.author == msg.author and m.channel == msg.channel) or m.channel == report_channel
+        while True:
+            try:
+                resp = await self.bot.wait_for('message', check=check, timeout=21600.0)
+            except asyncio.TimeoutError:
+                cutoff_msg = "This chat has been inactive for a long time, so it has been closed. In the future, " \
+                             "type `end` or `done` to close it when you are done."
+                await report_channel.send(cutoff_msg)
+                await msg.channel.send(cutoff_msg)
+                config['currentuser'] = None
+                break
+            if resp.content[0] == '_':
+                await resp.add_reaction('🔇')
+                continue
+
+            if resp.channel == msg.channel:
+                dest = report_channel
+            else:
+                dest = msg.channel
+
+            if resp.content:
+                if resp.content in ['end', 'done']:
+                    config['currentuser'] = None
+                    await report_channel.send("Thank you, the room has been closed.")
+                    await msg.channel.send("Thank you, the room has been closed.")
+                    break
+                if dest == msg.channel:
+                    cont = f"> "
+                else:
+                    cont = f"> {msg.author.mention}: "
+                splice = 2000 - len(cont)
+                cont += resp.content[:splice]
+                if len(resp.content) > splice:
+                    cont2 = f"> ... {resp.content[splice:]}"
+                else:
+                    cont2 = None
+            else:
+                cont = cont2 = None
+
+            try:
+                if cont and len(resp.embeds) == 1:
+                    await dest.send(cont, resp.embeds[0])
+                elif cont and not resp.embeds:
+                    await dest.send(cont)
+
+                if len(resp.embeds) > 1:
+                    for embed in resp.embeds:
+                        await dest.send(embed=embed)
+
+                if resp.attachments:
+                    for attachment in resp.attachments:
+                        await dest.send(attachment.url)
+
+                if cont2:
+                    await dest.send(cont2)
+
+            except discord.Forbidden:
+                try:
+                    await report_channel.send("I couldn't send a message to the user (maybe they blocked me). "
+                                              "I have closed the chat.")
+                    config['currentuser'] = None
+                except discord.Forbidden:
+                    pass
+
+                try:
+                    await msg.channel.send("I couldn't send your message to the mods. Maybe they've locked me out of "
+                                          "the report channel. I have closed this chat.")
+                    config['currentuser'] = None
+                except discord.Forbidden:
+                    pass
+
+                break
+
+        config['currentuser'] = None
+
+    @commands.command()
+    @commands.is_owner()
+    async def get_emojis(self, ctx):
+        emojis = ctx.guild.emojis
+        index = 1
+        for emoji in emojis:
+            if emoji.animated:
+                continue
+            with open(f"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
+                await emoji.url.save(im)
+            index += 1
+
+    @commands.command()
+    @commands.is_owner()
+    async def karina(self, ctx):
+        dani = "466337067387846677"
+        karin = "325384896690388996"
+        TATSU = 172002275412279296
+        status = {dani: None, karin: None}  # will record which channel they're in
+        time = {dani: timedelta(0), karin: timedelta(0)}
+        last_join = {dani: None, karin: None}
+        times_joined = {dani: 0, karin: 0}
+        times_switched = {dani: 0, karin: 0}
+        times_left = {dani: 0, karin: 0}
+        async for msg in ctx.channel.history(limit=None, after=datetime(2019, 11, 1), before=datetime(2019, 12, 30)):
+            if msg.author.id == TATSU:  # only check messages from tatsumaki
+                embed = msg.embeds[0]
+                user = embed.fields[0].value.split("(<@")[1][:-2]  # a string with the ID of the user
+                if user not in [dani, karin]:
+                    continue
+                user_obj = self.bot.get_user(int(user))
+                desc = embed.description  # this will have the channel they joined/left
+                before = status[user]  # the channel they were in before
+                if "`joined`" in desc:  # they joined a channel
+                    channel = desc.split("voice channel **")[1][:-2]  # the channel they joined
+                    status[user] = channel
+                    last_join[user] = msg.created_at
+                    times_joined[user] += 1
+                    print(f"{msg.created_at}: {user_obj.name} joined {channel}")
+                    if status[dani] == status[karin]:  # if they are now in the same channel
+                        print(f"~~~~~~~{msg.created_at}: {user_obj.name} joined the other person's voice channel.\n")
+                elif "`switched` from" in desc:  # if they switched from one channel to another
+                    channel = desc.split("to **")[1][:-2]  # the channel they joined
+                    status[user] = channel
+                    times_switched[user] += 1
+                    print(f"{msg.created_at}: {user_obj.name} switched to {channel}")
+                    if status[dani] == status[karin]:  # if they are now in the same channel
+                        print(f"~~~~~~~{msg.created_at}: {user_obj.name}  switched to the other person's voice channel.\n")
+                elif "`left`" in desc:  # if they left voice (to see if Karin ever leaves voice because of Dani)
+                    channel = desc.split("voice channel **")[1][:-2]  # the channel they joined
+                    time[user] += msg.created_at - last_join[user]
+                    last_join[user] = None
+                    times_left[user] += 1
+                    print(f"{msg.created_at}: {user_obj.name} left {channel}")
+                    if status[dani] == status[karin]:  # if they are now in the same channel
+                        print(f"~~~~~~~{msg.created_at}: {user_obj.name}  left the voice channel with the other person.\n")
+                    status[user] = None  # set the status to None after checking if they were together
+        print(time, last_join, times_joined, times_switched, times_left)
+
+
+    @commands.group(aliases=['hc'], invoke_without_command=True)
+    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID] if ctx.guild else False)
+    async def hardcore(self, ctx):
+        """Adds/removes the hardcore role from you."""
+        role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
+        if role in ctx.author.roles:
+            await ctx.author.remove_roles(role)
+            try:
+                await hf.safe_send(ctx, "I've removed hardcore from you.")
+            except discord.Forbidden:
+                pass
+        else:
+            await ctx.author.add_roles(role)
+            await hf.safe_send(ctx, "I've added hardcore to you. You can only speak in the language you're learning.")
+
+    @hardcore.command()
+    async def ignore(self, ctx):
+        """Ignores a channel for hardcore mode."""
+        if str(ctx.guild.id) in self.bot.db['hardcore']:
+            config = self.bot.db['hardcore'][str(ctx.guild.id)]
+        else:
+            return
+        try:
+            if ctx.channel.id not in config['ignore']:
+                config['ignore'].append(ctx.channel.id)
+                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+            else:
+                config['ignore'].remove(ctx.channel.id)
+                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
+        except KeyError:
+            config['ignore'] = [ctx.channel.id]
+            await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+
+    @hardcore.command()
+    async def list(self, ctx):
+        """Lists the channels in hardcore mode."""
+        channels = []
+        try:
+            for channel_id in self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    channels.append(channel)
+                else:
+                    self.bot.db['hardcore'][str(ctx.guild.id)]['ignore'].remove(channel_id)
+                    await hf.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
+        except KeyError:
+            return
+        if channels:
+            string = "__List of channels excepted from hardcore__:\n#" + '\n#'.join([c.name for c in channels])
+            await hf.safe_send(ctx, string)
 
     @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
     async def lhscan(self, ctx, url=None):
@@ -930,21 +1249,39 @@ class General(commands.Cog):
             return
         if str(user.guild.id) not in self.bot.stats:
             return
-        if not self.bot.stats[str(user.guild.id)]['enable']:
-            return
+        if self.bot.stats[str(user.guild.id)]['enable']:
+            try:
+                emoji = reaction.emoji.name
+            except AttributeError:
+                emoji = reaction.emoji
+            config = self.bot.stats[str(user.guild.id)]
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            if date_str not in config['messages']:
+                config['messages'][date_str] = {}
+            today = config['messages'][date_str]
+            today.setdefault(str(user.id), {})
+            today[str(user.id)].setdefault('emoji', {})
+            today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+    
+    def reactionroles_get_role(self, payload, guild):
+        guild_id = str(payload.guild_id)
+        message_id = str(payload.message_id)
+        emoji = payload.emoji
+        if guild_id in self.bot.db['reactionroles']:
+            if message_id in self.bot.db['reactionroles'][guild_id]:
+                if emoji.id:
+                    emoji_str = str(emoji.id)
+                else:
+                    emoji_str = emoji.name
 
-        try:
-            emoji = reaction.emoji.name
-        except AttributeError:
-            emoji = reaction.emoji
-        config = self.bot.stats[str(user.guild.id)]
-        date_str = datetime.utcnow().strftime("%Y%m%d")
-        if date_str not in config['messages']:
-            config['messages'][date_str] = {}
-        today = config['messages'][date_str]
-        today.setdefault(str(user.id), {})
-        today[str(user.id)].setdefault('emoji', {})
-        today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+                if emoji_str not in self.bot.db['reactionroles'][guild_id][message_id]:
+                    return
+                role_id = self.bot.db['reactionroles'][guild_id][message_id][emoji_str]
+                role = guild.get_role(role_id)
+                if not role:
+                    del(self.bot.db['reactionroles'][guild_id][message_id][emoji_str])
+                    return
+                return role
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -967,8 +1304,12 @@ class General(commands.Cog):
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
                             await ctx.invoke(self.blacklist_add, args=user_id)
                 else:
-                    await hf.safe_send(ctx.author,
-                                       "Please claim residency on a server first with `;global_blacklist residency`")
+                    try:
+                        await hf.safe_send(ctx.author, "Please claim residency on a server first with "
+                                                       "`;global_blacklist residency`")
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, "Please claim residency on a server first with `;global_blacklist "
+                                                "residency`.")
                     return
 
             elif payload.channel_id == BANS_CHANNEL_ID:
@@ -996,6 +1337,8 @@ class General(commands.Cog):
                 if config['enable']:
                     guild = self.bot.get_guild(payload.guild_id)
                     role = guild.get_role(config['role'])
+                    if not 'message' in config:
+                        return
                     if payload.message_id == config['message']:
                         try:
                             await guild.get_member(payload.user_id).add_roles(role)
@@ -1005,7 +1348,7 @@ class General(commands.Cog):
                                 'on_raw_reaction_add: Lacking `Manage Roles` permission'
                                 f' <#{payload.guild_id}>')
 
-        if payload.guild_id == 266695661670367232:  # chinese
+        if payload.guild_id == CH_SERVER_ID:  # chinese
             if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
                          '📝': 509446402016018454,
@@ -1013,7 +1356,7 @@ class General(commands.Cog):
                          '🖋': 344126772138475540,
                          '🎙': 454893059080060930,
                          '📖': 655082146494545924}
-                server = 0
+                server = 1
             else:
                 return
         elif payload.guild_id == SP_SERVER_ID:  # spanish/english
@@ -1032,23 +1375,31 @@ class General(commands.Cog):
                          '🔥': 526089127611990046,
                          'table': 396080550802096128,
                          '📆': 555478189363822600}
-                server = 1
+                server = 2
             else:
-                return
+                server = None
         else:
+            server = None
+
+        if not payload.guild_id:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
         user = guild.get_member(payload.user_id)
-        if not user.bot:
+
+        assignable_role = self.reactionroles_get_role(payload, guild)
+        if assignable_role:
+            await user.add_roles(assignable_role)
+
+        if not user.bot and server:
             try:
                 config = self.bot.db['roles'][str(payload.guild_id)]
             except KeyError:
                 return
-            if server == 0:
+            if server == 1:
                 if payload.message_id != config['message']:
                     return
-            elif server == 1:
+            elif server == 2:
                 if payload.message_id != config['message1'] and payload.message_id != config['message2']:
                     return
             role = guild.get_role(roles[payload.emoji.name])
@@ -1058,16 +1409,14 @@ class General(commands.Cog):
                 self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_add: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
+            except AttributeError:
+                return
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         if not payload.guild_id:
             return
-        if not payload.emoji.name:
-            print(payload)
-            print(payload.channel_id)
-            print(payload.emoji)
-        if payload.guild_id == 266695661670367232:  # chinese
+        if payload.guild_id == CH_SERVER_ID:  # chinese
             if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
                          '📝': 509446402016018454,
@@ -1075,9 +1424,9 @@ class General(commands.Cog):
                          '🖋': 344126772138475540,
                          '🎙': 454893059080060930,
                          '📖': 655082146494545924}
-                server = 0
+                server = 1
             else:
-                return
+                server = 0
         elif payload.guild_id == SP_SERVER_ID:  # spanish/english
             if payload.emoji.name in '🎨🐱🐶🎮table👪🎥❗👚💻📔✏🔥📆':
                 roles = {'🎨': 401930364316024852,
@@ -1094,22 +1443,33 @@ class General(commands.Cog):
                          '🔥': 526089127611990046,
                          'table': 396080550802096128,
                          '📆': 555478189363822600}
-                server = 1
+                server = 2
             else:
-                return
+                server = 0
         else:
+            server = 0
+
+        if not payload.guild_id:
             return
+
         guild = self.bot.get_guild(payload.guild_id)
         user = guild.get_member(payload.user_id)
-        if not user.bot:
+
+        assignable_role = self.reactionroles_get_role(payload, guild)
+        if assignable_role:
+            await user.remove_roles(assignable_role)
+
+        if server:
+            if user.bot:
+                return
             try:
                 config = self.bot.db['roles'][str(payload.guild_id)]
             except KeyError:
                 return
-            if server == 0:
+            if server == 1:
                 if payload.message_id != config['message']:
                     return
-            elif server == 1:
+            elif server == 2:
                 if payload.message_id != config['message1'] and payload.message_id != config['message2']:
                     return
             role = guild.get_role(roles[payload.emoji.name])
@@ -1119,19 +1479,33 @@ class General(commands.Cog):
                 self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_remove: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
+            except AttributeError:
+                return
 
     @commands.command()
+    @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True)
     async def pencil(self, ctx):
         """Adds a pencil to your name. Rai cannot edit the nickname of someone above it on the role list"""
         try:
+            await ctx.message.delete()
+        except (discord.Forbidden, discord.NotFound):
+            pass
+        try:
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
-            await hf.safe_send(ctx,
-                               "I've added 📝 to your name.  This means you wish to be corrected in your sentences")
+            msg = await hf.safe_send(ctx,
+                                     "I've added 📝 to your name.  This means you wish to be corrected in your sentences")
+            asyncio.sleep(7)
+            await msg.delete()
         except discord.errors.Forbidden:
-            await hf.safe_send(ctx, "I lack the permissions to change your nickname")
+            msg = await hf.safe_send(ctx, "I lack the permissions to change your nickname")
+            asyncio.sleep(7)
+            await msg.delete()
         except discord.errors.HTTPException:
-            await ctx.message.add_reaction('💢')
+            try:
+                await ctx.message.add_reaction('💢')
+            except discord.NotFound:
+                pass
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -1158,7 +1532,8 @@ class General(commands.Cog):
 
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
-    @commands.cooldown(1, 15, type=commands.BucketType.user)
+    @commands.is_owner()
+    # @commands.cooldown(1, 15, type=commands.BucketType.user)
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
         message was typed in, and display the results.  Note that this is non-deterministic code, which means\
@@ -1169,13 +1544,15 @@ class General(commands.Cog):
         if not stripped_msg:
             stripped_msg = ' '
         try:
-            lang_result = tb(stripped_msg).detect_language()
+            lang_result = await hf.detect_language(stripped_msg)
         except textblob.exceptions.TranslatorError:
             lang_result = "There was an error detecting the languages"
+        except HTTPError:
+            await hf.safe_send(ctx, "You're being rate limited maybe")
+            return
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
-              f"The language I detect: ```{lang_result}```" \
-              f"If the first language is your native language, your message would be deleted"
+              f"The language I detect: ```{lang_result}```"
 
         await hf.safe_send(ctx, str)
 
@@ -1372,8 +1749,9 @@ class General(commands.Cog):
             user_obj = self.bot.get_user(user)
             if not user_obj:
                 try:
+                    user = user.replace('<@!', '').replace('<@', '').replace('>', '')
                     user_obj = await self.bot.fetch_user(user)
-                except discord.NotFound:
+                except (discord.NotFound, discord.HTTPException):
                     user_obj = None
 
             async def post_vote_notification(target_user, reason):
@@ -1452,6 +1830,7 @@ class General(commands.Cog):
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
+    @commands.guild_only()
     async def lsar(self, ctx, page_num=1):
         """Lists self-assignable roles (type `;lsar <page number>` to view other pages, example: `;lsar 2`)."""
         if not ctx.guild:
@@ -1483,7 +1862,7 @@ class General(commands.Cog):
 
             role = ctx.guild.get_role(role_tuple[1])
             if not role:
-                await ctx.send(f"{role_tuple}, {config[current_group]}, {current_group}")
+                await ctx.send(f"Couldn't find role with ID {role_tuple[1]}. Removing from self-assignable roles.")
                 config[current_group].remove(role_tuple[1])
                 continue
             role_list_str += f"⠀{role.name}\n"
@@ -1499,14 +1878,16 @@ class General(commands.Cog):
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def i(self, ctx, *, role_name):
-        print(role_name)
         if role_name[:2] == 'am':
             await ctx.invoke(self.iam, role_name=role_name[3:])
 
-    @commands.command()
+    @commands.command(aliases=['im'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
+    @commands.guild_only()
     async def iam(self, ctx, *, role_name):
-        """Command used to self-assign a role"""
+        """Command used to self-assign a role. Type `;iam <role name>`. Type `;lsar` to see the list of roles.
+
+        Example: `;iam English`"""
         if not ctx.guild:
             return
         if str(ctx.guild.id) not in self.bot.db['SAR']:
@@ -1533,6 +1914,7 @@ class General(commands.Cog):
                     return
 
     @commands.command(aliases=['iamn'])
+    @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def iamnot(self, ctx, *, role_name):
         """Command used to remove a self-assigned role"""
@@ -1570,10 +1952,6 @@ class General(commands.Cog):
     async def voicemute(self, ctx, time, member=None, *, reason=None):
         """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
         indefinite mute."""
-        if not hf.submod_check(ctx):
-            if ctx.author.id not in [166903700026163200, 398548209141678094]:
-                return
-
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -1733,20 +2111,26 @@ class General(commands.Cog):
             return True
 
     @commands.command(aliases=['selfmute'])
-    async def self_mute(self, ctx, time: int=0):
+    @commands.guild_only()
+    async def self_mute(self, ctx, time=0):
         """Irreversible mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
 
-        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half \
+        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
         to end people asking for it."""
+        try:
+            time = int(time)
+        except ValueError:
+            await hf.safe_send("Please give an integer number.")
+            return
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
-                    await hf.safe_send(ctx, "You're already muted. No undoing it now.")
+                    await hf.safe_send(ctx, "You're already muted. No saving you now.")
                     return
             except KeyError:
                 pass
         else:
-            await hf.safe_send(ctx, ctx.command.help)
+            await hf.safe_send(ctx, "You're already muted. No saving you now.")
             return
 
         if time > 24:
@@ -1765,7 +2149,6 @@ class General(commands.Cog):
             if msg.content.casefold() == 'yes':  # confirm
                 config = self.bot.db['selfmute'].setdefault(str(ctx.guild.id), {})
                 time_string, length = hf.parse_time(f"{time}h")
-                print(time_string, length)
                 config[str(ctx.author.id)] = {'enable': True, 'time': time_string}
                 await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {time} hours. This is irreversible. "
                                         f"The mods have nothing to do with this so no matter what you ask them, "

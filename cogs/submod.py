@@ -2,19 +2,23 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
-from datetime import datetime, timedelta, date
-from .utils import helper_functions as hf
+from datetime import datetime, timedelta
 import re
-from textblob import TextBlob as tb
-import textblob
-import requests
-import json
-from Levenshtein import distance as LDist
-import string
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
+SP_SERV = 243838819743432704
+
+def any_channel_mod_check(ctx):
+    if ctx.guild.id != SP_SERV:
+        return
+    if hf.submod_check(ctx):
+        return True
+    chmd_config = ctx.bot.db['channel_mods'][str(SP_SERV)]
+    for ch_id in chmd_config:
+        if ctx.author.id in chmd_config[ch_id]:
+            return True
 
 class Submod(commands.Cog):
     """Help"""
@@ -28,7 +32,7 @@ class Submod(commands.Cog):
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
-        return hf.submod_check(ctx)
+        return True
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @hf.is_submod()
@@ -51,12 +55,18 @@ class Submod(commands.Cog):
             except discord.HTTPException:
                 await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
+            except ValueError:
+                await hf.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
+                                        "use an ID")
+                return
         if user_id not in config:
             em = hf.red_embed(f"{name} was not found in the modlog.")
             await hf.safe_send(ctx, embed=em)
             return
         config = config[user_id]
         emb = hf.green_embed(f"Modlog for {name}")
+        list_length = len(config[-25:])  # this is to prevent the invisible character on the last entry
+        index = 1
         for entry in config[-25:]:
             name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
@@ -66,7 +76,11 @@ class Submod(commands.Cog):
                 value += f"*For {entry['length']}*\n"
             if entry['reason']:
                 value += f"__Reason__: {entry['reason']}\n"
-            value += f"[Jump URL]({entry['jump_url']})\n⠀"  # invisible character at end of this line
+            if entry['jump_url']:
+                value += f"[Jump URL]({entry['jump_url']})\n"
+            if index < list_length:
+                value += "⠀"  # invisible character to guarantee the empty new line
+                index += 1
             emb.add_field(name=name,
                           value=value[:1024],
                           inline=False)
@@ -97,6 +111,9 @@ class Submod(commands.Cog):
                 del config[int(index) - 1]
             except IndexError:
                 await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
+                return
+            except ValueError:
+                await hf.safe_send(ctx, "Sorry I couldn't  understand what you were trying to do")
                 return
             await ctx.message.add_reaction('✅')
 
@@ -129,6 +146,7 @@ class Submod(commands.Cog):
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
+    @hf.is_submod()
     async def ban(self, ctx, *, args):
         """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`  Example: `;ban @Ryry013 being mean` or \
         `;ban 2d3h @Abelian posting invite links`.  If crossposting is enabled, you can add `-s` into the reason to \
@@ -160,6 +178,14 @@ class Submod(commands.Cog):
         if not reason:
             reason = '(no reason given)'
 
+        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** XX"
+        new_text = text.replace("XX", reason)
+        if len(new_text) > 512:
+            await hf.safe_send(ctx, "Discord only allows bans with a length of 512 characters. With my included "
+                                    f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
+                                    f"length of your ban message. ")
+            return
+
         if ctx.guild.id == 243838819743432704:  # spanish server
             for _ in ['_']:  # i could do just '_' but I like the robot head
                 if ctx.guild.get_role(258819531193974784) in ctx.author.roles:  # helpers
@@ -178,8 +204,10 @@ class Submod(commands.Cog):
                              f"(in {length[0]} days and {length[1]} hours)"
         else:
             em.description = "This ban is indefinite."
+        silent = False
         if reason != '(no reason given)':
             if '-silent' in reason or '-s' in reason:
+                silent = True
                 reason = reason.replace('-silent ', '').replace('-s ', '')
                 reason = '⁣' + reason  # no width space = silent
             if '-c' in reason:
@@ -215,7 +243,9 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, f"Canceling ban")
             await msg2.delete()
             return
-        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
+
+        text = text.replace("XX", reason)
+
         if reason.startswith('⁣'):
             text = '⁣' + text
         if reason.startswith('⠀'):
@@ -230,12 +260,21 @@ class Submod(commands.Cog):
         except discord.Forbidden:
             await hf.safe_send(ctx, f"I couldn't ban that user.  They're probably above me in the role list.")
             return
+
         if length:
             config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
                                                     {'enable': False, 'channel': None, 'timed_bans': {}})
             timed_bans = config.setdefault('timed_bans', {})
             timed_bans[str(target.id)] = time_string
         await hf.safe_send(ctx, f"Successfully banned")
+
+        if length:
+            length_str = f"{length[0]}d{length[1]}h"
+        else:
+            length_str = None
+        if reason.startswith("*by*"):
+            reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
+        hf.add_to_modlog(ctx, target, 'Ban', reason, silent, length_str)
 
     @commands.command()
     @hf.is_admin()
@@ -259,6 +298,126 @@ class Submod(commands.Cog):
             channel_id = ctx.channel.id
         self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
         await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
+
+    @commands.command(aliases=['staff'])
+    @commands.check(any_channel_mod_check)
+    async def staffrole(self, ctx):
+        """You can add/remove the staff role from yourself with this"""
+        staffrole = ctx.guild.get_role(642782671109488641)
+        if staffrole in ctx.author.roles:
+            await ctx.author.remove_roles(staffrole)
+            await hf.safe_send(ctx, "I've removed the staff role from you")
+        else:
+            await ctx.author.add_roles(staffrole)
+            await hf.safe_send(ctx, "I've given you the staff role.")
+
+    @commands.command()
+    @commands.check(any_channel_mod_check)
+    async def staffping(self, ctx):
+        """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
+        subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]
+        if ctx.author.id in subscribed_users:
+            subscribed_users.remove(ctx.author.id)
+            await hf.safe_send(ctx, "You will no longer receive notifications for staff pings.")
+        else:
+            subscribed_users.append(ctx.author.id)
+            await hf.safe_send(ctx, "You will receive notifications for staff pings.")
+
+    @commands.command(aliases=['r', 't', 'tag'])
+    @commands.check(any_channel_mod_check)
+    async def role(self, ctx, *, args):
+        """Assigns a role to a user. Type `;role <user> <english/spanish/other/e/s/o/none/fe/fs>`. You can specify\
+        multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces.
+
+        If you don't specify a user, then it will find the last user in the channel without a role. *If you do this,\
+        you can only specify one role!*
+
+        Examples: `;role @Ryry013 e`   `;role spanish`   `;r Ryry013 e o fs`   `;r Ryry013 none`"""
+        if ctx.guild.id != SP_SERV:
+            return
+        english = ctx.guild.get_role(243853718758359040)
+        spanish = ctx.guild.get_role(243854128424550401)
+        other = ctx.guild.get_role(247020385730691073)
+        fluentenglish = ctx.guild.get_role(267367044037476362)
+        fluentspanish = ctx.guild.get_role(267368304333553664)
+        learningenglish = ctx.guild.get_role(247021017740869632)
+        learningspanish = ctx.guild.get_role(297415063302832128)
+        language_roles = [english, spanish, other]
+        all_roles = [english, spanish, other, fluentenglish, fluentspanish, learningenglish, learningspanish]
+        langs_dict = {'e': english, 's': spanish, 'o': other, 'i': english, 'en': english, 'ne': english, 'ol': other,
+                      'english': english, 'spanish': spanish, 'other': other, 'sn': spanish, 'ns': spanish,
+                      'inglés': english, 'español': spanish, 'ingles': english, 'espanol': spanish, 'otro': other,
+                      'fe': fluentenglish, 'fs': fluentspanish, 'none': None, 'n': None,
+                      'le': learningenglish, 'ls': learningspanish}
+
+        args = args.split()
+        if len(args) > 1:  # ;r ryry013 english
+            user = await hf.member_converter(ctx, args[0])
+            if not user:
+                return
+            langs = [lang.casefold() for lang in args[1:]]
+
+        elif len(args) == 1:  # something like ;r english
+            if args[0].casefold() in ['none', 'n']:
+                await hf.safe_send(ctx, "You can't use `none` and not specify a name.")
+                return
+            langs = [args[0].casefold()]
+
+            user = None  # if it goes through 10 messages and finds no users without a role, it'll default here
+            async for message in ctx.channel.history(limit=10):
+                found = None
+                for role in language_roles:  # check if they already have a role
+                    if role in message.author.roles:
+                        found = True
+                if not found:
+                    user = message.author
+            if not user:
+                await hf.safe_send(ctx, "I couldn't find any users in the last ten messages without a native role.")
+                return
+
+        else:  # no args
+            await hf.safe_send(ctx, "Gimme something at least! Run `;help role`")
+            return
+
+        langs = [lang.casefold() for lang in langs]
+        if 'none' in langs or 'n' in langs:
+            none = True
+            if len(langs) > 1:
+                await hf.safe_send(ctx, "If you specify `none`, please don't specify other languages too. "
+                                        "That's confusing!")
+                return
+        else:
+            none = False
+
+        for lang in langs:
+            if lang not in langs_dict:
+                await hf.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;r help`")
+                return
+        if not user:
+            await hf.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
+            return
+
+        # right now, user=a member object, lansg=a list of strings the user typed o/e/s/other/english/spanish/etc
+        langs = [langs_dict[lang] for lang in langs]  # now langs is a list of role objects
+        removed = []
+        for role in all_roles:
+            if role in user.roles:
+                removed.append(role)
+        if removed:
+            await user.remove_roles(*removed)
+        if not none:
+            await user.add_roles(*langs)
+
+        if none and not removed:
+            await hf.safe_send(ctx, "There were no roles to remove!")
+        elif none and removed:
+            await hf.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
+                                    f"{user.display_name}.")
+        elif removed:
+            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} instead of "
+                                    f"{', '.join([r.mention for r in removed])} to {user.display_name}.")
+        else:
+            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} to {user.display_name}.")
 
 
 def setup(bot):

@@ -12,7 +12,6 @@ from .utils import helper_functions as hf
 import re
 from ast import literal_eval
 
-# to expose to the eval command
 import datetime
 from datetime import datetime, timedelta
 
@@ -38,18 +37,6 @@ class Owner(commands.Cog):
         if e.text is None:
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
-
-    @commands.command()
-    async def send(self, ctx, channel_id: int, *, msg):
-        """Sends a message to the channel ID specified"""
-        channel = self.bot.get_channel(channel_id)
-        if not channel:
-            channel = self.bot.get_user(channel_id)
-            if not channel:
-                await hf.safe_send(ctx, "Invalid ID")
-                return
-        await channel.send(msg)
-        await ctx.message.add_reaction("✅")
 
     @commands.command()
     async def edit(self, ctx, message_id, *, content):
@@ -237,11 +224,11 @@ class Owner(commands.Cog):
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
 
-    @commands.command(aliases=['rmdb'], hidden=True)
-    async def reload_messages(self, ctx):
+    @commands.command(aliases=['rsdb'], hidden=True)
+    async def reload_stats(self, ctx):
         """Reloads the messages"""
-        with open(f"{dir_path}/messages.json", "r") as read_file:
-            self.bot.messages = json.load(read_file)
+        with open(f"{dir_path}/stats.json", "r") as read_file:
+            self.bot.stats = json.load(read_file)
         await ctx.message.add_reaction('♻')
 
     @commands.command(hidden=True)
@@ -258,6 +245,16 @@ class Owner(commands.Cog):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
 
                     file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
+
+    @commands.command()
+    async def restart(self, ctx):
+        """Restarts bot"""
+        await ctx.message.add_reaction('💀')
+        await ctx.invoke(self.flush)
+        await ctx.invoke(self.savedatabase)
+        await self.bot.logout()
+        with open(f"{dir_path}/APIKey.txt") as f:
+            self.bot.run(f.read() + 'k')
 
     @commands.command(aliases=['quit'])
     async def kill(self, ctx):
@@ -294,13 +291,16 @@ class Owner(commands.Cog):
 
     @commands.command(hidden=True)
     async def reload(self, ctx, *, cog: str):
-
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
         try:
             self.bot.reload_extension(f'cogs.{cog}')
         except Exception as e:
             await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
-            await hf.safe_send(ctx, '**`SUCCESS`**')
+            await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
 
     def cleanup_code(self, content):
         """Automatically removes code blocks from the code."""
@@ -449,7 +449,7 @@ class Owner(commands.Cog):
         name_to_id = {role.name: role.id for role in channel.guild.roles}
         id_to_role = {role.id: role for role in channel.guild.roles}
         # self.bot.messages = await channel.history(limit=None, after=datetime.utcnow() - timedelta(days=60)).flatten()
-        config = self.bot.db['readd_roles'][str(channel.guild.id)]
+        config = self.bot.db['joins'][str(channel.guild.id)]['readd_roles']
         config['users'] = {}
         print(len(self.bot.messages))
         for message in self.bot.messages:
@@ -487,13 +487,13 @@ class Owner(commands.Cog):
         **Owner:** {guild.owner.mention} ({guild.owner.name}#{guild.owner.discriminator}))
         **Members:** {guild.member_count}
         **Channels:** {len(guild.text_channels)} text / {len(guild.voice_channels)} voice"""
-        for channel in guild.text_channels:
-            try:
-                invite = await channel.create_invite(max_uses=1, reason="For bot owner Ryry013#9234")
-                msg += f"\n{invite.url}"
-                break
-            except discord.HTTPException:
-                pass
+        # for channel in guild.text_channels:
+        #     try:
+        #         invite = await channel.create_invite(max_uses=1, reason="For bot owner Ryry013#9234")
+        #         msg += f"\n{invite.url}"
+        #         break
+        #     except discord.HTTPException:
+        #         pass
         await self.bot.get_user(202995638860906496).send(msg)
         await self.bot.get_user(202995638860906496).send("Channels: \n" +
                                                          '\n'.join([channel.name for channel in guild.channels]))

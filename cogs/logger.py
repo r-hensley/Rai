@@ -13,11 +13,14 @@ from .utils import helper_functions as hf
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+JP_SERV_ID = 189571157446492161
 SPAN_SERV_ID = 243838819743432704
 NADEKO_ID = 116275390695079945
 SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
+ABELIAN_ID = 414873201349361664
+SPAM_CHAN = 275879535977955330
 
 with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
     file.readline()  # comment line in text file
@@ -42,13 +45,77 @@ class Logger(commands.Cog):
             return
         return hf.admin_check(ctx)
 
-    def dump_json(self):
-        with open(f'{dir_path}/database2.json', 'w') as write_file:
-            json.dump(self.bot.db, write_file, indent=4)
-            write_file.flush()
-            os.fsync(write_file.fileno())
-        os.remove(f'{dir_path}/database.json')
-        os.rename(f'{dir_path}/database2.json', f'{dir_path}/database.json')
+    # ############### general functions #####################
+
+    @commands.group(aliases=['logging'])
+    async def logs(self, ctx):
+        """The top-level command for the logging module. All configuration can be done starting here."""
+        modules = sorted([self.edits, self.deletes, self.joins, self.leaves, self.reactions, self.bans, self.kicks,
+                   self.nicknames, self.voice], key=lambda x: x.name)
+        emb_desc = "This is the module for logging various server events. The current module settings are below:"
+        emb = discord.Embed(description=emb_desc, color=0x77dbf7)
+        emb_value = "**ENABLED MODULES**\nThe following are the currently enabled modules and the respective " \
+                    "log channels they're associated with."
+
+
+        disabled_modules = []
+        guild_id = str(ctx.guild.id)
+        for module in modules:
+            try:
+                if self.bot.db[module.name][guild_id]['enable']:
+                    config = self.bot.db[module.name][guild_id]
+                else:
+                    raise KeyError
+            except KeyError:
+                disabled_modules.append(module)
+                continue
+            emb_value += f"\n\n・{module.name.capitalize()} ({ctx.guild.get_channel(config['channel']).mention})"
+            if module.name == 'edits':
+                emb_value += f"\n[Levenshtein limit](https://github.com/ryry013/Rai/wiki/Rai-Info-Pages#" \
+                             f"levenshtein-distance-limit): {config.get('distance_limit', False)}"
+            if module.name == 'joins':
+                emb_value += "\n[Invite tracking](https://github.com/ryry013/Rai/wiki/Rai-Info-Pages#invite-tracking)" \
+                             f": {config.get('invites_enable', False)}"
+                emb_value += "\n[Save previous roles](https://github.com/ryry013/Rai/wiki/Rai-Info-Pages" \
+                             f"#save-previous-roles): {config.get('readd_roles', {'enable': False})['enable']}"
+            if module.name == 'bans' and ctx.author in self.bot.get_guild(257984339025985546).members:
+                emb_value += f"\n[Ban crossposting](https://discordapp.com/channels/257984339025985546/" \
+                             f"329576845949534208/603019430536151041): {config.get('crosspost', False)}"
+
+
+
+
+
+
+
+
+
+
+        emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+
+        emb_value = "**DISABLED MODULES**\nThe following are the currently disabled modules."
+        for module in disabled_modules:
+            emb_value += f"\n・`{module.name}` ― {module.brief}"
+            emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+
+        emb_value = "**TO EDIT SETTINGS**\nTo edit the settings of a module, type the name of it into the chat " \
+                    "below, for example: `edits` or `joins`."
+        emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+        await hf.safe_send(ctx, embed=emb)
+
+
+    @logs.command()
+    async def set(self, ctx, module):
+        """Sets the logging channel for a module"""
+
+    @logs.command(aliases=['toggle'])
+    async def enable(self, ctx, module):
+        pass
+
+    @logs.command()
+    async def edits(self, ctx):
+        """Log when users edit messages"""
+        pass
 
     @staticmethod
     async def module_logging(ctx, module):
@@ -93,6 +160,163 @@ class Logger(commands.Cog):
         finally:
             guild_config['enable'] = False
 
+    # ############### voice channel joins/changes/leaves #####################
+    
+    @commands.group(invoke_without_command=True, name='voice')
+    async def voice(self, ctx):
+        """Logs edited messages"""
+        result = await self.module_logging(ctx, self.bot.db['voice'])
+        if result == 1:
+            await hf.safe_send(ctx, 'Disabled voice logging for this server')
+        elif result == 2:
+            await hf.safe_send(ctx, 'Enabled voice logging for this server. Embeds have a secret ID '
+                                    f'inside of that you can find by searching the user ID with "V" in front (like '
+                                    f'`V202995638860906496`).')
+        elif result == 3:
+            await hf.safe_send(ctx, 'You have not yet set a channel for voice logging yet. Run `;voice_logging set`')
+        elif result == 4:
+            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;voice_logging set`.  '
+                                    'Then, enable/disable logging by typing `;voice_logging`.')
+            
+    @voice.command(name='set')
+    async def voice_set(self, ctx):
+        result = await self.module_set(ctx, self.bot.db['voice'])
+        if result == 1:
+            await hf.safe_send(ctx, f'Set the voice logging channel as {ctx.channel.name}')
+        elif result == 2:
+            await hf.safe_send(ctx, f'Enabled voice logging and set the channel to `{ctx.channel.name}`.  '
+                                    f'Enable/disable logging by typing `;voice_logging`. Embeds have a secret ID '
+                                    f'inside of that you can find by searching the user ID with "V" in front (like '
+                                    f'`V202995638860906496`).')
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        guild = str(member.guild.id)
+        if guild in self.bot.db['voice']:
+            guild_config: dict = self.bot.db['voice'][guild]
+            if not guild_config['enable'] or not guild_config['channel']:
+                return
+        else:
+            return
+
+        description = color = footer_text = None
+
+        try:
+            config = self.bot.db['super_voicewatch'][str(member.guild.id)]
+        except KeyError:
+            return
+
+        channel = self.bot.get_channel(config['channel'])
+
+        ###################################
+        # join, leave, switching channels
+        ###################################
+
+        # joins voice ➡️ 3B88C3
+        if not before.channel and after.channel:
+            karina = self.bot.get_user(325384896690388996)
+            dani = self.bot.get_user(466337067387846677)
+            issho = '**not** '
+            karina_color = 0x00FF00
+            if member.id == karina.id:
+                if dani in after.channel.members:
+                    issho = ''
+                    karina_color = 0xFF0000
+                karina_desc = f"{karina.name} has joined #{after.channel.name}. {dani.name} was {issho}in the channel."
+                karina_embed = discord.Embed(description=karina_desc, color=karina_color)
+                await channel.send(embed=karina_embed)
+            if member.id == dani.id:
+                if karina in after.channel.members:
+                    issho = ''
+                    karina_color = 0xFF0000
+                karina_desc = f"{dani.name} has joined #{after.channel.name}. {karina.name} was {issho}in the channel."
+                karina_embed = discord.Embed(description=karina_desc, color=karina_color)
+                await channel.send(embed=karina_embed)
+
+
+
+            description = f"➡️ **{member.name}#{member.discriminator}** has `joined` **#{after.channel.name}**."
+            color = 0x3B88C3
+            footer_text = "Voice Join"
+
+        # leave voice  DD2E44
+        elif before.channel and not after.channel:
+            description = f"❌ **{member.name}#{member.discriminator}** has `left` **#{before.channel.name}**."
+            color = 0xDD2E44
+            footer_text = "Voice Leave"
+
+        # switch channel 🔄️ 3B88C3
+        elif before.channel and after.channel and before.channel != after.channel:
+            description = f"🔄 **{member.name}#{member.discriminator}** has `switched` from " \
+                          f"**#{before.channel.name}** to **#{after.channel.name}**."
+            color = 0x3B88C3
+            footer_text = "Voice Switch"
+
+        ############################
+        # streaming / broadcasting
+        ############################
+
+        # start self_stream 📳 F4900C
+        elif not before.self_stream and after.self_stream:
+            description = f"📳 **{member.name}#{member.discriminator}** has went LIVE and started streaming."
+            color = 0xF4900C
+            footer_text = "Stream Start"
+
+        # stop self_stream 🔇 CCD6DD
+        elif before.self_stream and not after.self_stream:
+            description = f"🔇 **{member.name}#{member.discriminator}** has stopped streaming."
+            color = 0xCCD6DD
+            footer_text = "Stream Stop"
+
+        # start self_video 📳 F4900C
+        elif not before.self_video and after.self_video:
+            description = f"**{member.name}#{member.discriminator}** has turned on their camera."
+            color = 0xF4900C
+            footer_text = "Video Start"
+
+        # stop self_video 🔇 CCD6DD
+        elif before.self_video and not after.self_video:
+            description = f"🔇 **{member.name}#{member.discriminator}** has turned off their camera."
+            color = 0xCCD6DD
+            footer_text = "Video Stop"
+
+        if not description:  # just in case some case slipped through
+            return
+
+        footer_text = f"V{member.id} - " + footer_text
+
+        emb = discord.Embed(description=description, color=color, timestamp=datetime.utcnow())
+        emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
+
+        await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+
+
+        b = before.channel
+        a = after.channel
+        if member.id in config['users'] and a and not b:
+            await hf.safe_send(channel, embed=emb)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+        """For use with voice_logging if someone creates a private voice channel"""
+        guild = str(channel.guild.id)
+        if guild in self.bot.db['voice']:
+            guild_config: dict = self.bot.db['voice'][guild]
+            if not guild_config['enable'] or not guild_config['channel']:
+                return
+        else:
+            return
+
+        description = f"⤴ **#{channel.name}** has been created."
+        color = 0x00FFFF  # slightly lighter blue than the "joined" blue
+        footer_text = f"{channel.id} - Channel Creation"
+
+        emb = discord.Embed(description=description, color=color, timestamp=datetime.utcnow())
+        emb.set_footer(text=footer_text)
+        await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+
+    # ############### edits #####################
+
     @commands.group(invoke_without_command=True, name='edits')
     async def edit_logging(self, ctx):
         """Logs edited messages"""
@@ -132,7 +356,7 @@ class Logger(commands.Cog):
         author = before.author
         time_dif = round((datetime.utcnow() - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
-            description=f'**{author.name}#{author.discriminator}** ({author.id})'
+            description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
                         f'(https://en.wikipedia.org/wiki/Levenshtein_distance) - ([Jump URL]({after.jump_url}))',
             colour=0xFF9933,
@@ -181,9 +405,11 @@ class Logger(commands.Cog):
                         except discord.errors.Forbidden:
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
+        
+    # ############### deletes #####################
 
-    @commands.group(invoke_without_command=True, name='deletes')
-    async def delete_logging(self, ctx):
+    @commands.group(invoke_without_command=True)
+    async def deletes(self, ctx):
         """Logs deleted messages"""
         result = await self.module_logging(ctx, self.bot.db['deletes'])
         if result == 1:
@@ -196,7 +422,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;delete_logging set`.  '
                                     'Then, enable/disable logging by typing `;delete_logging`.')
 
-    @delete_logging.command(name='set')
+    @deletes.command(name='set')
     async def deletes_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['deletes'])
         if result == 1:
@@ -213,7 +439,7 @@ class Logger(commands.Cog):
         async for msg in message.channel.history(limit=1, before=message):
             jump_url = msg.jump_url
         emb = discord.Embed(
-            description=f'**{author.name}#{author.discriminator}** ({author.id})'
+            description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
             colour=0xDB3C3C,
             timestamp=datetime.utcnow()
@@ -247,7 +473,7 @@ class Logger(commands.Cog):
                         attachment_names.append(attachment.filename)
                         file_bool = True
                         continue
-                    # asyncio black magic from here:
+                    # asyncio black magic from here: ONE YEAR LATER EDIT I UNDERSTAND IT NOW! ITS JUST A PARTIAL!!
                     # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
                     task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=False)
                     task = self.bot.loop.run_in_executor(None, task)
@@ -296,65 +522,66 @@ class Logger(commands.Cog):
                         return
                     if not channel:
                         del (guild_config['channel'])
-                        hf.dump_json()
                         return
                     try:
                         await hf.safe_send(channel, embed=await self.make_delete_embed(message))
                     except discord.errors.Forbidden:
                         await self.module_disable_notification(message.guild, guild_config, 'message deletes')
+                        
+    # ############### joins #####################
 
     @commands.group(invoke_without_command=True, name='joins')
-    async def join_logging(self, ctx):
+    async def joins(self, ctx):
         """Logs server joins + tracks invite links."""
-        result = await self.module_logging(ctx, self.bot.db['welcomes'])
-        server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
+        result = await self.module_logging(ctx, self.bot.db['joins'])
+        server_config = self.bot.db['joins'][str(ctx.guild.id)]
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled welcome logging for this server')
+            await hf.safe_send(ctx, 'Disabled join logging for this server')
         elif result == 2:
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
                 await hf.safe_send(ctx,
-                                   'Enabled welcome logging + invite tracking for this server (type `;invites` to disable'
-                                   ' invite tracking)')
+                                   'Enabled join logging + invite tracking for this server (type `;joins invites` to '
+                                   'disable invite tracking)')
             except discord.errors.Forbidden:
-                await hf.safe_send(ctx, "I've enabled welcome tracking, but I lack permissions to get invite codes.  "
+                await hf.safe_send(ctx, "I've enabled join tracking, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
                                         f"`{ctx.message.content} invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
 
         elif result == 3:
             await hf.safe_send(ctx,
-                               'You have not yet set a channel for welcome logging yet. Run `;welcome_logging set`')
+                               'You have not yet set a channel for join logging yet. Run `;joins set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;welcome_logging set`.  '
-                                    'Then, enable/disable logging by typing `;welcome_logging`.')
+            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;joins set`.  '
+                                    'Then, enable/disable logging by typing `;joins`.')
 
-    @join_logging.command(name='set')
-    async def welcomes_set(self, ctx):
-        result = await self.module_set(ctx, self.bot.db['welcomes'])
-        server_config = self.bot.db['welcomes'][str(ctx.guild.id)]
+    @joins.command(name='set')
+    async def joins_set(self, ctx):
+        result = await self.module_set(ctx, self.bot.db['joins'])
+        server_config = self.bot.db['joins'][str(ctx.guild.id)]
         if result == 1:
-            await hf.safe_send(ctx, f'Set the welcome logging channel as {ctx.channel.name}')
+            await hf.safe_send(ctx, f'Set the join logging channel as {ctx.channel.name}')
         elif result == 2:
             try:
                 server_config['invites'] = {invite.code: invite.uses for invite in await ctx.guild.invites()}
                 server_config['invites_enable'] = True
                 await hf.safe_send(ctx,
-                                   f'Enabled welcome logging + invite tracking and set the channel to `{ctx.channel.name}`.'
-                                   f'  Enable/disable logging by typing `;welcome_logging`.')
+                                   f'Enabled join logging + invite tracking / set the channel to `{ctx.channel.name}`.'
+                                   f'  Enable/disable logging by typing `;joins`.')
             except discord.errors.Forbidden:
-                await hf.safe_send(ctx, "I've enabled welcome message, but I lack permissions to get invite codes.  "
+                await hf.safe_send(ctx, "I've enabled join logging, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
-                                        "`;invites` to enable invite tracking for future joins.")
+                                        "`;joins invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
 
-    @join_logging.command(name='invites')
+    @joins.command(name='invites')
     async def invites_enable(self, ctx):
         """Enables/disables the identification of used invite links when people join"""
         guild = str(ctx.guild.id)
-        if guild in self.bot.db['welcomes']:
-            server_config = self.bot.db['welcomes'][guild]
+        if guild in self.bot.db['joins']:
+            server_config = self.bot.db['joins'][guild]
             try:
                 server_config['invites_enable'] = not server_config['invites_enable']
                 await hf.safe_send(ctx, f"Set invite tracking to `{server_config['invites_enable']}`")
@@ -363,32 +590,84 @@ class Logger(commands.Cog):
                 await hf.safe_send(ctx, 'Enabled invites tracking')
 
     @staticmethod
-    async def make_welcome_embed(member, used_invite, channel, list_of_roles=None):
+    async def make_welcome_embed(member, used_invites, channel, list_of_roles=None):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
-        if minutes_ago_created < 60:
+        if 60 < minutes_ago_created < 3600:
+            time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
+        elif minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
         else:
             time_str = ''
 
         emb = discord.Embed(
-            description=f":inbox_tray: **{member.name}#{member.discriminator}** has `joined`. "
-                        f"({member.id}){time_str}",
+            description=f":inbox_tray: **{member.name}#{member.discriminator}** has `joined`. (J{member.id}){time_str}",
             colour=0x7BA600,
             timestamp=datetime.utcnow()
         )
+
         if channel and hasattr(channel.last_message, 'jump_url'):
             emb.description += f"\n([Jump URL]({channel.last_message.jump_url}))"
-        if used_invite:
-            invite_string = f"Used {used_invite.inviter.name}'s link {used_invite.code}"
-            footer_text = f'User Join ({member.guild.member_count}) {invite_string}'
-        else:
-            footer_text = f'User Join ({member.guild.member_count})'
+
+        for invite in used_invites:  # considering the possibilty of the bot not being able to pinpoint a link
+            if invite.max_uses == 0:
+                max_uses = ''
+            else:
+                max_uses = f"/{invite.max_uses}"
+
+            field_value = f"`{invite.code}`"
+            if invite.inviter:
+                field_value += f" by {invite.inviter.name}#{invite.inviter.discriminator} " \
+                               f"([ID](https://rai/inviter-id-is-I{invite.inviter.id}))"
+            field_value += f" ({invite.uses}{max_uses} uses"  # add a final ')' below
+            if invite.created_at:
+                seconds_ago_created = (datetime.utcnow() - invite.created_at).total_seconds()
+
+                if 3600 < seconds_ago_created < 86400:
+                    field_value += f" - created **{int(seconds_ago_created//3600)}** hours ago)"
+                elif seconds_ago_created < 3600:
+                    field_value += f" - created **{int(seconds_ago_created//60)}** minutes ago)"
+                else:
+                    field_value += ")"
+            else:
+                field_value += ")"
+
+            emb.add_field(name="Invite link used", value=field_value)
+
+        if not used_invites:
+            emb.add_field(name="Invite link used", value="Through server discovery")
+
         if list_of_roles:
             emb.add_field(name='Readded roles:', value=', '.join(reversed([role.name for role in list_of_roles])))
 
+        footer_text = f'User Join ({member.guild.member_count})'
         emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
 
         return emb
+
+    @commands.Cog.listener()
+    async def on_invite_create(self, invite):
+        try:
+            config = self.bot.db['joins'][str(invite.guild.id)]
+        except KeyError:
+            return
+        if not config.get('invites_enable', None):
+            return
+        config['invites'][invite.code] = 0
+
+    @commands.Cog.listener()
+    async def on_invite_remove(self, invite):
+        try:
+            config = self.bot.db['joins'][str(invite.guild.id)]
+        except KeyError:
+            return
+        if not config.get('invites_enable', None):
+            return
+        try:
+            del(config['invites'][invite.code])
+        except KeyError:
+            return
+
+    # ############### welcome message #####################
 
     @commands.group(invoke_without_command=True)
     async def welcome_message(self, ctx):
@@ -442,160 +721,283 @@ class Logger(commands.Cog):
         config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         await hf.safe_send(ctx, "```" + config['message'] + "```")
 
+    async def get_invites(self, guild):
+        guild_id = str(guild.id)
+        config = self.bot.db['joins'][str(guild.id)]
+        if 'invites' not in config:
+            config['invites'] = False
+        if 'invites_enable' not in config:
+            config['invites_enable'] = False
+
+        if 'invites_enable' not in config:
+            return None, None
+        if not config['invites_enable']:
+            return None, None
+
+        if 'invites' in self.bot.db['joins'][guild_id]:
+            old_invites = self.bot.db['joins'][guild_id]['invites']
+        else:  # invites is enabled but for some reason there's no invite list logged, this shouldn't happen
+            invites = await guild.invites()
+            self.bot.db['joins'][guild_id]['invites'] = {invite.code: invite.uses for invite in invites}
+            return None, None
+
+        try:
+            invites = await guild.invites()
+        except (discord.HTTPException, discord.Forbidden):
+            self.bot.db['joins'][guild_id]['invites_enable'] = False
+            return None, None
+
+        if 'VANITY_URL' in guild.features:
+            try:
+                vanity = await guild.vanity_invite()
+                invites.append(vanity)
+            except (discord.HTTPException, discord.Forbidden):
+                pass
+
+        self.bot.db['joins'][guild_id]['invites'] = {invite.code: invite.uses for invite in invites}
+
+        return old_invites, invites
+
     @commands.Cog.listener()
     async def on_member_join(self, member):
         """welcome message"""
-        try:
-            guild = str(member.guild.id)
+        guild = str(member.guild.id)
+        welcome_channel = None
+        if guild in self.bot.db['welcome_message']:
+            config = self.bot.db['welcome_message'][guild]
+            if 'channel' in self.bot.db['welcome_message'][guild]:
+                welcome_channel = self.bot.get_channel(config['channel'])
             if self.bot.db['welcome_message'][guild]['enable']:
-                config = self.bot.db['welcome_message'][guild]
-                channel = self.bot.get_channel(config['channel'])
                 message = config['message']
                 message = message. \
                     replace('$NAME$', member.name). \
                     replace('$USERMENTION$', member.mention). \
                     replace('$SERVER$', member.guild.name)
-                await hf.safe_send(channel, message)
-        except KeyError:
-            pass
+                await hf.safe_send(welcome_channel, message)
 
         """Join logging"""
-        guild = str(member.guild.id)
-        used_invite = None
-        if guild in self.bot.db['welcomes']:
-            if self.bot.db['welcomes'][guild]['enable']:
-                server_config = self.bot.db['welcomes'][guild]
-                channel = self.bot.get_channel(server_config['channel'])
+        guild = member.guild
+        guild_id = str(member.guild.id)
+        try:
+            server_config = self.bot.db['joins'][guild_id]
+            log_channel = self.bot.get_channel(server_config['channel'])
+        except KeyError:
+            return
+
+        if not member.guild.me.guild_permissions.embed_links:
+            return
+        if server_config['enable'] and not member.guild.me.guild_permissions.manage_guild:
+            disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
+                              "permission to view invite links. Please give Rai this persmission then type " \
+                              "`;joins invites` to reenable the tracking of invite links."
+            await hf.safe_send(log_channel, disable_message)
+            server_config['enable'] = False
+            return
+
+        old_invites, invites = await self.get_invites(guild)
+        used_invite = []
+        if invites:
+            for invite in invites:
+                if invite.code not in old_invites and invite.uses:
+                    used_invite.append(invite)  # with the on_invite_create event, this *should* never happen
+                    continue
+                if invite.uses > old_invites.get(invite.code, 0):
+                    used_invite.append(invite)
+
+        def get_list_of_roles():
+            try:
+                config = self.bot.db['joins'][guild_id]['readd_roles']
+            except KeyError:
+                return None, None
+            if not config['enable'] or str(member.id) not in config['users']:
+                return None, None
+
+            list_of_roles = []
+            roles_dict = {role.id: role for role in member.guild.roles}
+            for role_code in config['users'][str(member.id)][1].split(','):
                 try:
-                    invites_enable = server_config['invites_enable']
+                    list_of_roles.append(roles_dict[config['roles'][role_code]])
                 except KeyError:
-                    server_config['invites_enable'] = False
-                    invites_enable = server_config['invites_enable']
-                    await hf.safe_send(channel,
-                                       "I've added a toggle for invite tracking since it requires `Manage Server` "
-                                       "permission.  If you wish Rai to track used invite links for joins, please type "
-                                       "`welcomes invites`.")
-                if invites_enable:
-                    old_invites = self.bot.db['welcomes'][str(member.guild.id)].setdefault('invites', {})
-                    try:
-                        invites = await member.guild.invites()
-                    except discord.errors.Forbidden:
-                        server_config['invites_enable'] = False
-                        await hf.safe_send(channel,
-                                           "Rai needs the `Manage Server` permission to track invites. For now, I've disabled "
-                                           "invite link tracking.  If you wish to reenable it, type `;welcomes invites` or use "
-                                           "the options menu (`;options`)")
-                    else:
-                        if not self.bot.db['welcomes'][str(member.guild.id)]['invites']:
-                            old_invites = {invite.code: invite.uses for invite in invites}
-                            self.bot.db['welcomes'][str(member.guild.id)]['invites'] = old_invites
-                        else:
-                            new_invites = {invite.code: invite.uses for invite in invites}
-                            for invite in new_invites:
-                                try:
-                                    if new_invites[invite] > old_invites[invite]:
-                                        used_invite = next(i for i in invites if str(i.code) == invite)
-                                        self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                                        break
-                                except KeyError:  # new invite
-                                    if new_invites[invite] == 1:
-                                        used_invite = next(i for i in invites if str(i.code) == invite)
-                                        self.bot.db['welcomes'][str(member.guild.id)]['invites'] = new_invites
-                                        break
-                            if not used_invite:
-                                pass
+                    pass
+            return config, list_of_roles
 
-                def get_list_of_roles():
-                    list_of_roles = []
-                    roles_dict = {role.id: role for role in member.guild.roles}
-                    for role_code in config['users'][str(member.id)][1].split(','):
-                        try:
-                            list_of_roles.append(roles_dict[config['roles'][role_code]])
-                        except KeyError:
-                            pass
-                    return list_of_roles
+        readd_config, list_of_readd_roles = get_list_of_roles()
+        if list_of_readd_roles:
+            await member.add_roles(*list_of_readd_roles)
+            try:
+                await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
+                                  f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
+            except discord.errors.Forbidden:
+                pass
+            del readd_config['users'][str(member.id)]
 
-                """Japanese Server Welcome / readding roles"""
-                list_of_roles = []
-                if guild == '189571157446492161':
-                    jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
-                    # check if they joined from a Japanese site or other
-                    # the following links are specifically the ones we've used to advertise on japanese sites
-                    japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
-                    post_message = True
-                    try:
-                        config = self.bot.db['readd_roles'][str(member.guild.id)]
-                    except KeyError:
-                        pass
-                    else:
-                        if config['enable'] and str(member.id) in config['users']:
-                            print(f'readding roles maybe {member.name}')
-                            post_message = False
-                            list_of_roles = get_list_of_roles()
-                            new_user_role = member.guild.get_role(249695630606336000)
-                            if new_user_role in list_of_roles:
-                                list_of_roles.remove(new_user_role)
-                            if list_of_roles:
-                                try:
-                                    await member.add_roles(*list_of_roles)
-                                    await member.remove_roles(new_user_role)
-                                    await jpJHO.send(
-                                        f"Welcome back {member.name}! I've given your previous roles back to you")
-                                except discord.Forbidden:
-                                    pass
-                                del config['users'][str(member.id)]
-                    finally:
-                        if post_message:
-                            sent = False
-                            try:
-                                if used_invite:
-                                    if str(used_invite.code) in japanese_links:
-                                        await jpJHO.send(
-                                            f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
-                                        sent = True
-                                if member.id != 414873201349361664 and not sent:
-                                    await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
-                            except discord.Forbidden:
-                                pass
-                        if member.id == 414873201349361664:
-                            async for message in self.bot.jpJHO.history(limit=10):
-                                if message.author.id == 159985870458322944:
-                                    await message.delete()
-                                    break
-                            try:
-                                msg = await self.bot.wait_for('message', timeout=10.0,
-                                                              check=lambda m: m.author.id == 299335689558949888 and
-                                                                              m.channel == jpJHO)
-                                await msg.delete()
-                            except asyncio.TimeoutError:
-                                pass
+        x = await self.make_welcome_embed(member, used_invite, welcome_channel, list_of_readd_roles)
+        await hf.safe_send(log_channel, embed=x)
 
-                else:
-                    try:
-                        config = self.bot.db['readd_roles'][str(member.guild.id)]
-                    except KeyError:
-                        pass
-                    else:
-                        if config['enable'] and str(member.id) in config['users']:
-                            list_of_roles = get_list_of_roles()
-                            await member.add_roles(*list_of_roles)
-                            try:
-                                await member.send(
-                                    f"Welcome back {member.name}! I've given your previous roles back to you")
-                            except discord.errors.Forbidden:
-                                pass
-                            del config['users'][str(member.id)]
+        if guild_id == str(JP_SERV_ID) and used_invite:
+            jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
+            # check if they joined from a Japanese site or other
+            # the following links are specifically the ones we've used to advertise on japanese sites
+            japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+            JHO_msg = f"Welcome {member.name}!"
+            for link in used_invite:
+                if link.code in japanese_links:
+                    JHO_msg = f'{member.name}さん、サーバーへようこそ！'
+                    break
+            if list_of_readd_roles:
+                JHO_msg += "I've readded your previous roles to you!"
+            await hf.safe_send(jpJHO, JHO_msg)
 
+            if member.id == ABELIAN_ID:  # secret entry for Abelian
+                async for message in self.bot.jpJHO.history(limit=10):
+                    if message.author.id == 159985870458322944:
+                        await message.delete()
+                        break
                 try:
-                    if str(member.guild.id) in self.bot.db['welcome_message']:
-                        channel_id = self.bot.db['welcome_message'][str(member.guild.id)]['channel']
-                        welcome_channel = member.guild.get_channel(channel_id)
-                    else:
-                        welcome_channel = None
-                    x = await self.make_welcome_embed(member, used_invite, welcome_channel, list_of_roles)
-                    await hf.safe_send(channel, embed=x)
-                except discord.errors.Forbidden:
-                    await hf.safe_send(channel, 'Rai needs permission to post embeds to track joins')
+                    msg = await self.bot.wait_for('message', timeout=10.0,
+                                                  check=lambda m: m.author.id == 299335689558949888 and
+                                                                  m.channel == jpJHO)
+                    await msg.delete()
+                except asyncio.TimeoutError:
+                    pass
+
+        # # #################################################
+        #
+        # guild = str(member.guild.id)
+        # used_invite = None
+        # if guild in self.bot.db['joins']:
+        #     if self.bot.db['joins'][guild]['enable']:
+        #         server_config = self.bot.db['joins'][guild]
+        #         channel = self.bot.get_channel(server_config['channel'])
+        #         try:
+        #             invites_enable = server_config['invites_enable']
+        #         except KeyError:
+        #             server_config['invites_enable'] = False
+        #             invites_enable = server_config['invites_enable']
+        #             await hf.safe_send(channel,
+        #                                "I've added a toggle for invite tracking since it requires `Manage Server` "
+        #                                "permission.  If you wish Rai to track used invite links for joins, please type "
+        #                                "`welcomes invites`.")
+        #         if invites_enable:
+        #             old_invites = self.bot.db['joins'][str(member.guild.id)].setdefault('invites', {})
+        #             try:
+        #                 invites = await member.guild.invites()
+        #             except discord.errors.Forbidden:
+        #                 server_config['invites_enable'] = False
+        #                 await hf.safe_send(channel,
+        #                                    "Rai needs the `Manage Server` permission to track invites. For now, "
+        #                                    "I've disabled invite link tracking.  If you wish to reenable it, type "
+        #                                    "`;joins invites` or use the options menu (`;options`)")
+        #             else:
+        #                 if not self.bot.db['joins'][str(member.guild.id)]['invites']:
+        #                     old_invites = {invite.code: invite.uses for invite in invites}
+        #                     self.bot.db['joins'][str(member.guild.id)]['invites'] = old_invites
+        #                 else:
+        #                     new_invites = {invite.code: invite.uses for invite in invites}
+        #                     for invite in new_invites:
+        #                         try:
+        #                             if new_invites[invite] > old_invites[invite]:
+        #                                 used_invite = next(i for i in invites if str(i.code) == invite)
+        #                                 self.bot.db['joins'][str(member.guild.id)]['invites'] = new_invites
+        #                                 break
+        #                         except KeyError:  # new invite
+        #                             if new_invites[invite] == 1:
+        #                                 used_invite = next(i for i in invites if str(i.code) == invite)
+        #                                 self.bot.db['joins'][str(member.guild.id)]['invites'] = new_invites
+        #                                 break
+        #                     if not used_invite:
+        #                         pass
+        #
+        #         def get_list_of_roles():
+        #             list_of_roles = []
+        #             roles_dict = {role.id: role for role in member.guild.roles}
+        #             for role_code in config['users'][str(member.id)][1].split(','):
+        #                 try:
+        #                     list_of_roles.append(roles_dict[config['roles'][role_code]])
+        #                 except KeyError:
+        #                     pass
+        #             return list_of_roles
+        #
+        #         """Japanese Server Welcome / readding roles"""
+        #         list_of_roles = []
+        #         if guild == '189571157446492161':
+        #             jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
+        #             # check if they joined from a Japanese site or other
+        #             # the following links are specifically the ones we've used to advertise on japanese sites
+        #             japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+        #             post_message = True
+        #             try:
+        #                 config = self.bot.db['readd_roles'][str(member.guild.id)]
+        #             except KeyError:
+        #                 pass
+        #             else:
+        #                 if config['enable'] and str(member.id) in config['users']:
+        #                     post_message = False
+        #                     list_of_roles = get_list_of_roles()
+        #                     new_user_role = member.guild.get_role(249695630606336000)
+        #                     if new_user_role in list_of_roles:
+        #                         list_of_roles.remove(new_user_role)
+        #                     if list_of_roles:
+        #                         try:
+        #                             await member.add_roles(*list_of_roles)
+        #                             await member.remove_roles(new_user_role)
+        #                             await jpJHO.send(
+        #                                 f"Welcome back {member.name}! I've given your previous roles back to you")
+        #                         except discord.Forbidden:
+        #                             pass
+        #                         del config['users'][str(member.id)]
+        #             finally:
+        #                 if post_message:
+        #                     sent = False
+        #                     try:
+        #                         if used_invite:
+        #                             if str(used_invite.code) in japanese_links:
+        #                                 await jpJHO.send(
+        #                                     f'{member.name}さん、サーバーへようこそ！')  # a japanese person possibly
+        #                                 sent = True
+        #                         if member.id != ABELIAN_ID and not sent:
+        #                             await jpJHO.send(f'Welcome {member.name}!')  # probably not a japanese person
+        #                     except discord.Forbidden:
+        #                         pass
+        #                 if member.id == ABELIAN_ID:
+        #                     async for message in self.bot.jpJHO.history(limit=10):
+        #                         if message.author.id == 159985870458322944:
+        #                             await message.delete()
+        #                             break
+        #                     try:
+        #                         msg = await self.bot.wait_for('message', timeout=10.0,
+        #                                                       check=lambda m: m.author.id == 299335689558949888 and
+        #                                                                       m.channel == jpJHO)
+        #                         await msg.delete()
+        #                     except asyncio.TimeoutError:
+        #                         pass
+        #
+        #         else:
+        #             try:
+        #                 config = self.bot.db['readd_roles'][str(member.guild.id)]
+        #             except KeyError:
+        #                 pass
+        #             else:
+        #                 if config['enable'] and str(member.id) in config['users']:
+        #                     list_of_roles = get_list_of_roles()
+        #                     await member.add_roles(*list_of_roles)
+        #                     try:
+        #                         await member.send(
+        #                             f"Welcome back {member.name}! I've given your previous roles back to you")
+        #                     except discord.errors.Forbidden:
+        #                         pass
+        #                     del config['users'][str(member.id)]
+        #
+        #         try:
+        #             if str(member.guild.id) in self.bot.db['welcome_message']:
+        #                 channel_id = self.bot.db['welcome_message'][str(member.guild.id)]['channel']
+        #                 welcome_channel = member.guild.get_channel(channel_id)
+        #             else:
+        #                 welcome_channel = None
+        #             x = await self.make_welcome_embed(member, used_invite, welcome_channel, list_of_roles)
+        #             await hf.safe_send(channel, embed=x)
+        #         except discord.errors.Forbidden:
+        #             await hf.safe_send(channel, 'Rai needs permission to post embeds to track joins')
 
         """ban invite link names"""
         try:
@@ -640,9 +1042,11 @@ class Logger(commands.Cog):
         #             'Thanks! '
         #             '(<@&470364944479813635>)'
         #         )
+        
+    # ############### leaves #####################
 
     @commands.group(invoke_without_command=True, name='leaves')
-    async def leave_logging(self, ctx):
+    async def leaves(self, ctx):
         """Logs leaves + shows list of roles at time of leave"""
         result = await self.module_logging(ctx, self.bot.db['leaves'])
         if result == 1:
@@ -655,7 +1059,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;leave_logging set`.  '
                                     'Then, enable/disable logging by typing `;leave_logging`.')
 
-    @leave_logging.command(name='set')
+    @leaves.command(name='set')
     async def leaves_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['leaves'])
         if result == 1:
@@ -670,7 +1074,7 @@ class Logger(commands.Cog):
         emb = discord.Embed(
             description=''
                         f":outbox_tray: **{member.name}#{member.discriminator}** has `left` the server. "
-                        f"({member.id})",
+                        f"(J{member.id})",
             colour=0xD12B2B,
             timestamp=datetime.utcnow()
         )
@@ -700,7 +1104,7 @@ class Logger(commands.Cog):
                     await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
         try:
-            config = self.bot.db['readd_roles'][str(member.guild.id)]
+            config = self.bot.db['joins'][str(member.guild.id)]['readd_roles']
         except KeyError:
             pass
         else:
@@ -736,9 +1140,11 @@ class Logger(commands.Cog):
                     return
                 if emb:
                     await hf.safe_send(channel, embed=emb)
+                    
+    # ############### nicknames/usernames #####################
 
     @commands.group(invoke_without_command=True, name='nicknames')
-    async def nickname_logging(self, ctx):
+    async def nicknames(self, ctx):
         """Logs nicknames changes"""
         result = await self.module_logging(ctx, self.bot.db['nicknames'])
         if result == 1:
@@ -752,7 +1158,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;nickname_logging set`.  '
                                     'Then, enable/disable logging by typing `;nickname_logging`.')
 
-    @nickname_logging.command(name='set')
+    @nicknames.command(name='set')
     async def nicknames_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['nicknames'])
         if result == 1:
@@ -764,85 +1170,64 @@ class Logger(commands.Cog):
 
     @staticmethod
     def make_nickname_embed(before, after):
-        emb = discord.Embed(
-            description=''
-                        f"**{before.nick}**'s nickname was changed to **{after.nick}**",
-            colour=0xFF9933,
-            timestamp=datetime.utcnow()
-        )
+        emb = discord.Embed(timestamp=datetime.utcnow())
         emb.set_footer(
-            text=f'{before.name}#{before.discriminator} ({before.id})',
+            text=f'{after.name}#{before.discriminator} (N{before.id})',
             icon_url=before.avatar_url_as(static_format="png")
         )
         return emb
 
     @commands.Cog.listener()
+    async def on_user_update(self, before, after):
+        if before.name == after.name:
+            return
+
+        for g in self.bot.guilds:
+            guild = str(g.id)
+            if before not in g.members:
+                continue  # don't worry about guilds without this member
+            if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
+                continue  # if the guild doesn't have username changes enabled
+
+            channel = self.bot.get_channel(self.bot.db['nicknames'][guild]['channel'])
+            if not channel:
+                continue
+
+            emb = self.make_nickname_embed(before, after)
+            emb.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
+                              f"**{after.name}#{after.discriminator}**"
+            emb.color = 0xFF8800
+            await hf.safe_send(channel, embed=emb)
+
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         guild = str(before.guild.id)
-        if guild in self.bot.db['nicknames']:
-            if self.bot.db['nicknames'][guild]['enable']:
-                guild_config = self.bot.db['nicknames'][guild]
-                channel = self.bot.get_channel(guild_config['channel'])
-                if not channel:
-                    return
-                if before.name == after.name and before.nick == after.nick:
-                    return
+        if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
+            return
 
-                try:
-                    embed = self.make_nickname_embed(before, after)
-                except discord.errors.Forbidden:
-                    await self.module_disable_notification(before.guild, guild_config, 'nickname and username changes')
-                    return
+        guild_config = self.bot.db['nicknames'][guild]
+        channel = self.bot.get_channel(guild_config['channel'])
+        if not channel or before.nick == after.nick:
+            return
 
-                if before.name != after.name:  # username change
-                    embed.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
-                                        f"**{after.name}#{after.discriminator}**"
-                    await hf.safe_send(channel, embed=embed)
+        emb = self.make_nickname_embed(before, after)
+        emb.color = 0xFFA500
 
-                if before.nick != after.nick:  # nickname change
-                    if before.nick and not after.nick:  # nickname removed
-                        embed.description = f"**{before.nick}**'s nickname was **removed**"
-                    elif not before.nick and after.nick:  # nickname added
-                        embed.description = \
-                            f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
-                    elif before.nick and after.nick:  # nickname changed
-                        pass
-                    else:  # no nickname changes
-                        return
-                    try:
-                        await hf.safe_send(channel, embed=embed)
-                    except discord.Forbidden:
-                        pass
-
-        # """Nadeko updates"""
-        # if self.bot.user.name == 'Rai':
-        #     spanServ = self.bot.get_guild(SPAN_SERV_ID)
-        #     if before == spanServ.get_member(116275390695079945) and before.guild == spanServ:
-        #         if str(before.status) == 'online' and str(after.status) == 'offline':
-        #             def check(beforecheck, aftercheck):
-        #                 return after.id == beforecheck.id and \
-        #                        str(beforecheck.status) == 'offline' and \
-        #                        str(aftercheck.status) == 'online'
-        #
-        #             try:
-        #                 await self.bot.wait_for('member_update', check=check, timeout=1200)
-        #                 self.bot.waited = False
-        #             except asyncio.TimeoutError:
-        #                 self.bot.waited = True
-        #
-        #             if self.bot.waited:
-        #                 await self.bot.spanSP.send(  # nadeko was offline for 20 mins
-        #                     "Nadeko has gone offline.  New users won't be able to tag themselves, "
-        #                     "and therefore will not be able to join the server.  Please be careful of this."
-        #                 )
-        #
-        #         if str(before.status) == 'offline' and str(after.status) == 'online':
-        #             if self.bot.waited:
-        #                 self.bot.waited = False  # waited is True if Nadeko has been offline for more than 20 minutes
-        #                 await self.bot.spanSP.send('Nadeko is back online now.')
+        if before.nick and not after.nick:  # nickname removed
+            emb.description = f"**{before.nick}**'s nickname was **removed**"
+        elif not before.nick and after.nick:  # nickname added
+            emb.description = f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
+        elif before.nick and after.nick:  # nickname changed
+            emb.description = f"**{before.nick}**'s nickname was changed to **{after.nick}**"
+        try:
+            await hf.safe_send(channel, embed=emb)
+        except discord.Forbidden:
+            pass
+        
+    # ############### reaction removals #####################
 
     @commands.group(invoke_without_command=True, name='reactions')
-    async def reaction_logging(self, ctx):
+    async def reactions(self, ctx):
         """Logs deleted reactions"""
         result = await self.module_logging(ctx, self.bot.db['reactions'])
         if result == 1:
@@ -856,7 +1241,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;reaction_logging set`.  '
                                     'Then, enable/disable logging by typing `;reaction_logging`.')
 
-    @reaction_logging.command(name='set')
+    @reactions.command(name='set')
     async def reactions_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
@@ -905,8 +1290,10 @@ class Logger(commands.Cog):
                         except AttributeError:
                             del guild_config
 
+    # ############### bans/unbans #####################
+
     @commands.group(invoke_without_command=True, name='bans')
-    async def ban_logging(self, ctx):
+    async def bans(self, ctx):
         """Logs deleted bans"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
             await hf.safe_send(ctx,
@@ -923,7 +1310,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;ban_logging set`.  '
                                     'Then, enable/disable logging by typing `;ban_logging`.')
 
-    @ban_logging.command(name='set', short_name='set')
+    @bans.command(name='set', short_name='set')
     async def bans_set(self, ctx):
         self.short_name = 'set'
         result = await self.module_set(ctx, self.bot.db['bans'])
@@ -946,17 +1333,13 @@ class Logger(commands.Cog):
                 reason = ban_entry.reason
                 by = f'*by* {ban_entry.user.name}'
                 break
-        emb = discord.Embed(
-            colour=0x000000,
-            timestamp=datetime.utcnow(),
-            description=''
-        )
+        emb = discord.Embed(colour=0x000000, timestamp=datetime.utcnow(), description='')
         if not reason:
             reason = '(none given)'
-        if reason.startswith('⁣') or '-s' in reason:
+        if reason.startswith('⁣') or '-s' in reason:  # skip crossposting if enabled
             reason = reason.replace('⁣', '').replace('-s ', '').replace(' -s', '')
             emb.description = '⁣'
-        if reason.startswith('⠀') or '-c' in reason:
+        if reason.startswith('⠀') or '-c' in reason:  # specially crosspost if disabled
             reason = reason.replace('⠀', '').replace('-c', '')
             emb.description = '⠀'
         if reason.startswith('*by* '):
@@ -968,16 +1351,26 @@ class Logger(commands.Cog):
 
         emb.set_footer(text=f'User Banned',
                        icon_url=member.avatar_url_as(static_format="png"))
+
+        already_added = False  # if the ban event has already been added to the modlog, don't do it here again
+        try:
+            last_modlog = self.bot.db['modlog'][str(guild.id)][str(member.id)][-1]
+            time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
+            if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
+                already_added = True
+        except KeyError:
+            pass
+        if not already_added:
+            hf.add_to_modlog(None, [member, guild], 'Ban', reason, False, None)
+
         return emb
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
-        if member.id == 414873201349361664:
+        if member.id == ABELIAN_ID:
             try:
                 await member.unban()
-            except discord.errors.NotFound:
-                pass
-            except discord.errors.Forbidden:
+            except (discord.NotFound, discord.Forbidden):
                 pass
 
         guild_id: str = str(guild.id)
@@ -1010,13 +1403,13 @@ class Logger(commands.Cog):
             except KeyError:
                 pass
 
-        if member.id == 414873201349361664:
+        if member.id == ABELIAN_ID:
             try:
                 await member.unban()
             except discord.errors.NotFound:
                 pass
             try:
-                self.bot.db['global_blacklist']['blacklist'].remove(414873201349361664)
+                self.bot.db['global_blacklist']['blacklist'].remove(ABELIAN_ID)
             except ValueError:
                 pass
 
@@ -1043,9 +1436,11 @@ class Logger(commands.Cog):
                 except discord.errors.Forbidden:
                     await self.module_disable_notification(guild, guild_config, 'unban')
                     return
+                
+    # ############### kicks #####################
 
     @commands.group(invoke_without_command=True, name='kicks')
-    async def kick_logging(self, ctx):
+    async def kicks(self, ctx):
         """Logs deleted kicks"""
         result = await self.module_logging(ctx, self.bot.db['kicks'])
         if result == 1:
@@ -1058,7 +1453,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;kick_logging set`.  '
                                     'Then, enable/disable logging by typing `;kick_logging`.')
 
-    @kick_logging.command(name='set')
+    @kicks.command(name='set')
     async def kicks_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['kicks'])
         if result == 1:
@@ -1070,10 +1465,10 @@ class Logger(commands.Cog):
     async def make_kick_embed(self, member):
         # await asyncio.sleep(1)
         log_channel = self.bot.get_channel(self.bot.db['kicks'][str(member.guild.id)]['channel'])
+        reason = "(could not find audit log entry)"
         try:
-            emb = None
-            async for entry in member.guild.audit_logs(limit=1, oldest_first=False,
-                                                       action=discord.AuditLogAction.kick,
+            emb = None  # action=discord.AuditLogAction.kick
+            async for entry in member.guild.audit_logs(limit=1, oldest_first=False, action=discord.AuditLogAction.kick,
                                                        after=datetime.utcnow() - timedelta(seconds=10)):
                 if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
                     kick_entry = entry
@@ -1082,7 +1477,11 @@ class Logger(commands.Cog):
         except discord.errors.Forbidden:
             await log_channel.send('Failed to post kick log due to lacking audit logs or embed permissions')
             return
+        if not reason:
+            reason = "(no reason given)"
+
         if emb:
+            hf.add_to_modlog(None, [member, member.guild], 'Kick', reason, False, None)
             emb = discord.Embed(
                 description=f'❌ **{member.name}#{member.discriminator}** was `kicked` ({member.id})\n\n'
                             f'*by* {kick_entry.user.mention}\n**Reason**: {reason}',

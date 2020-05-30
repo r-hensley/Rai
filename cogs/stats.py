@@ -14,6 +14,12 @@ class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def cog_check(self, ctx):
+        if ctx.guild:
+            return True
+        else:
+            raise commands.NoPrivateMessage
+
     lang_codes_dict = {'af': 'Afrikaans', 'ga': 'Irish', 'sq': 'Albanian', 'it': 'Italian', 'ar': 'Arabic',
                        'ja': 'Japanese', 'az': 'Azerbaijani', 'kn': 'Kannada', 'eu': 'Basque', 'ko': 'Korean',
                        'bn': 'Bengali', 'la': 'Latin', 'be': 'Belarusian', 'lv': 'Latvian', 'bg': 'Bulgarian',
@@ -47,10 +53,8 @@ class Stats(commands.Cog):
         for day in config:
             if str(member.id) in config[day]:
                 user = config[day][str(member.id)]
-                for channel in user:
-                    if channel in ['emoji', 'lang']:
-                        continue
-                    message_count[channel] = message_count.get(channel, 0) + user[channel]
+                for channel in user['channels']:
+                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
                             description="Last 30 days",
@@ -83,15 +87,24 @@ class Stats(commands.Cog):
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command(aliases=['u'])
+    @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def user(self, ctx, *, member: str = None):
         """Gives info about a user.  Leave the member field blank to get info about yourself."""
         if not member:
             member = ctx.author
+            member_id = ctx.author.id
         else:
+            member_id = member
             member = await hf.member_converter(ctx, member)
-            if not member:
-                return
+            if member:
+                member_id = member.id
+            else:
+                try:
+                    user = await self.bot.fetch_user(member_id)
+                    user_name = user.name
+                except (discord.NotFound, discord.HTTPException):
+                    return
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
@@ -105,16 +118,16 @@ class Stats(commands.Cog):
         total_msgs_month = 0
         total_msgs_week = 0
         for day in config:
-            if str(member.id) in config[day]:
-                user = config[day][str(member.id)]
-                for channel in user:
-                    if channel in ['emoji', 'lang']:
-                        continue
-                    message_count[channel] = message_count.get(channel, 0) + user[channel]
+            if str(member_id) in config[day]:
+                user = config[day][str(member_id)]
+                if 'channels' not in user:
+                    continue
+                for channel in user['channels']:
+                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
                     days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
                     if days_ago <= 7:
-                        total_msgs_week += user[channel]
-                    total_msgs_month += user[channel]
+                        total_msgs_week += user['channels'][channel]
+                    total_msgs_month += user['channels'][channel]
                 if 'emoji' in user:
                     for emoji in user['emoji']:
                         if emoji in emoji_dict:
@@ -133,10 +146,17 @@ class Stats(commands.Cog):
         sorted_langs = sorted(lang_count.items(), key=lambda x: x[1], reverse=True)
 
         # ### Make embed ###
-        emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+        if member:
+            title = f'Usage stats for {member.name}'
+            if member.nick:
+                title += f" ({member.nick})"
+        else:
+            title = f'Usage stats for {member_id} ({user_name}) (user left server)'
+        emb = discord.Embed(title=title,
                             description="Last 30 days",
-                            color=discord.Color(int('00ccFF', 16)),
-                            timestamp=member.joined_at)
+                            color=discord.Color(int('00ccFF', 16)))
+        if member:
+            emb.timestamp = member.joined_at
         emb.add_field(name="Messages sent M | W",
                       value=f"{total_msgs_month} | {total_msgs_week}")
 
@@ -180,8 +200,8 @@ class Stats(commands.Cog):
         voice_config = self.bot.stats[str(ctx.guild.id)]['voice']['total_time']
         voice_time = 0
         for day in voice_config:
-            if str(member.id) in voice_config[day]:
-                time = voice_config[day][str(member.id)]
+            if str(member_id) in voice_config[day]:
+                time = voice_config[day][str(member_id)]
                 voice_time += time
         hours = voice_time // 60
         minutes = voice_time % 60
@@ -191,10 +211,16 @@ class Stats(commands.Cog):
 
         # ### If no messages or voice in last 30 days ###
         if (not total_msgs_month or not sorted_msgs) and not voice_time:
-            emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+            emb = discord.Embed(title='',
                                 description="This user hasn't said anything in the past 30 days",
-                                color=discord.Color(int('00ccFF', 16)),
-                                timestamp=member.joined_at)
+                                color=discord.Color(int('00ccFF', 16)))
+            if member:
+                emb.title = f"Usage stats for {member.name}"
+                if member.nick:
+                    emb.title += f" ({member.nick})"
+                emb.timestamp = member.joined_at
+            else:
+                emb.title += f"Usage stats for {member_id} {user_name} (this user was not found)"
 
         # ### Add emojis field ###
         if sorted_emojis:
@@ -225,20 +251,21 @@ class Stats(commands.Cog):
             emb.add_field(name='Most used languages', value=value)
 
         # ### Calculate join position ###
-        member_list = ctx.guild.members
-        for member_in_list in member_list.copy():
-            if not member_in_list.joined_at:
-                member_list.remove(member_in_list)
-        sorted_members_by_join = sorted([(member, member.joined_at) for member in member_list],
-                                        key=lambda x: x[1],
-                                        reverse=False)
-        join_order = 0
-        for i in sorted_members_by_join:
-            if i[0].id == member.id:
-                join_order = sorted_members_by_join.index(i)
-                break
-        if join_order + 1:
-            emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
+        if member:
+            member_list = ctx.guild.members
+            for member_in_list in member_list.copy():
+                if not member_in_list.joined_at:
+                    member_list.remove(member_in_list)
+            sorted_members_by_join = sorted([(member, member.joined_at) for member in member_list],
+                                            key=lambda x: x[1],
+                                            reverse=False)
+            join_order = 0
+            for i in sorted_members_by_join:
+                if i[0].id == member.id:
+                    join_order = sorted_members_by_join.index(i)
+                    break
+            if join_order + 1:
+                emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
 
         # ### Send ###
         try:
@@ -296,16 +323,16 @@ class Stats(commands.Cog):
             channel_ids = [c.id for c in channels_in]
         for day in config:
             for user in config[day]:
-                for channel in config[day][user]:
-                    if channel in ['emoji', 'lang']:
-                        continue
+                if 'channels' not in config[day][user]:
+                    continue
+                for channel in config[day][user]['channels']:
                     if channels_in:
                         if int(channel) not in channel_ids:
                             continue
                     try:
-                        msg_count[user] += config[day][user][channel]
+                        msg_count[user] += config[day][user]['channels'][channel]
                     except KeyError:
-                        msg_count[user] = config[day][user][channel]
+                        msg_count[user] = config[day][user]['channels'][channel]
         try:
             await hf.safe_send(ctx,
                                embed=self.make_leaderboard_embed(ctx, channels_in, msg_count, "Messages Leaderboard"))
@@ -372,6 +399,8 @@ class Stats(commands.Cog):
         emojis = {}
         for date in config:
             for user_id in config[date]:
+                if 'emoji' not in config[date][user_id]:
+                    continue
                 for emoji in config[date][user_id]['emoji']:
                     if emoji in emojis:
                         emojis[emoji] += config[date][user_id]['emoji'][emoji]

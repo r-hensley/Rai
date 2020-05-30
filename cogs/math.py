@@ -9,6 +9,7 @@ import math
 import asyncio
 import io
 import os
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -207,7 +208,7 @@ class Math(commands.Cog):
         with io.BytesIO() as walkIm:
             plt.savefig(walkIm, format='png')
             walkIm.seek(0)
-            await ctx.send(file=discord.File(walkIm, 'plot.png'))
+            await hf.safe_send(ctx, file=discord.File(walkIm, 'plot.png'))
 
         if save == 'save':  # will show multiple plots on one graph
             return
