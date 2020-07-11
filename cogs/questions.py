@@ -1,8 +1,7 @@
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
-import asyncio
-import requests
+import asyncio, aiohttp
 import json
 from datetime import datetime, date
 
@@ -10,17 +9,13 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-class Submod(commands.Cog):
+class Questions(commands.Cog):
     """Help"""
 
     def __init__(self, bot):
         self.bot = bot
 
-    async def cog_check(self, ctx):
-        if ctx.guild:
-            return True
-
-    @commands.command(aliases=['tk', 't', 'taekim', 'gram', 'g'])
+    @commands.command(aliases=['tk', 'taekim', 'gram', 'g'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(1, 5, type=commands.BucketType.user)
     async def grammar(self, ctx, *, search_term=None):
@@ -40,13 +35,17 @@ class Submod(commands.Cog):
                  'japanesetest4you': 'https://japanesetest4you.com/',
                  'imabi': 'https://www.imabi.net/',
                  'jlptsensei': 'https://jlptsensei.com/',
-                 'ejlx': 'https://ejlx.blogspot.com/'}
+                 'ejlx': 'https://ejlx.blogspot.com/',
+                 'se': 'https://japanese.stackexchange.com/'}
         space_split = search_term.split()
         if space_split[0] in sites:
             site = sites[space_split[0]]
             search_term = ' '.join(space_split[1:])
         else:
             site = None
+        if not search_term:
+            await hf.safe_send(ctx, "Please enter a search term. Check the help for this command")
+            return
 
         # ### Call the search ###
         engine_id = '013657184909367434363:djogpwlkrc0'
@@ -57,11 +56,20 @@ class Submod(commands.Cog):
                   f'&key={read_file.read()}'
         if site:
             url += f"&siteSearch={site}"
-        response = requests.get(url)
-        if response.status_code != 200:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Error {response.status_code}: {response.reason}"))
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    response = resp
+                    data = await resp.text()
+        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
             return
-        jr = json.loads(response.content)
+        if response.status != 200:
+            await hf.safe_send(ctx, f'html_error: Error {r.status_code}: {r.reason} ({url})')
+            return
+
+        jr = json.loads(data)
         if 'items' in jr:
             results = jr['items']
         else:
@@ -201,7 +209,6 @@ class Submod(commands.Cog):
         config['questions'][str(question_number)]['author'] = target_message.author.id
         config['questions'][str(question_number)]['command_caller'] = ctx.author.id
         config['questions'][str(question_number)]['date'] = date.today().strftime("%Y/%m/%d")
-
         log_channel = self.bot.get_channel(config['log_channel'])
         color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every username
         emb = discord.Embed(title=f"Question number: `{question_number}`",
@@ -213,18 +220,22 @@ class Submod(commands.Cog):
             emb.add_field(name=f"Question:", value=f"{title}"[:1024])
             if title[1024:]:
                 emb.add_field(name=f"Question (cont.):", value=f"{title[1024:]}\n")
-            emb.add_field(name=f"Jump Link to Question:", value=target_message.jump_url)
+            emb.add_field(name=f"Jump Link to Question:", value=f"[Jump URL]({target_message.jump_url})")
         else:
-            emb.add_field(name=f"Question:", value=f"{title}\n{target_message.jump_url}")
+            emb.add_field(name=f"Question:", value=f"{title}\n[Jump URL]({target_message.jump_url})")
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
         try:
+            await self._delete_log(ctx)
             log_message = await hf.safe_send(log_channel, embed=emb)
+            await self._post_log(ctx)
         except discord.errors.HTTPException as err:
             if err.status == 400:
-                await hf.safe_send(ctx, "The question was too long")
+                await hf.safe_send(ctx, "The question was too long, or the embed is too big.")
             elif err.status == 403:
                 await hf.safe_send(ctx, "I didn't have permissions to post in that channel")
+            else:
+                raise
             del (config['questions'][str(question_number)])
             return
         config['questions'][str(question_number)]['log_message'] = log_message.id
@@ -239,7 +250,6 @@ class Submod(commands.Cog):
                 await hf.safe_send(ctx, "I can't find the question message.")
                 await ctx.invoke(self.answer, args=str(question_number))
                 return
-
         if target_message.author != ctx.author:
             msg_text = f"Hello, someone has marked one of your questions using my questions log feature.  It is now " \
                        f"logged in <#{config['log_channel']}>.  This will" \
@@ -252,20 +262,19 @@ class Submod(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['q'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def question(self, ctx, *, args):
+    @commands.guild_only()
+    async def question(self, ctx, *, args=None):
         """A module for asking questions, put the title of your quesiton like `;question <title>`"""
-        args = args.split(' ')
         if not args:
-            msg = f"This is a module to help you ask your questions.  To ask a question, decide a title for your " \
-                  f"question and type `;question <title>`.  For example, if your question is about the meaning " \
-                  f"of a word in a sentence, you could format the command like `;question Meaning of <word> " \
-                  f"in <sentence>`. Put that command in the questions channel and you're good to go!  " \
-                  f"(Alias: `;q <title>`)"
+            msg = f"Type `;q <question text>` to make a question, or do `;help q`. For now, here's the questions list:"
             await hf.safe_send(ctx, msg)
+            await ctx.invoke(self.question_list)
             return
+        args = args.split(' ')
 
         try:  # there is definitely some text in the arguments
             target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
+            await ctx.message.add_reaction('⤴')
             if len(args) == 1:
                 title = target_message.content  # if there was no text after the ID
             else:
@@ -409,11 +418,15 @@ class Submod(commands.Cog):
         except discord.errors.NotFound:
             log_message = None
             await hf.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
+        except KeyError:
+            log_message = None
+            await hf.safe_send(ctx, "Sorry I think this question got a bit bugged out. I'm going to close it.")
 
         try:
             question_message = await ctx.channel.fetch_message(question['question_message'])
             if ctx.author.id not in [question_message.author.id, question['command_caller']] \
-                    and not hf.submod_check(ctx):
+                    and not hf.submod_check(ctx) and ctx.author.id not in \
+                    self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
                 await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
                                         f"originally can mark it as answered.")
                 return
@@ -439,7 +452,7 @@ class Submod(commands.Cog):
             if not answer_text:
                 answer_text = ''
             emb.add_field(name=f"Answer: ",
-                          value=answer_text + '\n' + answer_message.jump_url)
+                          value=answer_text + '\n' + f"[Jump URL]({answer_message.jump_url})")
             await log_message.edit(embed=emb)
 
         try:
@@ -468,6 +481,9 @@ class Submod(commands.Cog):
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except discord.NotFound:
                 pass
+
+        await self._delete_log(ctx)
+        await self._post_log(ctx)
 
     @question.command(aliases=['reopen', 'bump'])
     @hf.is_admin()
@@ -499,42 +515,72 @@ class Submod(commands.Cog):
         await log_message.delete()
 
     @question.command(name='list')
-    async def question_list(self, ctx):
+    async def question_list(self, ctx, target_channel=None):
         """Shows a list of currently open questions"""
+        if not target_channel:
+            target_channel = ctx.channel
         try:
             config = self.bot.db['questions'][str(ctx.guild.id)]
         except KeyError:
-            await hf.safe_send(ctx, f"There are no questions channels on this server.  Run `;question setup` in the "
-                                    f"questions channel to start setup.")
+            await hf.safe_send(target_channel, f"There are no questions channels on this server.  Run `;question"
+                                               f" setup` in the questions channel to start setup.")
             return
-        emb = discord.Embed(title=f"List of open questions:")
+
+        # getting the main log channel
         if str(ctx.channel.id) in config:
-            log_channel_id = config[str(ctx.channel.id)]['log_channel']
+            log_channel_id = config[str(ctx.channel.id)]['log_channel']  # main question channels
         elif str(ctx.guild.id) in config:
-            log_channel_id = config[str(ctx.guild.id)]['log_channel']
+            log_channel_id = config[str(ctx.guild.id)]['log_channel']  # a default log channel for "all other chan."
         else:
-            log_channel_id = '0'  # use all channels
+            log_channel_id = None
+            for q_chan in config:
+                if config[q_chan]['log_channel'] == ctx.channel.id:
+                    log_channel_id = ctx.channel.id  # if you call from a log channel instead of a question channel
+                    break
+            if not log_channel_id:
+                await hf.safe_send(target_channel, "This channel is not setup as a questions channel.")
+                return
+
+        first = True
+        # the ⁣ are invisble tags to confirm that this is indeed a `;q list` result for the _list_update function
+        emb = discord.Embed(title=f"⁣List⁣ of open questions (sorted by channel then date):")
         for channel in config:
-            if config[channel]['log_channel'] != log_channel_id and log_channel_id != 0:
+            if config[channel]['log_channel'] != log_channel_id:
                 continue
             channel_config = config[str(channel)]['questions']
+            question_channel = self.bot.get_channel(int(channel))
+            if first:
+                first = False
+                emb.description=f"**__#{question_channel.name}__**"
+            else:
+                if channel_config:
+                    emb.add_field(name=f"⁣**__{'　'*30}__**⁣",
+                                  value=f'**__#{question_channel.name}__**', inline=False)
             for question in channel_config.copy():
                 try:
-                    question_channel = self.bot.get_channel(int(channel))
-                    question_message = await question_channel.fetch_message(
-                        channel_config[question]['question_message'])
+                    if question not in channel_config:
+                        await hf.safe_send(ctx, "Seems you're maybe trying things too fast. Try again.")
+                        return
+                    q_config = channel_config[question]
+                    question_message = await question_channel.fetch_message(q_config['question_message'])
                     question_text = ' '.join(question_message.content.split(' '))
-                    text_splice = 1020 - len(question_message.jump_url) - \
-                                  len(f"By {question_message.author.mention} in {question_message.channel.mention}\n\n")
-                    value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n" \
-                                 f"{question_text[:text_splice]}\n" \
-                                 f"{question_message.jump_url}"
-                    emb.add_field(name=f"Question `{question}`",
-                                  value=value_text)
+                    value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n"
+
+                    if q_config.get('responses', None):
+                        log_message = ctx.guild.get_channel(log_channel_id)
+                        log_message = await log_message.fetch_message(q_config['log_message'])
+                        value_text += f"__[Responses: {len(q_config['responses'])}]({log_message.jump_url})__\n"
+
+                    value_text += f"⁣⁣⁣⁣\n[Jump URL]({question_message.jump_url})"
+                    text_splice = 800 - len(value_text)
+                    if len(question_text) > text_splice:
+                        question_text = question_text[:-3] + '...'
+                    value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice])
+                    emb.add_field(name=f"Question `{question}`", value=value_text)
                 except discord.errors.NotFound:
                     emb.add_field(name=f"Question `{question}`",
                                   value="original message not found")
-        await hf.safe_send(ctx, embed=emb)
+        await hf.safe_send(target_channel, embed=emb)
 
     @question.command()
     @hf.is_admin()
@@ -558,15 +604,16 @@ class Submod(commands.Cog):
                 question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
                 question_message = await ctx.channel.fetch_message(question_id)
                 emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_message.content[:900]}\n"
-                                                                   f"{question_message.jump_url})")
+                                                                   f"[Jump URL]({question_message.jump_url}))")
             except ValueError:
                 question_message = ctx.message  # ;q edit 555932038612385798 question <New question text>
                 question_text = ' '.join(question_message.content.split(' ')[3:])
-                emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_text}\n{question_message.jump_url}")
+                emb.set_field_at(0, name=emb.fields[0].name,
+                                 value=f"{question_text}\n[Jump URL]({question_message.jump_url})")
         if target == 'title':
             title = ' '.join(text)
             jump_url = emb.fields[0].split('\n')[-1]
-            emb.set_field_at(0, name=emb.fields[0].name, value=f"{title}\n{jump_url}")
+            emb.set_field_at(0, name=emb.fields[0].name, value=f"{title}\n[Jump URL]({jump_url})")
         if target == 'asker':
             try:
                 asker = ctx.guild.get_member(int(text[0]))
@@ -587,12 +634,12 @@ class Submod(commands.Cog):
             elif target == 'answer':
                 try:  # ;q edit <log_message_id> answer <answer_id>
                     answer_message = await ctx.channel.fetch_message(int(text[0]))
-                    emb.set_field_at(1, name=emb.fields[1].name, value=answer_message.jump_url)
+                    emb.set_field_at(1, name=emb.fields[1].name, value=f"[Jump URL]({answer_message.jump_url})")
                 except ValueError:
                     answer_message = ctx.message  # ;q edit <log_message_id> answer <new text>
                     answer_text = 'answer '.join(ctx.message.split('answer ')[1:])
                     emb.set_field_at(1, name=emb.fields[1].name, value=f"{answer_text[:900]}\n"
-                                                                       f"{answer_message.jump_url}")
+                                                                       f"[Jump URL]({answer_message.jump_url})")
 
         if emb.footer.text:
             emb.set_footer(text=emb.footer.text + f", Edited by {ctx.author.name}")
@@ -604,5 +651,126 @@ class Submod(commands.Cog):
         except discord.errors.Forbidden:
             await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
+    # 'questions'
+    #   >id of guild
+    #     > id of question channel
+    #           > 'log_channel'
+    #           > 'questions'
+    #                 > 1
+    #                       > title, question_message, author, command_caller, date, log_message(id)
+    #                 > 2
+    #                       > title, question_message, author, command_caller, date, log_message
+
+    @commands.command(hidden=True)
+    async def resp(self, ctx, index, *, response):
+        """Alias for `;q resp`"""
+        x = self.bot.get_command('question respond')
+        if await x.can_run(ctx):
+            await ctx.invoke(x, index, response=response)
+
+    @question.command(aliases=['resp', 'r'])
+    async def respond(self, ctx, index, *, response):
+        """Respond to a question in the question log and log your response. You must do this in the channel \
+        that the question was originally logged in. Example: `;q resp 3 I think this is correct`."""
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            return
+        if not response:
+            await hf.safe_send(ctx, "You need to type something for your response.")
+            return
+        if len(response.split()) == 1:
+            try:
+                msg = await ctx.channel.fetch_message(int(response))
+                await ctx.message.add_reaction('⤴')
+                ctx.message = msg
+                ctx.author = msg.author
+                response = msg.content
+            except (discord.NotFound, ValueError):
+                pass
+        if index not in config['questions']:
+            await hf.safe_send(ctx, "Invalid question index. Make sure you're typing this command in the channel "
+                                    "the question was originally made in.")
+            return
+
+        try:
+            log_channel = ctx.guild.get_channel(config['log_channel'])
+        except discord.NotFound:
+            await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
+            return
+        try:
+            log_message = await log_channel.fetch_message(config['questions'][index]['log_message'])
+        except discord.NotFound:
+            await hf.safe_send(ctx, "The original question log message could not be found. Type `;q a <index>` to "
+                                    "close the question and clear it.")
+            return
+
+        emb: discord.Embed = log_message.embeds[0]
+        value_text = f"⁣⁣⁣\n[Jump URL]({ctx.message.jump_url})"
+        emb.add_field(name=f"Response by {ctx.author.name}#{ctx.author.discriminator}",
+                      value=value_text.replace('⁣⁣⁣', response[:1024-len(value_text)]))
+        await log_message.edit(embed=emb)
+        config['questions'][index].setdefault('responses', []).append(ctx.message.jump_url)
+        await self._delete_log(ctx)
+        await self._post_log(ctx)
+        await ctx.message.add_reaction('✅')
+
+    async def _delete_log(self, ctx):
+        """Internal command for deleting the last message in log channel if it is `;q list` result"""
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            return
+
+        log_channel = ctx.guild.get_channel(config['log_channel'])
+        if not log_channel:
+            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            return
+        try:
+            last_message = None
+            async for msg in log_channel.history(limit=5).filter(lambda m: m.author == m.guild.me and m.embeds):
+                last_message = msg
+                break
+            if last_message.embeds[0].title.startswith('⁣List⁣'):
+                try:
+                    await last_message.delete()  # replace the last message in the channel (it should be a log)
+                except discord.NotFound:
+                    pass
+        except (TypeError, AttributeError, discord.Forbidden):
+            return
+
+    async def _post_log(self, ctx):
+        """Internal command for updating the list at the bottom of question log channels"""
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            return
+
+        log_channel = ctx.guild.get_channel(config['log_channel'])
+        if not log_channel:
+            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            return
+        # ctx.channel = log_channel
+        await ctx.invoke(self.question_list, log_channel)
+
+    @commands.command(aliases=['diff'])
+    async def difference(self, ctx, *, query):
+        """Pastes a text which links to how to find the difference between two words for language learning"""
+        if not query:
+            query = "X Y"
+        urlquery = '+'.join(query.split())
+        emb = hf.green_embed(f"A lot of 'what is the difference between X and Y' kinds of questions can be answered "
+                             f"by typing something like the following into google (click the links to see the "
+                             f"search results):\n\n"
+                             f"['Japanese {query} difference']"
+                             f"(https://www.google.com/search?q=japanese+{urlquery}+difference)\n"
+                             f"['{query} difference']"
+                             f"(https://www.google.com/search?q={urlquery}+difference)\n"
+                             f"['{query} 違い']"
+                             f"(https://www.google.com/search?q={urlquery}+違い)\n"
+                             )
+        await hf.safe_send(ctx, embed=emb)
+
+
 def setup(bot):
-    bot.add_cog(Submod(bot))
+    bot.add_cog(Questions(bot))

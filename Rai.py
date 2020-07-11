@@ -16,7 +16,8 @@ import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 print(os.stat(f'{dir_path}/stats.json'))
 print(os.stat(f"{dir_path}/db.json"))
-# import logging
+import logging
+logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
 # handler = logging.FileHandler(
@@ -42,7 +43,8 @@ def prefix(bot, msg):
 
 class Rai(Bot):
     def __init__(self):
-        super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496)
+        super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496,
+                         help_command=None, )
         self.bg_task = self.loop.create_task(self.background_tasks())
         self.last_error = datetime.utcnow()
         self.num_of_errors = 0
@@ -110,6 +112,7 @@ class Rai(Bot):
             while not self.is_closed():
                 counter += 1
                 x = datetime.utcnow()
+                # print(f'{datetime.utcnow()}: restarted background tasks loop')
 
                 if x.hour == 0 and x.minute == 0:
                     counter = 0
@@ -119,7 +122,6 @@ class Rai(Bot):
                     with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
                         json.dump(self.stats, write_file)
                     await ctx.invoke(self.get_command("_delete_old_stats_days"))
-
                 await hf.dump_json()
 
                 if counter % 5 == 0:
@@ -127,6 +129,8 @@ class Rai(Bot):
                     await ctx.invoke(self.get_command("_unmute_users"))
                     await ctx.invoke(self.get_command("_unselfmute_users"))
                     await ctx.invoke(self.get_command("_check_desync_voice"))
+                if counter % 250 == 0:
+                    await ctx.invoke(self.get_command("_check_lhscan"))
                 await asyncio.sleep(60)
         except Exception as error:
             error = getattr(error, 'original', error)
@@ -145,11 +149,21 @@ class Rai(Bot):
                 await channel.send(f"❗❗❗❗ STOPPING BACKGROUND TASKS ❗❗❗❗\n"
                                    f"❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗")
 
+    # async def on_command(self, ctx):
+    #     print(f"Running {ctx.command.name}")
+
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
             return
+
+        elif isinstance(error, commands.NoPrivateMessage):
+            try:
+                await ctx.author.send("You can only use this in a guild.")
+                return
+            except discord.Forbidden:
+                pass
 
         elif isinstance(error, discord.Forbidden):
             try:
@@ -190,10 +204,11 @@ class Rai(Bot):
             # the predicates in Command.checks have failed.
             if ctx.command.name == 'global_blacklist':
                 return
-            if str(ctx.guild.id) in self.db['modsonly']:
-                if self.db['modsonly'][str(ctx.guild.id)]['enable']:
-                    if not hf.admin_check(ctx):
-                        return
+            if ctx.guild:
+                if str(ctx.guild.id) in self.db['modsonly']:
+                    if self.db['modsonly'][str(ctx.guild.id)]['enable']:
+                        if not hf.admin_check(ctx):
+                            return
 
             if ctx.command.cog.qualified_name in ['Admin', 'Logger', 'ChannelMods', 'Submod'] and \
                     (str(ctx.guild.id) not in self.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
@@ -235,10 +250,6 @@ class Rai(Bot):
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send(f"To do that command, you are missing the following permissions: "
                            f"`{'`, `'.join(error.missing_perms)}`")
-            return
-
-        elif isinstance(error, commands.NoPrivateMessage):
-            await ctx.author.send('This command cannot be used in private messages.')
             return
 
         elif isinstance(error, commands.NotOwner):

@@ -57,7 +57,6 @@ class Jpserv(commands.Cog):
                 else:
                     await ctx.send("That user is not in UHC mode.")
                     return
-                await hf.dump_json()
                 try:
                     await member.remove_roles(role)
                 except discord.errors.Forbidden:
@@ -92,7 +91,6 @@ class Jpserv(commands.Cog):
         else:
             config[str(ctx.author.id)] = [True, date.today().strftime("%Y/%m/%d"), 0]
 
-        await hf.dump_json()
         try:
             await ctx.author.add_roles(role)
         except discord.errors.Forbidden:
@@ -186,7 +184,6 @@ class Jpserv(commands.Cog):
         except KeyError:
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
-        await hf.dump_json()
 
 def setup(bot):
     bot.add_cog(Jpserv(bot))
