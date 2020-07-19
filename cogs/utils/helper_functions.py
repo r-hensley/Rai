@@ -120,9 +120,9 @@ async def detect_language(text):
     return await _loop.run_in_executor(None, partial(_predetect, text))
 
 
-async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None):
+async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
     """A command to be clearer about permission errors when sending messages"""
-    if not content and not embed:
+    if not content and not embed and not file:
         raise SyntaxError("You maybe didn't state a destination")
     perms_set = perms = False
     if isinstance(destination, commands.Context):
@@ -141,7 +141,7 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
             return
 
     try:
-        return await destination.send(content, embed=embed, delete_after=delete_after)
+        return await destination.send(content, embed=embed, delete_after=delete_after, file=file)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
@@ -246,9 +246,6 @@ def submod_check(ctx):
         role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
     except KeyError:
         return
-    if ctx.guild.id == 243838819743432704:
-        if ctx.channel.id == ctx.bot.db['submod_channel'][str(ctx.guild.id)]:
-            return True
     submod_role = ctx.guild.get_role(role_id)
     return submod_role in ctx.author.roles
 
@@ -448,15 +445,7 @@ async def long_deleted_msg_notification(msg):
         notification = 'Hardcore deleted a long message:'
         await msg.author.send(f"{notification}```{msg.content[:1962]}```")
     except discord.errors.Forbidden:
-        if msg.author.id == 401683644529377290:
-            return
-        await msg.channel.send(f"<@{msg.author.id}> I deleted an important looking message of yours "
-                               f"but you seem to have DMs disabled so I couldn't send it to you.")
-        notification = \
-            f"I deleted someone's message but they had DMs disabled ({msg.author.mention} {msg.author.name})"
-        me = here.bot.get_user(here.bot.owner_id)
-        await me.send(notification)
-        # await me.send(msg.author.name, msg.content)
+        return
 
 
 async def uhc_check(msg):

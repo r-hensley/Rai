@@ -71,7 +71,7 @@ class Rai(Bot):
             except Exception as e:
                 print('Failed to load extension {}.'.format(extension), file=sys.stderr)
                 traceback.print_exc()
-                raise
+                continue
 
     async def on_ready(self):
         self.ryry = self.get_user(202995638860906496)

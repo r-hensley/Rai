@@ -1,7 +1,9 @@
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
-import asyncio, aiohttp
+import asyncio, aiohttp, async_timeout
+from bs4 import BeautifulSoup
+import re
 import json
 from datetime import datetime, date
 
@@ -158,7 +160,10 @@ class Questions(commands.Cog):
             if str(reaction.emoji) == '➡':
                 page += 1
             await msg.edit(embed=make_embed(page))
-            await reaction.remove(user)
+            try:
+                await reaction.remove(user)
+            except discord.Forbidden:
+                pass
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -770,6 +775,134 @@ class Questions(commands.Cog):
                              f"(https://www.google.com/search?q={urlquery}+違い)\n"
                              )
         await hf.safe_send(ctx, embed=emb)
+
+    @commands.command()
+    async def neko(self, ctx, *search):
+        """Search the grammar database at itazuraneko. Use: `;neko <search term>`. Optionally, add a tag at the end
+        to specify which grammar dictionary you want to search (options: `-basic`, `-intermediate`, `-advanced`,
+        `-handbook`, `-donnatoki`).
+        """
+
+        dictionaries = {"dojg/dojgpages/basic": "A Dictionary of Basic Japanese Grammar",
+                        "basic": "A Dictionary of Basic Japanese Grammar",
+                        "dojg/dojgpages/intermediate": "A Dictionary of Intermediate Japanese Grammar",
+                        "intermediate": "A Dictionary of Intermediate Japanese Grammar",
+                        "dojg/dojgpages/advanced": "A Dictionary of Advanced Japanese Grammar",
+                        "advanced": "A Dictionary of Advanced Japanese Grammar",
+                        "https://core6000.neocities.org/hjgp/": "Handbook of Japanese Grammar",
+                        "handbook": "Handbook of Japanese Grammar",
+                        "donnatoki": "どんなときどう使う 日本語表現文型辞典"}
+
+        dict_abbreviations = {"A Dictionary of Basic Japanese Grammar": "DoBJG",
+                              "A Dictionary of Intermediate Japanese Grammar": "DoIJG",
+                              "A Dictionary of Advanced Japanese Grammar": "DoAJG",
+                              "Handbook of Japanese Grammar": "HoJG",
+                              "どんなときどう使う 日本語表現文型辞典": "表現文型辞典"}
+
+        with async_timeout.timeout(10):
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://itazuraneko.neocities.org/grammar/masterreference.html') as response:
+                    html = await response.text()
+
+        soup = BeautifulSoup(html, 'html.parser')
+
+        def fancyfind(tag):
+            if tag.name != "a":
+                return
+            if tag.parent.name != "td":
+                return
+            return True
+            # if tag.contents[0].has_attr("class"):
+            # return tag.name == "td" and tag.contents[0]["class"][0] == "underscore"
+
+        results = soup.find_all(fancyfind)
+
+        #  results look like this
+        # <td id="basic"><a class="underscore" href="dojg/dojgpages/basicあげる1.html">あげる(1)</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicあげる2.html">あげる(2)</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basic間あいだに.html">間・あいだ(に)</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicあまり.html">あまり</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicある1.html">ある(1)</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicある2.html">ある(2)</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicあとで.html">あとで</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicば.html">ば</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicばかり.html">ばかり</a></td>
+        # <td><a class="underscore" href="dojg/dojgpages/basicばよかった.html">ばよかった</a></td>
+        # <td><a class="underscore" href="https://core6000.neocities.org/hjgp/entries/3.htm">上がる</a></td>
+        # ruby: しろ〈<ruby>命<rt>めい</rt>令<rt>れい</rt></ruby>〉--> しろ〈命めい令れい〉
+
+        entries = []
+
+        def parse_search(text):
+            for c in "()（）":
+                text = text.replace(c, "")
+            if "〈" in text:
+                text = re.compile("〈.*〉").sub("", text)
+            return text.replace("…", "～").replace("~", "～")
+
+        for i in results:
+            url = i["href"]
+            dictionary = None
+            for site in dictionaries:
+                if site in url:
+                    dictionary = dictionaries[site]
+                    break
+            if not url.startswith("https"):
+                url = "https://itazuraneko.neocities.org/grammar/" + url
+            grammar = "".join([str(x) for x in i.contents])
+            if "<rt>" in grammar:
+                grammar = re.compile("(<rt>.*?<\/rt>|<\/?ruby>)").sub("", grammar)
+            search_field = parse_search(grammar)
+            entries.append((grammar, dictionary, url, search_field))
+
+        if search[-1][0] == "-":
+            dictionary = dictionaries[search[-1][1:].casefold()]
+            search = search[:-1]
+        else:
+            dictionary = None
+
+        exacts = []
+        contains = []
+        for entry in entries:  # (grammar name, dictionary name, url, search field)
+            if dictionary and entry[1] != dictionary:
+                continue
+            for term in search:
+                term = parse_search(term)
+                if term == entry[3]:
+                    exacts.append(entry)
+                elif term in entry[3]:
+                    contains.append(entry)
+
+        async def wait_for_delete(msg):
+            await msg.add_reaction('🗑️')
+            try:
+                await self.bot.wait_for('reaction_add', timeout=15.0,
+                                        check=lambda r, m: str(r.emoji) == '🗑️' and m == ctx.author)
+            except asyncio.TimeoutError:
+                await msg.clear_reactions()
+                return
+            await msg.delete()
+
+        if not exacts and not contains:
+            msg = await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find any results for your search term."))
+            await wait_for_delete(msg)
+            return
+        emb = discord.Embed(title="Itazuraneko Grammar Search", color=0x00FF00)
+        desc = ''
+        index = 1
+        for entry in exacts + ['middle'] + contains:
+            if entry == 'middle':
+                desc += "～～～～～～\n"
+                continue
+            addition = f"{index}) [{entry[0]}]({entry[2]}) ({dict_abbreviations[entry[1]]})\n"
+            if len(desc + addition) < 2046:
+                desc += addition
+                index += 1
+            else:
+                break
+        emb.description = desc
+        msg = await hf.safe_send(ctx, embed=emb)
+        await wait_for_delete(msg)
 
 
 def setup(bot):

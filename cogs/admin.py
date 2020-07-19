@@ -37,6 +37,7 @@ class Admin(commands.Cog):
         return True
 
     @commands.group(invoke_without_command=True, aliases=['rr', 'reactionroles'])
+    @commands.bot_has_permissions(embed_links=True, manage_roles=True)
     async def reaction_roles(self, ctx, *, args=''):
         """The setup command for reaction roles. If you type just `;rr`, you'll be taken through a guide for setting \
         up one role."""
@@ -399,6 +400,8 @@ class Admin(commands.Cog):
         rules = rules.replace('__', '').replace('{und}',
                                                 '__')  # google uses '__' page breaks so this gets around that
         rules = rules.split('########')
+        index = 0
+        jump_links = {}
         for page in rules:
             if page[0:6] == '!image':
                 url = page.split(' ')[1].replace('\r', '').replace('\n', '')
@@ -475,8 +478,72 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, "⠀\n⠀\n⠀\nThere was an error with one of your posts in the Google Doc.  Maybe "
                                         "check your usage of `########`.  Eight hashes means a new message.")
                 return
+
+            if channel == 0:
+                if index == 3:
+                    jump_links[0] = msg.jump_url
+                elif index == 4:
+                    jump_links[1] = msg.jump_url
+                elif index == 5:
+                    jump_links[2] = msg.jump_url
+                elif index == 12:
+                    jump_links[3] = msg.jump_url
+                    jump_links[9] = msg.jump_url
+                    jump_links[15] = msg.jump_url
+                elif index == 2:
+                    jump_links[4] = msg.jump_url
+                    jump_links[10] = msg.jump_url
+                    jump_links[16] = msg.jump_url
+                elif index == 1:
+                    jump_links[5] = msg.jump_url
+                    jump_links[11] = msg.jump_url
+                    jump_links[17] = msg.jump_url
+                elif index == 6:
+                    jump_links[6] = msg.jump_url
+                elif index == 7:
+                    jump_links[7] = msg.jump_url
+                elif index == 8:
+                    jump_links[8] = msg.jump_url
+                elif index == 9:
+                    jump_links[12] = msg.jump_url
+                elif index == 10:
+                    jump_links[13] = msg.jump_url
+                elif index == 11:
+                    jump_links[14] = msg.jump_url
+            index += 1
+
             if '<@ &' in msg.content:
                 await msg.edit(content=msg.content.replace('<@ &', '<@&'))
+        if channel == 0:
+            x = """⠀
+:flag_tw: **台灣繁體**
+• [伺服器規則](x0x)　
+• [BOT指令](x1x)
+• [常見問題](x2x)
+• [身份組](x3x)
+• [相關連結與 Discord 伺服器](x4x)
+• [伺服器邀請連結](x5x)
+
+:flag_cn: **大陆简体**
+• [服务器规则](x6x)　
+• [BOT指令](x7x)
+• [常见问题](x8x)
+• [身份组](x9x)
+• [相关链接与 Discord 服务器](x10x)
+• [服务器邀请链接](x11x)
+
+:flag_gb: | :flag_us: **English**
+• [Rules](x12x)　
+• [Bot Commands](x13x)
+• [FAQ](x14x)
+• [Roles](x15x)
+• [Useful Links & Servers](x16x)
+• [Server Invite](x17x)
+⠀"""
+            for i in jump_links:
+                x = x.replace(f"x{i}x", jump_links[i])
+            await ctx.send(embed=hf.green_embed(x))
+
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
@@ -1703,175 +1770,6 @@ class Admin(commands.Cog):
                 config[group].remove(role.id)
                 await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
                                                   f"**{role.name}** has been removed from the list."))
-
-    @commands.command()
-    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    async def mute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-        async def set_channel_overrides(role):
-            failed_channels = []
-            for channel in ctx.guild.voice_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, speak=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.name)
-            for channel in ctx.guild.text_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, send_messages=False, add_reactions=False,
-                                                      attach_files=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.name)
-            return failed_channels
-
-        if str(ctx.guild.id) not in self.bot.db['mutes']:
-            await hf.safe_send(ctx, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
-                                    "add then a permission override for it to every channel to prevent communication")
-            role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
-            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
-            failed_channels = await set_channel_overrides(role)
-            if failed_channels:
-                await hf.safe_send(ctx,
-                                   f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
-                                   f"member joins this (these) channel(s), they'll be able to type/speak.")
-        else:
-            config = self.bot.db['mutes'][str(ctx.guild.id)]
-            role = ctx.guild.get_role(config['role'])
-            await set_channel_overrides(role)
-
-        time_string, length = hf.parse_time(str(time))
-        if not time_string:  # indefinite mute
-            if not reason:
-                reason = ''
-            if member:
-                reason = f"{member} {reason}"
-            member = time
-            time = None
-
-        silent = False
-        if reason:
-            if '-s' in reason or '-n' in reason:
-                if ctx.guild.id == JP_SERVER_ID:
-                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
-                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
-                silent = True
-
-        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)
-        if re_result:
-            id = int(re_result.group(1))
-            target = ctx.guild.get_member(id)
-        else:
-            target = None
-        if not target:
-            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
-                                    "a mention to the user (this is to prevent mistaking people).")
-            return
-
-        if role in target.roles:
-            await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
-            return
-        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
-
-        if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            voice_state = target.voice
-            first_channel = voice_state.channel
-            try:
-                if ctx.guild.afk_channel:
-                    await target.move_to(ctx.guild.afk_channel)
-                    await target.move_to(voice_state.channel)
-                else:
-                    for channel in ctx.guild.voice_channels:
-                        if not channel.members:
-                            await target.move_to(channel)
-                            await target.move_to(voice_state.channel)
-                            break
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
-                                        "give Rai this permission, then it'll move the user to the AFK channel and "
-                                        "back to force the mute into effect. Otherwise, Discord's implementation of "
-                                        "the mute won't take effect until the next time the user connects to a "
-                                        "new voice channel.")
-                pass
-
-        if time_string:
-            config['timed_mutes'][str(target.id)] = time_string
-
-        notif_text = f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat."
-        if time_string:
-            notif_text = f"{notif_text[:-1]} for {time}."
-        if reason:
-            notif_text += f"\nReason: {reason}"
-        emb = hf.red_embed(notif_text)
-        if silent:
-            emb.description += " (The user was not notified of this)"
-        await hf.safe_send(ctx, embed=emb)
-
-        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
-        modlog_channel = self.bot.get_channel(modlog_config['channel'])
-
-        emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
-        emb.color = discord.Color(int('ff8800', 16))  # embed
-        if time_string:
-            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
-        else:
-            emb.add_field(name="Length", value="Indefinite", inline=False)
-        if reason:
-            emb.add_field(name="Reason", value=reason)
-        if not silent:
-            try:
-                await target.send(embed=emb)
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
-                return
-
-        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
-        emb.description = "Mute"
-        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
-        try:
-            await hf.safe_send(modlog_channel, embed=emb)
-        except AttributeError:
-            await hf.safe_send(ctx, embed=emb)
-
-    @commands.command()
-    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    async def unmute(self, ctx, target_in, guild=None):
-        """Unmutes a user"""
-        if not guild:
-            guild = ctx.guild
-            target: discord.Member = await hf.member_converter(ctx, target_in)
-        else:
-            guild = self.bot.get_guild(int(guild))
-            target: discord.Member = guild.get_member(int(target_in))
-        config = self.bot.db['mutes'][str(guild.id)]
-        role = guild.get_role(config['role'])
-
-        failed = False
-        if target:
-            target_id = target.id
-            try:
-                await target.remove_roles(role)
-                failed = False
-            except discord.HTTPException:
-                pass
-
-        else:
-            if ctx.author == ctx.bot.user:
-                target_id = target_in
-            else:
-                return
-
-        if str(target_id) in config['timed_mutes']:
-            del config['timed_mutes'][str(target_id)]
-
-        if ctx.author != ctx.bot.user:
-            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
-                                color=discord.Color(int('00ffaa', 16)))
-            await hf.safe_send(ctx, embed=emb)
-
-        if not failed:
-            return True
 
     @commands.command()
     @commands.check(lambda x: x.guild.id == 243838819743432704 or x.author.id == 202995638860906496)

@@ -7,7 +7,7 @@ from textblob import TextBlob as tb
 import textblob
 from Levenshtein import distance as LDist
 import string
-import asyncio, aiohttp
+import asyncio, aiohttp, async_timeout
 from urllib.error import HTTPError
 from bs4 import BeautifulSoup
 import io
@@ -123,10 +123,18 @@ class General(commands.Cog):
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, 275146036178059265]:
                     new_ctx = await self.bot.get_context(msg)
                     await new_ctx.invoke(self.serverinfo)
-
         await replace_tatsumaki_posts()
 
+
+        ##########################################
+
+        if not msg.guild:  # all code after this has msg.guild requirement
+            return
+
+        ##########################################
+
         """Ping me if someone says my name"""
+
         async def mention_ping():
             cont = str(msg.content)
             if msg.author.bot or msg.author.id == 202995638860906496:
@@ -153,13 +161,6 @@ class General(commands.Cog):
                     f'\n{msg.jump_url} <@202995638860906496>'[:2000])
 
         await mention_ping()
-
-        ##########################################
-
-        if not msg.guild:  # all code after this has msg.guild requirement
-            return
-
-        ##########################################
 
         """Self mute"""
         try:
@@ -465,7 +466,7 @@ class General(commands.Cog):
                 try:
                     pass
                     lang = await hf.detect_language(stripped_msg)
-                except (textblob.exceptions.TranslatorError, HTTPError):
+                except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError):
                     pass
             return lang, hardcore
         lang, hardcore = await lang_check()
@@ -819,7 +820,10 @@ class General(commands.Cog):
             if unmuted_users:
                 for user_id in unmuted_users:
                     user = self.bot.get_user(int(user_id))
-                    await hf.safe_send(user, "Your selfmute has expired.")
+                    try:
+                        await hf.safe_send(user, "Your selfmute has expired.")
+                    except discord.Forbidden:
+                        pass
 
     @commands.command(hidden=True)
     async def _delete_old_stats_days(self, ctx):
@@ -850,7 +854,12 @@ class General(commands.Cog):
     async def _check_lhscan(self, ctx):
         for url in self.bot.db['lhscan']:
             result = await self.lhscan_get_chapter(url)
-            chapter = f"https://loveheaven.net/{result['href']}"
+            if type(result) == str:
+                return
+            try:
+                chapter = f"https://loveheaven.net/{result['href']}"
+            except TypeError:
+                raise
             if chapter == self.bot.db['lhscan'][url]['last']:
                 continue
             for user in self.bot.db['lhscan'][url]['subscribers']:
@@ -860,14 +869,18 @@ class General(commands.Cog):
 
     async def lhscan_get_chapter(self, url):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    r = resp
-                    data = await resp.text()
+            with async_timeout.timeout(10):
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as resp:
+                        r = resp
+                        data = await resp.text()
         except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
             return f'invalid_url:  Your URL was invalid ({url})'
         if r.status != 200:
-            return f'html_error: Error {r.status_code}: {r.reason} ({url})'
+            try:
+                return f'html_error: Error {r.status_code}: {r.reason} ({url})'
+            except AttributeError:
+                return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'class': 'chapter'})
 
@@ -1033,52 +1046,24 @@ class General(commands.Cog):
             index += 1
 
     @commands.command()
-    @commands.is_owner()
-    async def karina(self, ctx):
-        dani = "466337067387846677"
-        karin = "325384896690388996"
-        TATSU = 172002275412279296
-        status = {dani: None, karin: None}  # will record which channel they're in
-        time = {dani: timedelta(0), karin: timedelta(0)}
-        last_join = {dani: None, karin: None}
-        times_joined = {dani: 0, karin: 0}
-        times_switched = {dani: 0, karin: 0}
-        times_left = {dani: 0, karin: 0}
-        async for msg in ctx.channel.history(limit=None, after=datetime(2019, 11, 1), before=datetime(2019, 12, 30)):
-            if msg.author.id == TATSU:  # only check messages from tatsumaki
-                embed = msg.embeds[0]
-                user = embed.fields[0].value.split("(<@")[1][:-2]  # a string with the ID of the user
-                if user not in [dani, karin]:
-                    continue
-                user_obj = self.bot.get_user(int(user))
-                desc = embed.description  # this will have the channel they joined/left
-                before = status[user]  # the channel they were in before
-                if "`joined`" in desc:  # they joined a channel
-                    channel = desc.split("voice channel **")[1][:-2]  # the channel they joined
-                    status[user] = channel
-                    last_join[user] = msg.created_at
-                    times_joined[user] += 1
-                    print(f"{msg.created_at}: {user_obj.name} joined {channel}")
-                    if status[dani] == status[karin]:  # if they are now in the same channel
-                        print(f"~~~~~~~{msg.created_at}: {user_obj.name} joined the other person's voice channel.\n")
-                elif "`switched` from" in desc:  # if they switched from one channel to another
-                    channel = desc.split("to **")[1][:-2]  # the channel they joined
-                    status[user] = channel
-                    times_switched[user] += 1
-                    print(f"{msg.created_at}: {user_obj.name} switched to {channel}")
-                    if status[dani] == status[karin]:  # if they are now in the same channel
-                        print(f"~~~~~~~{msg.created_at}: {user_obj.name}  switched to the other person's voice channel.\n")
-                elif "`left`" in desc:  # if they left voice (to see if Karin ever leaves voice because of Dani)
-                    channel = desc.split("voice channel **")[1][:-2]  # the channel they joined
-                    time[user] += msg.created_at - last_join[user]
-                    last_join[user] = None
-                    times_left[user] += 1
-                    print(f"{msg.created_at}: {user_obj.name} left {channel}")
-                    if status[dani] == status[karin]:  # if they are now in the same channel
-                        print(f"~~~~~~~{msg.created_at}: {user_obj.name}  left the voice channel with the other person.\n")
-                    status[user] = None  # set the status to None after checking if they were together
-        print(time, last_join, times_joined, times_switched, times_left)
-
+    async def inrole(self, ctx, *, role_name):
+        """Type `;inrole <role_name>` to see a list of users in a role."""
+        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        if not role:
+            await hf.safe_send(ctx, "I couldn't find the role you specified.")
+            return
+        emb = discord.Embed(title=f"**List of members in {role.name} role - {len(role.members)}**",
+                            description="",
+                            color=0x00FF00)
+        members = sorted(role.members, key=lambda m: m.name.casefold())
+        for member in members:
+            new_desc = emb.description + f"{member.name}#{member.discriminator}\n"
+            if len(new_desc) < 2045:
+                emb.description = new_desc
+            else:
+                emb.description += "..."
+                break
+        await hf.safe_send(ctx, embed=emb)
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID] if ctx.guild else False)
@@ -1417,6 +1402,8 @@ class General(commands.Cog):
         if not payload.guild_id:
             return
         if payload.guild_id == CH_SERVER_ID:  # chinese
+            if not payload.emoji.name:
+                return
             if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
                          '📝': 509446402016018454,
@@ -1508,6 +1495,7 @@ class General(commands.Cog):
                 pass
 
     @commands.command()
+    @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True)
     async def eraser(self, ctx):
         """Erases the pencil from `;pencil`. Rai cannot edit the nicknames of users above it on the role list."""
@@ -1699,6 +1687,9 @@ class General(commands.Cog):
     async def residency(self, ctx):
         """Claims your residency on a server"""
         config = self.bot.db['global_blacklist']['residency']
+        if ctx.guild.id == 257984339025985546:
+            await hf.safe_send(ctx, "You can't claim residency here. Please do this command on the server you mod.")
+            return
 
         if str(ctx.author.id) in config:
             server = self.bot.get_guild(config[str(ctx.author.id)])
