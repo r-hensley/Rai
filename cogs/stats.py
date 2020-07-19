@@ -52,6 +52,8 @@ class Stats(commands.Cog):
         message_count = {}
         for day in config:
             if str(member.id) in config[day]:
+                if 'channels' not in config[day][str(member.id)]:
+                    continue
                 user = config[day][str(member.id)]
                 for channel in user['channels']:
                     message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
@@ -360,14 +362,22 @@ class Stats(commands.Cog):
                 channel_ids.append(channel[2:-1])
             for channel_id in channel_ids:
                 try:
-                    channel_obs.append(ctx.guild.get_channel(int(channel_id)))
+                    c = ctx.guild.get_channel(int(channel_id))
+                    if c:
+                        channel_obs.append(c)
+                    else:
+                        await hf.safe_send(ctx, f"I couldn't find the channel `{channel_id}`.")
+                        continue
                 except ValueError:
                     await hf.safe_send(ctx,
                                        f"Please provide a link to a channel, not just the channel name "
                                        f"(e.g. `;chlb #general`), or if you just type `;chlb` "
                                        f"it will show the leaderboard for the current channel.")
                     return
-        await self.make_lb(ctx, channel_obs)
+        if channel_obs:
+            await self.make_lb(ctx, channel_obs)
+        else:
+            await hf.safe_send(ctx, "I couldn't find any valid channels.")
 
     @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)

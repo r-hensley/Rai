@@ -208,7 +208,7 @@ class Math(commands.Cog):
         with io.BytesIO() as walkIm:
             plt.savefig(walkIm, format='png')
             walkIm.seek(0)
-            await hf.safe_send(ctx, file=discord.File(walkIm, 'plot.png'))
+            await hf.safe_send(ctx, "Here's your random walk!", file=discord.File(walkIm, 'plot.png'))
 
         if save == 'save':  # will show multiple plots on one graph
             return

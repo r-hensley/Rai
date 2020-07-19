@@ -9,16 +9,9 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 SP_SERV = 243838819743432704
+JP_SERVER_ID = 189571157446492161
 
-def any_channel_mod_check(ctx):
-    if ctx.guild.id != SP_SERV:
-        return
-    if hf.submod_check(ctx):
-        return True
-    chmd_config = ctx.bot.db['channel_mods'][str(SP_SERV)]
-    for ch_id in chmd_config:
-        if ctx.author.id in chmd_config[ch_id]:
-            return True
+
 
 class Submod(commands.Cog):
     """Help"""
@@ -33,116 +26,6 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         return True
-
-    @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
-    @hf.is_submod()
-    async def modlog(self, ctx, id):
-        """View modlog of a user"""
-        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
-            return
-        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, id)
-        if member:
-            name = f"{member.name}#{member.discriminator} ({member.id})"
-            user_id = str(member.id)
-        else:
-            try:
-                user = await self.bot.fetch_user(int(id))
-                name = f"{user.name}#{user.discriminator} ({user.id})"
-                user_id = id
-            except discord.NotFound:
-                name = user_id = id
-            except discord.HTTPException:
-                await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
-                return
-            except ValueError:
-                await hf.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
-                                        "use an ID")
-                return
-        if user_id not in config:
-            em = hf.red_embed(f"{name} was not found in the modlog.")
-            await hf.safe_send(ctx, embed=em)
-            return
-        config = config[user_id]
-        emb = hf.green_embed(f"Modlog for {name}")
-        list_length = len(config[-25:])  # this is to prevent the invisible character on the last entry
-        index = 1
-        for entry in config[-25:]:
-            name = f"{config.index(entry) + 1}) {entry['type']}"
-            if entry['silent']:
-                name += " (silent)"
-            value = f"{entry['date']}\n"
-            if entry['length']:
-                value += f"*For {entry['length']}*\n"
-            if entry['reason']:
-                value += f"__Reason__: {entry['reason']}\n"
-            if entry['jump_url']:
-                value += f"[Jump URL]({entry['jump_url']})\n"
-            if index < list_length:
-                value += "⠀"  # invisible character to guarantee the empty new line
-                index += 1
-            emb.add_field(name=name,
-                          value=value[:1024],
-                          inline=False)
-        await hf.safe_send(ctx, embed=emb)
-
-    @modlog.command(name='delete', aliases=['del'])
-    @hf.is_admin()
-    async def modlog_delete(self, ctx, user, index):
-        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
-        Alias: `;ml del`"""
-        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
-            return
-        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, user)
-        if member:
-            user_id = str(member.id)
-        else:
-            user_id = user
-        if user_id not in config:
-            await hf.safe_send(ctx, "That user was not found in the modlog")
-            return
-        config = config[user_id]
-        if index in ['-a', '-all']:
-            del config
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
-        else:
-            try:
-                del config[int(index) - 1]
-            except IndexError:
-                await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
-                return
-            except ValueError:
-                await hf.safe_send(ctx, "Sorry I couldn't  understand what you were trying to do")
-                return
-            await ctx.message.add_reaction('✅')
-
-    @modlog.command(name="edit", aliases=['reason'])
-    @hf.is_admin()
-    async def modlog_edit(self, ctx, user, index: int, *, reason):
-        """Edit the reason for a selected modlog.  Example: `;ml edit ryry 2 trolling in voice channels`."""
-        if str(ctx.guild.id) not in ctx.bot.db['modlog']:
-            return
-        config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, user)
-        if member:
-            user_id = str(member.id)
-        else:
-            user_id = user
-        if user_id not in config:
-            await hf.safe_send(ctx, "That user was not found in the modlog")
-            return
-        config = config[user_id]
-        old_reason = config[index - 1]['reason']
-        config[index - 1]['reason'] = reason
-        await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
-                                                     f"```{old_reason}```to```{reason}```"))
-
-    @commands.command()
-    @hf.is_admin()
-    async def reason(self, ctx, user, index: int, *, reason):
-        """Shortcut for `;modlog reason`"""
-        await ctx.invoke(self.modlog_edit, user, index, reason=reason)
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
@@ -299,126 +182,233 @@ class Submod(commands.Cog):
         self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
         await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
 
-    @commands.command(aliases=['staff'])
-    @commands.check(any_channel_mod_check)
-    async def staffrole(self, ctx):
-        """You can add/remove the staff role from yourself with this"""
-        staffrole = ctx.guild.get_role(642782671109488641)
-        if staffrole in ctx.author.roles:
-            await ctx.author.remove_roles(staffrole)
-            await hf.safe_send(ctx, "I've removed the staff role from you")
+    @commands.command()
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    @hf.is_submod()
+    async def mute(self, ctx, time, member=None, *, reason=None):
+        """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
+
+        async def set_channel_overrides(role):
+            failed_channels = []
+            for channel in ctx.guild.voice_channels:
+                if role not in channel.overwrites:
+                    try:
+                        await channel.set_permissions(role, speak=False)
+                    except discord.Forbidden:
+                        failed_channels.append(channel.name)
+            for channel in ctx.guild.text_channels:
+                if role not in channel.overwrites:
+                    try:
+                        await channel.set_permissions(role, send_messages=False, add_reactions=False,
+                                                      attach_files=False)
+                    except discord.Forbidden:
+                        failed_channels.append(channel.name)
+            return failed_channels
+
+        if str(ctx.guild.id) not in self.bot.db['mutes']:
+            await hf.safe_send(ctx, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
+                                    "add then a permission override for it to every channel to prevent communication")
+            role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
+            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+            failed_channels = await set_channel_overrides(role)
+            if failed_channels:
+                await hf.safe_send(ctx,
+                                   f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
+                                   f"member joins this (these) channel(s), they'll be able to type/speak.")
         else:
-            await ctx.author.add_roles(staffrole)
-            await hf.safe_send(ctx, "I've given you the staff role.")
+            config = self.bot.db['mutes'][str(ctx.guild.id)]
+            role = ctx.guild.get_role(config['role'])
+            await set_channel_overrides(role)
+
+        time_string, length = hf.parse_time(str(time))
+        if not time_string:  # indefinite mute
+            if not reason:
+                reason = ''
+            if member:
+                reason = f"{member} {reason}"
+            member = time
+            time = None
+
+        silent = False
+        if reason:
+            if '-s' in reason or '-n' in reason:
+                if ctx.guild.id == JP_SERVER_ID:
+                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
+                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+                silent = True
+
+        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)
+        if re_result:
+            id = int(re_result.group(1))
+            target = ctx.guild.get_member(id)
+        else:
+            target = None
+        if not target:
+            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
+                                    "a mention to the user (this is to prevent mistaking people).")
+            return
+
+        if role in target.roles:
+            await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
+            return
+        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+
+        if target.voice:  # if they're in a channel, move them out then in to trigger the mute
+            voice_state = target.voice
+            try:
+                if ctx.guild.afk_channel:
+                    try:
+                        await target.move_to(ctx.guild.afk_channel)
+                        await target.move_to(voice_state.channel)
+                    except discord.HTTPException:
+                        pass
+                else:
+                    for channel in ctx.guild.voice_channels:
+                        if not channel.members:
+                            try:
+                                await target.move_to(channel)
+                                await target.move_to(voice_state.channel)
+                            except discord.HTTPException:
+                                pass
+                            break
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
+                                        "give Rai this permission, then it'll move the user to the AFK channel and "
+                                        "back to force the mute into effect. Otherwise, Discord's implementation of "
+                                        "the mute won't take effect until the next time the user connects to a "
+                                        "new voice channel.")
+                pass
+
+        if time_string:
+            config['timed_mutes'][str(target.id)] = time_string
+
+        notif_text = f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat."
+        if time_string:
+            notif_text = f"{notif_text[:-1]} for {time}."
+        if reason:
+            notif_text += f"\nReason: {reason}"
+        emb = hf.red_embed(notif_text)
+        if silent:
+            emb.description += " (The user was not notified of this)"
+        await hf.safe_send(ctx, embed=emb)
+
+        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
+        modlog_channel = self.bot.get_channel(modlog_config['channel'])
+
+        emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
+        emb.color = discord.Color(int('ff8800', 16))  # embed
+        if time_string:
+            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
+        else:
+            emb.add_field(name="Length", value="Indefinite", inline=False)
+        if reason:
+            emb.add_field(name="Reason", value=reason)
+        if not silent:
+            try:
+                await target.send(embed=emb)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
+                return
+
+        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
+        emb.description = "Mute"
+        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+        try:
+            await hf.safe_send(modlog_channel, embed=emb)
+        except AttributeError:
+            await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
-    @commands.check(any_channel_mod_check)
-    async def staffping(self, ctx):
-        """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
-        subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]
-        if ctx.author.id in subscribed_users:
-            subscribed_users.remove(ctx.author.id)
-            await hf.safe_send(ctx, "You will no longer receive notifications for staff pings.")
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    @hf.is_submod()
+    async def unmute(self, ctx, target_in, guild=None):
+        """Unmutes a user"""
+        if not guild:
+            guild = ctx.guild
+            target: discord.Member = await hf.member_converter(ctx, target_in)
         else:
-            subscribed_users.append(ctx.author.id)
-            await hf.safe_send(ctx, "You will receive notifications for staff pings.")
+            guild = self.bot.get_guild(int(guild))
+            target: discord.Member = guild.get_member(int(target_in))
+        config = self.bot.db['mutes'][str(guild.id)]
+        role = guild.get_role(config['role'])
 
-    @commands.command(aliases=['r', 't', 'tag'])
-    @commands.check(any_channel_mod_check)
-    async def role(self, ctx, *, args):
-        """Assigns a role to a user. Type `;role <user> <english/spanish/other/e/s/o/none/fe/fs>`. You can specify\
-        multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces.
+        failed = False
+        if target:
+            target_id = target.id
+            try:
+                await target.remove_roles(role)
+                failed = False
+            except discord.HTTPException:
+                pass
 
-        If you don't specify a user, then it will find the last user in the channel without a role. *If you do this,\
-        you can only specify one role!*
-
-        Examples: `;role @Ryry013 e`   `;role spanish`   `;r Ryry013 e o fs`   `;r Ryry013 none`"""
-        if ctx.guild.id != SP_SERV:
-            return
-        english = ctx.guild.get_role(243853718758359040)
-        spanish = ctx.guild.get_role(243854128424550401)
-        other = ctx.guild.get_role(247020385730691073)
-        fluentenglish = ctx.guild.get_role(267367044037476362)
-        fluentspanish = ctx.guild.get_role(267368304333553664)
-        learningenglish = ctx.guild.get_role(247021017740869632)
-        learningspanish = ctx.guild.get_role(297415063302832128)
-        language_roles = [english, spanish, other]
-        all_roles = [english, spanish, other, fluentenglish, fluentspanish, learningenglish, learningspanish]
-        langs_dict = {'e': english, 's': spanish, 'o': other, 'i': english, 'en': english, 'ne': english, 'ol': other,
-                      'english': english, 'spanish': spanish, 'other': other, 'sn': spanish, 'ns': spanish,
-                      'inglés': english, 'español': spanish, 'ingles': english, 'espanol': spanish, 'otro': other,
-                      'fe': fluentenglish, 'fs': fluentspanish, 'none': None, 'n': None,
-                      'le': learningenglish, 'ls': learningspanish}
-
-        args = args.split()
-        if len(args) > 1:  # ;r ryry013 english
-            user = await hf.member_converter(ctx, args[0])
-            if not user:
-                return
-            langs = [lang.casefold() for lang in args[1:]]
-
-        elif len(args) == 1:  # something like ;r english
-            if args[0].casefold() in ['none', 'n']:
-                await hf.safe_send(ctx, "You can't use `none` and not specify a name.")
-                return
-            langs = [args[0].casefold()]
-
-            user = None  # if it goes through 10 messages and finds no users without a role, it'll default here
-            async for message in ctx.channel.history(limit=10):
-                found = None
-                for role in language_roles:  # check if they already have a role
-                    if role in message.author.roles:
-                        found = True
-                if not found:
-                    user = message.author
-            if not user:
-                await hf.safe_send(ctx, "I couldn't find any users in the last ten messages without a native role.")
-                return
-
-        else:  # no args
-            await hf.safe_send(ctx, "Gimme something at least! Run `;help role`")
-            return
-
-        langs = [lang.casefold() for lang in langs]
-        if 'none' in langs or 'n' in langs:
-            none = True
-            if len(langs) > 1:
-                await hf.safe_send(ctx, "If you specify `none`, please don't specify other languages too. "
-                                        "That's confusing!")
-                return
         else:
-            none = False
-
-        for lang in langs:
-            if lang not in langs_dict:
-                await hf.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;r help`")
+            if ctx.author == ctx.bot.user:
+                target_id = target_in
+            else:
                 return
+
+        if str(target_id) in config['timed_mutes']:
+            del config['timed_mutes'][str(target_id)]
+
+        if ctx.author != ctx.bot.user:
+            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+                                color=discord.Color(int('00ffaa', 16)))
+            await hf.safe_send(ctx, embed=emb)
+
+        if not failed:
+            return True
+
+    @commands.command(aliases=['w'])
+    @hf.is_submod()
+    async def warn(self, ctx, user, *, reason="None"):
+        """Log a mod incident"""
+        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', user)
+        if re_result:
+            id = int(re_result.group(1))
+            user = ctx.guild.get_member(id)
+            if not user:
+                reason += " -s"
+                try:
+                    user = await self.bot.fetch_user(id)
+                except discord.NotFound:
+                    user = None
+        else:
+            user = None
         if not user:
-            await hf.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
+            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
+                                    "a mention to the user (this is to prevent mistaking people).")
             return
-
-        # right now, user=a member object, lansg=a list of strings the user typed o/e/s/other/english/spanish/etc
-        langs = [langs_dict[lang] for lang in langs]  # now langs is a list of role objects
-        removed = []
-        for role in all_roles:
-            if role in user.roles:
-                removed.append(role)
-        if removed:
-            await user.remove_roles(*removed)
-        if not none:
-            await user.add_roles(*langs)
-
-        if none and not removed:
-            await hf.safe_send(ctx, "There were no roles to remove!")
-        elif none and removed:
-            await hf.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
-                                    f"{user.display_name}.")
-        elif removed:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} instead of "
-                                    f"{', '.join([r.mention for r in removed])} to {user.display_name}.")
-        else:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} to {user.display_name}.")
-
+        emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
+        silent = False
+        if '-s' in reason:
+            silent = True
+            reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+            emb.description = "Log *(This incident was not sent to the user)*"
+        emb.color = discord.Color(int('ffff00', 16))  # embed ff8800
+        emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
+        emb.add_field(name="Reason", value=reason, inline=False)
+        if not silent:
+            try:
+                await hf.safe_send(user, embed=emb)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I could not send the message, maybe the user has DMs disabled. Canceling "
+                                        "warn (consider using the -s tag to not send a message).")
+                return
+        if not emb.description:
+            emb.description = "Warning"
+        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
+        config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
+        modlog_channel = self.bot.get_channel(config['channel'])
+        try:
+            num_of_entries = len(self.bot.db['modlog'][str(ctx.guild.id)][str(user.id)])
+            if num_of_entries > 1:
+                emb.add_field(name="Total number of modlog entries", value=num_of_entries)
+        except KeyError:
+            pass
+        await hf.safe_send(modlog_channel, embed=emb)
+        await hf.safe_send(ctx, embed=emb)
 
 def setup(bot):
     bot.add_cog(Submod(bot))

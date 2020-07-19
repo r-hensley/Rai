@@ -132,9 +132,21 @@ class Reports(commands.Cog):
     @commands.bot_has_permissions(send_messages=True)
     async def report_setup(self, ctx):
         """Sets the channel"""
+        try:
+            mod_channel = self.bot.db['mod_channel'][str(ctx.guild.id)]
+            if not mod_channel:
+                del(self.bot.db['mod_channel'][str(ctx.guild.id)])
+                await hf.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
+                return
+        except KeyError:
+            await hf.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
+            return
         perms = ctx.channel.permissions_for(ctx.me)
         if not perms.read_messages or not perms.read_message_history or not perms.manage_roles:
-            await ctx.message.add_reaction('\N{CROSS MARK}')
+            try:
+                await ctx.message.add_reaction('\N{CROSS MARK}')
+            except discord.Forbidden:
+                pass
             try:
                 await hf.safe_send(ctx, "I need permissions for reading messages, reading message history, and "
                                         "managing either channel permissions or server roles.  Please check these")
