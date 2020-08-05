@@ -11,6 +11,8 @@ import aiohttp, aiofiles, io
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
+RYRY_SPAM_CHAN = 275879535977955330
+
 
 class Admin(commands.Cog):
     """Stuff for admins. Commands in this module require either the mod role set by `;set_mod_role` or the\
@@ -54,6 +56,7 @@ class Admin(commands.Cog):
                                             "the help command.")
                     return
                 x = i_input.split()
+                print([x])
                 x = await self.quick_reaction_roles(ctx, x[0], x[1], ' '.join(x[2:]))
                 if not x:
                     return
@@ -960,6 +963,148 @@ class Admin(commands.Cog):
                 today[member_id] = today[member_id][0] * 60 + today[member_id][1]
             today[member_id] += hours * 60 + minutes
 
+    @commands.command(hidden=True)
+    @commands.guild_only()
+    async def timed_voice_role(self, ctx):
+        """A command for setting up a role to be added when a user is in voice for a certain amount of time"""
+        # #############  how long do they need to stay in a channel #################################
+        q = await hf.safe_send(ctx, "Welcome to the setup module. This will give a role to a user if they've been "
+                                    "in voice for sufficiently long. \n\n**First question: how long should they stay "
+                                    "in voice to receive a role? (Please give a number of minutes).**\n\n"
+                                    "Alternatively, type `cancel` at any time in this process to leave the module, or "
+                                    "`disable` now to disable this feature completely.")
+        timeout_message = "The module has timed out. Please start the command over."
+        try:
+            m = await self.bot.wait_for("message", timeout=30.0,
+                                        check=lambda m: m.channel==ctx.channel and m.author==ctx.author)
+            try:
+                if m.content.casefold() == 'cancel':
+                    await hf.safe_send(ctx, "Exiting module")
+                    return
+                if m.content.casefold() == 'disable':
+                    if str(ctx.guild.id) in self.bot.db['timed_voice_role']:
+                        del self.bot.db['timed_voice_role'][str(ctx.guild.id)]
+                    await hf.safe_send(ctx, "The module has been disabled.")
+                    return
+                wait_time = int(m.content)
+                await m.delete()
+            except ValueError:
+                await hf.safe_send(ctx, "I failed to detect your time. Please start the command over and input a "
+                                        "single number.")
+                return
+
+            await q.delete()
+
+            # ######## Should users be required to stay in the same single channel ###############################
+
+            q = await hf.safe_send(ctx, "Thanks. Next, should users (1) be required to stay in a single channel or (2) "
+                                        "are they allowed to switch channels? Please type either `1` or `2`.")
+            m = await self.bot.wait_for("message", timeout=30.0,
+                                        check=lambda m: m.channel==ctx.channel and m.author==ctx.author)
+            try:
+                if m.content.casefold() == 'cancel':
+                    await hf.safe_send(ctx, "Exiting module")
+                    return
+                choice = int(m.content)
+                if choice not in [1, 2]:
+                    raise ValueError
+                if choice == 1:
+                    same_channel_rule = True
+                else:
+                    same_channel_rule = False
+                await m.delete()
+            except ValueError:
+                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                                        "either exactly `1` or `2`.")
+                return
+
+            await q.delete()
+
+            # ####### should the role be removed when they leave #############################
+
+            q = await hf.safe_send(ctx, "Thanks. Next, should the role be removed when the user leaves voice chat? "
+                                        "Type `yes` or `no`.")
+
+            m = await self.bot.wait_for("message", timeout=30.0,
+                                        check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
+            try:
+                if m.content.casefold() == 'cancel':
+                    await hf.safe_send(ctx, "Exiting module")
+                    return
+                choice = m.content.casefold()
+                if choice not in ['yes', 'no']:
+                    raise ValueError
+                if choice == 'yes':
+                    remove_when_leave = True
+                else:
+                    remove_when_leave = False
+                await m.delete()
+            except ValueError:
+                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                                        "either exactly `yes` or `no`.")
+                return
+            await q.delete()
+
+            # ####### should the timer be reset for going into the afk channel #############################
+
+            q = await hf.safe_send(ctx, "Thanks. Next, should the role be removed if the user goes to the AFK channel? "
+                                        "Type `yes` or `no`.")
+
+            m = await self.bot.wait_for("message", timeout=30.0,
+                                        check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
+            try:
+                if m.content.casefold() == 'cancel':
+                    await hf.safe_send(ctx, "Exiting module")
+                    return
+                choice = m.content.casefold()
+                if choice not in ['yes', 'no']:
+                    raise ValueError
+                if choice == 'yes':
+                    remove_when_afk = True
+                else:
+                    remove_when_afk = False
+                await m.delete()
+            except ValueError:
+                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                                        "either exactly `yes` or `no`.")
+                return
+            await q.delete()
+
+            # ####### specify the role #############################
+
+            q = await hf.safe_send(ctx, "Thanks. Finally, please specify the role that you want me to assign to "
+                                        "the users. Type the exact name of the role.")
+
+            m = await self.bot.wait_for("message", timeout=30.0,
+                                        check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
+            try:
+                if m.content.casefold() == 'cancel':
+                    await hf.safe_send(ctx, "Exiting module")
+                    return
+                choice = m.content.casefold()
+                role = discord.utils.find(lambda r: r.name.casefold() == choice, ctx.guild.roles)
+                if not role:
+                    await hf.safe_send(ctx, "I was not able to find that role. Please start the process over.")
+                    return
+                await m.delete()
+            except ValueError:
+                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                                        "exactly the name of the role..")
+                return
+            await q.delete()
+
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, timeout_message)
+            return
+
+        self.bot.db['timed_voice_role'][str(ctx.guild.id)] = {'wait_time': wait_time,
+                                                              'same_channel_rule': same_channel_rule,
+                                                              'remove_when_leave': remove_when_leave,
+                                                              'remove_when_afk': remove_when_afk,
+                                                              'role': role.id}
+        await hf.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
+                                f"You can run this command again at any time to change the settings or disable it.")
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         """voice stats"""
@@ -995,8 +1140,58 @@ class Admin(commands.Cog):
                 if after.self_deaf or after.deaf or after.afk or not after.channel:
                     await self.out_of_voice(member)
                     return
-
         await voice_update()
+
+        async def turkish_server_30_mins_role():
+            if before.channel != after.channel:
+                if str(member.guild.id) not in self.bot.db['timed_voice_role']:
+                    return
+                config = self.bot.db['timed_voice_role'][str(member.guild.id)]
+                role = member.guild.get_role(config['role'])
+                if not before.channel and after.channel and config['remove_when_leave']:
+                    await member.remove_roles(role)  # in case there was some bug and the user has the role already
+                if not role:
+                    asyncio.sleep(20)  # in case there's some weird temporary discord outage
+                    role = member.guild.get_role(config['role'])
+                    if not role:
+                        del self.bot.db['timed_voice_role'][str(member.guild.id)]
+                        return
+                spam = self.bot.get_channel(RYRY_SPAM_CHAN)
+                start = datetime.utcnow().timestamp()
+                while True:
+                    try:
+                        m, b, a = await self.bot.wait_for('voice_state_update', timeout=30.0,
+                                                          check=lambda m, b, a: b.channel != a.channel and m == member)
+                        try:
+                            if not a.channel:  # leaving voice
+                                if config['remove_when_leave']:
+                                    await member.remove_roles(role)
+                                return
+                            if config['same_channel_rule']:  # switching a channel
+                                await member.remove_roles(role)
+                                return
+                            if a.afk and config['remove_when_afk']:  # going to afk channel
+                                await member.remove_roles(role)
+                                return
+                        except (discord.HTTPException, discord.Forbidden):
+                            return
+
+                    except asyncio.TimeoutError:
+                        now = datetime.utcnow().timestamp()
+                        if now - start > 60 * config['wait_time']:
+                            try:
+                                await member.add_roles(role)
+                            except (discord.HTTPException, discord.Forbidden):
+                                return
+                        if not member.voice:
+                            try:
+                                await spam.send('10')
+                                if config['remove_when_leave']:
+                                    await member.remove_roles(role)
+                            except (discord.HTTPException, discord.Forbidden):
+                                return
+                            return
+        await turkish_server_30_mins_role()
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
