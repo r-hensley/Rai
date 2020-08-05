@@ -97,6 +97,8 @@ class Stats(commands.Cog):
             member = ctx.author
             member_id = ctx.author.id
         else:
+            if re.findall("[JIMVN]\d{17,22}", member):
+                member = re.sub('[JIMVN]', '', member)
             member_id = member
             member = await hf.member_converter(ctx, member)
             if member:
