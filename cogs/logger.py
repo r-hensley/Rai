@@ -857,6 +857,7 @@ class Logger(commands.Cog):
 
         old_invites, invites = await self.get_invites(guild)
         used_invite = []
+        maybe_used_invite = []
         if invites:
             invites_dict = {i.code: i for i in invites}  # made to same form as old_invites
             for invite in old_invites:
@@ -864,13 +865,15 @@ class Logger(commands.Cog):
                     if old_invites[invite][1]:
                         if datetime.utcnow().timestamp() > old_invites[invite][1]:
                             continue  # it was a timed invite that simply expired
-                    used_invite.append(invite)  # it was an invite that reached its max uses
+                    maybe_used_invite.append(invite)  # it was an invite that reached its max uses
                     continue
                 try:
                     if old_invites[invite][0] < getattr(invites_dict.get(invite, 0), "uses", 0):
                         used_invite.append(invites_dict[invite])
                 except TypeError:
                     pass
+        if maybe_used_invite and not used_invite:
+            used_invite = maybe_used_invite
 
         # if not used_invite and invites:
         #     for invite in invites:
