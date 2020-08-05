@@ -13,9 +13,14 @@ def any_channel_mod_check(ctx):
     if hf.submod_check(ctx):
         return True
     chmd_config = ctx.bot.db['channel_mods'][str(SP_SERV)]
+    helper_role = ctx.guild.get_role(591745589054668817)
     for ch_id in chmd_config:
         if ctx.author.id in chmd_config[ch_id]:
-            return True
+            if helper_role:
+                if helper_role in ctx.author.roles:
+                    return True
+            else:
+                return True
 
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
