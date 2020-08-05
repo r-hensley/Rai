@@ -3,15 +3,13 @@ from discord.ext import commands
 from datetime import datetime, timedelta, date
 from .utils import helper_functions as hf
 import re
-from textblob import TextBlob as tb
 import textblob
 from Levenshtein import distance as LDist
 import string
 import asyncio, aiohttp, async_timeout
 from urllib.error import HTTPError
-from collections import Counter
 from bs4 import BeautifulSoup
-import io
+from collections import Counter
 
 import os
 
@@ -25,6 +23,7 @@ RYRY_SPAM_CHAN = 275879535977955330
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
 CH_SERVER_ID = 266695661670367232
+RY_SERVER_ID = 275146036178059265
 
 
 def blacklist_check():
@@ -39,7 +38,7 @@ def blacklist_check():
 
 
 class General(commands.Cog):
-    """My cus+tom cog that does stuff!"""
+    """My custom cog that does stuff!"""
 
     def __init__(self, bot):
         self.bot = bot
@@ -49,26 +48,25 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot:
-            return
+            if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
+                return
 
         # "Experimental global watch list"
         # if msg.author.id == 202979770235879427:
         #     channel = self.bot.get_channel(374489744974807040)
         #     await hf.safe_send(channel, f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
-        """PM Bot"""
-        async def pm_modbot_before():
-            if msg.author.id == self.bot.owner_id:
-                if msg.channel.id != 304110816607862785 or msg.author.id in self.bot.db['pmbot']['inpms']:
-                    return
-                try:
-                    self.bot.db['pmbot']['inpms'].append(msg.author.id)
-                    await self.pm_modbot(msg)
-                except Exception:
-                    self.bot.db['pmbot']['inpms'].remove(msg.author.id)
-                    raise
-                self.bot.db['pmbot']['inpms'].remove(msg.author.id)
-        await pm_modbot_before()
+        """BurdBot's window to open questions in #audio_of_the_week"""
+        async def burdbot_window():
+            if msg.channel.id != 620997764524015647:  # aotw_feedback
+                return
+            if msg.author.id != 720900750724825138:  # burdbot
+                return
+            if not msg.attachments:
+                return
+            ctx = await self.bot.get_context(msg)
+            await ctx.invoke(self.bot.get_command("question"), args=msg.content)
+        await burdbot_window()
 
         """Messages/pings to Rai"""
         async def message_to_bot():
@@ -110,7 +108,6 @@ class General(commands.Cog):
         await message_to_bot()
 
         """Message as the bot"""
-
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -121,7 +118,7 @@ class General(commands.Cog):
         """Replace tatsumaki/nadeko serverinfo posts"""
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
-                if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, 275146036178059265]:
+                if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
                     new_ctx = await self.bot.get_context(msg)
                     await new_ctx.invoke(self.serverinfo)
         await replace_tatsumaki_posts()
@@ -135,7 +132,6 @@ class General(commands.Cog):
         ##########################################
 
         """Ping me if someone says my name"""
-
         async def mention_ping():
             cont = str(msg.content)
             if msg.author.bot or msg.author.id == 202995638860906496:
@@ -201,7 +197,7 @@ class General(commands.Cog):
         words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
                  '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
                  '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, 320439136236601344, 275146036178059265]:
+        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, 320439136236601344, RY_SERVER_ID]:
             word_count = 0
             for word in words:
                 if word in msg.content:
@@ -421,7 +417,7 @@ class General(commands.Cog):
                 which = 'sw'
             elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
                 minutes_ago_created = int(((datetime.utcnow() - msg.author.created_at).total_seconds()) // 60)
-                if minutes_ago_created > 60 or msg.channel.id == 243838819743432704:
+                if minutes_ago_created > 60 or msg.channel.id == SP_SERVER_ID:
                     return
                 desc = '🆕 '
                 which = 'new'
@@ -623,8 +619,39 @@ class General(commands.Cog):
                                           "page")
                 except discord.errors.Forbidden:
                     pass
-
         await spanish_server_hardcore()
+
+        """no filter hc"""
+        async def no_filter_hc():
+            if msg.channel.id == 193966083886153729:
+                jpRole = msg.guild.get_role(196765998706196480)
+                enRole = msg.guild.get_role(197100137665921024)
+                if jpRole in msg.author.roles and enRole in msg.author.roles:
+                    return
+                ratio = hf.jpenratio(msg.content.casefold())
+                nf = "<#193966083886153729>"
+                if ratio is None:
+                    return
+                if jpRole in msg.author.roles:
+                    if ratio < .55:
+                        try:
+                            await msg.delete()
+                            await msg.author.send(f"I've deleted your message from {nf}. In that channel, Japanese "
+                                                  "people must speak English only. Here is the message I deleted:")
+
+                            await msg.author.send(f"```{msg.content[:1993]}```")
+                        except (discord.errors.NotFound, discord.Forbidden):
+                            pass
+                else:
+                    if ratio > .45:
+                        try:
+                            await msg.delete()
+                            await msg.author.send(f"I've deleted your message from {nf}. In that channel, you must "
+                                                  "speak Japanese only. Here is the message I deleted:")
+                            await msg.author.send(f"```{msg.content[:1993]}```")
+                        except (discord.errors.NotFound, discord.Forbidden):
+                            pass
+        await no_filter_hc()
 
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True)
@@ -884,155 +911,6 @@ class General(commands.Cog):
                 return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'class': 'chapter'})
-
-    async def pm_modbot(self, msg):
-        shared_guilds = sorted([g for g in self.bot.guilds if msg.author in g.members], key=lambda x: x.name)
-        if len(shared_guilds) == 0:
-            await msg.channel.send("I couldn't find any common guilds between us. Frankly, I don't know how you're "
-                                   "messaging me. Have a nice day.")
-            return
-        elif len(shared_guilds) == 1:
-            guild = shared_guilds[0]
-        else:
-            msg_text = "Hello, thank you for messaging. We share multiple servers, so please select which "\
-                       "server you're trying to make a report to by replying with the `number` before your "\
-                       "server (for example, you could reply with the single number `3`.)"
-            index = 1
-            msg_embed = '`1)` '
-            for i_guild in shared_guilds:
-                index += 1
-                msg_embed += f"{i_guild.name}"
-                if index < len(shared_guilds) + 1:
-                    msg_embed += f"\n`{index})` "
-            await msg.channel.send(msg_text, embed=discord.Embed(description=msg_embed, color=0x00FF00))
-            try:
-                resp = await self.bot.wait_for('message',
-                                               check=lambda m: m.author == msg.author and m.channel == msg.channel,
-                                               timeout=60.0)
-            except asyncio.TimeoutError:
-                await msg.channel.send("You've waited too long. Module closing.")
-                return
-            guild_selection = re.findall("^\d{1,2}$", resp.content)
-            if guild_selection:
-                guild_selection = guild_selection[0]
-                guild = shared_guilds[int(guild_selection) - 1]
-            else:
-                await msg.channel.send("I didn't understand which guild you responded with. "
-                                       "Please respond with only a single number.")
-                return
-
-        config = self.bot.db['pmbot']
-        if str(guild.id) not in config:
-            return
-        config = config[str(guild.id)]
-
-        if config['currentuser']:
-            if msg.author.id in config['waitinglist']:
-                await msg.channel.send(
-                    "The report room is not open yet. You are still on the waiting list. If it is urgent, "
-                    "please message a mod directly.")
-
-            if config['waitinglist'] and config['currentuser'] != msg.author.id:
-                config['waitinglist'].append(msg.author.id)
-                await msg.channel.send(
-                    "There is currently someone else in the report room. You've been added to the waiting list. "
-                    "You'll be messaged when the room opens up.")
-            return
-        else:
-            config['currentuser'] = msg.author.id
-
-        report_channel = self.bot.get_channel(config['channel'])
-        try:
-            await report_channel.send(f"The user {msg.author.mention} has entered the report room. I'll relay any of "
-                                      f"their messages to this channel. Any messages you type will be sent to them.\n\n"
-                                      f"To end this chat, type `end` or `done`.\n\nTo *not* send a certain message, "
-                                      f"start the message with `_`. For example, `Hello` would be sent and `_What "
-                                      f"should we do` would not be sent.")
-        except discord.Forbidden:
-            await msg.channel.send("Sorry, actually I can't send messages to the channel the mods had setup for me "
-                                   "anymore. Please tell them to check the permissions on the channel or to run the "
-                                   "setup command again.")
-            config['currentuser'] = None
-            return
-
-        await msg.channel.send("You are now connected to the report room. Any messages you send will be relayed there, "
-                               "and you'll receive messages from the mods.")
-
-        def check(m):
-            return (m.author == msg.author and m.channel == msg.channel) or m.channel == report_channel
-        while True:
-            try:
-                resp = await self.bot.wait_for('message', check=check, timeout=21600.0)
-            except asyncio.TimeoutError:
-                cutoff_msg = "This chat has been inactive for a long time, so it has been closed. In the future, " \
-                             "type `end` or `done` to close it when you are done."
-                await report_channel.send(cutoff_msg)
-                await msg.channel.send(cutoff_msg)
-                config['currentuser'] = None
-                break
-            if resp.content[0] == '_':
-                await resp.add_reaction('🔇')
-                continue
-
-            if resp.channel == msg.channel:
-                dest = report_channel
-            else:
-                dest = msg.channel
-
-            if resp.content:
-                if resp.content in ['end', 'done']:
-                    config['currentuser'] = None
-                    await report_channel.send("Thank you, the room has been closed.")
-                    await msg.channel.send("Thank you, the room has been closed.")
-                    break
-                if dest == msg.channel:
-                    cont = f"> "
-                else:
-                    cont = f"> {msg.author.mention}: "
-                splice = 2000 - len(cont)
-                cont += resp.content[:splice]
-                if len(resp.content) > splice:
-                    cont2 = f"> ... {resp.content[splice:]}"
-                else:
-                    cont2 = None
-            else:
-                cont = cont2 = None
-
-            try:
-                if cont and len(resp.embeds) == 1:
-                    await dest.send(cont, resp.embeds[0])
-                elif cont and not resp.embeds:
-                    await dest.send(cont)
-
-                if len(resp.embeds) > 1:
-                    for embed in resp.embeds:
-                        await dest.send(embed=embed)
-
-                if resp.attachments:
-                    for attachment in resp.attachments:
-                        await dest.send(attachment.url)
-
-                if cont2:
-                    await dest.send(cont2)
-
-            except discord.Forbidden:
-                try:
-                    await report_channel.send("I couldn't send a message to the user (maybe they blocked me). "
-                                              "I have closed the chat.")
-                    config['currentuser'] = None
-                except discord.Forbidden:
-                    pass
-
-                try:
-                    await msg.channel.send("I couldn't send your message to the mods. Maybe they've locked me out of "
-                                          "the report channel. I have closed this chat.")
-                    config['currentuser'] = None
-                except discord.Forbidden:
-                    pass
-
-                break
-
-        config['currentuser'] = None
 
     @commands.command()
     @commands.is_owner()
@@ -1577,15 +1455,13 @@ class General(commands.Cog):
         if guild.id not in [JP_SERVER_ID, SP_SERVER_ID]:
             em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
 
-        # count top 5 member roles
-        if len(guild.members) < 20000:
+        # count top 6 member roles
+        if len(guild.members) < 30000:
             role_count = Counter(role.name for member in guild.members
                                  for role in member.roles if not role.is_default())
 
-            top_roles = '\n'.join(f"{role}: {count}"
-                                       for role, count in role_count.most_common(5))
-
-            em.add_field(name=f"Top 5 roles (out of {len(guild.roles)})", value=top_roles)
+            top_six_roles = '\n'.join(f"{role}: {count}" for role, count in role_count.most_common(6))
+            em.add_field(name=f"Top 6 roles (out of {len(guild.roles)})", value=top_six_roles)
         else:
             em.add_field(name="Roles", value=str(len(guild.roles)))
 
@@ -1678,7 +1554,7 @@ class General(commands.Cog):
     async def residency(self, ctx):
         """Claims your residency on a server"""
         config = self.bot.db['global_blacklist']['residency']
-        if ctx.guild.id == 257984339025985546:
+        if ctx.guild.id == MODCHAT_SERVER_ID:
             await hf.safe_send(ctx, "You can't claim residency here. Please do this command on the server you mod.")
             return
 
@@ -2094,7 +1970,7 @@ class General(commands.Cog):
 
     @commands.command(aliases=['selfmute'])
     @commands.guild_only()
-    async def self_mute(self, ctx, time=0):
+    async def self_mute(self, ctx, time=None):
         """Irreversible mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
 
         For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
@@ -2102,7 +1978,7 @@ class General(commands.Cog):
         try:
             time = int(time)
         except ValueError:
-            await hf.safe_send("Please give an integer number.")
+            await hf.safe_send(ctx, "Please give an integer number.")
             return
         if time:
             try:
@@ -2112,7 +1988,7 @@ class General(commands.Cog):
             except KeyError:
                 pass
         else:
-            await hf.safe_send(ctx, "You're already muted. No saving you now.")
+            await hf.safe_send(ctx, "You need to put something! Please give an integer number.")
             return
 
         if time > 24:
@@ -2139,6 +2015,18 @@ class General(commands.Cog):
         except asyncio.TimeoutError:
             await hf.safe_send(ctx, "Canceling.")
             return
+
+    @commands.command(hidden=True)
+    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, RY_SERVER_ID] if ctx.guild else False)
+    async def pingstaff(self, ctx):
+        """Puts a `@here` ping into the staff channel with a link to your message"""
+        channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+        desc_text = f"Staff has been pinged in {ctx.channel.mention} [here]({ctx.message.jump_url}) by " \
+                    f"{ctx.author.mention}."
+        if len(ctx.message.content.split()) > 1:
+            desc_text += f"\n\nMessage content: {' '.join(ctx.message.content.split()[1:])}"
+        emb = hf.green_embed(desc_text)
+        await channel.send("@here", embed=emb)
 
 def setup(bot):
     bot.add_cog(General(bot))
