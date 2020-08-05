@@ -130,7 +130,10 @@ class Rai(Bot):
                     await ctx.invoke(self.get_command("_unselfmute_users"))
                     await ctx.invoke(self.get_command("_check_desync_voice"))
                 if counter % 250 == 0:
-                    await ctx.invoke(self.get_command("_check_lhscan"))
+                    try:
+                        await ctx.invoke(self.get_command("_check_lhscan"))
+                    except asyncio.TimeoutError:
+                        await self.get_channel(554572239836545074).send("Timeout in LH Scan command")
                 await asyncio.sleep(60)
         except Exception as error:
             error = getattr(error, 'original', error)
@@ -279,6 +282,29 @@ class Rai(Bot):
         e.timestamp = datetime.utcnow()
         await self.get_channel(554572239836545074).send(traceback_text, embed=e)
         print('')
+
+    async def on_error(self, event, *args, **kwargs):
+        e = discord.Embed(title='Event Error', colour=0xa32952)
+        e.add_field(name='Event', value=event)
+        e.description = f'```py\n{traceback.format_exc()}\n```'
+        e.timestamp = datetime.utcnow()
+
+        args_str = ['```py']
+        jump_url = ''
+        for index, arg in enumerate(args):
+            print(type(arg))
+            args_str.append(f'[{index}]: {arg!r}')
+            if type(arg) == discord.Message:
+                e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})')
+                fmt = f'Channel: {arg.channel} (ID: {arg.channel.id})'
+                if arg.guild:
+                    fmt = f'{fmt}\nGuild: {arg.guild} (ID: {arg.guild.id})'
+                e.add_field(name='Location', value=fmt, inline=False)
+                jump_url = arg.jump_url
+        args_str.append('```')
+        e.add_field(name='Args', value='\n'.join(args_str), inline=False)
+        await self.get_channel(554572239836545074).send(jump_url, embed=e)
+        traceback.print_exc()
 
 
 bot = Rai()
