@@ -208,6 +208,22 @@ class Questions(commands.Cog):
         if question_number > 9:
             await hf.safe_send(ctx, f"Note, I've reached the maximum amount of open questions for reactions.  Try "
                                     f"running `;q list` and clearing out some old questions.")
+
+        if ctx.author.id == 720900750724825138 and ctx.channel.id == 620997764524015647:
+            # burdbot submitted a question to AOTW_feedback
+            if ctx.message.attachments:
+                try:
+                    actual_user_id = int(ctx.message.attachments[0].filename.split('-')[0])
+                    actual_user = ctx.guild.get_member(actual_user_id)
+                    if not actual_user:
+                        raise ValueError
+                    ctx.author = actual_user
+                    target_message.author = actual_user
+                except ValueError:
+                    pass
+
+        print(ctx.author, target_message.author)
+
         config['questions'][str(question_number)] = {}
         config['questions'][str(question_number)]['title'] = title
         config['questions'][str(question_number)]['question_message'] = target_message.id
@@ -569,6 +585,19 @@ class Questions(commands.Cog):
                     q_config = channel_config[question]
                     question_message = await question_channel.fetch_message(q_config['question_message'])
                     question_text = ' '.join(question_message.content.split(' '))
+
+                    if question_message.channel.id == 620997764524015647:
+                        if question_message.author.id == 720900750724825138:
+                            if question_message.attachments:
+                                try:
+                                    actual_user_id = int(question_message.attachments[0].filename.split('-')[0])
+                                    actual_user = ctx.guild.get_member(actual_user_id)
+                                    if not actual_user:
+                                        raise ValueError
+                                    question_message.author = actual_user
+                                except ValueError:
+                                    pass
+
                     value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n"
 
                     if q_config.get('responses', None):
