@@ -22,8 +22,6 @@ def any_channel_mod_check(ctx):
             else:
                 return True
 
-def role_command_check(ctx):
-    return ctx.channel
 
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
@@ -319,7 +317,7 @@ class ChannelMods(commands.Cog):
         If you don't specify a user, then it will find the last user in the channel without a role. *If you do this,\
         you can only specify one role!*
 
-        __Tag codes:__ 
+        __Tag codes:__
         - English Native: `english`,  `en`,  `ne`,  `e`
         - Spanish Native: `spanish`,  `sn`,  `ns`,  `s`
         - Other Language: `other`,  `ol`,  `o`
