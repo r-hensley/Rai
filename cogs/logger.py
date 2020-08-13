@@ -931,7 +931,10 @@ class Logger(commands.Cog):
                 new_user_role = member.guild.get_role(249695630606336000)
                 if new_user_role in member.roles:
                     await member.remove_roles(new_user_role)
-            await hf.safe_send(jpJHO, JHO_msg)
+            try:
+                await hf.safe_send(jpJHO, JHO_msg)
+            except discord.Forbidden:
+                pass
 
 
             if member.id == ABELIAN_ID:  # secret entry for Abelian
