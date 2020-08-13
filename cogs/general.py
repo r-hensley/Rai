@@ -10,6 +10,7 @@ import asyncio, aiohttp, async_timeout
 from urllib.error import HTTPError
 from bs4 import BeautifulSoup
 from collections import Counter
+from inspect import cleandoc
 
 import os
 
@@ -689,7 +690,7 @@ class General(commands.Cog):
                 message += '\n'
                 if requested.help:
                     message += requested.help
-                emb = hf.green_embed(message)
+                emb = hf.green_embed(cleandoc(message))
                 await hf.safe_send(ctx, embed=emb)
 
             else:  # requested a cog
@@ -700,7 +701,7 @@ class General(commands.Cog):
                 else:
                     message += '\n\n'
                 message += requested.description
-                emb = hf.green_embed(message)
+                emb = hf.green_embed(cleandoc(message))
                 await hf.safe_send(ctx, embed=emb)
 
         else:  # user wants to see full command list

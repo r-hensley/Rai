@@ -619,10 +619,13 @@ class Questions(commands.Cog):
     @question.command()
     @hf.is_admin()
     async def edit(self, ctx, log_id, target, *text):
-        """Edit either the asker, answerer, question, title, or answer of a question log in the log channel
+        """
+        Edit either the asker, answerer, question, title, or answer of a question log in the log channel
 
-        Usage: `;q edit <log_id> <asker|answerer|question|title|answer> <new data>`.  Example: `;q edit 2 \
-        question  What is the difference between が and は`."""
+        Usage: `;q edit <log_id> <asker|answerer|question|title|answer> <new data>`.
+
+        Example: `;q edit 2 question  What is the difference between が and は`.
+        """
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         log_channel = self.bot.get_channel(config['log_channel'])
         target_message = await log_channel.fetch_message(int(log_id))

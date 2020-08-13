@@ -22,6 +22,9 @@ def any_channel_mod_check(ctx):
             else:
                 return True
 
+def role_command_check(ctx):
+    return ctx.channel
+
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
     mods, see `;help channel_mod`. Submods and admins can also use these commands."""
@@ -41,6 +44,8 @@ class ChannelMods(commands.Cog):
             if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
                 return True
         else:
+            return True
+        if ctx.command.name == 'role':
             return True
 
     @commands.command(name="delete", aliases=['del'])
@@ -307,29 +312,59 @@ class ChannelMods(commands.Cog):
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
     async def role(self, ctx, *, args):
-        """Assigns a role to a user. Type `;role <user> <english/spanish/other/e/s/o/none/fe/fs>`. You can specify\
-        multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces.
+        """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify\
+        multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces or be \
+        surrounded with quotation marks.
 
         If you don't specify a user, then it will find the last user in the channel without a role. *If you do this,\
         you can only specify one role!*
 
-        Examples: `;role @Ryry013 e`   `;role spanish`   `;r Ryry013 e o fs`   `;r Ryry013 none`"""
+        __Tag codes:__ 
+        - English Native: `english`,  `en`,  `ne`,  `e`
+        - Spanish Native: `spanish`,  `sn`,  `ns`,  `s`
+        - Other Language: `other`,  `ol`,  `o`
+        - Fluency roles: `ee`,  `ae`,  `ie`,  `be`,  `es`,  `as`,  `is`,  `bs`
+        (Expert, Advanced, Intermediate, Beginner for English and Spanish)
+        - Learning Roles: `le`,  `ls`
+        - Remove all roles: `none`,  `n`
+
+        __Examples:__
+        - `;role @Ryry013 e` → *Gives English to Ryry013*
+        - `;role spanish`  → *Gives to the last roleless user in the channel*
+        - `;r Abelian e o as` → *Give English, Other, and Advanced Spanish*
+        - `;r "Long name" e` → *Give English to "Long name"*
+        - `;r Ryry013 none` → *Take away all roles from Ryry013*"""
         if ctx.guild.id != SP_SERV:
             return
         english = ctx.guild.get_role(243853718758359040)
         spanish = ctx.guild.get_role(243854128424550401)
         other = ctx.guild.get_role(247020385730691073)
-        fluentenglish = ctx.guild.get_role(267367044037476362)
-        fluentspanish = ctx.guild.get_role(267368304333553664)
+
+        expertenglish = ctx.guild.get_role(709499333266899115)
+        advancedenglish = ctx.guild.get_role(708704078540046346)
+        intermediateenglish = ctx.guild.get_role(708704480161431602)
+        beginnerenglish = ctx.guild.get_role(708704491180130326)
+
+        expertspanish = ctx.guild.get_role(709497363810746510)
+        advancedspanish = ctx.guild.get_role(708704473358532698)
+        intermediatespanish = ctx.guild.get_role(708704486994215002)
+        beginnerspanish = ctx.guild.get_role(708704495302869003)
+
         learningenglish = ctx.guild.get_role(247021017740869632)
         learningspanish = ctx.guild.get_role(297415063302832128)
+
         language_roles = [english, spanish, other]
-        all_roles = [english, spanish, other, fluentenglish, fluentspanish, learningenglish, learningspanish]
-        langs_dict = {'e': english, 's': spanish, 'o': other, 'i': english, 'en': english, 'ne': english, 'ol': other,
-                      'english': english, 'spanish': spanish, 'other': other, 'sn': spanish, 'ns': spanish,
-                      'inglés': english, 'español': spanish, 'ingles': english, 'espanol': spanish, 'otro': other,
-                      'fe': fluentenglish, 'fs': fluentspanish, 'none': None, 'n': None,
-                      'le': learningenglish, 'ls': learningspanish}
+        all_roles = [english, spanish, other,
+                     expertenglish, advancedenglish, intermediateenglish, beginnerenglish,
+                     expertspanish, advancedspanish, intermediatespanish, beginnerspanish,
+                     learningenglish, learningspanish]
+        langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english, 
+                      's': spanish,  'spanish': spanish,  'sn': spanish,  'ns': spanish,
+                      'other': other, 'ol': other, 'o': other,
+                      'ee': expertenglish, 'ae': advancedenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
+                      'es': expertspanish, 'as': advancedspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
+                      'le': learningenglish, 'ls': learningspanish, 
+                      'none': None, 'n': None}
 
         args = args.split()
         if len(args) > 1:  # ;r ryry013 english
