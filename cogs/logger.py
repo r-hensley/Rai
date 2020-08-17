@@ -1371,7 +1371,7 @@ class Logger(commands.Cog):
             emb.description += f"__Join date__: {join_date}\n"
 
         if reason:
-            emb.description += f"\n__Reason__: {reason}"
+            emb.description += f"__Reason__: {reason}"
 
         emb.set_footer(text='Ban', icon_url=member.avatar_url_as(static_format="png"))
 

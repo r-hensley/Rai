@@ -11,6 +11,7 @@ from urllib.error import HTTPError
 from bs4 import BeautifulSoup
 from collections import Counter
 from inspect import cleandoc
+from random import choice
 
 import os
 
@@ -912,6 +913,17 @@ class General(commands.Cog):
                 return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'class': 'chapter'})
+
+    @commands.command()
+    async def topic(self, ctx):
+        """Provides a random conversation topic.
+        Hint: make sure you also answer "why". Challenge your friends on their answers.
+        If you disagree with their answer, talk it out."""
+        topics = [line.rstrip('\n') for line in open(f"{dir_path}/cogs/utils/conversation_topics.txt", 'r')]
+        topic = choice(topics)
+        while topic.startswith('#'):
+            topic = choice(topics)
+        await hf.safe_send(ctx, topic)
 
     @commands.command()
     @commands.is_owner()
