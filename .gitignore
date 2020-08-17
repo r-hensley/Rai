@@ -1,3 +1,4 @@
+  
 log/
 __pycache__/
 gitignore/
@@ -8,6 +9,7 @@ local/
 BasicBot*
 API*
 *.txt
+!cogs/utils/conversation_topics.txt
 *.json
 *.png
 *.sh
