@@ -67,18 +67,20 @@ _lock = asyncio.Lock()
 _loop = asyncio.get_event_loop()
 
 
-def count_messages(member):
+def count_messages(member, guild=None):
     """Returns an integer of number of messages sent in the last month"""
-    config = here.bot.stats[str(member.guild.id)]['messages']
     msgs = 0
+    if not guild:
+        guild = member.guild
     try:
+        config = here.bot.stats[str(guild.id)]['messages']
         for day in config:
             if str(member.id) in config[day]:
                 user = config[day][str(member.id)]
                 msgs += sum([user['channels'][c] for c in user['channels']])
+        return msgs
     except KeyError:
         return 0
-    return msgs
 
 
 def add_to_modlog(ctx, user, type, reason, silent, length=None):
@@ -310,17 +312,32 @@ def rem_emoji_url(msg):
     return new_msg
 
 async def ban_check_servers(bot, bans_channel, member):
-    in_servers_msg = f"__I have found the user {member.name}#{member.discriminator} ({member.id}) " \
-                     f"in the following guilds:\n__"
-    found = False
+    in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
     guilds = []
+
     for guild in bot.guilds:
         if member in guild.members:
-            guilds.append(guild)
-            found = True
-    in_servers_msg += '\n'.join(sorted([guild.name for guild in guilds]))
-    if found:
+            messages = count_messages(member, guild)
+            day = None
+            if messages:
+                try:
+                    config = bot.stats[str(guild.id)]['messages']
+                    for day in reversed(list(config)):
+                        if str(member.id) in config[day]:
+                            break
+                except KeyError:
+                    pass
+            guilds.append([guild, messages, day])
+
+    for guild in guilds:
+        in_servers_msg += f"\n**{guild[0].name}**"
+        if guild[1]:
+            date = f"{guild[2][0:4]}/{guild[2][4:6]}/{guild[2][6:]}"
+            in_servers_msg += f" (Messages: {guild[1]}, Last message: {date})"
+
+    if guilds:
         await bans_channel.send(in_servers_msg)
+
 
 def jpenratio(msg_content):
     text = _emoji.sub('', _url.sub('', msg_content))

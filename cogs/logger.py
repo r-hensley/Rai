@@ -1274,7 +1274,10 @@ class Logger(commands.Cog):
     async def make_ban_embed(self, guild, member):
         ban_entry = None
         reason = "(could not find audit log entry)"
-        by = ""
+        by = None
+
+        # ################## NORMAL BAN EMBED #########################
+
         await asyncio.sleep(3)
         async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                             action=discord.AuditLogAction.ban,
@@ -1282,7 +1285,7 @@ class Logger(commands.Cog):
             if entry.action == discord.AuditLogAction.ban and entry.target == member:
                 ban_entry = entry
                 reason = ban_entry.reason
-                by = f'*by* {ban_entry.user.name}'
+                by = ban_entry.user
                 break
         emb = discord.Embed(colour=0x000000, timestamp=datetime.utcnow(), description='')
         if not reason:
@@ -1297,8 +1300,10 @@ class Logger(commands.Cog):
             emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
                                f'{reason}'
         else:
-            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
-                               f'{by}\n**Reason**: {reason}'
+            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
+            if by:
+                emb.description += f'*by* {by.name}\n'
+            emb.description += f'**Reason**: {reason}'
 
         emb.set_footer(text=f'User Banned',
                        icon_url=member.avatar_url_as(static_format="png"))
@@ -1314,7 +1319,43 @@ class Logger(commands.Cog):
         if not already_added:
             hf.add_to_modlog(None, [member, guild], 'Ban', reason, False, None)
 
-        return emb
+        ban_emb = emb  # saving for later
+
+        # #################### crossposting ban embed #######################
+
+        emb = discord.Embed(colour=0xDD2E44, timestamp=datetime.utcnow(),
+                            title="", description=f"**{str(member)}**\n({member.id})\n\n")
+
+        emb.description += f"__Server__: [{guild.name}](https://rai/server-id-is-S{guild.id})\n"
+
+        if by:
+            emb.description += f"__Admin__: [{str(by)}](https://rai/admin-id-is-A{by.id})\n"
+
+        messages_in_guild = hf.count_messages(member, guild)
+        if messages_in_guild:
+            emb.description += f"__Num. of messages__: {messages_in_guild}\n"
+
+        if isinstance(member, discord.Member):  # if it's a user, there will be no join date
+            join_date = member.joined_at.strftime("%Y/%m/%d")
+            time_ago = datetime.utcnow() - member.joined_at
+            if time_ago.total_seconds() <= 3600:  # they joined less than a day ago
+                join_date += f" (**__{int(time_ago.total_seconds() // 60)} minutes__** ago)"
+            elif 3600 < time_ago.total_seconds() <= 86400:  # they joined less than a day ago
+                join_date += f" (**{int(time_ago.total_seconds() // 3600)} hours** ago)"
+            elif 86400 < time_ago.total_seconds() <= 2592000:  # they joined less than a day ago
+                join_date += f" ({int(time_ago.total_seconds() // 86400)} days ago)"
+            emb.description += f"__Join date__: {join_date}\n"
+
+        if reason:
+            emb.description += f"\n__Reason__: {reason}"
+
+        emb.set_footer(text='Ban', icon_url=member.avatar_url_as(static_format="png"))
+
+        crosspost_emb = emb
+
+        # #################### END OF CROSSPOSTING EMBED #######################
+
+        return ban_emb, crosspost_emb
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
@@ -1328,24 +1369,21 @@ class Logger(commands.Cog):
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
             try:
-                emb = await self.make_ban_embed(guild, member)
+                ban_emb, crosspost_emb = await self.make_ban_embed(guild, member)
             except discord.errors.Forbidden:
                 await self.module_disable_notification(guild, guild_config, 'bans')
                 return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await hf.safe_send(channel, embed=emb)
+                await hf.safe_send(channel, embed=ban_emb)
 
             try:
-                if (guild_config['crosspost'] and not emb.description.startswith('⁣')) or \
-                        (emb.description.startswith('⠀')):
-                    old_desc = emb.description.split('\n\n')
-                    new_desc = old_desc[0] + f'\n\n*on* {guild.name}\n' + old_desc[1]
-                    emb.description = new_desc
+                if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
+                        (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-                    crosspost_msg = await bans_channel.send(member.mention, embed=emb)
+                    crosspost_msg = await bans_channel.send(member.mention, embed=crosspost_emb)
 
-                    if member.id == 270366726737231884:
+                    if member.id == self.bot.user.id:
                         return
 
                     await hf.ban_check_servers(self.bot, bans_channel, member)
