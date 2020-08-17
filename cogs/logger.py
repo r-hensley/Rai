@@ -981,6 +981,29 @@ class Logger(commands.Cog):
             except KeyError:
                 pass
 
+        if str(member.id) in self.bot.db['banlog']:
+            config = self.bot.db['banlog'][str(member.id)]
+            bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
+            message = await bans_channel.fetch_message(config[1])
+            emb = hf.red_embed(f"WARNING: The user {str(member)} ({member.id}) has joined the following server:\n"
+                               f"  - {guild.name}\n"
+                               f"The user has been banned before on the following servers:\n")
+
+            for entry in config:
+                banned_guild = self.bot.get_guild(entry[0])
+                try:
+                    message = await bans_channel.fetch_message(entry[1])
+                except discord.NotFound:  # if the ban log message was deleted
+                    config.remove(entry)
+                    continue
+                date_str = message.created_at.strftime("%Y/%m/%d")
+                emb.description += f"  - [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+
+            if config:  # this will be False if the last entry in config was deleted above from the NotFound error
+                await hf.safe_send(bans_channel, member.mention, embed=emb)
+            else:
+                del(self.bot.db['banlogs'][str(member.id)])  # cleanup
+
         # """Spanish Server welcome"""
         # spanServ = self.bot.get_guild(SPAN_SERV_ID)
         # if member.guild == spanServ:
@@ -1329,13 +1352,14 @@ class Logger(commands.Cog):
         emb.description += f"__Server__: [{guild.name}](https://rai/server-id-is-S{guild.id})\n"
 
         if by:
-            emb.description += f"__Admin__: [{str(by)}](https://rai/admin-id-is-A{by.id})\n"
+            if not by.bot:
+                emb.description += f"__Admin__: [{str(by)}](https://rai/admin-id-is-A{by.id})\n"
 
         messages_in_guild = hf.count_messages(member, guild)
         if messages_in_guild:
             emb.description += f"__Num. of messages__: {messages_in_guild}\n"
 
-        if isinstance(member, discord.Member):  # if it's a user, there will be no join date
+        if hasattr(member, "joined_at"):  # if it's a user, there will be no join date
             join_date = member.joined_at.strftime("%Y/%m/%d")
             time_ago = datetime.utcnow() - member.joined_at
             if time_ago.total_seconds() <= 3600:  # they joined less than a day ago
@@ -1389,6 +1413,11 @@ class Logger(commands.Cog):
                     await hf.ban_check_servers(self.bot, bans_channel, member)
 
                     await crosspost_msg.add_reaction('⬆')
+
+                    if member not in bans_channel.guild.members:
+                        if str(member.id) not in self.bot.db['banlog']:
+                            self.bot.db['banlog'][str(member.id)] = []
+                        self.bot.db['banlog'][str(member.id)].append([guild.id, crosspost_msg.id])
             except KeyError:
                 pass
 
