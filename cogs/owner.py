@@ -361,6 +361,8 @@ class Owner(commands.Cog):
         env.update(globals())
 
         body = self.cleanup_code(body)
+        #  these are the default quotation marks on iOS, but they cause SyntaxError: invalid character in identifier
+        body = body.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
         stdout = io.StringIO()
 
         to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
