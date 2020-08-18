@@ -984,7 +984,6 @@ class Logger(commands.Cog):
         if str(member.id) in self.bot.db['banlog']:
             config = self.bot.db['banlog'][str(member.id)]
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-            message = await bans_channel.fetch_message(config[1])
             emb = hf.red_embed(f"WARNING: The user {str(member)} ({member.id}) has joined the following server:\n"
                                f"  - {guild.name}\n"
                                f"The user has been banned before on the following servers:\n")
