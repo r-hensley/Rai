@@ -1707,6 +1707,7 @@ class General(commands.Cog):
     async def blacklist_bansub(self, ctx):
         """Subscribes yourself to pings for your server"""
         # a list of which server IDs a user is subscribed to
+        guild = self.bot.get_guild(MODCHAT_SERVER_ID)
         subbed_roles: list = self.bot.db['bansub']['user_to_role'].setdefault(str(ctx.author.id), [])
         user_role_ids = [role.id for role in ctx.author.roles if str(role.color) == "#206694"]  # only want blue roles
         selection_dictionary = {}  # for later when the user selects a role to toggle
@@ -1723,14 +1724,14 @@ class General(commands.Cog):
             for role_id in subbed_roles:  # a list of role IDs corresponding to server roles
                 if role_id in user_role_ids:
                     user_role_ids.remove(role_id)
-                role: discord.Role = ctx.guild.get_role(role_id)
+                role: discord.Role = guild.get_role(role_id)
                 msg += f"    {counter}) {role.name}\n"
                 selection_dictionary[counter] = role.id
                 counter += 1
 
         msg += "\nHere are the roles to which you're not subscribed:\n"
         for role_id in user_role_ids:  # remaining here should only be the unsubscribed roles on the user's profile
-            role: discord.Role = ctx.guild.get_role(role_id)
+            role: discord.Role = guild.get_role(role_id)
             msg += f"    {counter}) {role.name}\n"
             selection_dictionary[counter] = role.id
             counter += 1
@@ -1791,13 +1792,6 @@ class General(commands.Cog):
             #     ####### Add the role #######
             subbed_roles.append(role_selection)
             await hf.safe_send(ctx, "I've added you to the subscriptions for that role. I'll ping you for that server.")
-
-
-
-
-
-
-
 
     @commands.command()
     @commands.guild_only()
