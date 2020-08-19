@@ -976,7 +976,7 @@ class Logger(commands.Cog):
                 if config[str(member.guild.id)]['enable']:
                     await member.ban(reason="On the global blacklist")
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-                    await hf.ban_check_servers(self.bot, bans_channel, member)
+                    await hf.ban_check_servers(self.bot, bans_channel, member, ping=True)
                     return
             except KeyError:
                 pass
@@ -984,9 +984,8 @@ class Logger(commands.Cog):
         if str(member.id) in self.bot.db['banlog']:
             config = self.bot.db['banlog'][str(member.id)]
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-            emb = hf.red_embed(f"WARNING: The user {str(member)} ({member.id}) has joined the following server:\n"
-                               f"  - {guild.name}\n"
-                               f"The user has been banned before on the following servers:\n")
+            emb = hf.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{guild.name}**\n\n"
+                               f"They were banned before on the following servers:\n")
 
             for entry in config:
                 banned_guild = self.bot.get_guild(entry[0])
@@ -996,12 +995,23 @@ class Logger(commands.Cog):
                     config.remove(entry)
                     continue
                 date_str = message.created_at.strftime("%Y/%m/%d")
-                emb.description += f"  - [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+                emb.description += f"⠀⠀- [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+
+            pings = ""
+            role_id: int = self.bot.db['bansub']['guild_to_role'][str(guild.id)]
+            for user in self.bot.db['bansub']['user_to_role']:
+                if role_id in self.bot.db['bansub']['user_to_role'][user]:
+                    pings += f" <@{user}> "
 
             if config:  # this will be False if the last entry in config was deleted above from the NotFound error
-                await hf.safe_send(bans_channel, member.mention, embed=emb)
+                await hf.safe_send(bans_channel, f"{member.mention}\n{pings}", embed=emb)
             else:
                 del(self.bot.db['banlogs'][str(member.id)])  # cleanup
+
+            if str(guild.id) in self.bot.db['mod_channel']:
+                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(guild.id)])
+                if mod_channel:
+                    await hf.safe_send(mod_channel, "@here", embed=emb)
 
         # """Spanish Server welcome"""
         # spanServ = self.bot.get_guild(SPAN_SERV_ID)
@@ -1356,7 +1366,20 @@ class Logger(commands.Cog):
 
         messages_in_guild = hf.count_messages(member, guild)
         if messages_in_guild:
-            emb.description += f"__Num. of messages__: {messages_in_guild}\n"
+            emb.set_footer(text=f"Messages: {messages_in_guild}\n",
+                           icon_url=member.avatar_url_as(static_format="png"))
+        else:
+            emb.set_footer(text='Ban', icon_url=member.avatar_url_as(static_format="png"))
+
+        creation_date = member.created_at.strftime("%Y/%m/%d")
+        time_ago = datetime.utcnow() - member.created_at
+        if time_ago.total_seconds() <= 3600:  # they joined less than a day ago
+            creation_date += f" (**__{int(time_ago.total_seconds() // 60)} minutes__** ago)"
+        elif 3600 < time_ago.total_seconds() <= 86400:  # they joined less than a day ago
+            creation_date += f" (**{int(time_ago.total_seconds() // 3600)} hours** ago)"
+        elif 86400 < time_ago.total_seconds() <= 2592000:  # they joined less than a day ago
+            creation_date += f" ({int(time_ago.total_seconds() // 86400)} days ago)"
+        emb.description += f"__Creation date__: {creation_date}\n"
 
         if hasattr(member, "joined_at"):  # if it's a user, there will be no join date
             join_date = member.joined_at.strftime("%Y/%m/%d")
@@ -1370,9 +1393,8 @@ class Logger(commands.Cog):
             emb.description += f"__Join date__: {join_date}\n"
 
         if reason:
-            emb.description += f"__Reason__: {reason}"
+            emb.description += f"\n__Reason__: {reason}"
 
-        emb.set_footer(text='Ban', icon_url=member.avatar_url_as(static_format="png"))
 
         crosspost_emb = emb
 
@@ -1400,7 +1422,7 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(guild_config["channel"])
                 await hf.safe_send(channel, embed=ban_emb)
 
-            try:
+            if 'crosspost' in guild_config:
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
                         (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
@@ -1409,22 +1431,25 @@ class Logger(commands.Cog):
                     if member.id == self.bot.user.id:
                         return
 
-                    await hf.ban_check_servers(self.bot, bans_channel, member)
+                    await hf.ban_check_servers(self.bot, bans_channel, member, ping=True)
 
                     await crosspost_msg.add_reaction('⬆')
 
+                    # if member not in bans_channel.guild.members:
                     if member not in bans_channel.guild.members:
-                        if str(member.id) not in self.bot.db['banlog']:
-                            self.bot.db['banlog'][str(member.id)] = []
-                        self.bot.db['banlog'][str(member.id)].append([guild.id, crosspost_msg.id])
-            except KeyError:
-                pass
+                        self.bot.db['banlog'].setdefault(str(member.id), []).append([guild.id, crosspost_msg.id])
 
         if member.id == ABELIAN_ID:
             try:
                 await member.unban()
             except discord.errors.NotFound:
                 pass
+
+            try:
+                del(self.bot.db['banlog'][str(ABELIAN_ID)])
+            except KeyError:
+                pass
+
             try:
                 self.bot.db['global_blacklist']['blacklist'].remove(ABELIAN_ID)
             except ValueError:

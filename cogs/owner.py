@@ -124,29 +124,57 @@ class Owner(commands.Cog):
             return
         msg = ''
         for key in config:
-            msg += f"{key}\n"
+            if type(key) == str:
+                key_str = f'\"{key}\"'
+            else:
+                key_str = key
+            msg += f"{key_str}\n"
 
             if int(depth) >= 2:
                 if isinstance(config[key], dict):
                     for key_2 in config[key]:
-                        msg += f"\t{key_2}\n"
+                        if type(key_2) == str:
+                            key_2_str = f'\"{key_2}\"'
+                        else:
+                            key_2_str = key_2
+                        msg += f"\t{key_2_str}\n"
 
                         if int(depth) >= 3:
                             if isinstance(config[key][key_2], dict):
                                 for key_3 in config[key][key_2]:
-                                    msg += f"\t\t{key_3}\n"
+                                    if type(key_3) == str:
+                                        key_3_str = f'\"{key_3}\"'
+                                    else:
+                                        key_3_str = key_3
+                                    msg += f"\t\t{key_3_str}\n"
 
                                     if int(depth) >= 4:
                                         if isinstance(config[key][key_2][key_3], dict):
                                             for key_4 in config[key][key_2][key_3]:
-                                                msg += f"\t\t\t{key_4}\n"
+                                                if type(key_4) == str:
+                                                    key_4_str = f'\"{key_4}\"'
+                                                else:
+                                                    key_4_str = key_4
+                                                msg += f"\t\t\t{key_4_str}\n"
 
                                         else:
-                                            msg = msg[:-1] + f": {config[key][key_2][key_3]}\n"
+                                            if type(config[key][key_2][key_3]) == str:
+                                                s = f"\"{config[key][key_2][key_3]}\""
+                                            else:
+                                                s = config[key][key_2][key_3]
+                                            msg = msg[:-1] + f": {s}\n"
                             else:
-                                msg = msg[:-1] + f": {config[key][key_2]}\n"
+                                if type(config[key][key_2]) == str:
+                                    s = f"\"{config[key][key_2]}\""
+                                else:
+                                    s = config[key][key_2]
+                                msg = msg[:-1] + f": {s}\n"
                 else:
-                    msg = msg[:-1] + f": {config[key]}\n"
+                    if type(config[key]) == str:
+                        s = f"\"{config[key]}\""
+                    else:
+                        s = config[key]
+                    msg = msg[:-1] + f": {s}\n"
 
         await hf.safe_send(ctx, f'```\n{msg[:1993]}```')
 
