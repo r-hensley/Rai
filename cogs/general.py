@@ -186,7 +186,7 @@ class General(commands.Cog):
                             if user:
                                 users.append(user)
                     for user in users:
-                        await hf.ban_check_servers(self.bot, bans_channel, user)
+                        await hf.ban_check_servers(self.bot, bans_channel, user, ping=False)
 
                 await check_user(msg.content)
                 for embed in msg.embeds:
@@ -1195,10 +1195,12 @@ class General(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 ctx.author = self.bot.get_user(payload.user_id)
                 ctx.reacted_user_id = payload.user_id
-                user_id = re.search('\((\d{17,22})\)', message.embeds[0].description).group(1)
+                user_id = re.search('^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
                 try:
-                    reason = re.search('\*\*Reason\*\*: (.*)$', message.embeds[0].description, flags=re.S).group(1)
-                except AttributeError:
+                    reason = re.search('__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
+                except AttributeError as e:
+                    await hf.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
+                                                "the GBL.")
                     return
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
@@ -1699,6 +1701,103 @@ class General(commands.Cog):
                                                                               "holds residencies in which servers.\n\n")
         emb.description += users_str
         await hf.safe_send(ctx, embed=emb)
+
+    @global_blacklist.command(name="sub")
+    @blacklist_check()
+    async def blacklist_bansub(self, ctx):
+        """Subscribes yourself to pings for your server"""
+        # a list of which server IDs a user is subscribed to
+        subbed_roles: list = self.bot.db['bansub']['user_to_role'].setdefault(str(ctx.author.id), [])
+        user_role_ids = [role.id for role in ctx.author.roles if str(role.color) == "#206694"]  # only want blue roles
+        selection_dictionary = {}  # for later when the user selects a role to toggle
+        guild_id_to_role: dict = self.bot.db['bansub']['guild_to_role']  # links a guild ID to the corresponding role
+        role_to_guild_id = {guild_id_to_role[a]: a for a in guild_id_to_role}  # reverses the dictionary
+
+        # ########################## DISPLAYING CURRENT SUBSCRIPTIONS ###########################
+
+        counter = 1
+        if not subbed_roles:
+            msg = "You are currently not subscribed to pings for any servers.\n"
+        else:
+            msg = "You are currently subscribed to pings for the following servers: \n"
+            for role_id in subbed_roles:  # a list of role IDs corresponding to server roles
+                if role_id in user_role_ids:
+                    user_role_ids.remove(role_id)
+                role: discord.Role = ctx.guild.get_role(role_id)
+                msg += f"    {counter}) {role.name}\n"
+                selection_dictionary[counter] = role.id
+                counter += 1
+
+        msg += "\nHere are the roles to which you're not subscribed:\n"
+        for role_id in user_role_ids:  # remaining here should only be the unsubscribed roles on the user's profile
+            role: discord.Role = ctx.guild.get_role(role_id)
+            msg += f"    {counter}) {role.name}\n"
+            selection_dictionary[counter] = role.id
+            counter += 1
+
+        # ########################## ASK FOR WHICH ROLE TO TOGGLE ########################
+
+        msg += f"\nTo toggle the subscription for a role, please input now the number for that role."
+        await hf.safe_send(ctx, msg)
+        try:
+            resp = await self.bot.wait_for("message", timeout=20.0,
+                                           check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Module timed out.")
+            return
+        try:
+            resp = int(resp.content)
+        except ValueError:
+            await hf.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
+            return
+        if resp not in selection_dictionary:
+            await hf.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
+            return
+
+        # ################################ TOGGLE THE ROLE #################################
+
+        role_selection: int = selection_dictionary[resp]
+        if role_selection in subbed_roles:
+            subbed_roles.remove(role_selection)
+            await hf.safe_send(ctx, "I've unsubcribed you from that role.")
+        else:
+            #      ####### Possibly match a role to a guild ########
+            if role_selection not in role_to_guild_id:
+                await hf.safe_send(ctx, "Before we continue, you need to tell me which server corresponds to that role."
+                                        " We'll only need to do this once for your server. Please tell me either the "
+                                        "server ID of that server, or the exact name of it.")
+                try:
+                    resp = await self.bot.wait_for("message", timeout=20.0,
+                                                   check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+                    resp = resp.content
+                except asyncio.TimeoutError:
+                    await hf.safe_send(ctx, "Module timed out.")
+                    return
+
+                if re.search('^\d{17,22}$', resp):  # user specifies a guild ID
+                    guild = self.bot.get_guild(int(resp))
+                    if not guild:
+                        await hf.safe_send(ctx, "I couldn't find the guild corresponding to that ID. "
+                                                "Please start over.")
+                        return
+                else:  # user probably specified a guild name
+                    guild = discord.utils.find(lambda g: g.name == resp, self.bot.guilds)
+                    if not guild:
+                        await hf.safe_send(ctx, "I couldn't find the guild corresponding to that guild name. "
+                                                "Please start over.")
+                        return
+                guild_id_to_role[str(guild.id)] = role_selection
+
+            #     ####### Add the role #######
+            subbed_roles.append(role_selection)
+            await hf.safe_send(ctx, "I've added you to the subscriptions for that role. I'll ping you for that server.")
+
+
+
+
+
+
+
 
     @commands.command()
     @commands.guild_only()

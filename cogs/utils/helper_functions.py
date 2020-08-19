@@ -311,29 +311,35 @@ def rem_emoji_url(msg):
             new_msg = new_msg.replace(char, '').replace('  ', '')
     return new_msg
 
-async def ban_check_servers(bot, bans_channel, member):
+
+async def ban_check_servers(bot, bans_channel, member, ping=False):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
     guilds = []
-
-    for guild in bot.guilds:
+    for guild in bot.guilds:  # type: discord.Guild
         if member in guild.members:
-            messages = count_messages(member, guild)
+            messages: int = count_messages(member, guild)
             day = None
             if messages:
                 try:
                     config = bot.stats[str(guild.id)]['messages']
-                    for day in reversed(list(config)):
+                    for day in reversed(list(config)):  # type: str
                         if str(member.id) in config[day]:
                             break
                 except KeyError:
                     pass
             guilds.append([guild, messages, day])
 
-    for guild in guilds:
+    for guild in guilds:  # type: list
         in_servers_msg += f"\n**{guild[0].name}**"
         if guild[1]:
             date = f"{guild[2][0:4]}/{guild[2][4:6]}/{guild[2][6:]}"
             in_servers_msg += f" (Messages: {guild[1]}, Last message: {date})"
+        if ping:
+            if str(guild[0].id) in bot.db['bansub']['guild_to_role']:
+                role_id = bot.db['bansub']['guild_to_role'][str(guild[0].id)]
+                for user in bot.db['bansub']['user_to_role']:
+                    if role_id in bot.db['bansub']['user_to_role'][user]:
+                        in_servers_msg += f" <@{user}> "
 
     if guilds:
         await bans_channel.send(in_servers_msg)
