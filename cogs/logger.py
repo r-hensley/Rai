@@ -998,20 +998,21 @@ class Logger(commands.Cog):
                 emb.description += f"⠀⠀- [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
 
             pings = ""
-            role_id: int = self.bot.db['bansub']['guild_to_role'][str(guild.id)]
-            for user in self.bot.db['bansub']['user_to_role']:
-                if role_id in self.bot.db['bansub']['user_to_role'][user]:
-                    pings += f" <@{user}> "
+            if str(guild.id) in self.bot.db['bansub']['guild_to_role']:
+                role_id: int = self.bot.db['bansub']['guild_to_role'][str(guild.id)]
+                for user in self.bot.db['bansub']['user_to_role']:
+                    if role_id in self.bot.db['bansub']['user_to_role'][user]:
+                        pings += f" <@{user}> "
 
-            if config:  # this will be False if the last entry in config was deleted above from the NotFound error
-                await hf.safe_send(bans_channel, f"{member.mention}\n{pings}", embed=emb)
-            else:
-                del(self.bot.db['banlogs'][str(member.id)])  # cleanup
+                if config:  # this will be False if the last entry in config was deleted above from the NotFound error
+                    await hf.safe_send(bans_channel, f"{member.mention}\n{pings}", embed=emb)
+                else:
+                    del(self.bot.db['banlogs'][str(member.id)])  # cleanup
 
-            if str(guild.id) in self.bot.db['mod_channel']:
-                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(guild.id)])
-                if mod_channel:
-                    await hf.safe_send(mod_channel, "@here", embed=emb)
+                if str(guild.id) in self.bot.db['mod_channel']:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(guild.id)])
+                    if mod_channel:
+                        await hf.safe_send(mod_channel, "@here", embed=emb)
 
         # """Spanish Server welcome"""
         # spanServ = self.bot.get_guild(SPAN_SERV_ID)
