@@ -25,7 +25,14 @@ RYRY_SPAM_CHAN = 275879535977955330
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
 CH_SERVER_ID = 266695661670367232
+CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
+
+
+ENG_ROLE = {
+    266695661670367232: 266778623631949826, # C-E Learning English Role
+    320439136236601344: 474825178204078081 # r/CL Learning English Role
+}
 
 
 def blacklist_check():
@@ -199,7 +206,7 @@ class General(commands.Cog):
         words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
                  '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
                  '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, 320439136236601344, RY_SERVER_ID]:
+        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, CL_SERVER_ID, RY_SERVER_ID]:
             word_count = 0
             for word in words:
                 if word in msg.content:
@@ -548,36 +555,51 @@ class General(commands.Cog):
         await hf.uhc_check(msg)
 
         """Chinese server hardcore mode"""
-        if msg.guild.id == CH_SERVER_ID:
-            if '*' not in msg.content and msg.channel.id not in self.bot.db['hardcore'][str(CH_SERVER_ID)][
-                'ignore']:
-                if len(msg.content) > 3:
+        async def cn_lang_check(check_hardcore_role=True):
+            if len(msg.content) > 3:
+                if check_hardcore_role:
                     try:
                         role = msg.guild.get_role(self.bot.db['hardcore'][str(msg.guild.id)]['role'])
                     except (KeyError, AttributeError):
                         return
+
                     if not hasattr(msg.author, 'roles'):
                         return
-                    if role in msg.author.roles:
-                        learning_eng = msg.guild.get_role(266778623631949826)
-                        ratio = hf.jpenratio(msg.content)
-                        if ratio is not None:
-                            if learning_eng in msg.author.roles:
-                                if ratio < .55:
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        pass
-                                    if len(msg.content) > 30:
-                                        await hf.long_deleted_msg_notification(msg)
-                            else:
-                                if ratio > .45:
-                                    try:
-                                        await msg.delete()
-                                    except discord.errors.NotFound:
-                                        pass
-                                    if len(msg.content) > 60:
-                                        await hf.long_deleted_msg_notification(msg)
+                    if role not in msg.author.roles:
+                        return
+
+                # Default value is C-E's Learning English role
+                learning_eng = msg.guild.get_role(ENG_ROLE.get(msg.guild.id, 266778623631949826))
+                ratio = hf.jpenratio(msg.content)
+                if ratio is not None:
+                    if learning_eng in msg.author.roles:
+                        if ratio < .55:
+                            try:
+                                await msg.delete()
+                            except discord.errors.NotFound:
+                                pass
+                            if len(msg.content) > 30:
+                                await hf.long_deleted_msg_notification(msg)
+                    else:
+                        if ratio > .45:
+                            try:
+                                await msg.delete()
+                            except discord.errors.NotFound:
+                                pass
+                            if len(msg.content) > 60:
+                                await hf.long_deleted_msg_notification(msg)
+
+        if msg.guild.id in [CH_SERVER_ID, CL_SERVER_ID]:
+            try:
+                if msg.channel.id in self.bot.db['forcehardcore']:
+                    await cn_lang_check(check_hardcore_role=False)
+
+                elif msg.guild.id == CH_SERVER_ID:
+                    if ('*' not in msg.content
+                            and msg.channel.id not in self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']):
+                        await cn_lang_check()
+            except KeyError:
+                self.bot.db['forcehardcore'] = []
 
         """Spanish server hardcore"""
         async def spanish_server_hardcore():
@@ -667,7 +689,7 @@ class General(commands.Cog):
                 a = False
             b = not command.hidden
             return a and b
-        
+
         if arg:  # user wants help on a specific command/cog
             requested = self.bot.get_command(arg)
             which = 'command'
@@ -972,6 +994,23 @@ class General(commands.Cog):
             await ctx.author.add_roles(role)
             await hf.safe_send(ctx, "I've added hardcore to you. You can only speak in the language you're learning.")
 
+    @commands.command(aliases=['forcehardcore', 'forcedhardcore'])
+    @commands.check(lambda ctx: ctx.guild.id in [CH_SERVER_ID, CL_SERVER_ID] if ctx.guild else False)
+    @commands.bot_has_permissions(manage_messages=True)
+    @hf.is_admin()
+    async def force_hardcore(self, ctx):
+        try:
+            if ctx.channel.id in self.bot.db['forcehardcore']:
+                self.bot.db['forcehardcore'].remove(ctx.channel.id)
+                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of channels for forced hardcore mode")
+            else:
+                self.bot.db['forcehardcore'].append(ctx.channel.id)
+                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of channels for forced hardcore mode")
+        except KeyError:
+            self.bot.db['forcehardcore'] = [ctx.channel.id]
+            await hf.safe_send(ctx, f"Created forced hardcore mode config; "
+                                    f"added {ctx.channel.name} to list of channels for forced hardcore mode")
+
     @hardcore.command()
     async def ignore(self, ctx):
         """Ignores a channel for hardcore mode."""
@@ -1139,7 +1178,7 @@ class General(commands.Cog):
             today.setdefault(str(user.id), {})
             today[str(user.id)].setdefault('emoji', {})
             today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
-    
+
     def reactionroles_get_role(self, payload, guild):
         guild_id = str(payload.guild_id)
         message_id = str(payload.message_id)
