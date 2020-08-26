@@ -147,7 +147,7 @@ class General(commands.Cog):
                 return
 
             found_word = False
-            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold']
+            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold', 'ryan_army']
             for word in ignored_words:
                 if word in cont.casefold():  # why do people say these so often...
                     cont = re.sub(word, '', cont, flags=re.IGNORECASE)
@@ -155,7 +155,7 @@ class General(commands.Cog):
                     if msg.guild.id == SP_SERVER_ID:
                         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
 
-            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来来', '来雷', '雷来']
+            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
             for word in to_check_words:
                 if word in cont.casefold():
                     found_word = True
