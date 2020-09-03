@@ -250,7 +250,8 @@ class General(commands.Cog):
 
         """best sex dating"""
         async def spam_account_bans():
-            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site']
+            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
+                     'libra-sale.io']
             try:
                 for word in words:
                     if word in msg.content:
@@ -262,7 +263,7 @@ class General(commands.Cog):
                         if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
                             return
                         if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
-                            if time_ago < timedelta(minutes=10) or \
+                            if time_ago < timedelta(minutes=20) or \
                                     (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
                                 if msg.author.id in [202995638860906496, 414873201349361664]:
                                     return
