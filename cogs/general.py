@@ -1132,9 +1132,11 @@ class General(commands.Cog):
     @commands.bot_has_permissions(send_messages=True)
     async def invite(self, ctx):
         """Gives an invite to bring this bot to your server"""
-        await hf.safe_send(ctx,
-                           discord.utils.oauth_url(self.bot.user.id,
-                                                   permissions=discord.Permissions(permissions=27776)))
+        if ctx.author in self.bot.get_guild(MODCHAT_SERVER_ID).members or ctx.author.id == self.bot.owner_id:
+            await hf.safe_send(ctx, discord.utils.oauth_url(self.bot.user.id,
+                                                            permissions=discord.Permissions(permissions=27776)))
+        else:
+            await hf.safe_send(ctx, "Sorry, the bot is not currently public.")
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user: discord.Member):
@@ -2123,7 +2125,7 @@ class General(commands.Cog):
         to end people asking for it."""
         try:
             time = int(time)
-        except ValueError:
+        except (ValueError, TypeError):
             await hf.safe_send(ctx, "Please give an integer number.")
             return
         if time:
