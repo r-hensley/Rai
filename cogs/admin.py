@@ -697,7 +697,7 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(ban_members=True)
     async def auto_bans(self, ctx):
-        """Auto bans for amazingsexdating/users who join with invite link names"""
+        """Auto bans for amazingsexdating/users who join with invite link names/other spam sites"""
         config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
         if config['enable']:
             await hf.safe_send(ctx, 'Enabled the auto bans module.  I will now automatically ban all users who join with '
