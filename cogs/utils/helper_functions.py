@@ -315,6 +315,8 @@ def rem_emoji_url(msg):
 async def ban_check_servers(bot, bans_channel, member, ping=False):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
     guilds = []
+    if member in bans_channel.guild.members:
+        ping = False
     for guild in bot.guilds:  # type: discord.Guild
         if member in guild.members:
             messages: int = count_messages(member, guild)
