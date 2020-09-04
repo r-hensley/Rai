@@ -6,6 +6,7 @@ import re
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+SPAM_CHAN = 275879535977955330
 
 
 class Stats(commands.Cog):
@@ -458,15 +459,58 @@ class Stats(commands.Cog):
 
         elif args == '-l':
             emb = hf.red_embed("Least Used Emojis (last 30 days)")
-            for emoji in top_emojis[::-1]:
-                if fields_count < 25:
-                    if emoji[0] in emoji_dict:
-                        emoji_obj = emoji_dict[emoji[0]]
-                        if not emoji_obj.animated:
-                            fields_count += 1
-                            emb.add_field(name=f"{fields_count}) {str(emoji_obj)}", value=emoji[1])
-                else:
-                    break
+
+            zero_use_emoji_list = [e for e in ctx.guild.emojis if not e.animated and '_kana_' not in e.name]
+            uses_to_emoji_list_dict = {}
+            for emoji in top_emojis:
+                try:
+                    emoji_obj = emoji_dict[emoji[0]]
+                except KeyError:
+                    continue
+                if emoji_obj.animated or '_kana_' in emoji_obj.name:
+                    continue
+
+                if emoji_obj in zero_use_emoji_list:
+                    zero_use_emoji_list.remove(emoji_obj)  # now a list of emojis with zero uses
+
+                uses_to_emoji_list_dict.setdefault(emoji[1], []).append(emoji_obj)
+
+            if zero_use_emoji_list:
+                uses_to_emoji_list_dict[0] = zero_use_emoji_list
+
+            total_emojis = 0
+            field_counter = 0
+            while field_counter <= len(uses_to_emoji_list_dict) and (field_counter < 6 or total_emojis < 50):
+                if field_counter in uses_to_emoji_list_dict:
+                    if field_counter == 1:
+                        field_name = f"{field_counter} use"
+                    else:
+                        field_name = f"{field_counter} uses"
+                    field_value = ''
+                    for emoji in uses_to_emoji_list_dict[field_counter]:
+                        if emoji.animated:
+                            continue
+                        new_addition = f"{str(emoji)} "
+                        if len(field_value + new_addition) < 1024:
+                            field_value += new_addition
+                        else:
+                            emb.add_field(name=field_name, value=field_value, inline=True)
+
+                            if field_counter == 1:
+                                field_name = f"{field_counter} use (cont.)"
+                            else:
+                                field_name = f"{field_counter} uses (cont.)"
+
+                            field_value = new_addition
+                        total_emojis += 1
+
+                    if 'cont' in field_name:
+                        emb.add_field(name=field_name, value=field_value, inline=True)
+                    else:
+                        emb.add_field(name=field_name, value=field_value, inline=False)
+
+                field_counter += 1
+
             await hf.safe_send(ctx, embed=emb)
 
         else:
