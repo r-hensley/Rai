@@ -58,10 +58,16 @@ class Submod(commands.Cog):
             reason = ' '.join(args[1:])
         if not target:
             try:
-                target = await self.bot.fetch_user(int(args[0]))
+                if re.search('^<@!?\d{17,22}>$', args[0]):
+                    target = await self.bot.fetch_user(int(args[0].replace('<@', '').replace('!', '').replace('>', '')))
+                elif re.search('^\d{17,22}$', args[0]):
+                    target = await self.bot.fetch_user(int(args[0]))
+                else:
+                    return
             except discord.NotFound:
-                await hf.safe_send(ctx, "I couldn't find the user you tried to ban. Please try again.")
                 return
+            except ValueError:
+                await hf.safe_send("I couldn't find the user. Please try again.")
         if not reason:
             reason = '(no reason given)'
 
