@@ -251,7 +251,7 @@ class General(commands.Cog):
         """best sex dating"""
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
-                     'libra-sale.io']
+                     'libra-sale.io', 'ethway.io']
             try:
                 for word in words:
                     if word in msg.content:
@@ -1132,11 +1132,17 @@ class General(commands.Cog):
     @commands.bot_has_permissions(send_messages=True)
     async def invite(self, ctx):
         """Gives an invite to bring this bot to your server"""
-        if ctx.author in self.bot.get_guild(MODCHAT_SERVER_ID).members or ctx.author.id == self.bot.owner_id:
+        modchat = self.bot.get_guild(MODCHAT_SERVER_ID)
+        if modchat:
+            members = modchat.members
+        else:
+            members = []
+        if ctx.author in members or ctx.author.id == self.bot.owner_id:
             await hf.safe_send(ctx, discord.utils.oauth_url(self.bot.user.id,
                                                             permissions=discord.Permissions(permissions=27776)))
         else:
-            await hf.safe_send(ctx, "Sorry, the bot is not currently public.")
+            await hf.safe_send(ctx, "Sorry, the bot is currently not public. "
+                                    "The bot owner can send you an invite link.")
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user: discord.Member):
@@ -1697,7 +1703,7 @@ class General(commands.Cog):
                 config['votes2'][user]['message'] = msg.id
                 continue
 
-            if user in config['votes2']:  # 1 or 2 votes
+            if user in config['votes2']:  # 1, 2, or 3 votes
                 list_of_votes = config['votes2'][user]['votes']
                 if user_residency in list_of_votes:
                     await hf.safe_send(ctx.author, f"{user} - Someone from your server already voted")
@@ -1710,10 +1716,10 @@ class General(commands.Cog):
                 # target_username = result.group(2)
                 num_of_votes = result.group(3)
                 emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
-                if num_of_votes == '1':  # 1-->2
+                if num_of_votes in '12':  # 1-->2 or 2-->3
                     emb.title = emb.title.replace('vote', 'votes')
                     config['votes2'][user]['votes'].append(user_residency)
-                if num_of_votes == '2':  # 2-->3
+                if num_of_votes == '3':  # 2-->3
                     emb.color = discord.Color(int('ff0000', 16))
                     del config['votes2'][user]
                     config['blacklist'].append(int(user))

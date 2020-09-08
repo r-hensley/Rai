@@ -31,9 +31,9 @@ class Submod(commands.Cog):
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
     @hf.is_submod()
     async def ban(self, ctx, *, args):
-        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`  Example: `;ban @Ryry013 being mean` or \
-        `;ban 2d3h @Abelian posting invite links`.  If crossposting is enabled, you can add `-s` into the reason to \
-        make this ban not crosspost."""
+        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`
+        Examples:   `;ban @Ryry013 being mean`   `;ban 2d3h @Abelian posting invite links`.
+        On a certain Spanish server, helpers can ban users within an hour of their joining the server."""
         args = args.split()
         if not args:
             await hf.safe_send(ctx, ctx.command.help)
@@ -57,7 +57,11 @@ class Submod(commands.Cog):
             time_string = None
             reason = ' '.join(args[1:])
         if not target:
-            return
+            try:
+                target = await self.bot.fetch_user(int(args[0]))
+            except discord.NotFound:
+                await hf.safe_send(ctx, "I couldn't find the user you tried to ban. Please try again.")
+                return
         if not reason:
             reason = '(no reason given)'
 
@@ -69,17 +73,17 @@ class Submod(commands.Cog):
                                     f"length of your ban message. ")
             return
 
-        if ctx.guild.id == 243838819743432704:  # spanish server
-            for _ in ['_']:  # i could do just '_' but I like the robot head
-                if ctx.guild.get_role(258819531193974784) in ctx.author.roles:  # helpers
-                    if datetime.utcnow() - target.joined_at < timedelta(minutes=60):
-                        break
-                if hf.admin_check(ctx):
-                    break
-                raise commands.MissingPermissions('ban_members')
+        # this memorial exists to forever remember the robot head, may you rest in peace ['_']
+        if hasattr(target, "joined_at"):  # will be false if the user is not in the server
+            joined_at = datetime.utcnow() - target.joined_at
         else:
-            if not hf.admin_check(ctx):
-                raise commands.MissingPermissions('ban_members')
+            joined_at = 61  # arbitrarily bigger than 60 to fail the conditional
+
+        if not (ctx.guild.id == 243838819743432704 and
+                ctx.guild.get_role(258819531193974784) in ctx.author.roles and
+                joined_at < timedelta(minutes=60)) and not \
+                hf.admin_check(ctx):
+            raise commands.MissingPermissions('ban_members')
 
         em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
         if length:
@@ -97,19 +101,22 @@ class Submod(commands.Cog):
                 reason = '⠀' + reason  # invisible space = crosspost
             em.add_field(name="Reason:", value=reason)
         await hf.safe_send(ctx, f"You are about to ban {target.mention}: ", embed=em)
-        msg2 = f"Do you wish to continue?  Type `yes` to ban, `send` to ban and send the above notification " \
-               f"to the user, or `no` to cancel."
+        msg2 = f"Do you wish to continue?  Options:\n" \
+               f"⠀・ `Yes` Silently ban the user\n" \
+               f"⠀・ `Send` Ban the user and send them the above notification\n" \
+               f"⠀・ `No` Cancel the ban\n"
 
         if ctx.author in self.bot.get_guild(257984339025985546).members:
             try:
                 if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
                     if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
                         if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            msg2 += "\n(To not crosspost this, cancel the ban and put `-s` or `-silent` in the reason)"
+                            crosspost_check = 1  # to cancel crosspost
+                            msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
                     if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
                         if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            msg2 += "\n(To specifically crosspost this message, " \
-                                    "cancel the ban and put `-c` in the reason)"
+                            crosspost_check = 2  # to specially crosspost
+                            msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
             except KeyError:
                 pass
         msg2 = await hf.safe_send(ctx, msg2)
@@ -117,7 +124,7 @@ class Submod(commands.Cog):
             msg = await self.bot.wait_for('message',
                                           timeout=40.0,
                                           check=lambda x: x.author == ctx.author and
-                                                          x.content.casefold() in ['yes', 'no', 'send'])
+                                                          x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
         except asyncio.TimeoutError:
             await hf.safe_send(ctx, f"Timed out.  Canceling ban.")
             return
@@ -129,19 +136,22 @@ class Submod(commands.Cog):
 
         text = text.replace("XX", reason)
 
-        if reason.startswith('⁣'):
+        if content.endswith('-s'):  # these will be parsed in the on_member_ban event in logger.py
             text = '⁣' + text
-        if reason.startswith('⠀'):
+        if content.endswith('-c'):
             text = '⠀' + text
-        if content == 'send':
+        if content.startswith('send'):
             try:
                 await target.send(embed=em)
             except discord.Forbidden:
                 await hf.safe_send(ctx, "The target user has PMs disabled so I didn't send the notification.")
         try:
-            await target.ban(reason=text, delete_message_days=0)
+            if hasattr(target, 'ban'):  # if the user is in the server
+                await target.ban(reason=text, delete_message_days=0)
+            else:  # if the user is not in the server
+                await ctx.guild.ban(target, reason=text, delete_message_days=0)
         except discord.Forbidden:
-            await hf.safe_send(ctx, f"I couldn't ban that user.  They're probably above me in the role list.")
+            await hf.safe_send(ctx, f"I couldn't ban that user. They're probably above me in the role list.")
             return
 
         if length:
