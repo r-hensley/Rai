@@ -1566,15 +1566,20 @@ class General(commands.Cog):
                                "mods and joining your server will be automatically banned.  "
                                "Type `;global_blacklist residency` to claim your residency on a server.")
         else:
-            await hf.safe_send(ctx,
-                               "Disabled the global blacklist.  Anyone on the blacklist will be able to join  your server.")
+            await hf.safe_send(ctx, "Disabled the global blacklist.  "
+                                    "Anyone on the blacklist will be able to join  your server.")
 
     @global_blacklist.command(name='reason', aliases=['edit'])
     @blacklist_check()
     async def blacklist_reason(self, ctx, entry_message_id, *, reason):
         """Add a reason to a blacklist entry: `;gbl reason <message_id> <reason>`"""
         blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-        entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
+        try:
+            entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
+        except discord.NotFound:
+            await hf.safe_send(ctx, "I couldn't find the message you were trying to edit. Make sure you link to "
+                                    f"the message ID in the {blacklist_channel.mention}.")
+            return
         emb = entry_message.embeds[0]
         old_reason = emb.fields[1].value
         emb.set_field_at(1, name=emb.fields[1].name, value=reason)
@@ -1713,12 +1718,13 @@ class General(commands.Cog):
                 message = await channel.fetch_message(config['votes2'][user]['message'])
                 emb = message.embeds[0]
                 title_str = emb.title
-                result = re.search('(\((.*)\))? \((.) votes?\)', title_str)
+                result = re.search('(\((.*)\))? \((.) votes{0,2}\)', title_str)
                 # target_username = result.group(2)
                 num_of_votes = result.group(3)
                 emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
-                if num_of_votes in '12':  # 1-->2 or 2-->3
+                if num_of_votes in '1':
                     emb.title = emb.title.replace('vote', 'votes')
+                if num_of_votes in '12':  # 1-->2 or 2-->3
                     config['votes2'][user]['votes'].append(user_residency)
                 if num_of_votes == '3':  # 2-->3
                     emb.color = discord.Color(int('ff0000', 16))
