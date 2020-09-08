@@ -305,7 +305,8 @@ class General(commands.Cog):
         """spanish server welcome channel module"""
         async def smart_welcome(msg):
             if msg.channel.id == SP_SERVER_ID:
-                content = msg.content.casefold().translate(str.maketrans('', '', string.punctuation))
+                content = re.sub('> .*\n', '', msg.content.casefold())
+                content = content.translate(str.maketrans('', '', string.punctuation))
                 for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
                     if content == word:
                         return

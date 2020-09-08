@@ -208,7 +208,7 @@ async def member_converter(ctx, user_in):
             return member[2]
 
     if ctx.author != ctx.bot.user:
-        await ctx.send('User not found')
+        await ctx.send('Member not found in the server')
     return None
 
 
