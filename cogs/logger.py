@@ -1403,7 +1403,6 @@ class Logger(commands.Cog):
         if reason:
             emb.description += f"\n__Reason__: {reason}"
 
-
         crosspost_emb = emb
 
         # #################### END OF CROSSPOSTING EMBED #######################
@@ -1412,13 +1411,6 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
-        if member.id == ABELIAN_ID:
-            try:
-                await asyncio.sleep(5)
-                await member.unban()
-            except (discord.NotFound, discord.Forbidden):
-                pass
-
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
@@ -1451,8 +1443,11 @@ class Logger(commands.Cog):
 
         if member.id == ABELIAN_ID:
             try:
-                await member.unban()
-            except discord.errors.NotFound:
+                if hasattr(member, 'unban'):
+                    await member.unban()
+                else:
+                    await guild.unban(member)
+            except (discord.NotFound, discord.Forbidden):
                 pass
 
             try:
