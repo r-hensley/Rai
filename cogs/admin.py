@@ -794,10 +794,8 @@ class Admin(commands.Cog):
         config['channel'] = ctx.channel.id
         await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
                                 f"({ctx.channel.id}).  \n\n"
-                                f"Type `;super_watch add <ID>` to add someone, `;super_watch remove "
-                                f"<ID>` to remove them from the list later.  You can change the channel that super_watch "
-                                f"sends posts to in the future by typing `;super_watch` again.  \n\n"
-                                f"Aliases for this command are: `;superwatch`, `;sw`.")
+                                f"Type `;sw add <ID>` to add someone to the list, or `;sw remove <ID>` to remove them. "
+                                f"You can change the channel that super_watch sends posts to by typing `;sw set`.")
 
     @super_watch.command(name="add")
     async def superwatch_add(self, ctx, target):
