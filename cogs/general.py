@@ -1718,11 +1718,11 @@ class General(commands.Cog):
                 message = await channel.fetch_message(config['votes2'][user]['message'])
                 emb = message.embeds[0]
                 title_str = emb.title
-                result = re.search('(\((.*)\))? \((.) votes{0,2}\)', title_str)
+                result = re.search('(\((.*)\))? \((.) votes?\)', title_str)
                 # target_username = result.group(2)
                 num_of_votes = result.group(3)
                 emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
-                if num_of_votes in '1':
+                if num_of_votes in '1':  # 1-->2
                     emb.title = emb.title.replace('vote', 'votes')
                 if num_of_votes in '12':  # 1-->2 or 2-->3
                     config['votes2'][user]['votes'].append(user_residency)
@@ -1969,8 +1969,7 @@ class General(commands.Cog):
     @hf.is_voicemod()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def voicemute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;mute <time> <member>`.  Example: `;mute 1d2h Abelian`  Mute for "0" for an
-        indefinite mute."""
+        """Mutes a user.  Syntax: `;voicemute <time> <member>`.  Example: `;voicemute 1d2h Abelian`"""
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
