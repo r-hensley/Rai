@@ -1969,7 +1969,8 @@ class General(commands.Cog):
     @hf.is_voicemod()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def voicemute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;voicemute <time> <member>`.  Example: `;voicemute 1d2h Abelian`"""
+        """Mutes a user.  Syntax: `;voicemute <time> <member>`.
+        Example: `;voicemute 1d2h Abelian`"""
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
