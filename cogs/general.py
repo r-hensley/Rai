@@ -558,7 +558,8 @@ class General(commands.Cog):
 
         """Chinese server hardcore mode"""
         async def cn_lang_check(check_hardcore_role=True):
-            if len(msg.content) > 3:
+            content = re.sub("(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
+            if len(content) > 3:
                 if check_hardcore_role:
                     try:
                         role = msg.guild.get_role(self.bot.db['hardcore'][str(msg.guild.id)]['role'])
@@ -570,17 +571,17 @@ class General(commands.Cog):
                     if role not in msg.author.roles:
                         return
 
-                # Default value is C-E's Learning English role
-                learning_eng = msg.guild.get_role(ENG_ROLE.get(msg.guild.id, 266778623631949826))
-                ratio = hf.jpenratio(msg.content)
-                if ratio is not None:
+                learning_eng = msg.guild.get_role(ENG_ROLE[msg.guild.id])  # this function is only called for two guilds
+
+                ratio = hf.jpenratio(content)
+                if ratio is not None:  # it might be "0" so I can't do "if ratio"
                     if learning_eng in msg.author.roles:
                         if ratio < .55:
                             try:
                                 await msg.delete()
                             except discord.errors.NotFound:
                                 pass
-                            if len(msg.content) > 30:
+                            if len(content) > 30:
                                 await hf.long_deleted_msg_notification(msg)
                     else:
                         if ratio > .45:
@@ -588,7 +589,7 @@ class General(commands.Cog):
                                 await msg.delete()
                             except discord.errors.NotFound:
                                 pass
-                            if len(msg.content) > 60:
+                            if len(content) > 60:
                                 await hf.long_deleted_msg_notification(msg)
 
         if msg.guild.id in [CH_SERVER_ID, CL_SERVER_ID]:
@@ -605,17 +606,6 @@ class General(commands.Cog):
 
         """Spanish server hardcore"""
         async def spanish_server_hardcore():
-            # if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(msg.content):
-            #     if msg.content[0] not in '=;' and len(msg.content) > 3:
-            #         if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
-            #             role = msg.guild.get_role(526089127611990046)
-            #             if role in msg.author.roles:
-            #
-            #                 try:
-            #                     i_see = hf.rem_emoji_url(msg)  # i have no idea why I named the variable this
-            #                     lang_used = await hf.detect_language(i_see)  # nor what it means
-            #                 except textblob.exceptions.TranslatorError:
-            #                     return
             if not hardcore:  # this should be set in the lang_check function
                 return
             learning_eng = msg.guild.get_role(247021017740869632)
