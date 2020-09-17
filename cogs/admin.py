@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timedelta
 import os
 import aiohttp, aiofiles, io
+from sre_constants import error as sre_constants_error
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161
@@ -2057,11 +2058,11 @@ class Admin(commands.Cog):
             return  # Notification is handled in wait_menu function
 
         if resp == '1':
-            await self.word_ban_view(ctx, menu)
+            await self.wordfilter_view(ctx, menu)
         elif resp == '2':
-            await self.word_ban_add(ctx, menu)
+            await self.wordfilter_add(ctx, menu)
         elif resp == '3':
-            await self.word_ban_delete(ctx, menu)
+            await self.wordfilter_delete(ctx, menu)
         elif resp == '4':
             try:
                 await menu.delete()
@@ -2075,7 +2076,7 @@ class Admin(commands.Cog):
                 pass
             await hf.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
 
-    async def word_ban_view(self, ctx, menu):
+    async def wordfilter_view(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
         if not config:
             await menu.edit(embed=hf.red_embed("There are currently no logged words in this server's word filter."),
@@ -2095,7 +2096,7 @@ class Admin(commands.Cog):
                 s = new_s
         await hf.safe_send(ctx, embed=discord.Embed(description=s))
 
-    async def word_ban_add(self, ctx, menu):
+    async def wordfilter_add(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
         await menu.edit(embed=discord.Embed(description="Please input the regex for the word you want to ban for. "
                                                         "If you want to test it, try this site: https://regex101.com/"
@@ -2112,6 +2113,12 @@ class Admin(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
             await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            return
+
+        try:
+            re.compile(msg.content)
+        except sre_constants_error as e:
+            await menu.edit(embed=hf.red_embed(f"Your regex returned an error: `{e}`."))
             return
 
         word = msg.content
@@ -2151,10 +2158,10 @@ class Admin(commands.Cog):
             await msg.delete()
         except (discord.NotFound, discord.Forbidden):
             pass
-        await menu.edit(embed=hf.green_embed(f"I will ban anyone who says this within **{minutes}** of joining:"
+        await menu.edit(embed=hf.green_embed(f"I will ban anyone who says this within **{minutes}** minutes of joining:"
                                              f"```{word}```"))
 
-    async def word_ban_delete(self, ctx, menu):
+    async def wordfilter_delete(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
         await menu.edit(embed=discord.Embed(description="Please input the word or phrase you wish to delete from the "
                                                         "word filter."))
@@ -2176,8 +2183,7 @@ class Admin(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
             del(config[msg.content])
-            await menu.edit(embed=hf.green_embed("Success! I've deleted that filter."),
-                            delete_after=10.0)
+            await menu.edit(embed=hf.green_embed("Success! I've deleted that filter."))
         else:
             try:
                 await menu.delete()
