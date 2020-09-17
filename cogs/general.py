@@ -153,15 +153,16 @@ class General(commands.Cog):
             time_ago = datetime.utcnow() - msg.author.joined_at
 
             for filter in config:
-                if re.search(filter, msg.content):
-                    if time_ago < timedelta(minutes=int(config[filter])):
-                        reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
-                        if len(reason) > 509:
-                            reason = reason[:509] + "..."
-                        try:
-                            await msg.author.ban(reason=reason)
-                        except discord.Forbidden:
-                            pass
+                if msg.content:
+                    if re.search(filter, msg.content):
+                        if time_ago < timedelta(minutes=int(config[filter])):
+                            reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
+                            if len(reason) > 509:
+                                reason = reason[:509] + "..."
+                            try:
+                                await msg.author.ban(reason=reason)
+                            except discord.Forbidden:
+                                pass
         await wordfilter()
 
         """Ping me if someone says my name"""
@@ -275,7 +276,7 @@ class General(commands.Cog):
         """best sex dating"""
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
-                     'libra-sale.io', 'ethway.io', 'omg-airdrop']
+                     'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!"]
             try:
                 for word in words:
                     if word in msg.content:
