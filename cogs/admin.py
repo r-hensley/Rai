@@ -137,7 +137,7 @@ class Admin(commands.Cog):
 
         try:
             await resp.delete()
-        except discord.Forbidden:
+        except (discord.NotFound, discord.Forbidden):
             pass
 
         reaction_msg = await self.get_reaction_msg(ctx, resp.content)
@@ -172,7 +172,7 @@ class Admin(commands.Cog):
 
         try:
             await resp.delete()
-        except discord.Forbidden:
+        except (discord.NotFound, discord.Forbidden):
             pass
 
         role = await self.get_role(ctx, resp.content)
@@ -218,7 +218,6 @@ class Admin(commands.Cog):
             return
         # ############ finished ################
         return reaction_msg, emoji, role
-
 
     @commands.group(invoke_without_command=True, aliases=['voicemods'])
     async def voicemod(self, ctx, *, user):
@@ -388,6 +387,9 @@ class Admin(commands.Cog):
                 await message.delete()
             except discord.errors.NotFound:
                 pass
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I was unable to delete the old messages!")
+                return
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(download_link) as resp:
@@ -546,7 +548,6 @@ class Admin(commands.Cog):
                 x = x.replace(f"x{i}x", jump_links[i])
             await ctx.send(embed=hf.green_embed(x))
 
-
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
@@ -599,6 +600,8 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, "Module timed out")
                 await instr_msg.delete()
                 return
+            except discord.Forbidden:
+                pass
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
             await self.toggle
@@ -649,7 +652,7 @@ class Admin(commands.Cog):
                 await msg.edit(content="Canceling channel prune", delete_after=5.0)
         try:
             await ctx.message.delete()
-        except discord.errors.NotFound:
+        except (discord.NotFound, discord.Forbidden):
             pass
         if args:
             if args[0] == '0':
@@ -680,13 +683,13 @@ class Admin(commands.Cog):
                 await ctx.channel.purge(limit=int(num), after=msg)
                 try:
                     await msg.delete()
-                except discord.errors.NotFound:
+                except (discord.NotFound, discord.Forbidden):
                     pass
             if user and msg:
                 await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user, after=msg)
                 try:
                     await msg.delete()
-                except discord.errors.NotFound:
+                except (discord.NotFound, discord.Forbidden):
                     pass
         except TypeError:
             pass
@@ -989,6 +992,8 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, "I failed to detect your time. Please start the command over and input a "
                                         "single number.")
                 return
+            except discord.Forbidden:
+                pass
 
             await q.delete()
 
@@ -1276,7 +1281,10 @@ class Admin(commands.Cog):
 
     async def wait_menu(self, ctx, menu, emb_in, choices_in):  # posts wait menu, gets a response, returns choice
         if menu:
-            await menu.delete()
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
         menu = await hf.safe_send(ctx, embed=emb_in)
         try:
             msg = await self.bot.wait_for('message',
@@ -1284,9 +1292,15 @@ class Admin(commands.Cog):
                                           check=lambda x: x.content.casefold() in choices_in and x.author == ctx.author)
         except asyncio.TimeoutError:
             await hf.safe_send(ctx, "Menu timed out")
-            await menu.delete()
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
             return 'time_out', menu
-        await msg.delete()
+        try:
+            await msg.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
 
         return msg.content, menu
 
@@ -2024,6 +2038,153 @@ class Admin(commands.Cog):
                 return
         await channel.send(msg)
         await ctx.message.add_reaction("✅")
+
+    @commands.command(aliases=["word_filter", "ban_filter", "wordban", 'banfilter'])
+    @commands.bot_has_permissions(embed_links=True, ban_members=True)
+    async def wordfilter(self, ctx):
+        """Configuration for a filter that bans users when they say a word or phrase. Regex is allowed.
+        It is configurable per word to ban within X amount of minutes from a user joining the server."""
+        if str(ctx.guild.id) not in self.bot.db['wordfilter']:
+            self.bot.db['wordfilter'][str(ctx.guild.id)] = {}
+        emb = discord.Embed(title="Configuration for the word ban filter. Please type an option.",
+                            description="1) See current banned words or phrases\n"
+                                        "2) Add a new word or phrase\n"
+                                        "3) Delete a word or phrase\n"
+                                        "4) Exit this menu")
+        try:
+            resp, menu = await self.wait_menu(ctx, None, emb, ['1', '2', '3', '4'])
+        except asyncio.TimeoutError:
+            return  # Notification is handled in wait_menu function
+
+        if resp == '1':
+            await self.word_ban_view(ctx, menu)
+        elif resp == '2':
+            await self.word_ban_add(ctx, menu)
+        elif resp == '3':
+            await self.word_ban_delete(ctx, menu)
+        elif resp == '4':
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "I've closed the module.", delete_after=10.0)
+        else:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
+
+    async def word_ban_view(self, ctx, menu):
+        config = self.bot.db['wordfilter'][str(ctx.guild.id)]
+        if not config:
+            await menu.edit(embed=hf.red_embed("There are currently no logged words in this server's word filter."),
+                            delete_after=10.0)
+            return
+        s = ""
+        try:
+            await menu.delete()
+        except (discord.Forbidden, discord.NotFound):
+            pass
+        for word_entry in config:
+            new_s = f"- `{word_entry}` - {config[word_entry]} mins\n"
+            if len(s + new_s) < 2048:
+                s += new_s
+            else:
+                await hf.safe_send(ctx, embed=discord.Embed(description=s))
+                s = new_s
+        await hf.safe_send(ctx, embed=discord.Embed(description=s))
+
+    async def word_ban_add(self, ctx, menu):
+        config = self.bot.db['wordfilter'][str(ctx.guild.id)]
+        await menu.edit(embed=discord.Embed(description="Please input the regex for the word you want to ban for. "
+                                                        "If you want to test it, try this site: https://regex101.com/"
+                                                        ".\n(If you want just a simple string, you can input it "
+                                                        "without worrying what 'regex' is)\n\nIf the keyword already "
+                                                        "exists, I will overwrite it."))
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=60.0,
+                                          check=lambda x: x.channel == ctx.channel and x.author == ctx.author)
+        except asyncio.TimeoutError:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            return
+
+        word = msg.content
+        try:
+            await msg.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
+
+        await menu.edit(embed=discord.Embed(description="Next, type the ban window in minutes. If a new user says "
+                                                        "your selected word or phrase within the ban window number "
+                                                        "of minutes from joining the server, they'll be automatically "
+                                                        "banned."))
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=60.0,
+                                          check=lambda x: x.channel == ctx.channel and x.author == ctx.author)
+        except asyncio.TimeoutError:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            return
+
+        try:
+            minutes = int(msg.content)
+        except ValueError:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "Please start over and input only a single number.")
+            return
+
+        config[word] = minutes
+        try:
+            await msg.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
+        await menu.edit(embed=hf.green_embed(f"I will ban anyone who says this within **{minutes}** of joining:"
+                                             f"```{word}```"))
+
+    async def word_ban_delete(self, ctx, menu):
+        config = self.bot.db['wordfilter'][str(ctx.guild.id)]
+        await menu.edit(embed=discord.Embed(description="Please input the word or phrase you wish to delete from the "
+                                                        "word filter."))
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=60.0,
+                                          check=lambda x: x.channel == ctx.channel and x.author == ctx.author)
+        except asyncio.TimeoutError:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            return
+
+        if msg.content in config:
+            try:
+                await msg.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            del(config[msg.content])
+            await menu.edit(embed=hf.green_embed("Success! I've deleted that filter."),
+                            delete_after=10.0)
+        else:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find that filter. Please start over and try again."),
+                               delete_after=10.0)
 
 def setup(bot):
     bot.add_cog(Admin(bot))
