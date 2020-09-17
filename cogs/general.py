@@ -65,30 +65,6 @@ class General(commands.Cog):
         #     channel = self.bot.get_channel(374489744974807040)
         #     await hf.safe_send(channel, f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
 
-        "automatic word filter"
-        async def wordfilter():
-            if not msg.guild.me.guild_permissions.ban_members:
-                return
-            if str(msg.guild.id) not in self.bot.db['wordfilter']:
-                return
-            config = self.bot.db['wordfilter'][str(msg.guild.id)]
-            if not config:
-                return
-
-            time_ago = datetime.utcnow() - msg.author.joined_at
-
-            for filter in config:
-                if re.search(filter, msg.content):
-                    if time_ago < timedelta(minutes=int(config[filter])):
-                        reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
-                        if len(reason) > 509:
-                            reason = reason[:509] + "..."
-                        try:
-                            await msg.author.ban(reason=reason)
-                        except discord.Forbidden:
-                            pass
-        await wordfilter()
-
         """BurdBot's window to open questions in #audio_of_the_week"""
         async def burdbot_window():
             if msg.channel.id != 620997764524015647:  # aotw_feedback
@@ -163,6 +139,30 @@ class General(commands.Cog):
             return
 
         ##########################################
+
+        "automatic word filter"
+        async def wordfilter():
+            if not msg.guild.me.guild_permissions.ban_members:
+                return
+            if str(msg.guild.id) not in self.bot.db['wordfilter']:
+                return
+            config = self.bot.db['wordfilter'][str(msg.guild.id)]
+            if not config:
+                return
+
+            time_ago = datetime.utcnow() - msg.author.joined_at
+
+            for filter in config:
+                if re.search(filter, msg.content):
+                    if time_ago < timedelta(minutes=int(config[filter])):
+                        reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
+                        if len(reason) > 509:
+                            reason = reason[:509] + "..."
+                        try:
+                            await msg.author.ban(reason=reason)
+                        except discord.Forbidden:
+                            pass
+        await wordfilter()
 
         """Ping me if someone says my name"""
         async def mention_ping():
