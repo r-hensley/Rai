@@ -426,5 +426,33 @@ class Submod(commands.Cog):
         await hf.safe_send(modlog_channel, embed=emb)
         await hf.safe_send(ctx, embed=emb)
 
+    @commands.command(aliases=["cleanup", "bclr"])
+    @commands.bot_has_permissions(manage_messages=True)
+    @hf.is_submod()
+    async def botclear(self, ctx, num_of_messages=10):
+        """Usage: `;botclear num[default:10]`
+
+        Deletes all bot messages in the last `num` messages.
+
+        Defaults to 10, so just `;botclear` searches last ten messages."""
+        try:
+            num_of_messages = int(num_of_messages)
+        except ValueError:
+            await hf.safe_send(ctx, "Please input an integer number of messages")
+            return
+        if num_of_messages > 50:
+            num_of_messages = 50
+            await hf.safe_send(ctx, "Setting number of messages to the maximum of `50`.", delete_after=3)
+
+        await ctx.channel.purge(limit=num_of_messages, check=lambda m: m.author.bot and m.content[0:7] != "Setting",
+                                after=datetime.utcnow() - timedelta(minutes=60))
+        try:
+            await ctx.message.add_reaction('✅')
+            await asyncio.sleep(1)
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
+
 def setup(bot):
     bot.add_cog(Submod(bot))
