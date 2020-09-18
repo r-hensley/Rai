@@ -317,6 +317,7 @@ class General(commands.Cog):
                                     if self.bot.db['bans'][str(msg.guild.id)]['channel']:
                                         channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
                                         await self.bot.get_channel(channel_id).send(embed=emb2)
+                                return
 
             except KeyError as e:
                 print(f'>>passed for key error on amazingsexdating: {e}<<')
@@ -1269,7 +1270,8 @@ class General(commands.Cog):
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
-                        await ctx.invoke(self.blacklist_add, args=f"{user_id} {reason}")
+                        await ctx.invoke(self.blacklist_add,
+                                         args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
                     await hf.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
                     return

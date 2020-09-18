@@ -16,6 +16,7 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERV_ID = 189571157446492161
 SPAN_SERV_ID = 243838819743432704
+M_SERVER = 257984339025985546
 NADEKO_ID = 116275390695079945
 SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
@@ -1363,6 +1364,24 @@ class Logger(commands.Cog):
 
         # #################### crossposting ban embed #######################
 
+        author = re.search('^(\*by\* |Issued by: |^)(<@)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
+                           '(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
+        if author:
+            if author.group('ID'):
+                admin = self.bot.get_user(int(author.group("ID")))
+            elif author.group('name'):
+                m_server = self.bot.get_guild(M_SERVER)
+                admin = discord.utils.get(m_server.members, name=author.group('name'))
+            else:
+                admin = None
+            if author.group('reason'):
+                re_reason = author.group('reason')
+            else:
+                re_reason = None
+            if admin and re_reason:
+                by = admin
+                reason = re_reason
+
         emb = discord.Embed(colour=0xDD2E44, timestamp=datetime.utcnow(),
                             title="", description=f"**{str(member)}** － {member.mention}\n({member.id})\n\n")
 
@@ -1399,6 +1418,8 @@ class Logger(commands.Cog):
             elif 86400 < time_ago.total_seconds() <= 2592000:  # they joined less than a day ago
                 join_date += f" ({int(time_ago.total_seconds() // 86400)} days ago)"
             emb.description += f"__Join date__: {join_date}\n"
+
+
 
         if reason:
             emb.description += f"\n__Reason__: {reason}"
