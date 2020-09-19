@@ -447,7 +447,7 @@ class Questions(commands.Cog):
             question_message = await ctx.channel.fetch_message(question['question_message'])
             if ctx.author.id not in [question_message.author.id, question['command_caller']] \
                     and not hf.submod_check(ctx) and ctx.author.id not in \
-                    self.bot.db['channel_mods'][str(ctx.guild.id)][str(ctx.channel.id)]:
+                    self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(ctx.channel.id), []):
                 await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
                                         f"originally can mark it as answered.")
                 return

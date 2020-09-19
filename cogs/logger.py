@@ -1364,7 +1364,7 @@ class Logger(commands.Cog):
 
         # #################### crossposting ban embed #######################
 
-        author = re.search('^(\*by\* |Issued by: |^)(<@)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
+        author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
                            '(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
         if author:
             if author.group('ID'):

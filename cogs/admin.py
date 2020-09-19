@@ -82,7 +82,11 @@ class Admin(commands.Cog):
             config.setdefault(str(reaction_msg.id), {})[emoji_str] = role.id
         
         for i_message in msg_emoji_dict:
-            await i_message.add_reaction(*[i for i in msg_emoji_dict[i_message]])
+            try:
+                await i_message.add_reaction(*[i for i in msg_emoji_dict[i_message]])
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I lack permissions to add reactions. Please attach your emojis to the "
+                                        "target message yourself.")
         await ctx.message.add_reaction('✅')
 
     async def get_reaction_msg(self, ctx, text):

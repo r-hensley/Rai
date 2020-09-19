@@ -56,7 +56,7 @@ class Stats(commands.Cog):
                 if 'channels' not in config[day][str(member.id)]:
                     continue
                 user = config[day][str(member.id)]
-                for channel in user['channels']:
+                for channel in user.get('channels', []):
                     message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
         emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
