@@ -414,7 +414,10 @@ class Submod(commands.Cog):
         if not emb.description:
             emb.description = "Warning"
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        emb.set_footer(text=f"Warned by {ctx.author.name} ({ctx.author.id})")
+        footer_text = f"Warned by {ctx.author.name} ({ctx.author.id})"
+        if silent:
+            footer_text = "Logged by" + footer_text[9:]
+        emb.set_footer(text=footer_text)
         config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
         modlog_channel = self.bot.get_channel(config['channel'])
         try:

@@ -2,14 +2,14 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
-import json
+import datetime
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 class Reports(commands.Cog):
-    """Help"""
+    """Help me"""
 
     def __init__(self, bot):
         self.bot = bot
@@ -180,7 +180,10 @@ class Reports(commands.Cog):
             return
 
         user = ctx.guild.get_member(config['current_user'])
-        start_message = await ctx.channel.fetch_message(config['entry_message'])
+        try:
+            start_message = await ctx.channel.fetch_message(config['entry_message'])
+        except discord.NotFound:
+            start_message = datetime.utcnow()
         config['current_user'] = None
         config['entry_message'] = None
         await report_room.set_permissions(user, overwrite=None)
@@ -330,7 +333,11 @@ class Reports(commands.Cog):
             initial_msg = 'Received report from a user: \n\n'
             if ctx.bot.db['report'][str(ctx.guild.id)].setdefault('anonymous_ping', False):
                 initial_msg = '@here ' + initial_msg
-            await hf.safe_send(mod_channel, initial_msg)
+            try:
+                await hf.safe_send(mod_channel, initial_msg)
+            except AttributeError:
+                await hf.safe_send(ctx, "Please tell the admins of that server that they have not properly configured "
+                                        "their mod channel, so I have nowhere to send this anonymous report. Sorry.")
             await hf.safe_send(mod_channel, msg.content)
             return
         except asyncio.TimeoutError:

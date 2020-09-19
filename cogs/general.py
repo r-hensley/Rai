@@ -978,6 +978,7 @@ class General(commands.Cog):
             index += 1
 
     @commands.command()
+    @commands.guild_only()
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role."""
         role = discord.utils.get(ctx.guild.roles, name=role_name)
@@ -998,6 +999,7 @@ class General(commands.Cog):
         await hf.safe_send(ctx, embed=emb)
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
+    @commands.guild_only()
     @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID] if ctx.guild else False)
     async def hardcore(self, ctx):
         """Adds/removes the hardcore role from you."""
@@ -1013,6 +1015,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "I've added hardcore to you. You can only speak in the language you're learning.")
 
     @commands.command(aliases=['forcehardcore', 'forcedhardcore'])
+    @commands.guild_only()
     @commands.check(lambda ctx: ctx.guild.id in [CH_SERVER_ID, CL_SERVER_ID] if ctx.guild else False)
     @commands.bot_has_permissions(manage_messages=True)
     @hf.is_admin()

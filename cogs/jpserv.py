@@ -47,7 +47,7 @@ class Jpserv(commands.Cog):
             member = await hf.member_converter(ctx, member)
             if not member:
                 return
-            if hf.admin_check(ctx) and ctx.author.id != member.id:
+            if hf.submod_check(ctx) and ctx.author.id != member.id:
                 if str(member.id) in config:
                     if config[str(member.id)][0]:
                         config[str(member.id)][0] = False
