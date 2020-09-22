@@ -154,7 +154,7 @@ class General(commands.Cog):
 
             for filter in config:
                 if msg.content:
-                    if re.search(filter, msg.content):
+                    if re.search(filter, msg.content, flags=re.I):
                         if time_ago < timedelta(minutes=int(config[filter])):
                             reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
                             if len(reason) > 509:
