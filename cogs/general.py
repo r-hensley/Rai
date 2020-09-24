@@ -413,21 +413,25 @@ class General(commands.Cog):
                        "Before using the server, please read the rules in <#243859172268048385>.\n" \
                        "Antes de usar el servidor, por favor lee las reglas en <#499544213466120192>."
                 await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
-
         await smart_welcome(msg)
 
         """mods ping on spanish server"""
-        if msg.guild.id == SP_SERVER_ID:
-            if '<@&642782671109488641>' in msg.content:
+        if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
+            if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
                 em = discord.Embed(title=f"Staff Ping",
                                    description=f"From {msg.author.mention} ({msg.author.name}) "
-                                               f"in {msg.channel.mention}\n{msg.jump_url}",
+                                               f"in {msg.channel.mention}\n[Jump URL]({msg.jump_url})",
                                    color=discord.Color(int('FFAA00', 16)),
                                    timestamp=datetime.utcnow())
-                em.add_field(name="Content", value=f"{msg.content}\n⁣".replace('<@&642782671109488641>', ''))
-                for user in self.bot.db['staff_ping'][str(SP_SERVER_ID)]:
+                content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
+                if content:
+                    em.add_field(name="Content", value=content)
+                for user in self.bot.db['staff_ping'][str(msg.guild.id)]:
                     await hf.safe_send(self.bot.get_user(user), embed=em)
-                await hf.safe_send(msg.guild.get_channel(643077231534407690), embed=em)
+                if msg.guild.id == SP_SERVER_ID:
+                    await hf.safe_send(msg.guild.get_channel(643077231534407690), embed=em)
+                if msg.guild.id == JP_SERVER_ID:
+                    await hf.safe_send(msg.guild.get_channel(755269708579733626), embed=em)
 
         """Replace .mute on spanish server"""
         if msg.guild.id == SP_SERVER_ID:
@@ -2197,7 +2201,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "Canceling.")
             return
 
-    @commands.command(hidden=True)
+    @commands.command(hidden=True, aliases=['pingmods'])
     @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, RY_SERVER_ID] if ctx.guild else False)
     async def pingstaff(self, ctx):
         """Puts a `@here` ping into the staff channel with a link to your message"""
@@ -2208,6 +2212,10 @@ class General(commands.Cog):
             desc_text += f"\n\nMessage content: {' '.join(ctx.message.content.split()[1:])}"
         emb = hf.green_embed(desc_text)
         await channel.send("@here", embed=emb)
+        try:
+            await ctx.message.add_reaction("✅")
+        except discord.Forbidden:
+            pass
 
 def setup(bot):
     bot.add_cog(General(bot))
