@@ -132,13 +132,26 @@ class Submod(commands.Cog):
                                           check=lambda x: x.author == ctx.author and
                                                           x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
         except asyncio.TimeoutError:
+            try:
+                await msg2.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
             await hf.safe_send(ctx, f"Timed out.  Canceling ban.")
             return
         content = msg.content.casefold()
         if content == 'no':
+            try:
+                await msg2.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
             await hf.safe_send(ctx, f"Canceling ban")
             await msg2.delete()
             return
+
+        try:
+            await msg2.delete()
+        except (discord.Forbidden, discord.NotFound):
+            pass
 
         text = text.replace("XX", reason)
 
