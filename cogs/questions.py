@@ -165,6 +165,205 @@ class Questions(commands.Cog):
             except discord.Forbidden:
                 pass
 
+    @commands.command(aliases=['se'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.cooldown(1, 5, type=commands.BucketType.user)
+    async def stackexchange(self, ctx, *, search_term=None):
+        """Searches stackexchange.  Use: `;se <search term>`."""
+        if not search_term:
+            await hf.safe_send(ctx, ctx.command.help)
+            return
+
+        # ### Call the search ###
+        engine_id = 'ddde7b27ce4758ac8'
+        with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
+            url = f'https://www.googleapis.com/customsearch/v1' \
+                  f'?q={search_term}' \
+                  f'&cx={engine_id}' \
+                  f'&key={read_file.read()}'
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    response = resp
+                    data = await resp.text()
+        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+            return
+        if response.status != 200:
+            await hf.safe_send(ctx, f'html_error: Error {r.status}: {r.reason} ({url})')
+            return
+
+        jr = json.loads(data)
+        if 'items' in jr:
+            results = jr['items']
+        else:
+            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            return
+        search_term = jr['queries']['request'][0]['searchTerms']
+
+        def make_embed(page):
+            emb = hf.green_embed(f"Search for {search_term}")
+            for result in results[page * 3:(page + 1) * 3]:
+                title = result['title']
+                url = result['link']
+                snippet = result['snippet'].replace('\n', '')
+                if ' ... ' in snippet:
+                    snippet = snippet.split(' ... ')[1]
+                for word in search_term.split():
+                    final_snippet = ''
+                    for snippet_word in snippet.split():
+                        if not snippet_word.startswith('**') and word in snippet_word:
+                            final_snippet += f"**{snippet_word}** "
+                        else:
+                            final_snippet += f"{snippet_word} "
+                    snippet = final_snippet
+                emb.description += f"\n\n**{title}**\n{url}\n{snippet}"
+            return emb
+
+        page = 0
+        msg = await hf.safe_send(ctx, embed=make_embed(0))
+        await msg.add_reaction('⬅')
+        await msg.add_reaction('➡')
+
+        def check(reaction, user):
+            if ((str(reaction.emoji) == '⬅' and page != 0) or
+                (str(reaction.emoji) == '➡' and page != len(results) // 3)) and user == ctx.author and \
+                    reaction.message.id == msg.id:
+                return True
+
+        while True:
+            try:
+                reaction, user = await ctx.bot.wait_for('reaction_add', timeout=30.0, check=check)
+            except asyncio.TimeoutError:
+                try:
+                    await msg.clear_reactions()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                return
+
+            if str(reaction.emoji) == '⬅':
+                page -= 1
+            if str(reaction.emoji) == '➡':
+                page += 1
+            await msg.edit(embed=make_embed(page))
+            try:
+                await reaction.remove(user)
+            except discord.Forbidden:
+                pass
+
+    @commands.command(aliases=['sc'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.cooldown(1, 5, type=commands.BucketType.user)
+    async def searchcompare(self, ctx, *search_terms):
+        """Compares the number of exact results from different exact searches.
+
+        Usage: `;sc <term1> <term2> ...`. Use quotation marks to input a term with multiple words.
+
+        Examples: `;sc おはよう おはよー`   `;sc こんにちは こんにちわ こにちわ`
+
+        Prefix the terms with one `site:<site>` to limit the search to one site.
+        Example: `;sc site:twitter.com ワロタ 笑`"""
+        if not search_terms:
+            await hf.safe_send(ctx, ctx.command.help)
+            return
+        if len(search_terms) > 5:
+            await hf.safe_send(ctx, "Please input less terms. You'll kill my bot!!")
+            return
+
+        if search_terms[0].startswith('site:'):
+            site = re.search("site: ?(.*)", search_terms[0]).group(1)
+            search_terms = search_terms[1:]
+        else:
+            site = None
+
+        # ### Call the search ###
+        engine_id = 'c7afcd4ef85db31a2'
+        results = {}
+        for search_term in search_terms:
+            with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
+                url = f'https://www.googleapis.com/customsearch/v1' \
+                      f'?exactTerms={search_term}' \
+                      f'&key={read_file.read()}' \
+                      f'&cx={engine_id}'  # %22 is quotation mark
+                if site:
+                    url += f"&siteSearch={site}"
+            try:
+                with async_timeout.timeout(10):
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as resp:
+                            response = resp
+                            data = await resp.text()
+                            try:
+                                key = f"[{search_term}](https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0" \
+                                      f'&gsc.q="{search_term}")'
+                                if site:
+                                    key = key[:-1] + f"%20site:{site})"
+                                results[key] = data.split('"formattedTotalResults": "')[1].split('"')[0]
+                            except IndexError:
+                                await hf.safe_send(ctx, "There was an error retrieving the results.")
+                                return
+            except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+                await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+                return
+            if response.status != 200:
+                await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+                return
+
+        s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
+        await hf.safe_send(ctx, embed=discord.Embed(title="Google search results", description=s, color=0x0C8DF0))
+
+    @commands.command(aliases=['nsc', 'ns', 'nc'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.cooldown(1, 5, type=commands.BucketType.user)
+    async def newssearchcompare(self, ctx, *search_terms):
+        """Compares number of results from top ten Japanese news sites:
+        `news24`, `nhk`, `rocketnews24`, `asahi`, `jiji`,
+        `nikkei`, `oricon`, `sankei`, `yomiuri`, `news.yahoo.co.jp`
+
+        Usage: `;nsc <term1> <term2> ...`. Use quotation marks to input a term with multiple words.
+
+        Examples: `;nsc おはよう おはよー`   `;nsc こんにちは こんにちわ こにちわ`"""
+        if not search_terms:
+            await hf.safe_send(ctx, ctx.command.help)
+            return
+        if len(search_terms) > 5:
+            await hf.safe_send(ctx, "Please input less terms. You'll kill my bot!!")
+            return
+
+        # ### Call the search ###
+        engine_id = 'cbbca2d78e3d9fb2d'
+        results = {}
+        for search_term in search_terms:
+            with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
+                url = f'https://www.googleapis.com/customsearch/v1' \
+                      f'?exactTerms={search_term}' \
+                      f'&key={read_file.read()}' \
+                      f'&cx={engine_id}'  # %22 is quotation mark
+
+            try:
+                with async_timeout.timeout(10):
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as resp:
+                            response = resp
+                            data = await resp.text()
+                            try:
+                                results[f"[{search_term}](https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0"
+                                        f"&gsc.q=%22{search_term}%22)"] = \
+                                    data.split('"formattedTotalResults": "')[1].split('"')[0]
+                            except IndexError:
+                                await hf.safe_send(ctx, "There was an error retrieving the results.")
+                                return
+            except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+                await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+                return
+            if response.status != 200:
+                await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+                return
+
+        s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
+        await hf.safe_send(ctx, embed=discord.Embed(title="News sites search results", description=s, color=0x7900F7))
+
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
     async def jisho(self, ctx, *, text):
@@ -911,7 +1110,10 @@ class Questions(commands.Cog):
                 await self.bot.wait_for('reaction_add', timeout=15.0,
                                         check=lambda r, m: str(r.emoji) == '🗑️' and m == ctx.author)
             except asyncio.TimeoutError:
-                await msg.clear_reactions()
+                try:
+                    await msg.clear_reactions()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
                 return
             await msg.delete()
 
