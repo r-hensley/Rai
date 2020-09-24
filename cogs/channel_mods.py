@@ -6,8 +6,12 @@ import re
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SP_SERV = 243838819743432704
+JP_SERV = 189571157446492161
 
 def any_channel_mod_check(ctx):
+    if ctx.command.name == 'staffping':
+        if ctx.guild.id == JP_SERV:
+            return hf.submod_check(ctx)
     if ctx.guild.id != SP_SERV:
         return
     if hf.submod_check(ctx):
@@ -61,10 +65,22 @@ class ChannelMods(commands.Cog):
         failed_ids = []
         invalid_ids = []
 
+        if len(ids) == 1:
+            if not 17 < len(ids[0]) < 22:
+                try:
+                    int(ids[0])
+                except ValueError:
+                    pass
+                else:
+                    await hf.safe_send(ctx, "This is a command to delete a certain message by specifying its "
+                                            f"message ID. \n\nMaybe you meant to use `;clear {ids[0]}`?")
+
         # search ctx.channel for the ids
         for msg_id in ids:
             try:
                 msg_id = int(msg_id)
+                if not 17 < len(str(msg_id)) < 22:
+                    raise ValueError
                 msg = await ctx.channel.fetch_message(msg_id)
                 msgs.append(msg)
             except discord.NotFound:
@@ -73,7 +89,8 @@ class ChannelMods(commands.Cog):
                 invalid_ids.append(msg_id)
 
         if invalid_ids:
-            await hf.safe_send(ctx, f"The following IDs were not properly formatted: `{'`, `'.join(invalid_ids)}`")
+            await hf.safe_send(ctx, f"The following IDs were not properly formatted: "
+                                    f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
 
         # search every channel, not just ctx.channel for the missing IDs
         if failed_ids:
@@ -90,13 +107,13 @@ class ChannelMods(commands.Cog):
                 if not failed_ids:
                     break
         if failed_ids:
-            await hf.safe_send(ctx, f"Unable to find ID(s) `{'`, `'.join(failed_ids)}`.")
+            await hf.safe_send(ctx, f"Unable to find ID(s) `{'`, `'.join([str(i) for i in failed_ids])}`.")
 
         if not msgs:
             return  # no messages found
 
-        emb = discord.Embed(title=f"Deleted messages", color=discord.Color(int('ff0000', 16)),
-                            description=f"by {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})")
+        emb = discord.Embed(title=f"Deleted messages in #{msg.channel.name}", color=discord.Color(int('ff0000', 16)),
+                            description=f"")
         embeds = []
         for msg_index in range(len(msgs)):
             msg = msgs[msg_index]
@@ -115,16 +132,19 @@ class ChannelMods(commands.Cog):
                     embeds.append(embed)
                     emb.add_field(name=f"Embed deleted [Jump URL]({jump_url})", value="Content shown below")
             if msg.content:
-                emb.add_field(name=f"Message {msg_index} by "
-                                   f"{msg.author.name}#{msg.author.discriminator} ({msg.author.id})",
-                              value=f"([Jump URL]({jump_url})) {msg.content}"[:1024 - len(jump_url)])
-            if msg.content[1024:]:
-                emb.add_field(name=f"continued", value=f"...{msg.content[1024-len(jump_url):len(jump_url)+1024]}")
+                emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
+                              value=f"{msg.content}"[:1009 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
+            if msg.content[1009:]:
+                emb.add_field(name=f"continued", value=f"...{msg.content[1009-len(jump_url):len(jump_url)+1024]}")
             if msg.attachments:
                 x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
-                emb.add_field(name="Attachments (might expire soon):", value='\n'.join(x))
+                if not msg.content:
+                    name = f"Message attachments by {str(msg.author)} (might expire soon):"
+                else:
+                    name = "Attachments (might expire soon):"
+                emb.add_field(name=name, value='\n'.join(x))
             emb.timestamp = msg.created_at
-        emb.set_footer(text=f"In #{msgs[0].channel.name} - Message sent at:")
+        emb.set_footer(text=f"Deleted by {str(ctx.author)} - Message sent at:")
         if str(ctx.guild.id) in self.bot.db['submod_channel']:
             channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
             if not channel:
