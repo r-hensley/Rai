@@ -178,7 +178,6 @@ class Owner(commands.Cog):
 
         await hf.safe_send(ctx, f'```\n{msg[:1993]}```')
 
-
     @commands.command(aliases=['cdb'], hidden=True)
     async def change_database(self, ctx):
         """Change database in some way"""
@@ -568,6 +567,24 @@ class Owner(commands.Cog):
         await hf.safe_send(user, f"I've removed your member role on the Language Hub server.  Please reread "
                                  f"<#530669247718752266> carefully and then you can rejoin the server."
                                  f"Specifically, {rule}.")
+
+    @commands.command()
+    async def ignoreserver(self, ctx, guild_id=None):
+        if not guild_id:
+            guild = ctx.guild
+        else:
+            try:
+                guild = self.bot.get_guild(int(guild_id))
+            except ValueError:
+                await hf.safe_send(ctx, "Invalid server")
+                return
+            else:
+                if not guild:
+                    await hf.safe_send(ctx, "Invalid server")
+                    return
+
+        self.bot.db['ignored_servers'].append(guild.id)
+        await ctx.message.add_reaction('✅')
 
 
 def setup(bot):
