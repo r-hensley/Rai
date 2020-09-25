@@ -318,6 +318,8 @@ async def ban_check_servers(bot, bans_channel, member, ping=False):
     if member in bans_channel.guild.members:
         ping = False
     for guild in bot.guilds:  # type: discord.Guild
+        if guild.id in bot.db['ignored_servers']:
+            continue
         if member in guild.members:
             messages: int = count_messages(member, guild)
             day = None
