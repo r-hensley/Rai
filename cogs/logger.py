@@ -842,6 +842,9 @@ class Logger(commands.Cog):
         try:
             server_config = self.bot.db['joins'][guild_id]
             log_channel = self.bot.get_channel(server_config['channel'])
+            if not log_channel:
+                del server_config
+                return
         except KeyError:
             return
 
@@ -1364,6 +1367,13 @@ class Logger(commands.Cog):
 
         # #################### crossposting ban embed #######################
 
+        colour = 0xDD2E44
+        if reason and by:
+            for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
+                         'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
+                if text in reason and by == self.bot.user:
+                    emb.colour = 0x502E0D
+
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
                            '(\(.*?\)?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
         if author:
@@ -1382,7 +1392,7 @@ class Logger(commands.Cog):
                 by = admin
                 reason = re_reason
 
-        emb = discord.Embed(colour=0xDD2E44, timestamp=datetime.utcnow(),
+        emb = discord.Embed(colour=colour, timestamp=datetime.utcnow(),
                             title="", description=f"**{str(member)}** － {member.mention}\n({member.id})\n\n")
 
         emb.description += f"__Server__: [{guild.name}](https://rai/server-id-is-S{guild.id})\n"

@@ -203,7 +203,8 @@ class Questions(commands.Cog):
         search_term = jr['queries']['request'][0]['searchTerms']
 
         def make_embed(page):
-            emb = hf.green_embed(f"Search for {search_term}")
+            emb = hf.green_embed(f"[Search for {search_term}](https://cse.google.com/cse?cx=ddde7b27ce4758ac8&"
+                                 f"q={search_term.replace(' ','%20').replace('　', '%E3%80%80')})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
                 url = result['link']
@@ -211,14 +212,15 @@ class Questions(commands.Cog):
                 if ' ... ' in snippet:
                     snippet = snippet.split(' ... ')[1]
                 for word in search_term.split():
-                    final_snippet = ''
-                    for snippet_word in snippet.split():
-                        if not snippet_word.startswith('**') and word in snippet_word:
-                            final_snippet += f"**{snippet_word}** "
-                        else:
-                            final_snippet += f"{snippet_word} "
-                    snippet = final_snippet
-                emb.description += f"\n\n**{title}**\n{url}\n{snippet}"
+                    snippet = snippet.replace(word, f"**{word}**")
+                    # final_snippet = ''
+                    # for snippet_word in snippet.split():
+                    #     if not snippet_word.startswith('**') and word in snippet_word:
+                    #         final_snippet += f"**{snippet_word}** "
+                    #     else:
+                    #         final_snippet += f"{snippet_word} "
+                    # snippet = final_snippet
+                emb.description += f"\n\n**[{title}]({url})**\n{snippet}"
             return emb
 
         page = 0

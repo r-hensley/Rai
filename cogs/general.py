@@ -74,7 +74,8 @@ class General(commands.Cog):
             if not msg.attachments:
                 return
             ctx = await self.bot.get_context(msg)
-            await ctx.invoke(self.bot.get_command("question"), args=msg.content)
+            if "AOTW recording" in msg.content:
+                await ctx.invoke(self.bot.get_command("question"), args=msg.content)
         await burdbot_window()
 
         """Messages/pings to Rai"""
@@ -1189,7 +1190,8 @@ class General(commands.Cog):
                 await user.send("You aren't on the waiting list.")
 
         if str(reaction.emoji) in '🗑❌':
-            if reaction.message.author == self.bot.user:
+            if reaction.message.author == self.bot.user and \
+                    (user.id == self.bot.owner_id or reaction.message.channel.permissions_for(user).manage_messages):
                 await reaction.message.delete()
 
         if user.bot:
