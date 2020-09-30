@@ -161,8 +161,14 @@ class General(commands.Cog):
                             if len(reason) > 509:
                                 reason = reason[:509] + "..."
                             try:
-                                await msg.author.ban(reason=reason)
+                                await asyncio.sleep(1)
+                                await msg.delete()
                             except discord.Forbidden:
+                                pass
+                            try:
+                                asyncio.sleep(3)
+                                await msg.author.ban(reason=reason)
+                            except (discord.Forbidden, discord.HTTPException):
                                 pass
         await wordfilter()
 
@@ -254,8 +260,8 @@ class General(commands.Cog):
                         #                       "get their internet shut down or get them arrested or anything.  "
                         #                       "It's just annoying, so please stop trying it.")
                         try:
-                            await msg.author.ban(reason=f"*by* Rai\n"
-                                                        f"**Reason: **Automatic ban: Chinese banned words spam\n"
+                            await asyncio.sleep(3)
+                            await msg.author.ban(reason=f"__Reason__: Automatic ban: Chinese banned words spam\n"
                                                         f"{msg.content[:100]}")
                         except discord.Forbidden:
                             await hf.safe_send(mod_channel,

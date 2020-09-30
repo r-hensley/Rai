@@ -991,6 +991,7 @@ class Logger(commands.Cog):
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
             emb = hf.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{guild.name}**\n\n"
                                f"They were banned before on the following servers:\n")
+            emb.color = 0x8013E0
 
             for entry in config:
                 banned_guild = self.bot.get_guild(entry[0])
@@ -1368,10 +1369,10 @@ class Logger(commands.Cog):
         # #################### crossposting ban embed #######################
 
         colour = 0xDD2E44
-        if reason and by:
+        if reason:
             for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
                          'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
-                if text in reason and by == self.bot.user:
+                if text in reason:
                     emb.colour = 0x502E0D
 
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
@@ -1393,7 +1394,7 @@ class Logger(commands.Cog):
                 reason = re_reason
 
         emb = discord.Embed(colour=colour, timestamp=datetime.utcnow(),
-                            title="", description=f"**{str(member)}** － {member.mention}\n({member.id})\n\n")
+                            title="", description=f"**{str(member)}** － {member.mention}\n({member.id})\n")
 
         emb.description += f"__Server__: [{guild.name}](https://rai/server-id-is-S{guild.id})\n"
 
