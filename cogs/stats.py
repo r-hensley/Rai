@@ -152,7 +152,7 @@ class Stats(commands.Cog):
 
         # ### Make embed ###
         if member:
-            title = f'Usage stats for {member.name}'
+            title = f'Usage stats for {str(member)}'
             if member.nick:
                 title += f" ({member.nick})"
         else:
