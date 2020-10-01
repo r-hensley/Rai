@@ -60,11 +60,6 @@ class General(commands.Cog):
             if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
                 return
 
-        # "Experimental global watch list"
-        # if msg.author.id == 202979770235879427:
-        #     channel = self.bot.get_channel(374489744974807040)
-        #     await hf.safe_send(channel, f"Message by {msg.author.name} in {msg.channel.mention}:\n\n```{msg.content}```")
-
         """BurdBot's window to open questions in #audio_of_the_week"""
         async def burdbot_window():
             if msg.channel.id != 620997764524015647:  # aotw_feedback
@@ -133,7 +128,6 @@ class General(commands.Cog):
                     await new_ctx.invoke(self.serverinfo)
         await replace_tatsumaki_posts()
 
-
         ##########################################
 
         if not msg.guild:  # all code after this has msg.guild requirement
@@ -153,17 +147,17 @@ class General(commands.Cog):
 
             time_ago = datetime.utcnow() - msg.author.joined_at
 
-            for filter in config:
+            for filter_word in config:
                 if msg.content:
-                    if re.search(filter, msg.content, flags=re.I):
-                        if time_ago < timedelta(minutes=int(config[filter])):
+                    if re.search(filter_word, msg.content, flags=re.I):
+                        if time_ago < timedelta(minutes=int(config[filter_word])):
                             reason = f"Rai automatic word filter ban:\n{msg.content}"[:512]
                             if len(reason) > 509:
                                 reason = reason[:509] + "..."
                             try:
                                 await asyncio.sleep(1)
                                 await msg.delete()
-                            except discord.Forbidden:
+                            except (discord.Forbidden, discord.NotFound):
                                 pass
                             try:
                                 asyncio.sleep(3)
@@ -288,9 +282,9 @@ class General(commands.Cog):
                 for word in words:
                     if word in msg.content:
                         time_ago = datetime.utcnow() - msg.author.joined_at
-                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by {msg.author.name}" \
-                                   f" (joined {time_ago.seconds//3600}h {time_ago.seconds%3600//60}m ago [{time_ago}])" \
-                                   f"```{msg.content}```"
+                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by " \
+                                   f"{msg.author.name} (joined {time_ago.seconds//3600}h " \
+                                   f"{time_ago.seconds%3600//60}m ago [{time_ago}])```{msg.content}```"
                         await self.bot.get_user(self.bot.owner_id).send(msg_text)
                         if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
                             return
@@ -388,8 +382,8 @@ class General(commands.Cog):
                 check_language(both, 3)
 
                 bool_results = 0
-                for bool in bools:
-                    if bool:
+                for language_bool in bools:
+                    if language_bool:
                         bool_results += 1
                 if bool_results != 1:
                     await msg.channel.send(f"{msg.author.mention}\n"
