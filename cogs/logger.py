@@ -1373,7 +1373,7 @@ class Logger(commands.Cog):
             for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
                          'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
                 if text in reason:
-                    emb.colour = 0x502E0D
+                    colour = 0xFF9D00
 
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
                            '(\(.*?\)?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
