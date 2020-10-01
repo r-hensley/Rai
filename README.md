@@ -1,7 +1,7 @@
 # -Rai-
-Discord bot for Discord language servers (Python).  Some key features: 
-- Extensive logging of joins, leaves, bans, deletes, edits, reaction removes, and invites that people use to join a server
-- A report room for users to make either anonymous reports to mods or enter a mod report chat room to discuss an issue.  Designed to eliminate the need for private messages completely from mod business.  
+Discord bot for the Discord language servers (Python).  Some key features: 
+- Extensive logging of joins, leaves, bans, deletes, edits, reaction removes and invites that people use to join a server
+- A report room for the users to make either anonymous reports to mods or enter a mod report chat room to discuss an issue.  Designed to eliminate the need for private messages completely from mod business.  
 - A smart message prune/clear command which takes a message ID as input so you don't have to count messages
 - Configurable reaction requirement to enter a server
 - Super watchlist for when you have raiders who are repeatedly making accounts and spamming gore/porn/etc.
