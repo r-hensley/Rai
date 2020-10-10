@@ -10,7 +10,7 @@ Discord bot for Discord language servers (Python).  Some key features:
 - Unlimited duration timed mutes and bans.
 - Stats module for showing most active users in the server and per channel for the last month.
 
-Invite here: https://discordapp.com/oauth2/authorize?client_id=270366726737231884&scope=bot&permissions=27776
+Bot is currently semi-private, message me on Discord if you want to use the bot (some users might be able to get an invite link by messaging `;invite` to Rai)
 
 First time setup guide can be found here: https://github.com/ryry013/Rai/wiki/First-time-setup
 
