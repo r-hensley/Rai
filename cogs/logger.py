@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
-import json
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError, ImgurClientRateLimitError
 import functools
@@ -634,6 +633,8 @@ class Logger(commands.Cog):
             except KeyError:
                 server_config['invites_enable'] = True
                 await hf.safe_send(ctx, 'Enabled invites tracking')
+            if server_config['invites_enable']:
+                await self.get_invites(ctx.guild)
 
     @staticmethod
     async def make_join_embed(member, used_invites, channel, list_of_roles=None):
@@ -795,8 +796,10 @@ class Logger(commands.Cog):
     async def get_invites(self, guild):
         guild_id = str(guild.id)
         config = self.bot.db['joins'][str(guild.id)]
-        if 'invites' not in config or 'invites_enable' not in config:
+        if 'invites_enable' not in config:
             return None, None
+        if 'invites' not in config:
+            config['invites'] = {}
 
         if not config['invites_enable']:
             return None, None
