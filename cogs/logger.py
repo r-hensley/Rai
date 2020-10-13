@@ -934,7 +934,7 @@ class Logger(commands.Cog):
                     JHO_msg = f'{member.name}さん、サーバーへようこそ！'
                     break
             if list_of_readd_roles:
-                JHO_msg += " I've readded your previous roles to you!"
+                JHO_msg += "I've readded your previous roles to you!"
                 await asyncio.sleep(2)
                 new_user_role = member.guild.get_role(249695630606336000)
                 if new_user_role in member.roles:
