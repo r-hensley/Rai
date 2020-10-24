@@ -282,12 +282,16 @@ class Admin(commands.Cog):
     @commands.bot_has_permissions(embed_links=True)
     async def activeincidents(self, ctx):
         """Lists the current active incidents (timed mutes and bans)"""
+        mutes = []
         try:
             mute_config = self.bot.db['mutes'][str(ctx.guild.id)]['timed_mutes']
-            mutes = []
+        except KeyError:
+            pass
+        else:
             for user_id in mute_config:
                 modlog = self.bot.db['modlog'][str(ctx.guild.id)][user_id]
                 reason = "Unknown"
+                author = None
                 for incident in modlog[::-1]:
                     if incident['type'] == "Mute":
                         reason = incident['reason']
@@ -297,9 +301,7 @@ class Admin(commands.Cog):
                         break
                 mutes.append({'id': user_id, 'type': 'Mute', 'until': mute_config[user_id], 'reason': reason,
                               'author': author})
-        except KeyError:
-            # mutes = None
-            raise
+
         embed_text = "__Current Mutes__\n"
         for mute in mutes:
             member = await hf.member_converter(ctx, mute['id'])
@@ -798,7 +800,7 @@ class Admin(commands.Cog):
     async def super_watch(self, ctx):
         """Sets the super_watch channel."""
         config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
-                                                       {"users": [], "channel": ctx.channel.id})
+                                                       {"users": {}, "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
         await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
                                 f"({ctx.channel.id}).  \n\n"
