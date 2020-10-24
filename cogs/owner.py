@@ -190,7 +190,7 @@ class Owner(commands.Cog):
                         guild_config[day][user] = guild_config[day][user][0] * 60 + guild_config[day][user][1]
         print('done')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def check_voice_users(self, ctx):
         """Checks to see who is currently accumulating voice chat time with the stats module"""
         try:
@@ -203,7 +203,7 @@ class Owner(commands.Cog):
             in_voice_users += f"{member.display_name} - {config[user_id]}\n"
         await hf.safe_send(ctx, in_voice_users)
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def flush(self, ctx):
         """Flushes stderr/stdout"""
         sys.stderr.flush()
@@ -273,7 +273,7 @@ class Owner(commands.Cog):
 
                     file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def restart(self, ctx):
         """Restarts bot"""
         await ctx.message.add_reaction('💀')

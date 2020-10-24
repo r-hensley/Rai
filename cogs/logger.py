@@ -163,6 +163,7 @@ class Logger(commands.Cog):
     # ############### voice channel joins/changes/leaves #####################
 
     @commands.group(invoke_without_command=True, name='voice')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def voice(self, ctx):
         """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['voice'])
@@ -179,6 +180,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;voice_logging`.')
 
     @voice.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def voice_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['voice'])
         if result == 1:
@@ -303,6 +305,7 @@ class Logger(commands.Cog):
     # ############### edits #####################
 
     @commands.group(invoke_without_command=True, name='edits')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def edit_logging(self, ctx):
         """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['edits'])
@@ -318,6 +321,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;edit_logging`.')
 
     @edit_logging.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def edits_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['edits'])
         if result == 1:
@@ -394,6 +398,7 @@ class Logger(commands.Cog):
     # ############### deletes #####################
 
     @commands.group(invoke_without_command=True)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def deletes(self, ctx):
         """Logs deleted messages"""
         result = await self.module_logging(ctx, self.bot.db['deletes'])
@@ -408,6 +413,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;delete_logging`.')
 
     @deletes.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def deletes_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['deletes'])
         if result == 1:
@@ -574,6 +580,7 @@ class Logger(commands.Cog):
     # ############### joins #####################
 
     @commands.group(invoke_without_command=True, name='joins')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def joins(self, ctx):
         """Logs server joins + tracks invite links."""
         result = await self.module_logging(ctx, self.bot.db['joins'])
@@ -602,6 +609,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;joins`.')
 
     @joins.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def joins_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['joins'])
         server_config = self.bot.db['joins'][str(ctx.guild.id)]
@@ -622,6 +630,7 @@ class Logger(commands.Cog):
                 server_config['invites_enable'] = False
 
     @joins.command(name='invites')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def invites_enable(self, ctx):
         """Enables/disables the identification of used invite links when people join"""
         guild = str(ctx.guild.id)
@@ -633,6 +642,8 @@ class Logger(commands.Cog):
             except KeyError:
                 server_config['invites_enable'] = True
                 await hf.safe_send(ctx, 'Enabled invites tracking')
+            except discord.Forbidden:
+                pass
             if server_config['invites_enable']:
                 await self.get_invites(ctx.guild)
 
@@ -852,8 +863,11 @@ class Logger(commands.Cog):
             return
 
         if not log_channel.permissions_for(guild.me).embed_links:
-            await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to post "
-                                            f"embeds. Please give me the permission to embed links.")
+            try:
+                await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to post"
+                                                f" embeds. Please give me the permission to embed links.")
+            except discord.Forbidden:
+                del server_config
             return
         if server_config['enable'] and not member.guild.me.guild_permissions.manage_guild:
             disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
@@ -1039,6 +1053,7 @@ class Logger(commands.Cog):
     # ############### leaves #####################
 
     @commands.group(invoke_without_command=True, name='leaves')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def leaves(self, ctx):
         """Logs leaves + shows list of roles at time of leave"""
         result = await self.module_logging(ctx, self.bot.db['leaves'])
@@ -1053,6 +1068,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;leave_logging`.')
 
     @leaves.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def leaves_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['leaves'])
         if result == 1:
@@ -1137,6 +1153,7 @@ class Logger(commands.Cog):
     # ############### nicknames/usernames #####################
 
     @commands.group(invoke_without_command=True, name='nicknames')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def nicknames(self, ctx):
         """Logs nicknames changes"""
         result = await self.module_logging(ctx, self.bot.db['nicknames'])
@@ -1152,6 +1169,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;nickname_logging`.')
 
     @nicknames.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def nicknames_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['nicknames'])
         if result == 1:
@@ -1220,6 +1238,7 @@ class Logger(commands.Cog):
     # ############### reaction removals #####################
 
     @commands.group(invoke_without_command=True, name='reactions')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def reactions(self, ctx):
         """Logs deleted reactions"""
         result = await self.module_logging(ctx, self.bot.db['reactions'])
@@ -1235,6 +1254,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;reaction_logging`.')
 
     @reactions.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def reactions_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
@@ -1286,6 +1306,7 @@ class Logger(commands.Cog):
     # ############### bans/unbans #####################
 
     @commands.group(invoke_without_command=True, name='bans')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def bans(self, ctx):
         """Logs deleted bans"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
@@ -1304,6 +1325,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;ban_logging`.')
 
     @bans.command(name='set', short_name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def bans_set(self, ctx):
         self.short_name = 'set'
         result = await self.module_set(ctx, self.bot.db['bans'])
@@ -1541,6 +1563,7 @@ class Logger(commands.Cog):
     # ############### kicks #####################
 
     @commands.group(invoke_without_command=True, name='kicks')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def kicks(self, ctx):
         """Logs deleted kicks"""
         result = await self.module_logging(ctx, self.bot.db['kicks'])
@@ -1555,6 +1578,7 @@ class Logger(commands.Cog):
                                     'Then, enable/disable logging by typing `;kick_logging`.')
 
     @kicks.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def kicks_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['kicks'])
         if result == 1:
