@@ -803,7 +803,12 @@ class Questions(commands.Cog):
 
                     if q_config.get('responses', None):
                         log_message = ctx.guild.get_channel(log_channel_id)
-                        log_message = await log_message.fetch_message(q_config['log_message'])
+                        try:
+                            log_message = await log_message.fetch_message(q_config['log_message'])
+                        except discord.Forbidden:
+                            await hf.safe_send(ctx, f"I Lack the ability to see messages or message history in "
+                                                    f"{log_message.mention}.")
+                            return
                         value_text += f"__[Responses: {len(q_config['responses'])}]({log_message.jump_url})__\n"
 
                     value_text += f"⁣⁣⁣⁣\n[Jump URL]({question_message.jump_url})"

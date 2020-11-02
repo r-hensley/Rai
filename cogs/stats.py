@@ -236,7 +236,8 @@ class Stats(commands.Cog):
                 counter += 1
                 if counter == 3:
                     break
-            emb.add_field(name='Most used emojis', value=value)
+            if value:
+                emb.add_field(name='Most used emojis', value=value)
 
         # ### Add top langauges field ###
         if sorted_langs:
@@ -253,7 +254,8 @@ class Stats(commands.Cog):
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
                 if counter == 5:
                     break
-            emb.add_field(name='Most used languages', value=value)
+            if value:
+                emb.add_field(name='Most used languages', value=value)
 
         # ### Calculate join position ###
         if member:
