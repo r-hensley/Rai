@@ -3,16 +3,14 @@ import discord
 import asyncio
 from discord.ext.commands import Bot
 from discord.ext import commands
-import platform
 import sys, traceback
 import json
 from cogs.utils import helper_functions as hf
-
-
-from datetime import datetime, timedelta
-from pytz import reference
-
+from datetime import datetime
 import os
+
+intents = discord.Intents.default()
+intents.members = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
 print(os.stat(f'{dir_path}/stats.json'))
 print(os.stat(f"{dir_path}/db.json"))
@@ -44,7 +42,7 @@ def prefix(bot, msg):
 class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496,
-                         help_command=None, )
+                         help_command=None, intents=intents)
         self.bg_task = self.loop.create_task(self.background_tasks())
         self.last_error = datetime.utcnow()
         self.num_of_errors = 0
@@ -97,7 +95,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
         await self.testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
-        await self.change_presence(activity=discord.Game(';help | Questions⇛Ping/DM me'))
+        await self.change_presence(activity=discord.Game(';help for help'))
 
     async def background_tasks(self):
         await self.wait_until_ready()

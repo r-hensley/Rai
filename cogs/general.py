@@ -73,44 +73,43 @@ class General(commands.Cog):
                 await ctx.invoke(self.bot.get_command("question"), args=msg.content)
         await burdbot_window()
 
-        """Messages/pings to Rai"""
-        async def message_to_bot():
-            if msg.content:
-                if msg.content[0] == ';':
-                    return
-            if (msg.channel == msg.author.dm_channel and msg.author.id not in [202995638860906496, 414873201349361664]) \
-                    or '270366726737231884' in msg.content:
-                if isinstance(msg.channel, discord.DMChannel):
-                    embed = hf.green_embed(f"DM from {msg.author.mention} "
-                                           f"({msg.author.name}#{msg.author.discriminator}) - "
-                                           f"[Jump URL]({msg.jump_url})")
-                    async for message in msg.channel.history(limit=2):
-                        if 'report' in message.content.casefold() and message.author == self.bot.user:
-                            return
-                else:
-                    embed = hf.green_embed(f"Ping from {msg.author.mention} "
-                                           f"({msg.author.name}#{msg.author.discriminator}) in {msg.channel.mention} "
-                                           f"({msg.guild.name}) - [Jump URL]({msg.jump_url})")
-                if msg.content:
-                    embed.add_field(name="Text", value=msg.content[:1024])
-                if msg.content[1024:]:
-                    embed.add_field(name="Text pt. 2", value=msg.content[1024:])
-                if msg.attachments:
-                    for attachment in msg.attachments:
-                        embed.add_field(name="Attachment", value=attachment.url)
-
-                channel_id = str(msg.channel.id)
-                length = len(channel_id)
-                i = [channel_id[round(0 * length / 3): round(1 * length / 3)],
-                     channel_id[round(1 * length / 3): round(2 * length / 3)],
-                     channel_id[round(2 * length / 3): round(3 * length / 3)]]
-                color = {'r': int(i[0]) % 255, 'g': int(i[1]) % 255, 'b': int(i[2]) % 255}
-                embed.color = discord.Color.from_rgb(color['r'], color['g'], color['b'])
-
-                spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
-                await spam_chan.send(f"{msg.channel.id} <@202995638860906496>", embed=embed)
-
-        await message_to_bot()
+        # """Messages/pings to Rai"""
+        # async def message_to_bot():
+        #     if msg.content:
+        #         if msg.content[0] == ';':
+        #             return
+        #     if (msg.channel == msg.author.dm_channel and msg.author.id not in [202995638860906496, 414873201349361664]) \
+        #             or '270366726737231884' in msg.content:
+        #         if isinstance(msg.channel, discord.DMChannel):
+        #             embed = hf.green_embed(f"DM from {msg.author.mention} "
+        #                                    f"({msg.author.name}#{msg.author.discriminator}) - "
+        #                                    f"[Jump URL]({msg.jump_url})")
+        #             async for message in msg.channel.history(limit=2):
+        #                 if 'report' in message.content.casefold() and message.author == self.bot.user:
+        #                     return
+        #         else:
+        #             embed = hf.green_embed(f"Ping from {msg.author.mention} "
+        #                                    f"({msg.author.name}#{msg.author.discriminator}) in {msg.channel.mention} "
+        #                                    f"({msg.guild.name}) - [Jump URL]({msg.jump_url})")
+        #         if msg.content:
+        #             embed.add_field(name="Text", value=msg.content[:1024])
+        #         if msg.content[1024:]:
+        #             embed.add_field(name="Text pt. 2", value=msg.content[1024:])
+        #         if msg.attachments:
+        #             for attachment in msg.attachments:
+        #                 embed.add_field(name="Attachment", value=attachment.url)
+        #
+        #         channel_id = str(msg.channel.id)
+        #         length = len(channel_id)
+        #         i = [channel_id[round(0 * length / 3): round(1 * length / 3)],
+        #              channel_id[round(1 * length / 3): round(2 * length / 3)],
+        #              channel_id[round(2 * length / 3): round(3 * length / 3)]]
+        #         color = {'r': int(i[0]) % 255, 'g': int(i[1]) % 255, 'b': int(i[2]) % 255}
+        #         embed.color = discord.Color.from_rgb(color['r'], color['g'], color['b'])
+        #
+        #         spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
+        #         await spam_chan.send(f"{msg.channel.id} <@202995638860906496>", embed=embed)
+        # await message_to_bot()
 
         """Message as the bot"""
         async def message_as_bot():
@@ -168,9 +167,13 @@ class General(commands.Cog):
 
         """Ping me if someone says my name"""
         async def mention_ping():
-            cont = str(msg.content)
+            cont = str(msg.content).casefold()
             if msg.author.bot or msg.author.id == 202995638860906496:
                 return
+            for word in cont.casefold():
+                for ignored_word in ['http', ':']:
+                    if ignored_word in word:
+                        cont = cont.replace(word, "")
 
             found_word = False
             ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold', 'ryan_army']
@@ -964,7 +967,8 @@ class General(commands.Cog):
         """Provides a random conversation topic.
         Hint: make sure you also answer "why". Challenge your friends on their answers.
         If you disagree with their answer, talk it out."""
-        topics = [line.rstrip('\n') for line in open(f"{dir_path}/cogs/utils/conversation_topics.txt", 'r')]
+        topics = [line.rstrip('\n') for line in open(f"{dir_path}/cogs/utils/conversation_topics.txt", 'r',
+                                                     encoding='utf8')]
         topic = choice(topics)
         while topic.startswith('#'):
             topic = choice(topics)
