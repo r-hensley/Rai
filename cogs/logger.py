@@ -648,7 +648,7 @@ class Logger(commands.Cog):
                 await self.get_invites(ctx.guild)
 
     @staticmethod
-    async def make_join_embed(member, used_invites, channel, list_of_roles=None):
+    async def make_join_embed(member, used_invites, channel, config, list_of_roles=None):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if 60 < minutes_ago_created < 3600:
             time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
@@ -698,7 +698,7 @@ class Logger(commands.Cog):
 
             emb.add_field(name="Invite link used", value=field_value)
 
-        if not used_invites:
+        if not used_invites and config['invites_enable']:
             if "DISCOVERABLE" in member.guild.features:
                 emb.add_field(name="Invite link used", value="Through server discovery")
             else:
@@ -806,21 +806,20 @@ class Logger(commands.Cog):
 
     async def get_invites(self, guild):
         guild_id = str(guild.id)
-        config = self.bot.db['joins'][str(guild.id)]
-        if 'invites_enable' not in config:
+        config: dict = self.bot.db['joins'][str(guild.id)]
+        if not config.get('invites_enable', None):
             return None, None
         if 'invites' not in config:
             config['invites'] = {}
-
-        if not config['invites_enable']:
-            return None, None
 
         old_invites = self.bot.db['joins'][guild_id]['invites']
 
         try:
             invites = await guild.invites()
-        except (discord.HTTPException, discord.Forbidden):
+        except discord.Forbidden:
             self.bot.db['joins'][guild_id]['invites_enable'] = False
+            return None, None
+        except discord.HTTPException:
             return None, None
 
         if 'VANITY_URL' in guild.features:
@@ -851,126 +850,131 @@ class Logger(commands.Cog):
                 await hf.safe_send(welcome_channel, message)
 
         """Join logging"""
-        guild = member.guild
-        guild_id = str(member.guild.id)
-        try:
-            server_config = self.bot.db['joins'][guild_id]
-            log_channel = self.bot.get_channel(server_config['channel'])
-            if not log_channel:
-                del server_config
-                return
-        except KeyError:
-            return
-
-        if not log_channel.permissions_for(guild.me).embed_links:
+        async def join_logging():
+            guild = member.guild
+            guild_id = str(member.guild.id)
             try:
-                await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to post"
-                                                f" embeds. Please give me the permission to embed links.")
-            except discord.Forbidden:
-                del server_config
-            return
-        if server_config['enable'] and not member.guild.me.guild_permissions.manage_guild:
-            disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
-                              "permission to view invite links. Please give Rai this persmission then type " \
-                              "`;joins invites` to reenable the tracking of invite links."
-            await hf.safe_send(log_channel, disable_message)
-            server_config['enable'] = False
-            return
-
-        old_invites, invites = await self.get_invites(guild)
-        used_invite = []
-        maybe_used_invite = []
-        if invites:
-            invites_dict = {i.code: i for i in invites}  # made to same form as old_invites
-            for invite in old_invites:
-                if invite not in invites_dict:  # the invite disappeared
-                    if old_invites[invite][1]:
-                        if datetime.utcnow().timestamp() > old_invites[invite][1]:
-                            continue  # it was a timed invite that simply expired
-                    maybe_used_invite.append(invite)  # it was an invite that reached its max uses
-                    continue
-                try:
-                    if old_invites[invite][0] < getattr(invites_dict.get(invite, 0), "uses", 0):
-                        used_invite.append(invites_dict[invite])
-                except TypeError:
-                    pass
-        if maybe_used_invite and not used_invite:
-            used_invite = maybe_used_invite
-
-        # if not used_invite and invites:
-        #     for invite in invites:
-        #         if invite.code in old_invites and invite.uses != old_invites[invite.code][0]:
-        #         if invite.code not in old_invites and invite.code not in ['french', 'c-e', 'japanese', 'spanish']:
-        #     for invite in old_invites:
-        #         if invite not in invites_dict:
-        #             pass
-
-        def get_list_of_roles():
-            try:
-                config = self.bot.db['joins'][guild_id]['readd_roles']
+                server_config = self.bot.db['joins'][guild_id]
+                log_channel = self.bot.get_channel(server_config['channel'])
+                if not log_channel:
+                    del server_config
+                    return
             except KeyError:
-                return None, None
-            if not config['enable'] or str(member.id) not in config['users']:
-                return None, None
+                return
+            if not server_config['enable']:
+                return
 
-            list_of_roles = []
-            roles_dict = {role.id: role for role in member.guild.roles}
-            for role_code in config['users'][str(member.id)][1].split(','):
+
+            if not log_channel.permissions_for(guild.me).embed_links:
                 try:
-                    list_of_roles.append(roles_dict[config['roles'][role_code]])
+                    await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to"
+                                                    f" post embeds. Please give me the permission to embed links.")
+                except discord.Forbidden:
+                    del server_config
+                return
+            if server_config['enable'] and not member.guild.me.guild_permissions.manage_guild:
+                disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
+                                  "permission to view invite links. Please give Rai this persmission then type " \
+                                  "`;joins invites` to reenable the tracking of invite links."
+                await hf.safe_send(log_channel, disable_message)
+                server_config['enable'] = False
+                return
+
+            old_invites, invites = await self.get_invites(guild)
+            used_invite = []
+            maybe_used_invite = []
+            if invites:
+                invites_dict = {i.code: i for i in invites}  # made to same form as old_invites
+                for invite in old_invites:
+                    if invite not in invites_dict:  # the invite disappeared
+                        if old_invites[invite][1]:
+                            if datetime.utcnow().timestamp() > old_invites[invite][1]:
+                                continue  # it was a timed invite that simply expired
+                        maybe_used_invite.append(invite)  # it was an invite that reached its max uses
+                        continue
+                    try:
+                        if old_invites[invite][0] < getattr(invites_dict.get(invite, 0), "uses", 0):
+                            used_invite.append(invites_dict[invite])
+                    except TypeError:
+                        pass
+            if maybe_used_invite and not used_invite:
+                used_invite = maybe_used_invite
+
+            # if not used_invite and invites:
+            #     for invite in invites:
+            #         if invite.code in old_invites and invite.uses != old_invites[invite.code][0]:
+            #         if invite.code not in old_invites and invite.code not in ['french', 'c-e', 'japanese', 'spanish']:
+            #     for invite in old_invites:
+            #         if invite not in invites_dict:
+            #             pass
+
+            def get_list_of_roles():
+                try:
+                    config = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
-                    pass
-            return config, list_of_roles
+                    return None, None
+                if not config['enable'] or str(member.id) not in config['users']:
+                    return None, None
 
-        readd_config, list_of_readd_roles = get_list_of_roles()
-        if list_of_readd_roles:
-            try:
-                await member.add_roles(*list_of_readd_roles)
-                await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
-                                  f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
-            except discord.errors.Forbidden:
-                pass
-            del readd_config['users'][str(member.id)]
+                list_of_roles = []
+                roles_dict = {role.id: role for role in member.guild.roles}
+                for role_code in config['users'][str(member.id)][1].split(','):
+                    try:
+                        list_of_roles.append(roles_dict[config['roles'][role_code]])
+                    except KeyError:
+                        pass
+                return config, list_of_roles
 
-        x = await self.make_join_embed(member, used_invite, welcome_channel, list_of_readd_roles)
-        await hf.safe_send(log_channel, embed=x)
-
-        if guild_id == str(JP_SERV_ID) and used_invite:
-            jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
-            # check if they joined from a Japanese site or other
-            # the following links are specifically the ones we've used to advertise on japanese sites
-            japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
-            JHO_msg = f"Welcome {member.name}!"
-            for link in used_invite:
-                if type(link) == str:
-                    continue
-                if link.code in japanese_links:
-                    JHO_msg = f'{member.name}さん、サーバーへようこそ！'
-                    break
+            readd_config, list_of_readd_roles = get_list_of_roles()
             if list_of_readd_roles:
-                JHO_msg += " I've readded your previous roles to you!"
-                await asyncio.sleep(2)
-                new_user_role = member.guild.get_role(249695630606336000)
-                if new_user_role in member.roles:
-                    await member.remove_roles(new_user_role)
-            try:
-                await hf.safe_send(jpJHO, JHO_msg)
-            except discord.Forbidden:
-                pass
-
-
-            if member.id == ABELIAN_ID:  # secret entry for Abelian
-                async for message in self.bot.jpJHO.history(limit=10):
-                    if message.author.id == 159985870458322944:
-                        await message.delete()
-                        break
                 try:
-                    msg = await self.bot.wait_for('message', timeout=10.0,
-                                                  check=lambda m: m.author.id == 299335689558949888 and
-                                                                  m.channel == jpJHO)
-                    await msg.delete()
-                except asyncio.TimeoutError:
+                    await member.add_roles(*list_of_readd_roles)
+                    await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
+                                      f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
+                except discord.errors.Forbidden:
                     pass
+                del readd_config['users'][str(member.id)]
+
+            x = await self.make_join_embed(member, used_invite, welcome_channel, server_config, list_of_readd_roles)
+            await hf.safe_send(log_channel, embed=x)
+
+            if guild_id == str(JP_SERV_ID) and used_invite:
+                jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
+                # check if they joined from a Japanese site or other
+                # the following links are specifically the ones we've used to advertise on japanese sites
+                japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+                JHO_msg = f"Welcome {member.name}!"
+                for link in used_invite:
+                    if type(link) == str:
+                        continue
+                    if link.code in japanese_links:
+                        JHO_msg = f'{member.name}さん、サーバーへようこそ！'
+                        break
+                if list_of_readd_roles:
+                    JHO_msg += " I've readded your previous roles to you!"
+                    await asyncio.sleep(2)
+                    new_user_role = member.guild.get_role(249695630606336000)
+                    if new_user_role in member.roles:
+                        await member.remove_roles(new_user_role)
+                try:
+                    await hf.safe_send(jpJHO, JHO_msg)
+                except discord.Forbidden:
+                    pass
+
+
+                if member.id == ABELIAN_ID:  # secret entry for Abelian
+                    async for message in self.bot.jpJHO.history(limit=10):
+                        if message.author.id == 159985870458322944:
+                            await message.delete()
+                            break
+                    try:
+                        msg = await self.bot.wait_for('message', timeout=10.0,
+                                                      check=lambda m: m.author.id == 299335689558949888 and
+                                                                      m.channel == jpJHO)
+                        await msg.delete()
+                    except asyncio.TimeoutError:
+                        pass
+        await join_logging()
 
         """ban invite link names"""
         try:
