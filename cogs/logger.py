@@ -1010,8 +1010,8 @@ class Logger(commands.Cog):
         if str(member.id) in self.bot.db['banlog']:
             config = self.bot.db['banlog'][str(member.id)]  # a list of lists of: [guild.id, crosspost_msg.id]
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-            emb = hf.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{guild.name}**\n\n"
-                               f"They were banned before on the following servers:\n")
+            emb = hf.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{member.guild.name}**"
+                               f"\n\nThey were banned before on the following servers:\n")
             emb.color = 0x8013E0
 
             for entry in config:
@@ -1025,8 +1025,8 @@ class Logger(commands.Cog):
                 emb.description += f"⠀⠀- [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
 
             pings = ""
-            if str(guild.id) in self.bot.db['bansub']['guild_to_role']:
-                role_id: int = self.bot.db['bansub']['guild_to_role'][str(guild.id)]
+            if guild in self.bot.db['bansub']['guild_to_role']:
+                role_id: int = self.bot.db['bansub']['guild_to_role'][guild]
                 for user in self.bot.db['bansub']['user_to_role']:
                     if role_id in self.bot.db['bansub']['user_to_role'][user]:
                         pings += f" <@{user}> "
@@ -1036,8 +1036,8 @@ class Logger(commands.Cog):
                 else:
                     del(self.bot.db['banlogs'][str(member.id)])  # cleanup
 
-                if str(guild.id) in self.bot.db['mod_channel']:
-                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(guild.id)])
+                if guild in self.bot.db['mod_channel']:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
                     if mod_channel:
                         await hf.safe_send(mod_channel, "@here", embed=emb)
 

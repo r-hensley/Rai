@@ -109,6 +109,7 @@ class Stats(commands.Cog):
                     user = await self.bot.fetch_user(member_id)
                     user_name = user.name
                 except (discord.NotFound, discord.HTTPException):
+                    await hf.safe_send(ctx, "I couldn't find the user.")
                     return
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
@@ -384,7 +385,7 @@ class Stats(commands.Cog):
         else:
             await hf.safe_send(ctx, "I couldn't find any valid channels.")
 
-    @commands.command(aliases=['v', 'vclb', 'vlb', 'voicechat'])
+    @commands.command(aliases=['vclb', 'vlb', 'voicechat'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def vc(self, ctx):
         """Prints a leaderboard of who has the most time in voice"""
