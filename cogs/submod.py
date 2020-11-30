@@ -145,7 +145,6 @@ class Submod(commands.Cog):
             except (discord.Forbidden, discord.NotFound):
                 pass
             await hf.safe_send(ctx, f"Canceling ban")
-            await msg2.delete()
             return
 
         try:
@@ -344,7 +343,9 @@ class Submod(commands.Cog):
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
         emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
         try:
-            await hf.safe_send(modlog_channel, embed=emb)
+            if modlog_channel:
+                if modlog_channel != ctx.channel:
+                    await hf.safe_send(modlog_channel, embed=emb)
         except AttributeError:
             await hf.safe_send(ctx, embed=emb)
 
@@ -439,7 +440,9 @@ class Submod(commands.Cog):
                 emb.add_field(name="Total number of modlog entries", value=num_of_entries)
         except KeyError:
             pass
-        await hf.safe_send(modlog_channel, embed=emb)
+        if modlog_channel:
+            if modlog_channel != ctx.channel:
+                await hf.safe_send(modlog_channel, embed=emb)
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command(aliases=["cleanup", "bclr"])

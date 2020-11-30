@@ -244,6 +244,22 @@ class Reports(commands.Cog):
         else:
             await hf.safe_send(ctx, 'There was no one on the waiting list.')
 
+    @report.command(name="disable")
+    @hf.is_admin()
+    async def report_disable(self, ctx):
+        """Disables the report room module"""
+        if str(ctx.guild.id) in self.bot.db['report']:
+            del self.bot.db['report'][str(ctx.guild.id)]
+            try:
+                await hf.safe_send(ctx, "I've disabled the report module in your guild.")
+            except discord.Forbidden:
+                pass
+        else:
+            try:
+                await hf.safe_send(ctx, "You don't have the report module enabled.")
+            except discord.Forbidden:
+                pass
+
     @report.command(name="reset")
     @hf.is_admin()
     async def report_reset(self, ctx):

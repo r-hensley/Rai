@@ -86,7 +86,7 @@ def count_messages(member, guild=None):
 def add_to_modlog(ctx, user, type, reason, silent, length=None):
     if ctx:
         jump_url = ctx.message.jump_url
-        config = here.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': ctx.channel.id})
+        config = here.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': None})
     else:  # "user" is actually a list of [member, guild] here, forgive me for how shitty that is lol
         guild = user[1]
         user = user[0]

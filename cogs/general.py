@@ -653,6 +653,8 @@ class General(commands.Cog):
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
             elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+                if 'holi' in msg.content.casefold():
+                    return
                 if lang == 'en':
                     try:
                         await msg.delete()
@@ -990,7 +992,13 @@ class General(commands.Cog):
     @commands.guild_only()
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role."""
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        role_name = role_name.casefold()
+        role = discord.utils.find(lambda i: i.name.casefold() == role_name, ctx.guild.roles)
+        if not role:
+            for i in ctx.guild.roles:
+                if i.name.casefold().startswith(role_name):
+                    role = i
+                    break
         if not role:
             await hf.safe_send(ctx, "I couldn't find the role you specified.")
             return
@@ -1619,7 +1627,7 @@ class General(commands.Cog):
     @global_blacklist.command(name='remove', alias=['delete'])
     @blacklist_check()
     async def blacklist_remove(self, ctx, entry_message_id):
-        """Removes an entry from the blacklist channel"""
+        """Removes a voting entry from the blacklist channel."""
         blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         try:
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
@@ -1630,17 +1638,22 @@ class General(commands.Cog):
             return
         emb = entry_message.embeds[0]
         target_id = emb.title.split(' ')[0]
-        await entry_message.delete()
 
         try:
             self.bot.db['global_blacklist']['blacklist'].remove(str(target_id))
         except ValueError:
             pass
+        except KeyError:
+            await hf.safe_send(ctx, "This user is not currently in the GBL.")
 
         try:
             del self.bot.db['global_blacklist']['votes2'][str(target_id)]
         except ValueError:
             pass
+        except KeyError:
+            await hf.safe_send(ctx, "This user is not currently under consideration for votes.")
+
+        await entry_message.delete()
 
         emb.color = discord.Color(int('ff00', 16))
         emb.set_field_at(0, name="Entry removed by", value=f"{ctx.author.name}#{ctx.author.discriminator}")
@@ -2112,7 +2125,8 @@ class General(commands.Cog):
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
         emb.set_footer(text=f"Voice muted by {ctx.author.name} ({ctx.author.id})")
         try:
-            await hf.safe_send(modlog_channel, embed=emb)
+            if modlog_channel:
+                await hf.safe_send(modlog_channel, embed=emb)
         except AttributeError:
             await hf.safe_send(ctx, embed=emb)
 
