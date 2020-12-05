@@ -507,7 +507,10 @@ class General(commands.Cog):
             if check_lang:
                 try:
                     pass
-                    lang = await hf.detect_language(stripped_msg)
+                    if msg.guild.id == 243838819743432704:
+                        lang = hf.detect_language(stripped_msg)
+                    else:
+                        lang = await hf.textblob_detect_language(stripped_msg)
                 except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError):
                     pass
             return lang, hardcore
@@ -1357,6 +1360,9 @@ class General(commands.Cog):
         if assignable_role:
             await user.add_roles(assignable_role)
 
+        if not user:
+            return
+
         if not user.bot and server:
             try:
                 config = self.bot.db['roles'][str(payload.guild_id)]
@@ -1501,8 +1507,7 @@ class General(commands.Cog):
 
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
-    @commands.is_owner()
-    # @commands.cooldown(1, 15, type=commands.BucketType.user)
+    @commands.cooldown(1, 15, type=commands.BucketType.user)
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
         message was typed in, and display the results.  Note that this is non-deterministic code, which means\
@@ -1512,17 +1517,15 @@ class General(commands.Cog):
         stripped_msg = hf.rem_emoji_url(msg)
         if not stripped_msg:
             stripped_msg = ' '
-        try:
-            lang_result = await hf.detect_language(stripped_msg)
-        except textblob.exceptions.TranslatorError:
-            lang_result = "There was an error detecting the languages"
-        except HTTPError:
-            await hf.safe_send(ctx, "You're being rate limited maybe")
-            return
+        if ctx.guild.id == 243838819743432704:
+            probs = self.bot.langdetect.predict_proba([stripped_msg])[0]
+            lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
+            ctx.command.reset_cooldown(ctx)
+        else:
+            lang_result = await hf.textblob_detect_language(stripped_msg)
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
               f"The language I detect: ```{lang_result}```"
-
         await hf.safe_send(ctx, str)
 
     @commands.command(aliases=['server', 'info', 'sinfo'])
@@ -1656,7 +1659,7 @@ class General(commands.Cog):
         await entry_message.delete()
 
         emb.color = discord.Color(int('ff00', 16))
-        emb.set_field_at(0, name="Entry removed by", value=f"{ctx.author.name}#{ctx.author.discriminator}")
+        emb.set_field_at(0, name="Entry removed by", value=f"{str(ctx.author)}")
         await blacklist_channel.send(embed=emb)
 
         await ctx.message.add_reaction('✅')
@@ -1943,11 +1946,29 @@ class General(commands.Cog):
         if role_name[:2] == 'am':
             await ctx.invoke(self.iam, role_name=role_name[3:])
 
+    @staticmethod
+    def iam_find_role(ctx, r_name):
+        r_name = r_name.casefold()
+        found_role = discord.utils.find(lambda r: r.name.casefold() == r_name, ctx.guild.roles)
+        if not found_role:
+            if 3 <= len(r_name):
+                found_role = discord.utils.find(lambda r: r.name.casefold().startswith(r_name), ctx.guild.roles)
+                if not found_role:
+                    if 3 <= len(r_name) <= 6:
+                        found_role = discord.utils.find(lambda r: LDist(r.name.casefold()[:len(r_name)], r_name) <= 1,
+                                                        ctx.guild.roles)
+                    elif 6 < len(r_name):
+                        found_role = discord.utils.find(lambda r: LDist(r.name.casefold()[:len(r_name)], r_name) <= 3,
+                                                        ctx.guild.roles)
+        return found_role
+
     @commands.command(aliases=['im'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     @commands.guild_only()
     async def iam(self, ctx, *, role_name):
         """Command used to self-assign a role. Type `;iam <role name>`. Type `;lsar` to see the list of roles.
+
+        You can also just type the beginning of a role name and it will find it. You can also slightly misspel it.
 
         Example: `;iam English`"""
         if not ctx.guild:
@@ -1955,27 +1976,28 @@ class General(commands.Cog):
         if str(ctx.guild.id) not in self.bot.db['SAR']:
             return
         config = self.bot.db['SAR'][str(ctx.guild.id)]
-        desired_role = discord.utils.find(lambda role: role.name.casefold() == role_name.casefold(), ctx.guild.roles)
-        if not desired_role:
+        role_name = role_name.casefold()
+        found_role = self.iam_find_role(ctx, role_name)
+        if not found_role:
             await hf.safe_send(ctx,
-                               embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
+                               embed=hf.red_embed(f"**{str(ctx.author)}** No role found"))
             return
 
-        if desired_role in ctx.author.roles:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** "
+        if found_role in ctx.author.roles:
+            await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** "
                                                        f"You already have that role"))
             return
 
         for group in config:
             for role_id in config[group]:
-                if desired_role.id == role_id:
-                    await ctx.author.add_roles(desired_role)
+                if found_role.id == role_id:
+                    await ctx.author.add_roles(found_role)
                     await hf.safe_send(ctx, embed=hf.green_embed(
-                        f"**{ctx.author.name}#{ctx.author.discriminator}** You now have"
-                        f" the **{desired_role.name}** role."))
+                        f"**{str(ctx.author)}** You now have"
+                        f" the **{found_role.name}** role."))
                     return
 
-    @commands.command(aliases=['iamn'])
+    @commands.command(aliases=['iamn', '!iam'])
     @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
     async def iamnot(self, ctx, *, role_name):
@@ -1984,28 +2006,28 @@ class General(commands.Cog):
             return
         config = self.bot.db['SAR'][str(ctx.guild.id)]
 
-        desired_role = discord.utils.find(lambda role: role.name.casefold() == role_name.casefold(), ctx.guild.roles)
-        if not desired_role:
+        found_role = self.iam_find_role(ctx, role_name)
+        if not found_role:
             await hf.safe_send(ctx,
-                               embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** No role found"))
+                               embed=hf.red_embed(f"**{str(ctx.author)}** No role found"))
             return
 
-        if desired_role not in ctx.author.roles:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** "
+        if found_role not in ctx.author.roles:
+            await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** "
                                                        f"You don't have that role"))
             return
 
         for group in config:
             for role_id in config[group]:
-                if desired_role.id == role_id:
-                    await ctx.author.remove_roles(desired_role)
+                if found_role.id == role_id:
+                    await ctx.author.remove_roles(found_role)
                     await hf.safe_send(ctx,
                                        embed=hf.green_embed(
-                                           f"**{ctx.author.name}#{ctx.author.discriminator}** You no longer have "
-                                           f"the **{desired_role.name}** role."))
+                                           f"**{str(ctx.author)}** You no longer have "
+                                           f"the **{found_role.name}** role."))
                     return
 
-        await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** That role is not "
+        await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** That role is not "
                                                    f"self-assignable."))
 
     @commands.command(aliases=['vmute', 'vm'])

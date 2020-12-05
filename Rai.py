@@ -46,6 +46,7 @@ class Rai(Bot):
         self.bg_task = self.loop.create_task(self.background_tasks())
         self.last_error = datetime.utcnow()
         self.num_of_errors = 0
+        self.language_detection = False
         print('starting loading of jsons')
         with open(f"{dir_path}/db.json", "r") as read_file1:
             read_file1.seek(0)
@@ -90,6 +91,8 @@ class Rai(Bot):
             #  self.waited = str(self.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
         self.selfMute = False
 
+        await hf.load_language_dection_model()
+        self.language_detection = True
 
         print("Bot loaded")
 

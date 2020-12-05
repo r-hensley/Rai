@@ -3,13 +3,18 @@ import asyncio
 import os
 import re
 from discord.ext import commands
-import json
+import json, csv
 import sys
 from datetime import datetime, timedelta
 from copy import copy, deepcopy
 import shutil
 from textblob import TextBlob as tb
 from functools import partial
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.feature_extraction.text import CountVectorizer
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -112,14 +117,6 @@ def green_embed(text):
 
 def red_embed(text):
     return discord.Embed(description=text, color=discord.Color(int('ff0000', 16)))
-
-
-def _predetect(text):
-    return tb(text).detect_language()
-
-
-async def detect_language(text):
-    return await _loop.run_in_executor(None, partial(_predetect, text))
 
 
 async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
@@ -518,3 +515,73 @@ async def uhc_check(msg):
                                     await long_deleted_msg_notification(msg)
     except AttributeError:
         pass
+
+
+def _pre_load_language_dection_model():
+    english = []
+    spanish = []
+    for csv_name in ['principiante.csv', 'avanzado.csv', 'beginner.csv', 'advanced.csv']:
+        with open(f"{dir_path}/cogs/utils/{csv_name}", newline='', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+            if csv_name in ['principiante.csv', 'avanzado.csv']:
+                for row in reader:
+                    spanish.append(row[2])
+            else:
+                for row in reader:
+                    english.append(row[2])
+
+    def make_set(english, spanish, pipeline=None):
+        if pipeline:
+            eng_pred = pipeline.predict(english)
+            sp_pred = pipeline.predict(spanish)
+            new_english = []
+            new_spanish = []
+            for i in range(len(english)):
+                if eng_pred[i] == 'en':
+                    new_english.append(english[i])
+            for i in range(len(spanish)):
+                if sp_pred[i] == 'sp':
+                    new_spanish.append(spanish[i])
+            spanish = new_spanish
+            english = new_english
+
+        x = np.array(english + spanish)
+        y = np.array(['en'] * len(english) + ['sp'] * len(spanish))
+
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.05, random_state=42)
+        cnt = CountVectorizer(analyzer='char', ngram_range=(2, 2))
+
+        pipeline = Pipeline([
+            ('vectorizer', cnt),
+            ('model', MultinomialNB())
+        ])
+
+        pipeline.fit(x_train, y_train)
+        # y_pred = pipeline.predict(x_test)
+
+        return pipeline
+
+    here.bot.langdetect = make_set(english, spanish, make_set(english, spanish, make_set(english, spanish)))
+
+
+def detect_language(text):
+    probs = here.bot.langdetect.predict_proba([text])[0]
+    if probs[0] > 0.9:
+        return 'en'
+    elif probs[0] < 0.1:
+        return 'es'
+    else:
+        return None
+
+
+async def load_language_dection_model():
+    await _loop.run_in_executor(None, _pre_load_language_dection_model)
+
+
+def _predetect(text):
+    return tb(text).detect_language()
+
+
+async def textblob_detect_language(text):
+    return await _loop.run_in_executor(None, partial(_predetect, text))
+
