@@ -1517,7 +1517,7 @@ class General(commands.Cog):
         stripped_msg = hf.rem_emoji_url(msg)
         if not stripped_msg:
             stripped_msg = ' '
-        if ctx.guild.id == 243838819743432704:
+        if ctx.guild.id in [243838819743432704, 759132637414817822]:
             probs = self.bot.langdetect.predict_proba([stripped_msg])[0]
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)
