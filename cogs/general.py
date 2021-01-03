@@ -134,6 +134,49 @@ class General(commands.Cog):
 
         ##########################################
 
+        "antispam"
+        async def antispam_check():
+            if str(msg.guild.id) in self.bot.db['antispam']:
+                config = self.bot.db['antispam'][str(msg.guild.id)]
+            else:
+                return
+            if not config['enable']:
+                return
+            if msg.channel.id in config['ignored']:
+                return
+            spam_count = 1
+
+            def check(m):
+                return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
+            while spam_count < config['message_threshhold']:
+                try:
+                    await self.bot.wait_for('message', timeout=config['time_threshhold'], check=check)
+                except asyncio.TimeoutError:
+                    return
+                else:
+                    spam_count += 1
+
+            reason = f"Antispam: Sent the message `{msg.content}` {config['message_threshhold']} " \
+                     f"times in {config['time_threshhold']} seconds."
+            if config['action'] == 'ban':
+                try:
+                    await msg.author.ban(reason=reason)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            elif config['action'] == 'kick':
+                try:
+                    await msg.author.kick(reason=reason)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            elif config['action'] == 'mute':
+                try:
+                    ctx = await self.bot.get_context(msg)
+                    ctx.author = self.bot.user
+                    await ctx.invoke(self.bot.get_command('mute'), str(msg.author.id), reason=reason)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+        await antispam_check()
+
         "automatic word filter"
         async def wordfilter():
             if not msg.guild.me.guild_permissions.ban_members:
@@ -170,6 +213,11 @@ class General(commands.Cog):
             cont = str(msg.content).casefold()
             if msg.author.bot or msg.author.id == 202995638860906496:
                 return
+            try:
+                if not msg.channel.permissions_for(msg.guild.get_member(202995638860906496)).read_messages:
+                    return  # I ain't trying to spy on people
+            except AttributeError:
+                pass
             for word in cont.casefold():
                 for ignored_word in ['http', ':']:
                     if ignored_word in word:
@@ -940,14 +988,14 @@ class General(commands.Cog):
             if type(result) == str:
                 return
             try:
-                chapter = f"https://loveheaven.net/{result['href']}"
+                chapter = f"https://lovehug.net{result['href']}"
             except TypeError:
                 raise
             if chapter == self.bot.db['lhscan'][url]['last']:
                 continue
             for user in self.bot.db['lhscan'][url]['subscribers']:
                 u = self.bot.get_user(user)
-                await hf.safe_send(u, f"New chapter: https://loveheaven.net/{result['href']}")
+                await hf.safe_send(u, f"New chapter: https://lovehug.net{result['href']}")
             self.bot.db['lhscan'][url]['last'] = chapter
 
     async def lhscan_get_chapter(self, url):
@@ -959,13 +1007,15 @@ class General(commands.Cog):
                         data = await resp.text()
         except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
             return f'invalid_url:  Your URL was invalid ({url})'
+        if str(r.url) != url:  # the page went down so it redirected to the home page
+            return f'invalid_url:  Your URL was invalid ({url})'
         if r.status != 200:
             try:
                 return f'html_error: Error {r.status_code}: {r.reason} ({url})'
             except AttributeError:
                 return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
-        return soup.find('a', attrs={'class': 'chapter'})
+        return soup.find('a', attrs={'title': re.compile("Chapter.*")})
 
     @commands.command()
     async def topic(self, ctx):
@@ -1108,7 +1158,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "The search failed to find a chapter")
             return
         if url not in self.bot.db['lhscan']:
-            self.bot.db['lhscan'][url] = {'last': f"https://loveheaven.net/{search['href']}",
+            self.bot.db['lhscan'][url] = {'last': f"https://lovehug.net{search['href']}",
                                           'subscribers': [ctx.author.id]}
         else:
             if ctx.author.id not in self.bot.db['lhscan'][url]['subscribers']:
@@ -1116,7 +1166,7 @@ class General(commands.Cog):
             else:
                 await hf.safe_send(ctx, "You're already subscribed to this manga.")
                 return
-        await hf.safe_send(ctx, f"The latest chapter is: https://loveheaven.net/{search['href']}\n\n"
+        await hf.safe_send(ctx, f"The latest chapter is: https://lovehug.net{search['href']}\n\n"
                                 f"I'll tell you next time a chapter is uploaded.")
 
     @lhscan.command(name='remove')
@@ -1893,6 +1943,25 @@ class General(commands.Cog):
             #     ####### Add the role #######
             subbed_roles.append(role_selection)
             await hf.safe_send(ctx, "I've added you to the subscriptions for that role. I'll ping you for that server.")
+
+    @global_blacklist.command(name="ignore")
+    @blacklist_check()
+    async def blacklist_ignore(self, ctx, user_id):
+        """Types ;gbl ignore <id> to remove a user from (or add back to) all future logging in the bans channel.
+        Use this for test accounts, alt accounts, etc."""
+        try:
+            user_id = int(user_id)
+            if not (17 < len(str(user_id)) < 22):
+                raise ValueError
+        except ValueError:
+            await hf.safe_send(ctx, "Please input a valid ID.")
+            return
+        if user_id in self.bot.db['bansub']['ignore']:
+            self.bot.db['bansub']['ignore'].remove(user_id)
+            await hf.safe_send(ctx, embed=hf.red_embed("I've removed that user from the ignore list."))
+        else:
+            self.bot.db['bansub']['ignore'].append(user_id)
+            await hf.safe_send(ctx, embed=hf.green_embed("I've added that user to the ignore list for ban logging."))
 
     @commands.command()
     @commands.guild_only()
