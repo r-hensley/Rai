@@ -1484,7 +1484,7 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(guild_config["channel"])
                 await hf.safe_send(channel, embed=ban_emb)
 
-            if 'crosspost' in guild_config:
+            if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
                         (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
@@ -1550,7 +1550,7 @@ class Logger(commands.Cog):
                         emb = crosspost_msg.embeds[0]
                         emb.color = 0xFFFFFE  # for some reason, FFFFFF defaults to black, and FFFFFE is fine
                         emb.description.replace('\n', '~~\n')
-                        emb.description = f"UNBANNED {datetime.utcnow().strftime('%d/%m/%y %H:%M:%S UTC')}\n" \
+                        emb.description = f"UNBANNED {datetime.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')}\n" \
                                           f"~~{emb.description}~~"
                         await crosspost_msg.edit(embed=emb)
 

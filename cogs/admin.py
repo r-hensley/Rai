@@ -2198,5 +2198,151 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find that filter. Please start over and try again."),
                                delete_after=10.0)
 
+    @commands.group(invoke_without_command=True, aliases=['antiraid'])
+    @commands.bot_has_permissions(embed_links=True, ban_members=True)
+    async def antispam(self, ctx):
+        """Opens configuation menu for the antispam/antiraid module."""
+        config = self.bot.db['antispam'].setdefault(str(ctx.guild.id), {'enable': False, 'action': None,
+                                                                        'message_threshhold': None,
+                                                                        'time_threshhold': None,
+                                                                        'ignored': []})
+        if config['enable']:
+            settings = f"**The current settings are as follows:\n" \
+                       f"    - Message threshhold: {config['message_threshhold']}\n" \
+                       f"    - Time threshhold (seconds): {config['time_threshhold']}\n" \
+                       f"    - Punishment: {config['action']}**"
+        else:
+            settings = "The antispam module is currently disabled."
+        emb = discord.Embed(title="Configuration for the antispam module. Please type an option.",
+                            description="1) Enable or disable the module.\n"
+                                        "2) Change settings\n"
+                                        "3) Ignore/unignore a channel\n"
+                                        "4) View list of ignored channels\n"
+                                        "5) Exit this menu\n\n"
+                                        f"{settings}")
+        try:
+            resp, menu = await self.wait_menu(ctx, None, emb, ['1', '2', '3', '4', '5'])
+        except asyncio.TimeoutError:
+            return  # Notification is handled in wait_menu function
+
+        if resp == '1':
+            await self.antispam_toggle(ctx, menu, config)
+        elif resp == '2':
+            await self.antispam_settings(ctx, menu, config)
+        elif resp == '3':
+            await menu.edit(embed=hf.green_embed("Which channel do you wish to ignore? Please mention the channel."))
+            try:
+                msg = await self.bot.wait_for('message',
+                                              timeout=60.0,
+                                              check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
+            except asyncio.TimeoutError:
+                try:
+                    await menu.delete()
+                except (discord.NotFound, discord.Forbidden):
+                    pass
+                await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+                return
+            await menu.delete()
+            await self.antispam_ignore(ctx, msg.content)
+        elif resp == '4':
+            await self.antispam_list(ctx)
+        elif resp == '5':
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "I've closed the module.", delete_after=10.0)
+        else:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
+
+    async def antispam_toggle(self, ctx, menu, config):
+        if config['enable']:
+            config['enable'] = False
+            await menu.edit(embed=hf.red_embed("The antispam module has been disabled."))
+        else:
+            await self.antispam_settings(ctx, menu, config)
+
+    async def antispam_settings(self, ctx, menu, config):
+        await menu.edit(embed=hf.green_embed("`I should [ban/kick/mute] users who spam the same message [x] times "
+                                             "in [y] seconds.`\n"
+                                             "Please fill in the three blanks\n"
+                                             "(example: `mute 5 10`)"))
+        try:
+            msg = await self.bot.wait_for('message',
+                                          timeout=60.0,
+                                          check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
+        except asyncio.TimeoutError:
+            try:
+                await menu.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            return
+        if len(msg.content.split()) != 3:
+            await hf.safe_send(ctx, "Invalid options given. Please start over the command and give three answers "
+                                    "in one message.")
+            return
+        choices = msg.content.split()
+        if choices[0].casefold() not in ['ban', 'kick', 'mute']:
+            await hf.safe_send(ctx, "Your choice for the punishment was not one of either `ban`, `kick`, or `mute`. "
+                                    "Please start over the command and try again.")
+            return
+        try:
+            message_threshhold = int(choices[1])
+            time_threshhold = int(choices[2])
+        except ValueError:
+            await hf.safe_send(ctx, "Your choice for either the message or time threshhold was not a number. Please "
+                                    "start over the command and try again.")
+            return
+        self.bot.db['antispam'][str(ctx.guild.id)]['enable'] = True
+        self.bot.db['antispam'][str(ctx.guild.id)]['action'] = choices[0]
+        self.bot.db['antispam'][str(ctx.guild.id)]['message_threshhold'] = message_threshhold
+        self.bot.db['antispam'][str(ctx.guild.id)]['time_threshhold'] = time_threshhold
+        await menu.edit(embed=hf.green_embed("Antispam has been configured!"), delete_after=10.0)
+
+    @antispam.command(name='ignore')
+    async def antispam_ignore(self, ctx, channel):
+        """Ignores a channel from antispam.
+
+        Usage: `;antispam ignore #channel_name`"""
+        channel_id = int(re.search("<#(\d{17,22})>", channel).group(1))
+        if not channel_id or not self.bot.get_channel(channel_id):
+            await hf.safe_send(ctx, "Please mention a valid channel.")
+            return
+
+        if not self.bot.db['antispam'].get(str(ctx.guild.id), {}).get('enable', None):
+            await hf.safe_send(ctx, "This guild does not have antispam enabled")
+            return
+
+        config = self.bot.db['antispam'].get(str(ctx.guild.id))
+        if channel_id in config['ignored']:
+            config['ignored'].remove(channel_id)
+            await hf.safe_send(ctx, "That channel is no longer ignored.")
+        else:
+            config['ignored'].append(channel_id)
+            await hf.safe_send(ctx, "That channel will be ignored in the future.")
+
+    @antispam.command(name='list')
+    async def antispam_list(self, ctx):
+        """Lists ignored channels for antispam"""
+        if not self.bot.db['antispam'].get(str(ctx.guild.id), {}).get('enable', None):
+            await hf.safe_send(ctx, "This guild does not have antispam enabled")
+            return
+
+        config = self.bot.db['antispam'].get(str(ctx.guild.id))
+        channels = "The list of ignored channels is:\n"
+        for i in config['ignored']:
+            channel = self.bot.get_channel(i)
+            if not channel:
+                config['ignored'].remove(i)
+                continue
+            channels += f"{channel.mention}\n"
+        await hf.safe_send(ctx, channels)
+
+
 def setup(bot):
     bot.add_cog(Admin(bot))

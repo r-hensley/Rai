@@ -404,17 +404,29 @@ class Stats(commands.Cog):
 
     @commands.command(aliases=['emojis', 'emoji'])
     @commands.bot_has_permissions(embed_links=True)
-    @commands.cooldown(3, 120, commands.BucketType.user)
+    @commands.cooldown(3, 5, commands.BucketType.user)
     async def emotes(self, ctx, args=None):
-        """Shows top emojis usage of the server.  Type `;emojis` to display top 25, and type `;emojis -a` to show all \
-        emojis. Type `;emojis -l` to show least used emojis. Type `;emojis -s` to scale emoji data to 30 days for \
-        emojis not 30 days old yet."""
+        """Shows top emojis usage of the server.
+        `;emojis` - Displays the top 25
+        `;emojis -a` - Shows usage stats on all emojis
+        `;emojis -l` - Shows least used emojis.
+        `;emojis -s` - Same as `-a` but it scales the usage of emojis created in the last 30 days
+        `;emojis -me` - Shows only your emoji stats"""
         if str(ctx.guild.id) not in self.bot.stats:
             return
         config = self.bot.stats[str(ctx.guild.id)]['messages']
         emojis = {}
+
+        if args == '-me':
+            me = True
+        else:
+            me = False
+
         for date in config:
             for user_id in config[date]:
+                if me:
+                    if int(user_id) != ctx.author.id:
+                        continue
                 if 'emoji' not in config[date][user_id]:
                     continue
                 for emoji in config[date][user_id]['emoji']:
@@ -440,7 +452,6 @@ class Stats(commands.Cog):
         top_emojis = sorted(list(emojis.items()), key=lambda x: x[1], reverse=True)
 
         saved_msgs = []
-        fields_count = 0
 
         if args == '-a':
             for emoji in top_emojis:
@@ -518,12 +529,13 @@ class Stats(commands.Cog):
 
         else:
             emb = hf.green_embed("Most Used Emojis (last 30 days)")
+            field_counter = 0
             for emoji in top_emojis:
-                if fields_count < 25:
+                if field_counter < 25:
                     if emoji[0] in emoji_dict:
                         emoji_obj = emoji_dict[emoji[0]]
-                        emb.add_field(name=f"{fields_count + 1}) {str(emoji_obj)}", value=emoji[1])
-                        fields_count += 1
+                        emb.add_field(name=f"{field_counter + 1}) {str(emoji_obj)}", value=emoji[1])
+                        field_counter += 1
                 else:
                     break
             await hf.safe_send(ctx, embed=emb)
