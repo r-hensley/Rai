@@ -494,6 +494,17 @@ class Questions(commands.Cog):
             return
         args = args.split(' ')
 
+        if len(args) == 2:  # in case someone accidentally writes ;q 1 a instead of ;q a 1
+            try:
+                index = int(args[0])
+                if args[1] != 'a':
+                    raise ValueError
+            except ValueError:
+                pass
+            else:
+                await ctx.invoke(self.answer, args=args[0])
+                return
+
         try:  # there is definitely some text in the arguments
             target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
             await ctx.message.add_reaction('⤴')
