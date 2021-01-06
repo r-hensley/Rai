@@ -156,7 +156,7 @@ class General(commands.Cog):
                 else:
                     spam_count += 1
 
-            reason = f"Antispam: Sent the message `{msg.content}` {config['message_threshhold']} " \
+            reason = f"Antispam: Sent the message `{msg.content[:400]}` {config['message_threshhold']} " \
                      f"times in {config['time_threshhold']} seconds."
             if config['action'] == 'ban':
                 try:
@@ -172,7 +172,13 @@ class General(commands.Cog):
                 try:
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
-                    await ctx.invoke(self.bot.get_command('mute'), str(msg.author.id), reason=reason)
+                    await ctx.invoke(self.bot.get_command('mute'), '1h', str(msg.author.id), reason=reason)
+                    if str(msg.guild.id) in self.bot.db['mod_channel']:
+                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+                        if mod_channel:
+                            await hf.safe_send(mod_channel,
+                                               embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
+                                                                  f"[Jump URL]({msg.jump_url})"))
                 except (discord.Forbidden, discord.HTTPException):
                     pass
         await antispam_check()
