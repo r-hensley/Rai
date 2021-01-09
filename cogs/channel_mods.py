@@ -130,10 +130,10 @@ class ChannelMods(commands.Cog):
             if msg.embeds:
                 for embed in msg.embeds:
                     embeds.append(embed)
-                    emb.add_field(name=f"Embed deleted [Jump URL]({jump_url})", value="Content shown below")
+                    emb.add_field(name=f"Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
             if msg.content:
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
-                              value=f"{msg.content}"[:1009 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
+                              value=f"{msg.content}"[:1008 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
             if msg.content[1009:]:
                 emb.add_field(name=f"continued", value=f"...{msg.content[1009-len(jump_url):len(jump_url)+1024]}")
             if msg.attachments:
