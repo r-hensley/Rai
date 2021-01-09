@@ -1866,7 +1866,7 @@ class General(commands.Cog):
         # a list of which server IDs a user is subscribed to
         guild = self.bot.get_guild(MODCHAT_SERVER_ID)
         subbed_roles: list = self.bot.db['bansub']['user_to_role'].setdefault(str(ctx.author.id), [])
-        user_role_ids = [role.id for role in ctx.author.roles if str(role.color) == "#206694"]  # only want blue roles
+        user_role_ids = [role.id for role in ctx.author.roles if str(role.color) == "#3498db"]  # only want blue roles
         selection_dictionary = {}  # for later when the user selects a role to toggle
         guild_id_to_role: dict = self.bot.db['bansub']['guild_to_role']  # links a guild ID to the corresponding role
         role_to_guild_id = {guild_id_to_role[a]: a for a in guild_id_to_role}  # reverses the dictionary
