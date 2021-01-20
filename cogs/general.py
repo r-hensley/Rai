@@ -22,6 +22,7 @@ BANS_CHANNEL_ID = 329576845949534208
 MODERATING_CHANNEL_ID = 257990571103223809
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
+TRACEBACKS_CHAN = 554572239836545074
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
 CH_SERVER_ID = 266695661670367232
@@ -988,23 +989,25 @@ class General(commands.Cog):
                     del config['voice']['total_time'][day]
 
     @commands.command(hidden=True)
-    async def _check_lhscan(self, ctx):
-        for url in self.bot.db['lhscan']:
-            result = await self.lhscan_get_chapter(url)
+    async def _check_lovehug(self, ctx):
+        for url in self.bot.db['lovehug']:
+            result = await self.lovehug_get_chapter(url)
             if type(result) == str:
-                return
+                if 'invalid_url' in result:
+                    await hf.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
+                continue
             try:
                 chapter = f"https://lovehug.net{result['href']}"
             except TypeError:
                 raise
-            if chapter == self.bot.db['lhscan'][url]['last']:
+            if chapter == self.bot.db['lovehug'][url]['last']:
                 continue
-            for user in self.bot.db['lhscan'][url]['subscribers']:
+            for user in self.bot.db['lovehug'][url]['subscribers']:
                 u = self.bot.get_user(user)
                 await hf.safe_send(u, f"New chapter: https://lovehug.net{result['href']}")
-            self.bot.db['lhscan'][url]['last'] = chapter
+            self.bot.db['lovehug'][url]['last'] = chapter
 
-    async def lhscan_get_chapter(self, url):
+    async def lovehug_get_chapter(self, url):
         try:
             with async_timeout.timeout(10):
                 async with aiohttp.ClientSession() as session:
@@ -1145,14 +1148,14 @@ class General(commands.Cog):
             await hf.safe_send(ctx, string)
 
     @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
-    async def lhscan(self, ctx, url=None):
-        """A command group for subscribing to LHScan mangas."""
-        await ctx.invoke(self.lhscan_add, url)
+    async def lovehug(self, ctx, url=None):
+        """A command group for subscribing to lovehug mangas."""
+        await ctx.invoke(self.lovehug_add, url)
 
-    @lhscan.command(name='add')
-    async def lhscan_add(self, ctx, url):
+    @lovehug.command(name='add')
+    async def lovehug_add(self, ctx, url):
         """Adds a URL to your subscriptions."""
-        search = await self.lhscan_get_chapter(url)
+        search = await self.lovehug_get_chapter(url)
         if isinstance(search, str):
             if search.startswith('html_error'):
                 await hf.safe_send(ctx, search)
@@ -1163,40 +1166,40 @@ class General(commands.Cog):
         if not search:
             await hf.safe_send(ctx, "The search failed to find a chapter")
             return
-        if url not in self.bot.db['lhscan']:
-            self.bot.db['lhscan'][url] = {'last': f"https://lovehug.net{search['href']}",
+        if url not in self.bot.db['lovehug']:
+            self.bot.db['lovehug'][url] = {'last': f"https://lovehug.net{search['href']}",
                                           'subscribers': [ctx.author.id]}
         else:
-            if ctx.author.id not in self.bot.db['lhscan'][url]['subscribers']:
-                self.bot.db['lhscan'][url]['subscribers'].append(ctx.author.id)
+            if ctx.author.id not in self.bot.db['lovehug'][url]['subscribers']:
+                self.bot.db['lovehug'][url]['subscribers'].append(ctx.author.id)
             else:
                 await hf.safe_send(ctx, "You're already subscribed to this manga.")
                 return
         await hf.safe_send(ctx, f"The latest chapter is: https://lovehug.net{search['href']}\n\n"
                                 f"I'll tell you next time a chapter is uploaded.")
 
-    @lhscan.command(name='remove')
-    async def lhscan_remove(self, ctx, url):
+    @lovehug.command(name='remove')
+    async def lovehug_remove(self, ctx, url):
         """Unsubscribes you from a manga. Input the URL: `;lh remove <url>`."""
-        if url not in self.bot.db['lhscan']:
+        if url not in self.bot.db['lovehug']:
             await hf.safe_send(ctx, "No one is subscribed to that manga. Check your URL.")
             return
         else:
-            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
-                self.bot.db['lhscan'][url]['subscribers'].remove(ctx.author.id)
+            if ctx.author.id in self.bot.db['lovehug'][url]['subscribers']:
+                self.bot.db['lovehug'][url]['subscribers'].remove(ctx.author.id)
                 await hf.safe_send(ctx, "You've been unsubscribed from that manga.")
-                if len(self.bot.db['lhscan'][url]['subscribers']) == 0:
-                    del self.bot.db['lhscan'][url]
+                if len(self.bot.db['lovehug'][url]['subscribers']) == 0:
+                    del self.bot.db['lovehug'][url]
             else:
                 await hf.safe_send("You're not subscribed to that manga.")
                 return
 
-    @lhscan.command(name='list')
-    async def lhscan_list(self, ctx):
+    @lovehug.command(name='list')
+    async def lovehug_list(self, ctx):
         """Lists the manga you subscribed to."""
         subscriptions = []
-        for url in self.bot.db['lhscan']:
-            if ctx.author.id in self.bot.db['lhscan'][url]['subscribers']:
+        for url in self.bot.db['lovehug']:
+            if ctx.author.id in self.bot.db['lovehug'][url]['subscribers']:
                 subscriptions.append(f"<{url}>")
         subs_list = '\n'.join(subscriptions)
         if subscriptions:
