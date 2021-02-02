@@ -1032,6 +1032,10 @@ class Questions(commands.Cog):
         `-handbook`, `-donnatoki`).
         """
 
+        if not search:
+            await hf.safe_send(ctx, "You have to input a search term!")
+            return
+
         dictionaries = {"dojg/dojgpages/basic": "A Dictionary of Basic Japanese Grammar",
                         "basic": "A Dictionary of Basic Japanese Grammar",
                         "dojg/dojgpages/intermediate": "A Dictionary of Intermediate Japanese Grammar",

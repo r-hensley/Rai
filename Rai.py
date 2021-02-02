@@ -132,9 +132,9 @@ class Rai(Bot):
                     await ctx.invoke(self.get_command("_check_desync_voice"))
                 if counter % 250 == 0:
                     try:
-                        await ctx.invoke(self.get_command("_check_lhscan"))
+                        await ctx.invoke(self.get_command("_check_lovehug"))
                     except asyncio.TimeoutError:
-                        await self.get_channel(554572239836545074).send("Timeout in LH Scan command")
+                        await self.get_channel(554572239836545074).send("Timeout in lovehug command")
                 await asyncio.sleep(60)
         except Exception as error:
             error = getattr(error, 'original', error)
@@ -144,7 +144,12 @@ class Rai(Bot):
             channel = self.get_channel(554572239836545074)
             exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
             traceback_text = f'```py\n{exc}\n```'
-            await channel.send(f'<@202995638860906496> Error in background task:\n{traceback_text}')
+            message = f'<@202995638860906496> Error in background task:\n{traceback_text}'
+            if len(message) < 2000:
+                await channel.send(message)
+            else:
+                await channel.send(message[:2000])
+                await channel.send(message[2000:4000])
             self.num_of_errors += 1
             if (datetime.utcnow() - self.last_error).seconds > 5 and self.num_of_errors < 20:
                 self.last_error = datetime.utcnow()

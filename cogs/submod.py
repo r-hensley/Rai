@@ -213,8 +213,9 @@ class Submod(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     @hf.is_submod()
-    async def mute(self, ctx, time, member=None, *, reason=None):
+    async def mute(self, ctx, *args):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
+        args = list(args)
 
         async def set_channel_overrides(role):
             failed_channels = []
@@ -248,15 +249,35 @@ class Submod(commands.Cog):
             role = ctx.guild.get_role(config['role'])
             await set_channel_overrides(role)
 
-        time_string, length = hf.parse_time(str(time))
-        if not time_string:  # indefinite mute
-            if not reason:
-                reason = ''
-            if member:
-                reason = f"{member} {reason}"
-            member = time
-            time = None
+        re_result = None
+        time_string: str = None
+        target: discord.Member = None
+        time: str = None
+        new_args = args.copy()
+        for arg in args:
+            if not re_result:
+                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
+                if re_result:
+                    user_id = int(re_result.group(1))
+                    target = ctx.guild.get_member(user_id)
+                    new_args.remove(arg)
+                    continue
 
+            if not time_string:
+                time_string, length = hf.parse_time(arg)  # time_string = "%Y/%m/%d %H:%M UTC"
+                if time_string:  # length = a list: [days, hours]
+                    time = arg
+                    new_args.remove(arg)
+                    continue
+
+        args = new_args
+
+        if not target:
+            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
+                                    "or a mention to the user (this is to prevent mistaking people).")
+            return
+
+        reason = ' '.join(args)
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
@@ -264,17 +285,6 @@ class Submod(commands.Cog):
                     await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
                 reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
                 silent = True
-
-        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)
-        if re_result:
-            id = int(re_result.group(1))
-            target = ctx.guild.get_member(id)
-        else:
-            target = None
-        if not target:
-            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
-                                    "a mention to the user (this is to prevent mistaking people).")
-            return
 
         if role in target.roles:
             await hf.safe_send(ctx, "This user is already muted (already has the mute role)")

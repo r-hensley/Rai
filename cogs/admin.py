@@ -331,9 +331,16 @@ class Admin(commands.Cog):
             config[str(ctx.guild.id)] = {'enable': True}
         value = config[str(ctx.guild.id)]['enable']
         if value:
-            await ctx.send("Rai will now only respond to commands from mods.  Type `;modsonly` again to disable this.")
+            try:
+                await ctx.send("Rai will now only respond to commands from mods. "
+                               "Type `;modsonly` again to disable this.")
+            except discord.Forbidden:
+                pass
         else:
-            await ctx.send("Rai will now respond to all users.")
+            try:
+                await ctx.send("Rai will now respond to all users.")
+            except discord.Forbidden:
+                pass
 
     @commands.command(hidden=True)
     async def crosspost(self, ctx):

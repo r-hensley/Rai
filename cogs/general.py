@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from datetime import datetime, timedelta, date
 from .utils import helper_functions as hf
 import re
@@ -53,13 +53,20 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
+        self.check_rawmangas.start()
         hf.setup(bot)
+
+    def cog_unload(self):
+        self.check_rawmangas.cancel()
 
     @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot:
             if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
                 return
+
+        if not self.bot.is_ready:
+            return
 
         """BurdBot's window to open questions in #audio_of_the_week"""
         async def burdbot_window():
@@ -996,6 +1003,8 @@ class General(commands.Cog):
                 if 'invalid_url' in result:
                     await hf.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
                 continue
+            if not result:
+                return
             try:
                 chapter = f"https://lovehug.net{result['href']}"
             except TypeError:
@@ -1026,6 +1035,21 @@ class General(commands.Cog):
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'title': re.compile("Chapter.*")})
 
+    @tasks.loop(hours=1.0)
+    async def check_rawmangas(self):
+        spamchan = self.bot.get_channel(RYRY_SPAM_CHAN)
+        time = datetime.utcnow()
+        config = self.bot.db['rawmangas']
+        for manga in config:
+            if time.weekday() != config[manga]['update']:
+                continue
+            if not 20 < time.hour < 21:
+                continue
+            for user_id in config[manga]['subscribers']:
+                user = self.bot.get_user(user_id)
+                await hf.safe_send(user, f"New manga chapter possibly: {manga}/{str(int(config[manga]['last'])+1)}")
+            config[manga]['last'] += 1
+
     @commands.command()
     async def topic(self, ctx):
         """Provides a random conversation topic.
@@ -1036,7 +1060,10 @@ class General(commands.Cog):
         topic = choice(topics)
         while topic.startswith('#'):
             topic = choice(topics)
-        await hf.safe_send(ctx, topic)
+        try:
+            await hf.safe_send(ctx, topic)
+        except discord.Forbidden:
+            pass
 
     @commands.command()
     @commands.is_owner()
@@ -1417,7 +1444,10 @@ class General(commands.Cog):
 
         assignable_role = self.reactionroles_get_role(payload, guild)
         if assignable_role:
-            await user.add_roles(assignable_role)
+            try:
+                await user.add_roles(assignable_role)
+            except discord.Forbidden:
+                pass
 
         if not user:
             return
@@ -1490,7 +1520,10 @@ class General(commands.Cog):
 
         assignable_role = self.reactionroles_get_role(payload, guild)
         if assignable_role:
-            await user.remove_roles(assignable_role)
+            try:
+                await user.remove_roles(assignable_role)
+            except discord.Forbidden:
+                pass
 
         if server:
             if user.bot:
@@ -1787,7 +1820,10 @@ class General(commands.Cog):
                     user_obj = None
 
             async def post_vote_notification(target_user, reason):
-                await ctx.message.add_reaction('✅')
+                try:
+                    await ctx.message.add_reaction('✅')
+                except discord.Forbidden:
+                    await ctx.send("User added to blacklist ✅")
                 if not target_user:
                     target_user = ''
                 emb = discord.Embed(title=f"{user} {target_user} (1 vote)", color=discord.Color(int('ffff00', 16)))

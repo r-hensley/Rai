@@ -45,6 +45,8 @@ class ChannelMods(commands.Cog):
                 return True
             if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
                 return True
+            if ctx.command.name == "staffping" and ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
+                return True
         else:
             return True
         if ctx.command.name == 'role':
@@ -316,7 +318,6 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "I've given you the staff role.")
 
     @commands.command()
-    @commands.check(any_channel_mod_check)
     async def staffping(self, ctx):
         """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
         subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]
