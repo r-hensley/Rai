@@ -158,15 +158,15 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
 
 
 def parse_time(time):
-    time_re = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', time)
+    time_re = re.search('(\d+d\d+h)|(\d+d)|(\d+h)', time)
     if time_re:
-        if re.findall('^\d+d\d+h$', time):  # format: #d#h
-            length = time_re[0][:-1].split('d')
+        if time_re.group(1):  # format: #d#h
+            length = time_re.group(1)[:-1].split('d')
             length = [length[0], length[1]]
-        elif re.findall('^\d+d$', time):  # format: #d
-            length = [time_re[0][:-1], '0']
+        elif time_re.group(2):  # format: #d
+            length = [time_re.group(2)[:-1], '0']
         else:  # format: #h
-            length = ['0', time_re[0][:-1]]
+            length = ['0', time_re.group(3)[:-1]]
     else:
         return False, False
     finish_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
