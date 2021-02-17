@@ -1006,14 +1006,14 @@ class General(commands.Cog):
             if not result:
                 return
             try:
-                chapter = f"https://lovehug.net{result['href']}"
+                chapter = f"{url}{result['href']}"
             except TypeError:
                 raise
             if chapter == self.bot.db['lovehug'][url]['last']:
                 continue
             for user in self.bot.db['lovehug'][url]['subscribers']:
                 u = self.bot.get_user(user)
-                await hf.safe_send(u, f"New chapter: https://lovehug.net{result['href']}")
+                await hf.safe_send(u, f"New chapter: {url}{result['href']}")
             self.bot.db['lovehug'][url]['last'] = chapter
 
     async def lovehug_get_chapter(self, url):
@@ -1194,7 +1194,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "The search failed to find a chapter")
             return
         if url not in self.bot.db['lovehug']:
-            self.bot.db['lovehug'][url] = {'last': f"https://lovehug.net{search['href']}",
+            self.bot.db['lovehug'][url] = {'last': f"{url}{search['href']}",
                                           'subscribers': [ctx.author.id]}
         else:
             if ctx.author.id not in self.bot.db['lovehug'][url]['subscribers']:
@@ -1202,7 +1202,7 @@ class General(commands.Cog):
             else:
                 await hf.safe_send(ctx, "You're already subscribed to this manga.")
                 return
-        await hf.safe_send(ctx, f"The latest chapter is: https://lovehug.net{search['href']}\n\n"
+        await hf.safe_send(ctx, f"The latest chapter is: {url}{search['href']}\n\n"
                                 f"I'll tell you next time a chapter is uploaded.")
 
     @lovehug.command(name='remove')
@@ -2316,6 +2316,12 @@ class General(commands.Cog):
 
         For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
         to end people asking for it."""
+        if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
+            await hf.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
+                                    "but Rai currently lacks the `Manage Messages` permission, so you can't use this "
+                                    "command.")
+            return
+
         try:
             time = int(time)
         except (ValueError, TypeError):
