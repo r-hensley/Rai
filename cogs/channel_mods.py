@@ -462,15 +462,15 @@ class ChannelMods(commands.Cog):
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
         member = await hf.member_converter(ctx, id)
         if member:
-            name = f"{member.name}#{member.discriminator} ({member.id})"
+            username = f"{member.name}#{member.discriminator} ({member.id})"
             user_id = str(member.id)
         else:
             try:
                 user = await self.bot.fetch_user(int(id))
-                name = f"{user.name}#{user.discriminator} ({user.id})"
+                username = f"{user.name}#{user.discriminator} ({user.id})"
                 user_id = id
             except discord.NotFound:
-                name = user_id = id
+                username = user_id = id
             except discord.HTTPException:
                 await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
@@ -479,13 +479,14 @@ class ChannelMods(commands.Cog):
                                         "use an ID")
                 return
         if user_id not in config:
-            em = hf.red_embed(f"{name} was not found in the modlog.")
+            em = hf.red_embed(f"{username} was not found in the modlog.")
             await hf.safe_send(ctx, embed=em)
             return
         config = config[user_id]
-        emb = hf.green_embed(f"Modlog for {name}")
+        emb = hf.green_embed(f"Modlog for {username}")
         list_length = len(config[-25:])  # this is to prevent the invisible character on the last entry
         index = 1
+        first_embed = None  # only to be used if the first embed goes over 6000 characters
         for entry in config[-25:]:
             name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
@@ -500,10 +501,17 @@ class ChannelMods(commands.Cog):
             if index < list_length:
                 value += "⠀"  # invisible character to guarantee the empty new line
                 index += 1
-            emb.add_field(name=name,
-                          value=value[:1024],
-                          inline=False)
-        await hf.safe_send(ctx, embed=emb)
+
+            first_embed = None
+            if (len(emb) + len(name) + len(value[:1024])) > 6000:
+                first_embed = emb
+                emb = hf.green_embed(f"Modlog for {username} (part 2)")
+
+            emb.add_field(name=name, value=value[:1024], inline=False)
+
+            if first_embed:
+                await hf.safe_send(ctx, embed=first_embed)
+            await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
