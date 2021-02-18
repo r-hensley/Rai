@@ -397,19 +397,19 @@ class General(commands.Cog):
         """spanish server welcome channel module"""
         async def smart_welcome(msg):
             if msg.channel.id == SP_SERVER_ID:
-                content = re.sub('> .*\n', '', msg.content.casefold())
-                content = content.translate(str.maketrans('', '', string.punctuation))
+                content = re.sub('> .*\n', '', msg.content.casefold())  # remove quotes in case the user quotes bot
+                content = content.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
                 for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
                     if content == word:
-                        return
+                        return  # ignore messages that are just these single words
                 if msg.content == '<@270366726737231884>':  # ping to Rai
-                    return
+                    return  # ignore pings to Rai
                 english_role = msg.guild.get_role(243853718758359040)
                 spanish_role = msg.guild.get_role(243854128424550401)
                 other_role = msg.guild.get_role(247020385730691073)
                 for role in [english_role, spanish_role, other_role]:
                     if role in msg.author.roles:
-                        return
+                        return  # ignore messages by users with tags already
                 if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
                     return
 
@@ -419,38 +419,39 @@ class General(commands.Cog):
                          'brazil', 'portuguesa', 'brazilian']
                 both = ['both', 'ambos', 'los dos']
                 txt1 = ''
-                bools = [0, 0, 0, 0]  # eng, sp, other, both
+                language_score = {'english': 0, 'spanish': 0, 'other': 0, 'both': 0}  # eng, sp, other, both
                 split = content.split()
 
                 def check_language(language, index):
-                    skip_next_word = False
-                    for language_word in language:
-                        for content_word in split:
+                    skip_next_word = False  # just defining the variable
+                    for language_word in language:  # language = one of the four word lists above
+                        for content_word in split:  # content_word = the words in their message
                             if len(content_word) <= 3:
-                                continue
+                                continue  # skip words three letters or less
                             if content_word in ['there']:
-                                continue
-                            if skip_next_word:
-                                skip_next_word = False
-                                continue
+                                continue  # this triggers the word "other" so I skip it
+                            if skip_next_word:  # if i marked this true from a previous loop...
+                                skip_next_word = False  # ...first, reset it to false...
+                                continue  # then skip this word
                             if content_word.startswith("learn") or content_word.startswith('aprend') \
                                     or content_word.startswith('estud') or content_word.startswith('stud') or \
                                     content_word.startswith('fluent'):
-                                skip_next_word = True
-                                continue
+                                skip_next_word = True  # if they say any of these words, skip the *next* word
+                                continue  # example: "I'm learning English, but native Spanish", skip "English"
                             if LDist(language_word, content_word) < 3:
-                                bools[index] += 1
+                                language_score[language[0]] += 1
 
-                check_language(english, 0)
+                check_language(english, 0)  # run the function I just defined four times, once for each of these lists
                 check_language(spanish, 1)
                 check_language(other, 2)
                 check_language(both, 3)
 
-                bool_results = 0
-                for language_bool in bools:
-                    if language_bool:
-                        bool_results += 1
-                if bool_results != 1:
+                num_of_hits = 0
+                for lang in language_score:
+                    if language_score[lang]:  # will add 1 if there's any value in that dictionary entry
+                        num_of_hits += 1  # so "english spanish" gives 2, but "english english" gives 1
+
+                if num_of_hits != 1:  # the bot found more than one language statement in their message, so ask again
                     await msg.channel.send(f"{msg.author.mention}\n"
                                            f"Hello! Welcome to the server!          Is your **native language**: "
                                            f"__English__, __Spanish__, __both__, or __neither__?\n"
@@ -461,16 +462,16 @@ class General(commands.Cog):
                 if msg.content.startswith(';') or msg.content.startswith('.'):
                     return
 
-                if bools[0]:
+                if language_score['english']:
                     txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
                     await msg.author.add_roles(english_role)
-                if bools[1]:
+                if language_score['spanish']:
                     txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
                     await msg.author.add_roles(spanish_role)
-                if bools[2]:
+                if language_score['other']:
                     txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
                     await msg.author.add_roles(other_role)
-                if bools[3]:
+                if language_score['both']:
                     txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
                     await msg.author.add_roles(english_role, spanish_role)
 
@@ -997,24 +998,25 @@ class General(commands.Cog):
 
     @commands.command(hidden=True)
     async def _check_lovehug(self, ctx):
-        for url in self.bot.db['lovehug']:
-            result = await self.lovehug_get_chapter(url)
-            if type(result) == str:
-                if 'invalid_url' in result:
-                    await hf.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
-                continue
-            if not result:
-                return
-            try:
-                chapter = f"{url}{result['href']}"
-            except TypeError:
-                raise
-            if chapter == self.bot.db['lovehug'][url]['last']:
-                continue
-            for user in self.bot.db['lovehug'][url]['subscribers']:
-                u = self.bot.get_user(user)
-                await hf.safe_send(u, f"New chapter: {url}{result['href']}")
-            self.bot.db['lovehug'][url]['last'] = chapter
+        return
+        # for url in self.bot.db['lovehug']:
+        #     result = await self.lovehug_get_chapter(url)
+        #     if type(result) == str:
+        #         if 'invalid_url' in result:
+        #             await hf.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
+        #         continue
+        #     if not result:
+        #         return
+        #     try:
+        #         chapter = f"{url}{result['href']}"
+        #     except TypeError:
+        #         raise
+        #     if chapter == self.bot.db['lovehug'][url]['last']:
+        #         continue
+        #     for user in self.bot.db['lovehug'][url]['subscribers']:
+        #         u = self.bot.get_user(user)
+        #         await hf.safe_send(u, f"New chapter: {url}{result['href']}")
+        #     self.bot.db['lovehug'][url]['last'] = chapter
 
     async def lovehug_get_chapter(self, url):
         try:

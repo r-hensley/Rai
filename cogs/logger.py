@@ -30,7 +30,10 @@ with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
     access_token = file.readline()[:-1]
     refresh_token = file.readline()
 
-imgur_client = ImgurClient(client_id, client_secret, access_token, refresh_token)
+try:
+    imgur_client = ImgurClient(client_id, client_secret, access_token, refresh_token)
+except ImgurClientError:
+    imgur_client = None
 
 
 class Logger(commands.Cog):
@@ -443,7 +446,7 @@ class Logger(commands.Cog):
                 emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
                 emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:])
 
-        if message.attachments:
+        if message.attachments and imgur_client:
             list_of_attachments = []
             attachment_names = []
             success = None  # will be True unless the code manages to successfully upload an image to imgur
