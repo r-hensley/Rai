@@ -290,7 +290,6 @@ class General(commands.Cog):
                 for embed in msg.embeds:
                     if embed.description:
                         await check_user(embed.description)
-
         await check_guilds()
 
         """chinese server banned words"""
@@ -2312,6 +2311,7 @@ class General(commands.Cog):
             return True
 
     @commands.command(aliases=['selfmute'])
+    @commands.bot_has_permissions(send_messages=True)
     @commands.guild_only()
     async def self_mute(self, ctx, time=None):
         """Irreversible mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
