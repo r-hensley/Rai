@@ -62,7 +62,8 @@ class Rai(Bot):
             json.dump(self.stats, write_file)
 
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
+                              'cogs.background']
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
                 self.load_extension(extension)

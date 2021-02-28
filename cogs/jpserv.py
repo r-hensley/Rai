@@ -1,8 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from .utils import helper_functions as hf
 from copy import deepcopy
 
