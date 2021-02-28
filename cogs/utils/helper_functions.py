@@ -6,7 +6,7 @@ from discord.ext import commands
 import json, csv
 import sys
 from datetime import datetime, timedelta
-from copy import copy, deepcopy
+from copy import deepcopy
 import shutil
 from textblob import TextBlob as tb
 from functools import partial

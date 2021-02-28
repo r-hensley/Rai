@@ -3,10 +3,6 @@
 import discord
 import asyncio
 from discord.ext.commands import Bot
-from discord.ext import commands
-import platform
-import codecs
-from datetime import datetime, timedelta
 import os
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
