@@ -122,7 +122,7 @@ def red_embed(text):
 async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
-        raise SyntaxError("You maybe didn't state a destination")
+        raise SyntaxError("You maybe didn't state a destination, or you tried to send a None")
     perms_set = perms = False
     if isinstance(destination, commands.Context):
         if destination.guild:

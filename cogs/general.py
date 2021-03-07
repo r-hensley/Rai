@@ -845,11 +845,11 @@ class General(commands.Cog):
     async def risk(self, ctx):
         """Typing this command will sub you to pings for when it's your turn."""
         config = self.bot.db['risk']['sub']
-        if ctx.author.id in config:
-            config[ctx.author.id] = not config[ctx.author.id]
+        if str(ctx.author.id) in config:
+            config[str(ctx.author.id)] = not config[str(ctx.author.id)]
         else:
-            config[ctx.author.id] = True
-        if config[ctx.author.id]:
+            config[str(ctx.author.id)] = True
+        if config[str(ctx.author.id)]:
             await hf.safe_send(ctx, "You will now receive pings when it's your turn.")
         else:
             await hf.safe_send(ctx, "You will no longer receive pings when it's your turn.")
@@ -1077,47 +1077,68 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
-        if reaction.emoji == '🚫':
-            if user == self.bot.user:
-                return
-            if reaction.message.channel == user.dm_channel:
-                config = self.bot.db['report']
-                for guild_id in config:
-                    if user.id in config[guild_id]['waiting_list']:
-                        config[guild_id]['waiting_list'].remove(user.id)
-                        await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
+        async def remove_from_waiting_list():
+            if reaction.emoji == '🚫':
+                if user == self.bot.user:
+                    return
+                if reaction.message.channel == user.dm_channel:
+                    config = self.bot.db['report']
+                    for guild_id in config:
+                        if user.id in config[guild_id]['waiting_list']:
+                            config[guild_id]['waiting_list'].remove(user.id)
+                            await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
 
-                        mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
-                        msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
-                                             f"report room but just removed themselves."
-                        await hf.safe_send(mod_channel, msg_to_mod_channel)
-                        return
-                await user.send("You aren't on the waiting list.")
+                            mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
+                            msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
+                                                 f"report room but just removed themselves."
+                            await hf.safe_send(mod_channel, msg_to_mod_channel)
+                            return
+                    await user.send("You aren't on the waiting list.")
+        await remove_from_waiting_list()
 
-        if str(reaction.emoji) in '🗑❌':
-            if reaction.message.author == self.bot.user and \
-                    (user.id == self.bot.owner_id or reaction.message.channel.permissions_for(user).manage_messages):
-                await reaction.message.delete()
+        "I or people with manage messages permission can delete bot messages by attaching X or trash can"
+        async def delete_rai_message():
+            if str(reaction.emoji) in '🗑❌':
+                if reaction.message.author == self.bot.user and \
+                        (user.id == self.bot.owner_id or
+                         reaction.message.channel.permissions_for(user).manage_messages):
+                    await reaction.message.delete()
+        await delete_rai_message()
 
-        if user.bot:
-            return
-        if not hasattr(user, 'guild'):
-            return
-        if str(user.guild.id) not in self.bot.stats:
-            return
-        if self.bot.stats[str(user.guild.id)]['enable']:
+        "Count emojis for stats"
+        def count_emojis_for_stats():
+            if user.bot:
+                return  # ignore reactions from bots
+            if not hasattr(user, 'guild'):
+                return  # if not in a guild
+            if str(user.guild.id) not in self.bot.stats:
+                return  # if guild not in stats counting module
+            if self.bot.stats[str(user.guild.id)]['enable']:
+                try:
+                    emoji = reaction.emoji.name
+                except AttributeError:
+                    emoji = reaction.emoji
+                config = self.bot.stats[str(user.guild.id)]
+                date_str = datetime.utcnow().strftime("%Y%m%d")
+                if date_str not in config['messages']:
+                    config['messages'][date_str] = {}
+                today = config['messages'][date_str]
+                today.setdefault(str(user.id), {})
+                today[str(user.id)].setdefault('emoji', {})
+                today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+        count_emojis_for_stats()
+
+        "Remove reactions for if you're self muted"
+        async def remove_selfmute_reactions():
             try:
-                emoji = reaction.emoji.name
-            except AttributeError:
-                emoji = reaction.emoji
-            config = self.bot.stats[str(user.guild.id)]
-            date_str = datetime.utcnow().strftime("%Y%m%d")
-            if date_str not in config['messages']:
-                config['messages'][date_str] = {}
-            today = config['messages'][date_str]
-            today.setdefault(str(user.id), {})
-            today[str(user.id)].setdefault('emoji', {})
-            today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+                if self.bot.db['selfmute'][str(reaction.message.guild.id)][str(user.id)]['enable']:
+                    try:
+                        await reaction.remove(user)
+                    except (discord.Forbidden, discord.NotFound):
+                        pass
+            except KeyError:
+                pass
+        await remove_selfmute_reactions()
 
     def reactionroles_get_role(self, payload, guild):
         guild_id = str(payload.guild_id)

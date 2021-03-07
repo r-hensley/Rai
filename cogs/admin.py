@@ -775,7 +775,7 @@ class Admin(commands.Cog):
             config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles']
             config['enable'] = not config['enable']
         except KeyError:  # the guild was in 'joins' but it didn't have 'readd_roles'
-            config['readd_roles'] = {'enable': True, 'users': {}, 'roles': {}}
+            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {'enable': True, 'users': {}, 'roles': {}}
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
                 await hf.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
