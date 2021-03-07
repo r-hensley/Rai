@@ -36,7 +36,7 @@ class Background(commands.Cog):
             await channel.send(message[:2000])
             await channel.send(message[2000:4000])
 
-    @tasks.loop(minutes=5.0)
+    @tasks.loop(minutes=10.0)
     async def risk_check(self):
         config = self.bot.db['risk']
         url = f"https://www.conquerclub.com/game.php?game={config['id']}"
@@ -58,7 +58,31 @@ class Background(commands.Cog):
         soup = BeautifulSoup(data, 'html.parser')
         players = [91687077510418432, 459846740313505794, 759136587677564990, 264462341003935756, 760555982618361876,
                    760991500355239967, 202995638860906496, 266382095906111488, 122584263378993152, 551867033499992086]
-        risk_ch = self.bot.get_channel(812551617160806421)
+        risk_ch = self.bot.get_channel(815485283721674752)
+
+        log = soup.find('div', attrs={'id': "log"}).get_text()
+        log = re.sub("2021-..-.. ..:..:.. - ", '\n', log).split('\n')
+        if log[-1][-1] == ' ':
+            log[-1] = log[-1][:-1]
+        try:
+            last_event = log.index(config['log'][-1])
+        except ValueError:
+            last_event = -1
+        for event in log[last_event+1:]:
+            for emphasis in ["Gogatron", "Uoktem", "tronk", "drshrub", "snafuuu", "rahuligan", "Ryry013", "dumpyDirac",
+                             "supagorilla", "tvbrown"]:
+                event = event.replace(emphasis, f"**{emphasis}**")
+            if "reinforced" in event:
+                event = f"♻️ {event}"
+            elif "troops" in event:
+                event = f"👥 {event}"
+            elif "assaulted" in event:
+                event = f"⚔️ {event}"
+            elif "ended the turn" in event:
+                event = f"__⏩ {event}__\n⠀"  # invisible non-space character at end of this line
+            await hf.safe_send(risk_ch, event)
+        config['log'] = log[-20:]
+
         for li in soup.find_all('li'):
             try:
                 status = li['class'][0]
@@ -84,27 +108,13 @@ class Background(commands.Cog):
                             config['current_player'] = player_index - 1
                             break
 
-                    if config['sub'].get(player_id, False):
+                    if config['sub'].get(str(player_id), False):
                         player_name = f"<@{player_id}>"
                     else:
-                        player_name = risk_ch.guild.get_member(player_id).display_name
-                    await hf.safe_send(risk_ch, f"It is {player_name}'s turn!")
+                        player_name = risk_ch.guild.get_member(int(player_id)).display_name
+                    await hf.safe_send(risk_ch, f"✅ It is {player_name}'s turn! <{url}>")
             except KeyError:
                 pass
-
-        risk_log_ch = self.bot.get_channel(815485283721674752)
-        log = soup.find('div', attrs={'id': "log"}).get_text()
-        log = re.sub("2021-..-.. ..:..:.. - ", '\n', log).split('\n')
-        try:
-            last_event = log.index(config['log'][-1])
-        except ValueError:
-            last_event = -1
-        for event in log[last_event+1:]:
-            for emphasis in ["Gogatron", "Uoktem", "tronk", "drshrub", "snafuuu", "rahuligan", "Ryry013", "dumpyDirac",
-                             "supagorilla", "tvbrown"]:
-                event = event.replace(emphasis, f"**{emphasis}**")
-            await hf.safe_send(risk_log_ch, event)
-            config['log'] = log[-20:]
 
     @risk_check.error
     async def risk_check_error(self, error):
