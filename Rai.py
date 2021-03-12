@@ -106,7 +106,6 @@ class Rai(Bot):
         if bot.user.name != "Rai":
             return
         try:
-            await self.wait_until_ready()
             counter = 4  # counts minutes (x4: 360, x24: 1440)
             channel = self.get_channel(304110816607862785)
             msg = await channel.send("Starting background tasks")
@@ -137,12 +136,15 @@ class Rai(Bot):
                     except asyncio.TimeoutError:
                         await self.get_channel(554572239836545074).send("Timeout in lovehug command")
                 await asyncio.sleep(60)
+            await channel.send("WHILE LOOP FOR BACKGROUND TASKS FINISHED!!")
+            await channel.send(self.is_closed())
         except Exception as error:
+            channel = self.get_channel(554572239836545074)
+            await channel.send("Error in background tasks")
             error = getattr(error, 'original', error)
             print(f'Error in background task:', file=sys.stderr)
             traceback.print_tb(error.__traceback__)
             print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-            channel = self.get_channel(554572239836545074)
             exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
             traceback_text = f'```py\n{exc}\n```'
             message = f'<@202995638860906496> Error in background task:\n{traceback_text}'

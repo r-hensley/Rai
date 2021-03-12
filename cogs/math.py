@@ -216,6 +216,91 @@ class Math(commands.Cog):
         plt.clf()
         plt.cla()
 
+    @commands.command(aliases=['rc'])
+    async def risk_calc(self, ctx, att, de):
+        """Performs a simulation on a battle in risk.
+        First input the number of attackers, then the number of defenders.
+        Insert commas between the number of defenders to show a chain of territories to attack.
+
+        Example: `;rc 3 2`   `;rc 8 3,2,2`"""
+        try:
+            initial_att = [int(att)]
+            att = initial_att.copy()
+            initial_de = [int(territory) for territory in de.split(',')]
+            de = initial_de.copy()
+            if att[0] < 2 or [i for i in de if i < 1]:
+                await hf.safe_send(ctx, "You must have at least 2 att and at least 1 de.")
+                return
+        except (ValueError, TypeError, AttributeError):
+            await hf.safe_send(ctx, "Please put a integer number of att and de. Try `;help rc`.")
+            return
+
+        results = {'att': [], 'de': []}
+        s = ''
+
+        for _ in range(10000):
+            if att[0] == 1 or not de:
+                results['att'].append(att[0])
+                results['de'].append(sum(de))
+                att = initial_att.copy()
+                de = initial_de.copy()
+                # await ctx.send(f"RESET: {att}, {de}")
+            if att[0] > 3:
+                att_rolls = 3
+            elif att[0] == 3:
+                att_rolls = 2
+            else:  # att[0] should never equal 1 at this point
+                att_rolls = 1
+            att_dice = sorted([random.randint(1, 6) for _ in range(att_rolls)], reverse=True)
+
+            if de[0] >= 2:
+                de_rolls = 2
+            else:
+                de_rolls = de[0]
+            de_dice = sorted([random.randint(1, 6) for _ in range(de_rolls)], reverse=True)
+
+            s += f"{att}, {de}, {att_dice}, {de_dice}, {att_rolls}, {de_rolls}, {results}\n"
+
+            # this will pair two lists of equal lengths should one player get more dice rolls
+            if att_rolls >= de_rolls:
+                att_dice = att_dice[:de_rolls]
+            else:
+                de_dice = de_dice[:att_rolls]
+            s += f"{att_dice}, {de_dice}\n"
+
+            for die in range(len(att_dice)):
+                if att_dice[die] <= de_dice[die]:
+                    att[0] -= 1
+                    if att[0] == 1:
+                        break
+                else:
+                    de[0] -= 1
+                    if not de[0]:
+                        del(de[0])
+                        att[0] -= 1
+                        break
+        await ctx.send(s)
+
+        att_victories = [i for i in results['att'] if i > 1]
+        att_percentage = round(100 * len(att_victories) / len(results['att']), 2)
+        try:
+            att_average = round(sum(results['att']) / len(results['att']), 1)
+        except ZeroDivisionError:
+            att_average = 1
+
+        de_victories = [i for i in results['de'] if i > 0]
+        de_percentage = round(100 * len(de_victories) / len(results['att']), 1)
+        try:
+            de_average = round(sum(results['de']) / len(results['de']), 1)
+        except ZeroDivisionError:
+            de_average = 0
+
+        await hf.safe_send(ctx, f"Out of 10,000 battles:\n"
+                                f"Attackers occupies **{len(att_victories)} times** "
+                                f"({att_percentage}%) (average {att_average} surviving troops)\n"
+                                f"Defenders survived **{len(de_victories)} times** "
+                                f"({de_percentage}%) (average {de_average} surviving troops)")
+
 
 def setup(bot):
     bot.add_cog(Math(bot))

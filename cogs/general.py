@@ -1130,6 +1130,8 @@ class General(commands.Cog):
 
         "Remove reactions for if you're self muted"
         async def remove_selfmute_reactions():
+            if not reaction.message.guild:
+                return
             try:
                 if self.bot.db['selfmute'][str(reaction.message.guild.id)][str(user.id)]['enable']:
                     try:
@@ -1164,6 +1166,7 @@ class General(commands.Cog):
     async def on_raw_reaction_add(self, payload):
         if payload.user_id == self.bot.user.id:
             return
+
         if payload.emoji.name == '⬆':
             if payload.channel_id == BLACKLIST_CHANNEL_ID:  # votes on blacklist
                 channel = self.bot.get_channel(payload.channel_id)
