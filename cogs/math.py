@@ -259,14 +259,14 @@ class Math(commands.Cog):
                 de_rolls = de[0]
             de_dice = sorted([random.randint(1, 6) for _ in range(de_rolls)], reverse=True)
 
-            s += f"{att}, {de}, {att_dice}, {de_dice}, {att_rolls}, {de_rolls}, {results}\n"
+            # s += f"{att}, {de}, {att_dice}, {de_dice}, {att_rolls}, {de_rolls}, {results}\n"
 
             # this will pair two lists of equal lengths should one player get more dice rolls
             if att_rolls >= de_rolls:
                 att_dice = att_dice[:de_rolls]
             else:
                 de_dice = de_dice[:att_rolls]
-            s += f"{att_dice}, {de_dice}\n"
+            # s += f"{att_dice}, {de_dice}\n"
 
             for die in range(len(att_dice)):
                 if att_dice[die] <= de_dice[die]:
