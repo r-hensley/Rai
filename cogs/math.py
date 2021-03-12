@@ -279,7 +279,7 @@ class Math(commands.Cog):
                         del(de[0])
                         att[0] -= 1
                         break
-        await ctx.send(s)
+        # await ctx.send(s)
 
         att_victories = [i for i in results['att'] if i > 1]
         att_percentage = round(100 * len(att_victories) / len(results['att']), 2)
