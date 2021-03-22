@@ -487,7 +487,7 @@ async def uhc_check(msg):
                     return
 
                 # allow Kotoba bot commands
-                if msg.content[0:2] in ['k!', 't!'] \
+                if msg.content[0:2] in ['k!', 't!', '-h'] \
                         or msg.content[0] == ';':
                     # if people abuse this, they must use no spaces
                     if msg.content.count(' ') < 2 or msg.author.id == 202995638860906496:

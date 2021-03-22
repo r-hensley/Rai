@@ -235,16 +235,15 @@ class Math(commands.Cog):
             await hf.safe_send(ctx, "Please put a integer number of att and de. Try `;help rc`.")
             return
 
-        results = {'att': [], 'de': []}
+        results = []
         s = ''
 
-        for _ in range(10000):
+        while len(results) < 5000:
             if att[0] == 1 or not de:
-                results['att'].append(att[0])
-                results['de'].append(sum(de))
+                results.append((att[0], sum(de)))
+                # s += f"{att}, {de}\n"
                 att = initial_att.copy()
                 de = initial_de.copy()
-                # await ctx.send(f"RESET: {att}, {de}")
             if att[0] > 3:
                 att_rolls = 3
             elif att[0] == 3:
@@ -281,21 +280,26 @@ class Math(commands.Cog):
                         break
         # await ctx.send(s)
 
-        att_victories = [i for i in results['att'] if i > 1]
-        att_percentage = round(100 * len(att_victories) / len(results['att']), 2)
+        att_victories = [i[0] for i in results if i[1] == 0]  # counts how many times defenders lost
+        att_percentage = round(100 * len(att_victories) / len(results), 2)
         try:
-            att_average = round(sum(results['att']) / len(results['att']), 1)
+            att_average = round(sum(att_victories) / len(att_victories), 1)
         except ZeroDivisionError:
             att_average = 1
 
-        de_victories = [i for i in results['de'] if i > 0]
-        de_percentage = round(100 * len(de_victories) / len(results['att']), 1)
+        de_victories = [i[1] for i in results if i[1] > 0]
+        de_percentage = round(100 * len(de_victories) / len(results), 1)
         try:
-            de_average = round(sum(results['de']) / len(results['de']), 1)
+            de_average = round(sum(de_victories) / len(results), 1)
         except ZeroDivisionError:
             de_average = 0
 
-        await hf.safe_send(ctx, f"Out of 10,000 battles:\n"
+        # await ctx.send(' '.join([str(i) for i in att_victories[:30]]))
+        # await ctx.send(' '.join([str(i) for i in de_victories[:30]]))
+        # await ctx.send(' '.join([str(i) for i in results['att'][:60]]))
+        # await ctx.send(' '.join([str(i) for i in results['de'][:60]]))
+
+        await hf.safe_send(ctx, f"Out of 5,000 battles:\n"
                                 f"Attackers occupies **{len(att_victories)} times** "
                                 f"({att_percentage}%) (average {att_average} surviving troops)\n"
                                 f"Defenders survived **{len(de_victories)} times** "
