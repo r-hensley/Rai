@@ -279,9 +279,8 @@ class Owner(commands.Cog):
         await ctx.message.add_reaction('💀')
         await ctx.invoke(self.flush)
         await ctx.invoke(self.savedatabase)
+        self.bot.restart = True
         await self.bot.logout()
-        with open(f"{dir_path}/APIKey.txt") as f:
-            self.bot.run(f.read() + 'k')
 
     @commands.command(aliases=['quit'])
     async def kill(self, ctx):

@@ -570,6 +570,7 @@ class General(commands.Cog):
                         else:
                             return None, False
                     else:
+                        return None, False
                         lang = await hf.textblob_detect_language(stripped_msg)
                 except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError):
                     pass
@@ -2175,6 +2176,10 @@ class General(commands.Cog):
                                 f"Is this really what you want to do? The mods of this server CANNOT undo "
                                 f"this.\nType 'Yes' to confirm.")
 
+        old_time = time
+        if time <= 0:
+            time = 0
+
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=15,
@@ -2184,7 +2189,7 @@ class General(commands.Cog):
                 config = self.bot.db['selfmute'].setdefault(str(ctx.guild.id), {})
                 time_string, length = hf.parse_time(f"{time}h")
                 config[str(ctx.author.id)] = {'enable': True, 'time': time_string}
-                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {time} hours. This is irreversible. "
+                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {old_time} hours. This is irreversible. "
                                         f"The mods have nothing to do with this so no matter what you ask them, "
                                         f"they can't help you. You alone chose to do this.")
 

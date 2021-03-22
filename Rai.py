@@ -317,5 +317,9 @@ class Rai(Bot):
 
 
 bot = Rai()
-with open(f"{dir_path}/APIKey.txt") as f:
-    bot.run(f.read() + 'k')
+bot.restart = True
+while bot.restart:
+    bot.restart = False
+    with open(f"{dir_path}/APIKey.txt") as f:
+        bot.run(f.read() + 'k')
+
