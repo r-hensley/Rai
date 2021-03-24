@@ -2,7 +2,7 @@
 import discord
 import asyncio
 from discord.ext.commands import Bot
-from discord.ext import commands
+from discord.ext import commands, tasks
 import sys, traceback
 import json
 from cogs.utils import helper_functions as hf
@@ -43,9 +43,6 @@ class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496,
                          help_command=None, intents=intents)
-        self.bg_task = self.loop.create_task(self.background_tasks())
-        self.last_error = datetime.utcnow()
-        self.num_of_errors = 0
         self.language_detection = False
         print('starting loading of jsons')
         with open(f"{dir_path}/db.json", "r") as read_file1:
@@ -55,114 +52,48 @@ class Rai(Bot):
             read_file2.seek(0)
             self.stats = json.load(read_file2)
 
-        date = datetime.today().strftime("%d%m%Y%H%M")
-        with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
-            json.dump(self.db, write_file)
-        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
-            json.dump(self.stats, write_file)
-
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
-                              'cogs.background']
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
                 self.load_extension(extension)
-                print('Loaded {}'.format(extension))
+                print(f'Loaded {extension}')
             except Exception as e:
-                print('Failed to load extension {}.'.format(extension), file=sys.stderr)
+                print(f'Failed to load extension {extension}.', file=sys.stderr)
                 traceback.print_exc()
                 continue
 
     async def on_ready(self):
-        self.ryry = self.get_user(202995638860906496)
-        self.ryryServ = self.get_guild(275146036178059265)
-        self.testChan = self.get_channel(304110816607862785)
-        self.spamChan = self.get_channel(275879535977955330)
-        self.nadLog = self.get_channel(451211431006830593)
-
-        self.jpServ = self.get_guild(189571157446492161)
-        self.jpEverything = self.get_channel(277384105245802497)
-        self.jpJHO = self.get_channel(189571157446492161)
-        self.jpJHO2 = self.get_channel(326263874770829313)
-
-        self.spanServ = self.get_guild(243838819743432704)
-        self.spanSP = self.get_channel(277511392972636161)
-
-        #  if self.user.name == "Rai":
-            #  self.waited = str(self.spanServ.get_member(116275390695079945).status) == 'offline'  # checks nadeko
-        self.selfMute = False
-
         await hf.load_language_dection_model()
         self.language_detection = True
+
+        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
+            self.load_extension('')
+            print(f'Loaded cogs.background')
+        except Exception as e:
+            print(f'Failed to load extension cogs.background.', file=sys.stderr)
+            traceback.print_exc()
 
         print("Bot loaded")
 
         t_finish = datetime.now()
-        await self.testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
+
+        testChan = self.get_channel(304110816607862785)
+        ctxmsg = await testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
+        self.ctx = await self.get_context(ctxmsg)
+
         await self.change_presence(activity=discord.Game(';help for help'))
 
-    async def background_tasks(self):
-        await self.wait_until_ready()
-        if bot.user.name != "Rai":
-            return
-        try:
-            counter = 4  # counts minutes (x4: 360, x24: 1440)
-            channel = self.get_channel(304110816607862785)
-            msg = await channel.send("Starting background tasks")
-            ctx = await self.get_context(msg)
-            while not self.is_closed():
-                counter += 1
-                x = datetime.utcnow()
-                # print(f'{datetime.utcnow()}: restarted background tasks loop')
+        self.database_backups.start()
 
-                if x.hour == 0 and x.minute == 0:
-                    counter = 0
-                    date = datetime.today().strftime("%Y%m%d-%H.%M")
-                    with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
-                        json.dump(self.db, write_file)
-                    with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
-                        json.dump(self.stats, write_file)
-                    await ctx.invoke(self.get_command("_delete_old_stats_days"))
-                await hf.dump_json()
-
-                if counter % 5 == 0:
-                    await ctx.invoke(self.get_command("_unban_users"))
-                    await ctx.invoke(self.get_command("_unmute_users"))
-                    await ctx.invoke(self.get_command("_unselfmute_users"))
-                    await ctx.invoke(self.get_command("_check_desync_voice"))
-                if counter % 250 == 0:
-                    try:
-                        await ctx.invoke(self.get_command("_check_lovehug"))
-                    except asyncio.TimeoutError:
-                        await self.get_channel(554572239836545074).send("Timeout in lovehug command")
-                await asyncio.sleep(60)
-            await channel.send("WHILE LOOP FOR BACKGROUND TASKS FINISHED!!")
-            await channel.send(self.is_closed())
-        except Exception as error:
-            channel = self.get_channel(554572239836545074)
-            await channel.send("Error in background tasks")
-            error = getattr(error, 'original', error)
-            print(f'Error in background task:', file=sys.stderr)
-            traceback.print_tb(error.__traceback__)
-            print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-            exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-            traceback_text = f'```py\n{exc}\n```'
-            message = f'<@202995638860906496> Error in background task:\n{traceback_text}'
-            if len(message) < 2000:
-                await channel.send(message)
-            else:
-                await channel.send(message[:2000])
-                await channel.send(message[2000:4000])
-            self.num_of_errors += 1
-            if (datetime.utcnow() - self.last_error).seconds > 5 and self.num_of_errors < 20:
-                self.last_error = datetime.utcnow()
-                self.bg_task = self.loop.create_task(self.background_tasks())
-            else:
-                await channel.send(f"❗❗❗❗ STOPPING BACKGROUND TASKS ❗❗❗❗\n"
-                                   f"❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗❗")
-
-    # async def on_command(self, ctx):
-    #     print(f"Running {ctx.command.name}")
+    @tasks.loop(hours=24)
+    async def database_backups(self):
+        date = datetime.today().strftime("%Y%m%d-%H.%M")
+        with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
+            json.dump(self.db, write_file)
+        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
+            json.dump(self.stats, write_file)
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
