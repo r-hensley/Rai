@@ -13,13 +13,16 @@ RYRY_SPAM_CHAN = 275879535977955330
 class Background(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bg_tasks = [self.risk_check, self.check_rawmangas]
-        for task in self.bg_tasks:
-            task.start()
+        self.bot.bg_tasks = [self.risk_check, self.check_rawmangas, self.check_desync_voice, self.unban_users,
+                             self.unmute_users, self.unselfmute_users, self.delete_old_stats_days, self.check_lovehug,
+                             self.check_downed_tasks]
+        for task in self.bot.bg_tasks:
+            if not task.is_running():
+                task.start()
 
-    def cog_unload(self):
-        for task in self.bg_tasks:
-            task.cancel()
+    # def cog_unload(self):
+    #     for task in self.bot.bg_tasks:
+    #         task.cancel()
 
     async def handle_error(self, error):
         error = getattr(error, 'original', error)
@@ -35,6 +38,26 @@ class Background(commands.Cog):
         else:
             await channel.send(message[:2000])
             await channel.send(message[2000:4000])
+
+    async def checkbg(self, ctx):
+        s = ''
+        for task in self.bot.bg_tasks:
+            if not task.is_running():
+                s += f"X: {task.coro.__name__}\n"
+        if s:
+            await hf.safe_send(ctx, s)
+        else:
+            try:
+                await ctx.message.add_reaction("✅")
+            except discord.Forbidden:
+                pass
+
+    @tasks.loop(hours=1.0)
+    async def check_downed_tasks(self):
+        ch = self.bot.get_channel(RYRY_SPAM_CHAN)
+        for task in self.bot.bg_tasks:
+            if not task.is_running():
+                hf.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
 
     @tasks.loop(minutes=10.0)
     async def risk_check(self):
@@ -140,14 +163,17 @@ class Background(commands.Cog):
     async def risk_check_error(self, error):
         await self.handle_error(error)
 
-    # #########################################################################################################
-    # #########################################################################################################
-    # #########################################################################################################
-
-    @commands.command(hidden=True)
-    async def _check_desync_voice(self, ctx):
+    @tasks.loop(minutes=5.0)
+    async def check_desync_voice(self):
         config = self.bot.stats
-        for guild_id in config:
+        for guild_id in list(config):
+            guild = self.bot.get_guild(int(guild_id))
+            if not guild:
+                del config[guild_id]
+                continue
+            ctx = self.bot.ctx
+            ctx.guild = guild
+
             if guild_id not in config:
                 continue
             if not config[guild_id]['enable']:
@@ -161,7 +187,7 @@ class Background(commands.Cog):
             users_in_voice = []
             for channel in voice_channels:
                 users_in_voice += [str(member.id) for member in channel.members]
-            for user_id in guild_config['voice']['in_voice'].copy():  # all users in the database
+            for user_id in list(guild_config['voice']['in_voice']):  # all users in the database
                 if user_id not in users_in_voice:  # if not in voice, remove from database
                     member = guild.get_member(int(user_id))
                     if not member:
@@ -169,7 +195,7 @@ class Background(commands.Cog):
                         return
                     await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
 
-            for user_id in users_in_voice.copy():  # all users in voice
+            for user_id in list(users_in_voice):  # all users in voice
                 member = guild.get_member(int(user_id))
                 vs = member.voice
                 if vs:
@@ -181,8 +207,12 @@ class Background(commands.Cog):
                 else:
                     await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)  # in voice but no vs? remove
 
-    @commands.command(hidden=True)
-    async def _unban_users(self, ctx):
+    @check_desync_voice.error
+    async def check_desync_voice_error(self, error):
+        await self.handle_error(error)
+
+    @tasks.loop(minutes=5.0)
+    async def unban_users(self):
         config = self.bot.db['bans']
         for guild_id in config:
             unbanned_users = []
@@ -192,7 +222,7 @@ class Background(commands.Cog):
             except KeyError:
                 mod_channel = None
             if 'timed_bans' in guild_config:
-                for member_id in guild_config['timed_bans'].copy():
+                for member_id in list(guild_config['timed_bans']):
                     unban_time = datetime.strptime(guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC")
                     if unban_time < datetime.utcnow():
                         guild = self.bot.get_guild(int(guild_id))
@@ -213,12 +243,23 @@ class Background(commands.Cog):
                                                                    f"the time for their temporary ban has expired",
                                                        color=discord.Color(int('00ffaa', 16))))
 
-    @commands.command(hidden=True)
-    async def _unmute_users(self, ctx):
+    @unban_users.error
+    async def unban_users_error(self, error):
+        await self.handle_error(error)
+
+    @tasks.loop(minutes=5.0)
+    async def unmute_users(self):
         configs = ['mutes', 'voice_mutes']
         for db_name in configs:
             config = self.bot.db[db_name]
-            for guild_id in config:
+            for guild_id in list(config):
+                guild = self.bot.get_guild(int(guild_id))
+                if not guild:
+                    del config[guild_id]
+                    continue
+                ctx = self.bot.ctx
+                ctx.guild = guild
+
                 unmuted_users = []
                 guild_config = config[guild_id]
                 try:
@@ -226,7 +267,7 @@ class Background(commands.Cog):
                 except KeyError:
                     mod_channel = None
                 if 'timed_mutes' in guild_config:
-                    for member_id in guild_config['timed_mutes'].copy():
+                    for member_id in list(guild_config['timed_mutes']):
                         unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
                         if unmute_time < datetime.utcnow():
                             if db_name == 'mutes':
@@ -248,21 +289,25 @@ class Background(commands.Cog):
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
 
-    @commands.command(hidden=True)
-    async def _unselfmute_users(self, ctx):
+    @unmute_users.error
+    async def unmute_users_error(self, error):
+        await self.handle_error(error)
+
+    @tasks.loop(minutes=5.0)
+    async def unselfmute_users(self):
         config = self.bot.db['selfmute']
         for guild_id in config:
             unmuted_users = []
             guild_config = config[guild_id]
-            for user_id in guild_config.copy():
+            for user_id in list(guild_config):
                 try:
                     unmute_time = datetime.strptime(guild_config[user_id]['time'], "%Y/%m/%d %H:%M UTC")
                 except TypeError:
                     print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'])
-                    del(guild_config[user_id])
+                    del (guild_config[user_id])
                     continue
                 if unmute_time < datetime.utcnow():
-                    del(guild_config[user_id])
+                    del (guild_config[user_id])
                     unmuted_users.append(user_id)
             if unmuted_users:
                 for user_id in unmuted_users:
@@ -272,11 +317,15 @@ class Background(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-    @commands.command(hidden=True)
-    async def _delete_old_stats_days(self, ctx):
+    @unselfmute_users.error
+    async def unselfmute_users_error(self, error):
+        await self.handle_error(error)
+
+    @tasks.loop(hours=24)
+    async def delete_old_stats_days(self):
         for server_id in self.bot.stats:
             config = self.bot.stats[server_id]
-            for day in config['messages'].copy():
+            for day in list(config['messages']):
                 days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
                 if days_ago > 30:
                     for user_id in config['messages'][day]:
@@ -292,13 +341,17 @@ class Background(commands.Cog):
                             else:
                                 config['member_totals'][user_id] = config['messages'][day][user_id][channel_id]
                     del config['messages'][day]
-            for day in config['voice']['total_time'].copy():
+            for day in list(config['voice']['total_time']):
                 days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 
-    @commands.command(hidden=True)
-    async def _check_lovehug(self, ctx):
+    @delete_old_stats_days.error
+    async def delete_old_stats_days_error(self, error):
+        await self.handle_error(error)
+
+    @tasks.loop(hours=1)
+    async def check_lovehug(self):
         return
         # for url in self.bot.db['lovehug']:
         #     result = await self.lovehug_get_chapter(url)
@@ -319,7 +372,8 @@ class Background(commands.Cog):
         #         await hf.safe_send(u, f"New chapter: {url}{result['href']}")
         #     self.bot.db['lovehug'][url]['last'] = chapter
 
-    async def lovehug_get_chapter(self, url):
+    @staticmethod
+    async def lovehug_get_chapter(url):
         try:
             with async_timeout.timeout(10):
                 async with aiohttp.ClientSession() as session:
@@ -337,6 +391,10 @@ class Background(commands.Cog):
                 return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
         return soup.find('a', attrs={'title': re.compile("Chapter.*")})
+
+    @check_lovehug.error
+    async def check_lovehug_error(self, error):
+        await self.handle_error(error)
 
 
 def setup(bot):

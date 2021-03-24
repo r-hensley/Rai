@@ -74,7 +74,7 @@ class Admin(commands.Cog):
             else:
                 msg_emoji_dict[reaction_msg] = [emoji]
                 
-            if type(emoji) == discord.Emoji:
+            if type(emoji) in [discord.Emoji, discord.PartialEmoji]:
                 emoji_str = str(emoji.id)  # a discord emoji
             else:
                 emoji_str = emoji  # a str unicode emoji
