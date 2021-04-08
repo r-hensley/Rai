@@ -230,9 +230,10 @@ class Background(commands.Cog):
                         try:
                             await guild.unban(member, reason="End of timed ban")
                             del config[guild_id]['timed_bans'][member_id]
-                            unbanned_users.append(member_id)
-                        except discord.NotFound:
+                        except (discord.NotFound, discord.Forbidden):
                             pass
+                        finally:
+                            unbanned_users.append(member_id)
             if mod_channel and unbanned_users:
                 text_list = []
                 for i in unbanned_users:

@@ -867,7 +867,6 @@ class Logger(commands.Cog):
             if not server_config['enable']:
                 return
 
-
             if not log_channel.permissions_for(guild.me).embed_links:
                 try:
                     await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to"
@@ -888,6 +887,7 @@ class Logger(commands.Cog):
             maybe_used_invite = []
             if invites:
                 invites_dict = {i.code: i for i in invites}  # made to same form as old_invites
+
                 for invite in old_invites:
                     if invite not in invites_dict:  # the invite disappeared
                         if old_invites[invite][1]:
@@ -900,16 +900,14 @@ class Logger(commands.Cog):
                             used_invite.append(invites_dict[invite])
                     except TypeError:
                         pass
+
+                for invite in invites_dict:
+                    if invite not in old_invites:  # a new invite was made but not detected in on_invite_create
+                        if invites_dict[invite].uses:  # it has uses
+                            used_invite.append(invites_dict[invite])
+
             if maybe_used_invite and not used_invite:
                 used_invite = maybe_used_invite
-
-            # if not used_invite and invites:
-            #     for invite in invites:
-            #         if invite.code in old_invites and invite.uses != old_invites[invite.code][0]:
-            #         if invite.code not in old_invites and invite.code not in ['french', 'c-e', 'japanese', 'spanish']:
-            #     for invite in old_invites:
-            #         if invite not in invites_dict:
-            #             pass
 
             def get_list_of_roles():
                 try:
@@ -1406,6 +1404,7 @@ class Logger(commands.Cog):
                          'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
                 if text in reason:
                     colour = 0xFF9D00
+            reason = reason.replace('%20', ' ')
 
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
                            '(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
