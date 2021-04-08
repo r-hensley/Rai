@@ -116,7 +116,9 @@ class Questions(commands.Cog):
             return url
 
         def make_embed(page):
-            emb = hf.green_embed(f"Search for {search_term}")
+            search_url = f"https://cse.google.com/cse?cx=013657184909367434363:djogpwlkrc0" \
+                         f"&q={search_term.replace(' ','%20').replace('　', '%E3%80%80')}"
+            emb = hf.green_embed(f"Search for {search_term} ー [(see full results)]({search_url})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
                 url = result['link']
@@ -203,8 +205,8 @@ class Questions(commands.Cog):
         search_term = jr['queries']['request'][0]['searchTerms']
 
         def make_embed(page):
-            emb = hf.green_embed(f"[Search for {search_term}](https://cse.google.com/cse?cx=ddde7b27ce4758ac8&"
-                                 f"q={search_term.replace(' ','%20').replace('　', '%E3%80%80')})")
+            emb = hf.green_embed(f"Search for {search_term} ー [(See full results)](https://cse.google.com/cse?cx="
+                                 f"ddde7b27ce4758ac8&q={search_term.replace(' ','%20').replace('　', '%E3%80%80')})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
                 url = result['link']
@@ -479,7 +481,7 @@ class Questions(commands.Cog):
                        f"`;q a` to mark the question as answered.  Thanks!"
             try:
                 await hf.safe_send(target_message.author, msg_text)
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.HTTPException):
                 pass
 
     @commands.group(invoke_without_command=True, aliases=['q'])
@@ -1144,7 +1146,8 @@ class Questions(commands.Cog):
             await wait_for_delete(msg)
             return
         emb = discord.Embed(title="Itazuraneko Grammar Search", color=0x00FF00)
-        desc = ''
+        desc = 'These are pulled from [this page](https://itazuraneko.neocities.org/grammar/masterreference.html). ' \
+               '\nIf you save the link, you can do\nyour own seaches in the future.\n\n'
         index = 1
         for entry in exacts + ['middle'] + contains:
             if entry == 'middle':

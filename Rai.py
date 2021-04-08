@@ -68,8 +68,11 @@ class Rai(Bot):
         await hf.load_language_dection_model()
         self.language_detection = True
 
+        testChan = self.get_channel(304110816607862785)
+        ctxmsg = await testChan.send('Almost done!')
+
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-            self.load_extension('')
+            self.load_extension('cogs.background')
             print(f'Loaded cogs.background')
         except Exception as e:
             print(f'Failed to load extension cogs.background.', file=sys.stderr)
@@ -79,8 +82,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
 
-        testChan = self.get_channel(304110816607862785)
-        ctxmsg = await testChan.send('Bot loaded (time: {})'.format(t_finish - t_start))
+        ctxmsg = await ctxmsg.edit(content='Bot loaded (time: {})'.format(t_finish - t_start))
         self.ctx = await self.get_context(ctxmsg)
 
         await self.change_presence(activity=discord.Game(';help for help'))

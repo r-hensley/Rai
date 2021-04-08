@@ -175,7 +175,7 @@ class General(commands.Cog):
                 try:
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
-                    await ctx.invoke(self.bot.get_command('mute'), '1h', str(msg.author.id), reason=reason)
+                    await ctx.invoke(self.bot.get_command('mute'), args=['1h', str(msg.author.id), reason])
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
                         if mod_channel:
@@ -1436,6 +1436,9 @@ class General(commands.Cog):
 
         Usage: `;cl <text you wish to check>`"""
         stripped_msg = hf.rem_emoji_url(msg)
+        if len(msg) > 900:
+            await hf.safe_send(ctx, "Please pick a shorter test  message")
+            return
         if not stripped_msg:
             stripped_msg = ' '
         if ctx.guild.id in [243838819743432704, 759132637414817822]:

@@ -86,6 +86,7 @@ class Stats(commands.Cog):
                 break
         if not lb:
             await hf.safe_send(ctx, "This user has not said anything in the past 30 days.")
+            return
         emb.add_field(name="Top channels", value=lb[:1024])
         await hf.safe_send(ctx, embed=emb)
 
