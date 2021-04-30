@@ -39,6 +39,7 @@ class Background(commands.Cog):
             await channel.send(message[:2000])
             await channel.send(message[2000:4000])
 
+    @commands.command()
     async def checkbg(self, ctx):
         s = ''
         for task in self.bot.bg_tasks:
@@ -79,10 +80,13 @@ class Background(commands.Cog):
             except AttributeError:
                 return f'html_error: {r.reason} ({url})'
         soup = BeautifulSoup(data, 'html.parser')
+        # ben guthrie: 470244907848564738
         # players = [91687077510418432, 459846740313505794, 759136587677564990, 264462341003935756, 760555982618361876,
         #            760991500355239967, 202995638860906496, 266382095906111488, 122584263378993152, 551867033499992086]
-        players = [91687077510418432, 760555982618361876, 122584263378993152, 760991500355239967, 551867033499992086,
-                   521914355219169281, 202995638860906496, 264462341003935756, 459846740313505794, 759136587677564990]
+        # players = [91687077510418432, 760555982618361876, 122584263378993152, 760991500355239967, 551867033499992086,
+        #            521914355219169281, 202995638860906496, 264462341003935756, 459846740313505794, 759136587677564990]
+        players = [91687077510418432, 264462341003935756, 759136587677564990, 122584263378993152, 459846740313505794,
+                   760555982618361876, 470244907848564738]
         risk_ch = self.bot.get_channel(815485283721674752)
 
         log = soup.find('div', attrs={'id': "log"}).get_text()
@@ -95,7 +99,7 @@ class Background(commands.Cog):
             last_event = -1
         for event in log[last_event+1:]:
             for emphasis in ["Gogatron", "Uoktem", "tronk", "drshrub", "snafuuu", "rahuligan", "Ryry013", "dumpyDirac",
-                             "supagorilla", "tvbrown", 'davis.zackaria']:
+                             "supagorilla", "tvbrown", 'davis.zackaria', 'AegonTargaryenVI']:
                 event = event.replace(emphasis, f"**{emphasis}**")
             if "reinforced" in event:
                 event = f"♻️ {event}"
@@ -119,7 +123,7 @@ class Background(commands.Cog):
                         break
                     else:
                         current_player = config['current_player']
-                        if player_index - current_player == 2 or (player_index in [0, 1] and current_player in [8, 9]):
+                        if player_index - current_player == 1 or (player_index == 0 and current_player == 6):
                             # the game has advanced by one player, note though that it skips by 2 per turn
                             config['current_player'] = player_index
                         elif player_index == current_player:
@@ -130,7 +134,7 @@ class Background(commands.Cog):
                             # together), so the bot should wait until a player has spent more than five minutes
                             # without making a move before notifying the user. If there's no change after five mins.,
                             # the above player_index - current_player == 1 condition will trigger.
-                            config['current_player'] = player_index - 2
+                            config['current_player'] = player_index - 1
                             break
 
                     if config['sub'].get(str(player_id), False):

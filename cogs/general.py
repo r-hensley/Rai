@@ -175,7 +175,7 @@ class General(commands.Cog):
                 try:
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
-                    await ctx.invoke(self.bot.get_command('mute'), args=['1h', str(msg.author.id), reason])
+                    await ctx.invoke(self.bot.get_command('mute'), '1h', str(msg.author.id), reason)
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
                         if mod_channel:
@@ -247,7 +247,8 @@ class General(commands.Cog):
                     found_word = True
 
             if found_word:
-                await self.bot.spamChan.send(
+                spamChan = self.bot.get_channel(RYRY_SPAM_CHAN)
+                await spamChan.send(
                     f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
                     f'\n{msg.jump_url} <@202995638860906496>'[:2000])
@@ -563,14 +564,12 @@ class General(commands.Cog):
 
             if check_lang:
                 try:
-                    pass
-                    if msg.guild.id == 243838819743432704:
+                    if msg.guild.id == SP_SERVER_ID and msg.channel.id != 817074401680818186:
                         if hasattr(self.bot, 'langdetect'):
                             lang = hf.detect_language(stripped_msg)
                         else:
                             return None, False
                     else:
-                        return None, False
                         lang = await hf.textblob_detect_language(stripped_msg)
                 except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError):
                     pass
@@ -1441,7 +1440,7 @@ class General(commands.Cog):
             return
         if not stripped_msg:
             stripped_msg = ' '
-        if ctx.guild.id in [243838819743432704, 759132637414817822]:
+        if ctx.guild.id in [SP_SERVER_ID, 759132637414817822]:
             probs = self.bot.langdetect.predict_proba([stripped_msg])[0]
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)

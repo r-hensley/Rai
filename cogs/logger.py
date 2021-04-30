@@ -200,9 +200,9 @@ class Logger(commands.Cog):
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
             if not guild_config['enable'] or not guild_config['channel']:
-                return
+                guild_config = None
         else:
-            return
+            guild_config = None
 
         try:
             await self.bot.wait_for('voice_state_update', timeout=0.5, check=lambda m, b, a: m == member)
@@ -214,10 +214,12 @@ class Logger(commands.Cog):
 
         try:
             config = self.bot.db['super_voicewatch'][str(member.guild.id)]
+            channel = self.bot.get_channel(config['channel'])
         except KeyError:
-            return
+            config = channel = None
 
-        channel = self.bot.get_channel(config['channel'])
+        if not config and not guild_config:
+            return
 
         ###################################
         # join, leave, switching channels
@@ -278,13 +280,16 @@ class Logger(commands.Cog):
         emb = discord.Embed(description=description, color=color, timestamp=datetime.utcnow())
         emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
 
-        await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+        """Voice logging"""
+        if guild_config:
+            await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
 
-
-        b = before.channel
-        a = after.channel
-        if member.id in config['users'] and a and not b:
-            await hf.safe_send(channel, embed=emb)
+        """ Super voice watch"""
+        if config:
+            b = before.channel
+            a = after.channel
+            if member.id in config['users'] and a and not b:
+                await hf.safe_send(channel, embed=emb)
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -837,6 +842,11 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        """auto role"""
+        if member.guild.id == 780188673575485463:
+            role = member.guild.get_role(834936351778144316)
+            await member.add_roles(role)
+
         """welcome message"""
         guild = str(member.guild.id)
         welcome_channel = None
@@ -1001,8 +1011,14 @@ class Logger(commands.Cog):
         if member.id in config['blacklist']:
             try:
                 if config[str(member.guild.id)]['enable']:
-                    await member.ban(reason="On the global blacklist")
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
+                    try:
+                        await member.ban(reason="On the global blacklist")
+                    except discord.Forbidden:
+                        await hf.safe_send(bans_channel, embed=hf.red_embed("WARNING: I tried to ban a user for being "
+                                                                            "on the global blacklist but I lacked "
+                                                                            "the permission to ban users on that "
+                                                                            "server."))
                     await hf.ban_check_servers(self.bot, bans_channel, member, ping=True)
                     return
             except KeyError:
