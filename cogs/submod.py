@@ -363,7 +363,11 @@ class Submod(commands.Cog):
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     @hf.is_submod()
     async def unmute(self, ctx, target_in, guild=None):
-        """Unmutes a user"""
+        """Unmutes a user
+
+        Usage: `;unmute <user>`"""
+        if isinstance(guild, str):
+            guild = None
         if not guild:
             guild = ctx.guild
             target: discord.Member = await hf.member_converter(ctx, target_in)

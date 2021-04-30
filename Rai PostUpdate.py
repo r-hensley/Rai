@@ -14,7 +14,6 @@ client = Bot(description="Basic Bot by Ryry013#9234", command_prefix="r!", pm_he
 @client.event
 async def on_ready():
     client.germanicServListChan = client.get_channel(413491181171900416)
-    client.everydayLanguages = client.get_channel(561685815625908265)
 
     client.hubServListChan = client.get_channel(250884951535255553)
     client.hubServMobileChan = client.get_channel(368564776386953226)
@@ -31,7 +30,6 @@ async def on_ready():
     client.spanServ = client.get_guild(243838819743432704)
 
     to_delete_channels = [
-        client.everydayLanguages,
         client.modServListChan,
         client.mass_languages,
         client.romance_langauges,
@@ -41,6 +39,8 @@ async def on_ready():
         client.other_languages,
         client.germanicServListChan,
     ]
+
+    print(to_delete_channels)
 
     only_reddit = False
 
@@ -52,6 +52,7 @@ async def on_ready():
     """Reading files"""
     listFull = []
     listMob = []
+    print('Reading files')
     for i in range(4):  # Reads the list files
         with open(f'{dir_path}/list{i}.txt', 'r', encoding='utf-8') as read_file:
             file_text = read_file.read()
@@ -63,6 +64,7 @@ async def on_ready():
 
     if not only_reddit:
         """Deleting previous messages"""
+        print("Starting deleting of messages")
         for channel in to_delete_channels:
             delete_iterator = 0
             try:
@@ -96,7 +98,7 @@ async def on_ready():
                 hub_channel = client.get_channel(int(part))
                 continue
             main_iterator += 1
-            for channel in [client.germanicServListChan, client.modServListChan, client.everydayLanguages]:
+            for channel in [client.germanicServListChan, client.modServListChan]:
                 try:
                     print(f'Posting message {main_iterator}/{listFullLen} to {channel.guild}, {channel.name}')
                 except AttributeError as e:
