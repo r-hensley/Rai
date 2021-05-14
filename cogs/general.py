@@ -488,12 +488,15 @@ class General(commands.Cog):
                 content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
                 if content:
                     em.add_field(name="Content", value=content)
-                for user in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
                     await hf.safe_send(self.bot.get_user(user), embed=em)
-                if msg.guild.id == SP_SERVER_ID:
-                    await hf.safe_send(msg.guild.get_channel(643077231534407690), embed=em)
-                if msg.guild.id == JP_SERVER_ID:
-                    await hf.safe_send(msg.guild.get_channel(755269708579733626), embed=em)
+
+                if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                    notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
+                    await hf.safe_send(notif_channel, embed=em)
+                elif str(msg.guild.id) in self.bot.db['submod_channel']:
+                    notif_channel = self.bot.get_channel(self.bot.db['submod_channel'][str(msg.guild.id)])
+                    await hf.safe_send(notif_channel, embed=em)
 
         """Replace .mute on spanish server"""
         if msg.guild.id == SP_SERVER_ID:

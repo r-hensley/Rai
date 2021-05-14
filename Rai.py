@@ -69,7 +69,6 @@ class Rai(Bot):
         self.language_detection = True
 
         testChan = self.get_channel(304110816607862785)
-        ctxmsg = await testChan.send('Almost done!')
 
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             self.load_extension('cogs.background')
@@ -82,7 +81,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
 
-        ctxmsg = await ctxmsg.edit(content='Bot loaded (time: {})'.format(t_finish - t_start))
+        ctxmsg = await testChan.send(content='Bot loaded (time: {})'.format(t_finish - t_start))
         self.ctx = await self.get_context(ctxmsg)
 
         await self.change_presence(activity=discord.Game(';help for help'))
