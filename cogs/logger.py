@@ -41,6 +41,7 @@ class Logger(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.bot.recently_removed_members = {}
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -1120,6 +1121,12 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
+        # ### This is used for 1) allowing submods to ban users who have joined less than an hour ago but
+        # ### have already left the server, and 2) for the make_ban_embed command if it didn't get a member
+        self.bot.recently_removed_members.setdefault(str(member.guild.id), [member]).append(member)
+        if len(self.bot.recently_removed_members[str(member.guild.id)]) > 10:
+            del(self.bot.recently_removed_members[str(member.guild.id)][0])
+
         guild = str(member.guild.id)
         if guild in self.bot.db['leaves']:
             if self.bot.db['leaves'][guild]['enable']:
@@ -1490,6 +1497,11 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
+        if not isinstance(member, discord.Member):
+            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(guild.id)]}
+            if member.id in id_to_member_dict:
+                member = id_to_member_dict[member.id]
+
         guild_id: str = str(guild.id)
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]

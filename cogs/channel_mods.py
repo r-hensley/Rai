@@ -226,6 +226,8 @@ class ChannelMods(commands.Cog):
 
     @commands.command()
     async def log(self, ctx, user, *, reason="None"):
+        """Same as `;warn` but it adds `-s` into the reason which makes it just silently log the warning
+        without sending a notification to the user."""
         warn = self.bot.get_command('warn')
         if reason:
             reason += ' -s'
@@ -236,7 +238,10 @@ class ChannelMods(commands.Cog):
     @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     @hf.is_admin()
     async def channel_mod(self, ctx, *, user):
-        """Assigns a channel mod"""
+        """Assigns a channel mod. You must do this command in the channel you
+        where you wish to assign them as a channel helper.
+
+        Usage (in the channel): `;cm <user name>`"""
         config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
         user = await hf.member_converter(ctx, user)
         if not user:
@@ -276,7 +281,9 @@ class ChannelMods(commands.Cog):
     @commands.command(aliases=['rcm', 'rch'])
     @hf.is_admin()
     async def remove_channel_mod(self, ctx, user):
-        """Removes a channel mod. You must do this in the channel they're a channel mod in."""
+        """Removes a channel mod. You must do this in the channel they're a channel mod in.
+
+        Usage: `;rcm <user name>`"""
         config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
         user_obj = await hf.member_converter(ctx, user)
         if user_obj:
@@ -317,16 +324,33 @@ class ChannelMods(commands.Cog):
             await ctx.author.add_roles(staffrole)
             await hf.safe_send(ctx, "I've given you the staff role.")
 
-    @commands.command()
+    @commands.group(invoke_without_command=True)
     async def staffping(self, ctx):
         """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
-        subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]
+        subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]['users']
         if ctx.author.id in subscribed_users:
             subscribed_users.remove(ctx.author.id)
             await hf.safe_send(ctx, "You will no longer receive notifications for staff pings.")
         else:
             subscribed_users.append(ctx.author.id)
             await hf.safe_send(ctx, "You will receive notifications for staff pings.")
+
+    @staffping.command(name="set")
+    async def staffping_set(self, ctx):
+        """Sets the notification channel for staff pings to the current channel.
+        If not set, it will default to the submod channel which you can change
+        by typing `;set_submod_channel`."""
+        if str(ctx.guild.id) not in self.bot.db['staff_ping']:
+            await hf.safe_send(ctx, "Staff ping notifications are not enabled in this guild. Type `;staffping` first.")
+            return
+
+        config = self.bot.db['staff_ping'][str(ctx.guild.id)]
+        if 'channel' in config:
+            config['channel'] = ctx.channel.id
+        else:
+            config['channel'] = ctx.channel.id
+
+        await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
 
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
@@ -504,14 +528,14 @@ class ChannelMods(commands.Cog):
 
             first_embed = None
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
-                first_embed = emb
+                first_embed = emb.copy()
                 emb = hf.green_embed(f"Modlog for {username} (part 2)")
 
             emb.add_field(name=name, value=value[:1024], inline=False)
 
-            if first_embed:
-                await hf.safe_send(ctx, embed=first_embed)
-            await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
+        if first_embed:
+            await hf.safe_send(ctx, embed=first_embed)
+        await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()

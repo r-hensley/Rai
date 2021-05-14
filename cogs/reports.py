@@ -387,7 +387,15 @@ class Reports(commands.Cog):
             initial_msg = report_text[4][:-5]
         else:
             initial_msg = report_text[4]
-        await report_room.set_permissions(user, read_messages=True)
+        try:
+            await report_room.set_permissions(user, read_messages=True)
+        except discord.Forbidden:
+            await user.send(f"The bot is not properly setup on this server. Please communicate with the mods "
+                            f"in another way.")
+            await report_room.send(f"WARNING: A user tried to enter the room, but I lacked the permission to edit "
+                                   f"this channel to let them in. Please allow me to edit channel permissions.")
+            config['current_user'] = None
+            return
 
         if from_mod:
             try:

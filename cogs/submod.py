@@ -11,8 +11,6 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SP_SERV = 243838819743432704
 JP_SERVER_ID = 189571157446492161
 
-
-
 class Submod(commands.Cog):
     """Help"""
 
@@ -59,15 +57,23 @@ class Submod(commands.Cog):
         if not target:
             try:
                 if re.search('^<@!?\d{17,22}>$', args[0]):
-                    target = await self.bot.fetch_user(int(args[0].replace('<@', '').replace('!', '').replace('>', '')))
+                    user_id = int(args[0].replace('<@', '').replace('!', '').replace('>', ''))
+                    target = await self.bot.fetch_user(user_id)
                 elif re.search('^\d{17,22}$', args[0]):
-                    target = await self.bot.fetch_user(int(args[0]))
+                    user_id = int(args[0])
+                    target = await self.bot.fetch_user(user_id)
                 else:
                     return
             except discord.NotFound:
                 return
             except ValueError:
                 await hf.safe_send("I couldn't find the user. Please try again.")
+                return
+
+            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(ctx.guild.id)]}
+            if user_id in id_to_member_dict:  # target is an ID
+                target = id_to_member_dict[user_id]
+                
         if not reason:
             reason = '(no reason given)'
 
@@ -83,7 +89,7 @@ class Submod(commands.Cog):
         if hasattr(target, "joined_at"):  # will be false if the user is not in the server
             joined_at = datetime.utcnow() - target.joined_at
         else:
-            joined_at = 61  # arbitrarily bigger than 60 to fail the conditional
+            joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
 
         if not (ctx.guild.id == 243838819743432704 and
                 ctx.guild.get_role(258819531193974784) in ctx.author.roles and
@@ -377,6 +383,10 @@ class Submod(commands.Cog):
         config = self.bot.db['mutes'][str(guild.id)]
         role = guild.get_role(config['role'])
 
+        voice_role = None
+        if str(ctx.guild.id) in self.bot.db['voice_mutes']:
+            voice_role = guild.get_role(self.bot.db['voice_mutes'][str(ctx.guild.id)]['role'])
+
         failed = False
         if target:
             target_id = target.id
@@ -385,6 +395,12 @@ class Submod(commands.Cog):
                 failed = False
             except discord.HTTPException:
                 pass
+
+            if voice_role:
+                try:
+                    await target.remove_roles(voice_role)
+                except discord.HTTPException:
+                    pass
 
         else:
             if ctx.author == ctx.bot.user:
