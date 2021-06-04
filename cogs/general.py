@@ -459,16 +459,28 @@ class General(commands.Cog):
 
                 if language_score['english']:
                     txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
-                    await msg.author.add_roles(english_role)
+                    try:
+                        await msg.author.add_roles(english_role)
+                    except discord.NotFound:
+                        return
                 if language_score['spanish']:
                     txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
-                    await msg.author.add_roles(spanish_role)
+                    try:
+                        await msg.author.add_roles(spanish_role)
+                    except discord.NotFound:
+                        return
                 if language_score['other']:
                     txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
-                    await msg.author.add_roles(other_role)
+                    try:
+                        await msg.author.add_roles(other_role)
+                    except discord.NotFound:
+                        return
                 if language_score['both']:
                     txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
-                    await msg.author.add_roles(english_role, spanish_role)
+                    try:
+                        await msg.author.add_roles(english_role, spanish_role)
+                    except discord.NotFound:
+                        return
 
                 txt2 = "You can add more roles in <#703075065016877066>:\n" \
                        "Puedes añadirte más en <#703075065016877066>:\n\n" \
@@ -1687,7 +1699,10 @@ class General(commands.Cog):
             if user in config['votes2']:  # 1, 2, or 3 votes
                 list_of_votes = config['votes2'][user]['votes']
                 if user_residency in list_of_votes:
-                    await hf.safe_send(ctx.author, f"{user} - Someone from your server already voted")
+                    try:
+                        await hf.safe_send(ctx.author, f"{user} - Someone from your server already voted")
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, f"{user} - Someone from your server already voted")
                     continue
 
                 message = await channel.fetch_message(config['votes2'][user]['message'])

@@ -102,6 +102,13 @@ class Rai(Bot):
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
             return
 
+        elif isinstance(error, discord.DiscordServerError):
+            try:
+                await asyncio.sleep(5)
+                await ctx.send(f"There was a discord server error. Please try again.")
+            except discord.DiscordServerError:
+                return
+
         elif isinstance(error, commands.NoPrivateMessage):
             try:
                 await ctx.author.send("You can only use this in a guild.")
