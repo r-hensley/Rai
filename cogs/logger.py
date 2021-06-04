@@ -382,6 +382,8 @@ class Logger(commands.Cog):
     async def on_message_edit(self, before, after):
         if isinstance(before.channel, discord.DMChannel):
             return
+        if not before.guild:
+            return
         guild = str(before.guild.id)
         if not before.author.bot:
             if guild in self.bot.db['edits']:
@@ -545,9 +547,18 @@ class Logger(commands.Cog):
             del (guild_config['channel'])
             return
 
-        uncache = len(payload.message_ids) - len(payload.cached_messages)
+        message_channel = self.bot.get_channel(payload.channel_id)
+        cached = [m.id for m in payload.cached_messages]
+        uncached = [m for m in payload.message_ids if m not in cached]
+
         if payload.cached_messages:
-            text = f"Deleted messages from #{channel.name} ({channel.id}) (times are in UTC)\n"
+            if message_channel:
+                text = f"Deleted {len(payload.cached_messages)} messages from #{message_channel.name} " \
+                       f"({message_channel.id}) (times are in UTC)\n"
+            else:
+                text = f"Deleted {len(payload.cached_messages)} messages from <#{payload.channel_id}> " \
+                       f"(times are in UTC)\n"
+
             msgs = sorted(list(payload.cached_messages), key=lambda m: m.id)
             for msg in msgs:
                 date = msg.created_at.strftime("%d/%m/%y %H:%M:%S")
@@ -572,14 +583,35 @@ class Logger(commands.Cog):
                 write_file.seek(0)
                 filename = f"{payload.channel_id}_{msgs[0].id}-{msgs[-1].id}_messages.txt"
                 file = discord.File(write_file, filename=filename)
-                emb = hf.red_embed(f"**{len(msgs)}** messages have been cleared from"
-                                   f" <#{payload.channel_id}> and logged above.")
-                if uncache:
-                    emb.description += f"\nAdditionally, {uncache} old uncached message(s) were deleted."
+                text = f"**{len(msgs)}** messages have been cleared from <#{payload.channel_id}> and logged above.\n" \
+                       f"Deleted author/message IDs are:\n"
+                for msg in payload.cached_messages:
+                    addition = f"M{msg.author.id}/{msg.id}\n"
+                    if len(text + addition) < 2048:
+                        text += addition
+                    else:
+                        break
+                emb = hf.red_embed(text)
+                if uncached:
+                    text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
+                           f"Those IDs are:\n"
+                    if len(emb.description + text) < 2048:
+                        emb.description += text
+                    for msg_id in uncached:
+                        if len(emb.description + f"M{msg_id}, ") < 2048:
+                            emb.description += f"M{msg_id}, "
+
         else:
             file = None
-            emb = hf.red_embed(f"{len(payload.message_ids)} old messages have been cleared from "
-                               f"<#{payload.channel_id}>.")
+            text = f"{len(payload.message_ids)} old uncached messages have been cleared from <#{payload.channel_id}>." \
+                   f" The removed message IDs were:\n"
+            for msg_id in payload.message_ids:
+                addition = f"M{msg_id}, "
+                if len(text + addition) < 2048:
+                    text += addition
+                else:
+                    break
+            emb = hf.red_embed(text)
 
         try:
             await hf.safe_send(channel, embed=emb, file=file)
@@ -941,8 +973,11 @@ class Logger(commands.Cog):
             if list_of_readd_roles:
                 try:
                     await member.add_roles(*list_of_readd_roles)
-                    await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
-                                      f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
+                    try:
+                        await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
+                                          f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
+                    except discord.HTTPException:
+                        pass
                 except discord.errors.Forbidden:
                     pass
                 del readd_config['users'][str(member.id)]
@@ -970,7 +1005,7 @@ class Logger(commands.Cog):
                         await member.remove_roles(new_user_role)
                 try:
                     await hf.safe_send(jpJHO, JHO_msg)
-                except discord.Forbidden:
+                except (discord.Forbidden, discord.HTTPException):
                     pass
 
 
