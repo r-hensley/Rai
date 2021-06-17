@@ -38,6 +38,79 @@ class Owner(commands.Cog):
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
+    @commands.Cog.listener()
+    async def on_command(self, ctx):
+        if str(ctx.guild.id) not in self.bot.db['guildstats']:
+            self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
+        config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
+
+        date_str = datetime.utcnow().strftime("%Y%m%d")
+        config[date_str] = config.setdefault(date_str, 0) + 1
+
+    @commands.command()
+    async def guildstats(self, ctx):
+        """Checks stats on various guilds that the bot is on"""
+        config = self.bot.db['guildstats']
+        guild_info = {}
+        id_to_guild = {str(g.id): g for g in self.bot.guilds}
+        for guild_id in config:
+            message_count = 0
+            for day in config[guild_id]['messages']:
+                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                if days_ago > 30:
+                    del(config[guild_id]['messages'][day])
+                else:
+                    message_count += config[guild_id]['messages'][day]
+
+            command_count = 0
+            for day in config[guild_id]['commands']:
+                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                if days_ago > 30:
+                    del(config[guild_id]['commands'][day])
+                else:
+                    command_count += config[guild_id]['commands'][day]
+                    
+            guild = id_to_guild[guild_id]
+            bot_num = len([m for m in guild.members if m.bot])
+            human_num = len([m for m in guild.members if not m.bot])
+            guild_info[guild] = {"messages": message_count,
+                                 "member_count": guild.member_count,
+                                 "bots": bot_num,
+                                 "humans": human_num,
+                                 "commands": command_count}
+        msg = ''
+        for guild in guild_info:
+            info = guild_info[guild]
+            msg_addition = f"**{guild.name}: ({guild.id})**" \
+                           f"\n{info['messages']} messages" \
+                           f"\n{info['member_count']} members " \
+                           f"({info['humans']} humans, {info['bots']} bots, " \
+                           f"{round(info['humans']/info['member_count'], 2)})" \
+                           f"\n{info['commands']} commands\n"
+            if len(msg + msg_addition) < 2000:
+                msg += msg_addition
+            else:
+                await hf.safe_send(ctx, msg)
+                msg = msg_addition
+        if msg:
+            await hf.safe_send(ctx, msg)
+
+        dead_guilds = []
+        for guild in self.bot.guilds:
+            if guild not in guild_info:
+                dead_guilds.append(guild)
+        msg = ''
+        for guild in dead_guilds:
+            bots = len([m for m in guild.members if m.bot])
+            msg_addition = f"{guild.name}  --  {guild.id}  -- {bots}/{guild.member_count}\n"
+            if len(msg + msg_addition) < 2000:
+                msg += msg_addition
+            else:
+                await hf.safe_send(ctx, msg)
+                msg = msg_addition
+        if msg:
+            await hf.safe_send(ctx, msg)
+
     @commands.command()
     async def edit(self, ctx, message_id, *, content):
         """Edits a message from Rai"""
@@ -569,6 +642,7 @@ class Owner(commands.Cog):
 
     @commands.command()
     async def ignoreserver(self, ctx, guild_id=None):
+        """Ignore for banned users ID check in modserver"""
         if not guild_id:
             guild = ctx.guild
         else:
@@ -584,6 +658,42 @@ class Owner(commands.Cog):
 
         self.bot.db['ignored_servers'].append(guild.id)
         await ctx.message.add_reaction('✅')
+
+    @commands.command()
+    async def banserver(self, ctx, guild_id):
+        """Ban/blacklist a server from Rai"""
+        self.bot.db['bannedservers'].append(guild_id)
+
+        try:
+            await ctx.message.add_reaction("✅")
+        except discord.Forbidden:
+            pass
+
+        guilds = {guild_id: guild for guild in self.bot.guilds}
+        if int(guild_id) in guilds:
+            await guilds[int(guild_id)].leave()
+
+        try:
+            await ctx.message.add_reaction("🗑️")
+        except discord.Forbidden:
+            pass
+
+    @commands.command()
+    async def leaveserver(self, ctx, guild_id):
+        guilds = {guild_id: guild for guild in self.bot.guilds}
+        if int(guild_id) in guilds:
+            await guilds[int(guild_id)].leave()
+
+            try:
+                await ctx.message.add_reaction("🗑️")
+            except discord.Forbidden:
+                pass
+
+        else:
+            try:
+                await ctx.message.add_reaction("❓")
+            except discord.Forbidden:
+                pass
 
 
 def setup(bot):
