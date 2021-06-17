@@ -137,6 +137,14 @@ class General(commands.Cog):
 
         ##########################################
 
+        """guild stats"""
+        config: dict = self.bot.db['guildstats']
+        if str(msg.guild.id) not in config:
+            config[str(msg.guild.id)] = {'messages': {}, 'commands': {}}
+        config = config[str(msg.guild.id)]['messages']
+        date_str = datetime.utcnow().strftime("%Y%m%d")
+        config[date_str] = config.setdefault(date_str, 0) + 1
+
         "antispam"
         async def antispam_check():
             if str(msg.guild.id) in self.bot.db['antispam']:
@@ -489,26 +497,45 @@ class General(commands.Cog):
                 await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
         await smart_welcome(msg)
 
-        """mods ping on spanish server"""
-        if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
-            if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
-                em = discord.Embed(title=f"Staff Ping",
-                                   description=f"From {msg.author.mention} ({msg.author.name}) "
-                                               f"in {msg.channel.mention}\n[Jump URL]({msg.jump_url})",
-                                   color=discord.Color(int('FFAA00', 16)),
-                                   timestamp=datetime.utcnow())
-                content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
-                if content:
-                    em.add_field(name="Content", value=content)
-                for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
-                    await hf.safe_send(self.bot.get_user(user), embed=em)
+        async def mods_ping():
+            """mods ping on spanish server"""
+            em = discord.Embed(title=f"Staff Ping",
+                               description=f"From {msg.author.mention} ({msg.author.name}) "
+                                           f"in {msg.channel.mention}\n[Jump URL]({msg.jump_url})",
+                               color=discord.Color(int('FFAA00', 16)),
+                               timestamp=datetime.utcnow())
+            if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
+                if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
 
-                if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
-                    notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
+                    content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
+                    if content:
+                        em.add_field(name="Content", value=content)
+                    for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
+                        await hf.safe_send(self.bot.get_user(user), embed=em)
+
+                    if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                        notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
+                    elif str(msg.guild.id) in self.bot.db['submod_channel']:
+                        notif_channel = self.bot.get_channel(self.bot.db['submod_channel'][str(msg.guild.id)])
+                    else:
+                        return
                     await hf.safe_send(notif_channel, embed=em)
-                elif str(msg.guild.id) in self.bot.db['submod_channel']:
-                    notif_channel = self.bot.get_channel(self.bot.db['submod_channel'][str(msg.guild.id)])
-                    await hf.safe_send(notif_channel, embed=em)
+
+
+                """ mods ping on other servers"""
+            else:
+                if str(msg.guild.id) in self.bot.db['mod_role']:
+                    mod_role = msg.guild.get_role(self.bot.db['mod_role'][str(msg.guild.id)]['id'])
+                    if mod_role:
+                        if mod_role in msg.role_mentions:
+                            if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                                notif_channel = self.bot.get_channel(
+                                    self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
+                            else:
+                                return
+                            await hf.safe_send(notif_channel, embed=em)
+        await mods_ping()
+
 
         """Replace .mute on spanish server"""
         if msg.guild.id == SP_SERVER_ID:
@@ -782,6 +809,16 @@ class General(commands.Cog):
                         except (discord.errors.NotFound, discord.Forbidden):
                             pass
         await no_filter_hc()
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        to_delete = []
+        for x in self.bot.db:
+            for key in self.bot.db[x]:
+                if str(guild.id) == key:
+                    to_delete.append((x, key))
+        for i in to_delete:
+            del (self.bot.db[i[0]][i[1]])
 
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True)

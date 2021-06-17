@@ -4,9 +4,11 @@ from .utils import helper_functions as hf
 import re
 
 import os
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SP_SERV = 243838819743432704
 JP_SERV = 189571157446492161
+
 
 def any_channel_mod_check(ctx):
     if ctx.command.name == 'staffping':
@@ -137,7 +139,7 @@ class ChannelMods(commands.Cog):
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
                               value=f"{msg.content}"[:1008 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
             if msg.content[1009:]:
-                emb.add_field(name=f"continued", value=f"...{msg.content[1009-len(jump_url):len(jump_url)+1024]}")
+                emb.add_field(name=f"continued", value=f"...{msg.content[1009 - len(jump_url):len(jump_url) + 1024]}")
             if msg.attachments:
                 x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
                 if not msg.content:
@@ -152,14 +154,14 @@ class ChannelMods(commands.Cog):
             if not channel:
                 await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
-                del(self.bot.db['submod_channel'][str(ctx.guild.id)])
+                del (self.bot.db['submod_channel'][str(ctx.guild.id)])
                 return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
             channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
             if not channel:
                 await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
-                del(self.bot.db['submod_channel'][str(ctx.guild.id)])
+                del (self.bot.db['submod_channel'][str(ctx.guild.id)])
                 return
         else:
             await hf.safe_send(ctx, "Please set either a mod channel or a submod channel with "
@@ -327,6 +329,8 @@ class ChannelMods(commands.Cog):
     @commands.group(invoke_without_command=True)
     async def staffping(self, ctx):
         """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
+        if str(ctx.guild.id) not in self.bot.db['staff_ping']:
+            self.bot.db['staff_ping'][str(ctx.guild.id)] = {'users': []}
         subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]['users']
         if ctx.author.id in subscribed_users:
             subscribed_users.remove(ctx.author.id)
@@ -336,21 +340,53 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "You will receive notifications for staff pings.")
 
     @staffping.command(name="set")
-    async def staffping_set(self, ctx):
-        """Sets the notification channel for staff pings to the current channel.
-        If not set, it will default to the submod channel which you can change
-        by typing `;set_submod_channel`."""
+    async def staffping_set(self, ctx, input_id=None):
+        """Does one of two things:
+        1) Sets notification channel for pings to this channel (`;staffping set <channel_mention>)
+           (if no channel is specified, sets to current channel)
+        2) Sets the watched role for staff pings (specify an ID or role: `;staffping set <ID/role mention>`)
+        If neither are set, it will watch for the mod role (`;set_mod_role`) and notify to the
+        submod channel (`;set_submod_channel`)."""
         if str(ctx.guild.id) not in self.bot.db['staff_ping']:
-            await hf.safe_send(ctx, "Staff ping notifications are not enabled in this guild. Type `;staffping` first.")
-            return
+            await ctx.invoke(self.staffping)
 
         config = self.bot.db['staff_ping'][str(ctx.guild.id)]
-        if 'channel' in config:
-            config['channel'] = ctx.channel.id
-        else:
-            config['channel'] = ctx.channel.id
 
-        await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
+        if not input_id:  # nothing, assume setting channel to current channel
+            config['channel'] = ctx.channel.id
+            await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
+
+        else:
+            if re.search(r"^<#\d{17,22}>$", ctx.message.content):  # a channel mention
+                config['channel'] = int(input_id.replace("<#", "").replace(">", ""))
+                await hf.safe_send(ctx, f"I've set the notification channel for staff pings as <#{input_id}>.")
+            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a channel id
+                channel = ctx.guild.get_channel(int(input_id))
+                if channel:
+                    config['channel'] = int(input_id)
+
+            elif re.search(r"^<@&\d{17,22}>$", ctx.message.content):  # a role mention
+                input_id = input_id.replace("<@&", "").replace(">", "")
+                role = ctx.guild.get_role(int(input_id))
+                if role:
+                    config['role'] = int(input_id)
+                else:
+                    await hf.safe_send(ctx,
+                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
+                                       "go to that channel and type just `;staffping set` instead.")
+                    return
+            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a role id
+                role = ctx.guild.get_role(int(input_id))
+                if role:
+                    config['role'] = int(input_id)
+                else:
+                    await hf.safe_send(ctx,
+                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
+                                       "go to that channel and type just `;staffping set` instead.")
+                    return
+            else: 
+                await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
+                return
 
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
@@ -401,12 +437,12 @@ class ChannelMods(commands.Cog):
                      expertenglish, advancedenglish, intermediateenglish, beginnerenglish,
                      expertspanish, advancedspanish, intermediatespanish, beginnerspanish,
                      learningenglish, learningspanish]
-        langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english, 
-                      's': spanish,  'spanish': spanish,  'sn': spanish,  'ns': spanish,
+        langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english,
+                      's': spanish, 'spanish': spanish, 'sn': spanish, 'ns': spanish,
                       'other': other, 'ol': other, 'o': other,
                       'ee': expertenglish, 'ae': advancedenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
                       'es': expertspanish, 'as': advancedspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
-                      'le': learningenglish, 'ls': learningspanish, 
+                      'le': learningenglish, 'ls': learningspanish,
                       'none': None, 'n': None}
 
         args = args.split()
@@ -594,6 +630,7 @@ class ChannelMods(commands.Cog):
     async def reason(self, ctx, user, index: int, *, reason):
         """Shortcut for `;modlog reason`"""
         await ctx.invoke(self.modlog_edit, user, index, reason=reason)
+
 
 def setup(bot):
     bot.add_cog(ChannelMods(bot))
