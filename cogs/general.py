@@ -524,16 +524,23 @@ class General(commands.Cog):
 
                 """ mods ping on other servers"""
             else:
+                if str(msg.guild.id) not in self.bot.db['staff_ping']:
+                    return
+
+                if 'channel' not in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                    return
+
                 if str(msg.guild.id) in self.bot.db['mod_role']:
                     mod_role = msg.guild.get_role(self.bot.db['mod_role'][str(msg.guild.id)]['id'])
-                    if mod_role:
-                        if mod_role in msg.role_mentions:
-                            if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
-                                notif_channel = self.bot.get_channel(
-                                    self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
-                            else:
-                                return
-                            await hf.safe_send(notif_channel, embed=em)
+                else:
+                    return
+
+                if not mod_role:
+                    return
+
+                if mod_role in msg.role_mentions:
+                    notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
+                    await hf.safe_send(notif_channel, embed=em)
         await mods_ping()
 
 
