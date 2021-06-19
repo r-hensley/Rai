@@ -972,6 +972,9 @@ class Logger(commands.Cog):
             readd_config, list_of_readd_roles = get_list_of_roles()
             if list_of_readd_roles:
                 try:
+                    stage_visitor = member.guild.get_role(645021058184773643)
+                    if stage_visitor in list_of_readd_roles:
+                        list_of_readd_roles.remove(stage_visitor)
                     await member.add_roles(*list_of_readd_roles)
                     try:
                         await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
@@ -1187,7 +1190,9 @@ class Logger(commands.Cog):
                     codes = config['roles'] = {}
                 found_roles = []
                 for role in member.roles:
-                    if role.name in ['Nitro Booster', 'New User'] or role.id in [249695630606336000, member.guild.id]:
+                    if role.name in ['Nitro Booster', 'New User'] or role.id in [249695630606336000,
+                                                                                 member.guild.id,
+                                                                                 645021058184773643]:
                         pass
                     else:
                         if str(role.id) in codes:

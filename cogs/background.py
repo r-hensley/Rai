@@ -233,10 +233,10 @@ class Background(commands.Cog):
                         member = discord.Object(id=member_id)
                         try:
                             await guild.unban(member, reason="End of timed ban")
-                            del config[guild_id]['timed_bans'][member_id]
                         except (discord.NotFound, discord.Forbidden):
                             pass
                         finally:
+                            del config[guild_id]['timed_bans'][member_id]
                             unbanned_users.append(member_id)
             if mod_channel and unbanned_users:
                 text_list = []

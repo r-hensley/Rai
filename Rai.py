@@ -42,7 +42,7 @@ def prefix(bot, msg):
 class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496,
-                         help_command=None, intents=intents)
+                         help_command=None, intents=intents, max_messages=10000)
         self.language_detection = False
         print('starting loading of jsons')
         with open(f"{dir_path}/db.json", "r") as read_file1:
@@ -70,6 +70,9 @@ class Rai(Bot):
 
         testChan = self.get_channel(304110816607862785)
 
+        ctxmsg = await testChan.send("Almost done!")
+        self.ctx = await self.get_context(ctxmsg)
+
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             self.load_extension('cogs.background')
             print(f'Loaded cogs.background')
@@ -81,8 +84,7 @@ class Rai(Bot):
 
         t_finish = datetime.now()
 
-        ctxmsg = await testChan.send(content='Bot loaded (time: {})'.format(t_finish - t_start))
-        self.ctx = await self.get_context(ctxmsg)
+        ctxmsg = await ctxmsg.edit(content='Bot loaded (time: {})'.format(t_finish - t_start))
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
