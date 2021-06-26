@@ -410,10 +410,10 @@ class Admin(commands.Cog):
                     response = resp
                     rules = await resp.text(encoding='utf-8-sig')
         except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({download_link})')
             return
         if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {r.status_code}: {r.reason} ({url})')
+            await hf.safe_send(ctx, f'html_error: Error {resp.status}: {resp.reason} ({download_link})')
             return
         rules = rules.replace('__', '').replace('{und}',
                                                 '__')  # google uses '__' page breaks so this gets around that
