@@ -1,3 +1,6 @@
+from typing import Optional, Union
+from datetime import datetime
+
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
@@ -384,7 +387,7 @@ class ChannelMods(commands.Cog):
                                        "I couldn't find the role you mentioned. If you tried to link a channel ID, "
                                        "go to that channel and type just `;staffping set` instead.")
                     return
-            else: 
+            else:
                 await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
                 return
 
@@ -515,22 +518,24 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} to {user.display_name}.")
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
-    async def modlog(self, ctx, id):
+    async def modlog(self, ctx, id_in):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, id)
+        member: discord.Member = await hf.member_converter(ctx, id_in)
         if member:
+            user: Optional[Union[discord.User, discord.Member]] = member
             username = f"{member.name}#{member.discriminator} ({member.id})"
             user_id = str(member.id)
         else:
             try:
-                user = await self.bot.fetch_user(int(id))
+                user = await self.bot.fetch_user(int(id_in))
                 username = f"{user.name}#{user.discriminator} ({user.id})"
-                user_id = id
+                user_id = id_in
             except discord.NotFound:
-                username = user_id = id
+                user = None
+                username = user_id = "UNKNOWN USER"
             except discord.HTTPException:
                 await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
@@ -538,14 +543,101 @@ class ChannelMods(commands.Cog):
                 await hf.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
                                         "use an ID")
                 return
-        if user_id not in config:
-            em = hf.red_embed(f"{username} was not found in the modlog.")
-            await hf.safe_send(ctx, embed=em)
-            return
-        config = config[user_id]
-        emb = hf.green_embed(f"Modlog for {username}")
-        list_length = len(config[-25:])  # this is to prevent the invisible character on the last entry
-        index = 1
+
+        if member or user:
+            if getattr(user, "nick", None):
+                name = f"{str(user)} ({user.nick})"
+            else:
+                name = f"{str(user)}"
+            # emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+
+            author = "Title"  # three design possibilities, users have no way of changing this
+            if author == "Author":
+                emb = hf.green_embed(f"\n**`ID`** : {user_id}")
+                emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+                emb.title = "🔰 Modlog"
+            elif author == "Title":
+                emb = hf.green_embed(f"\n**`ID`** : {user_id}")
+                emb.set_author(name="🔰 Modlog")
+                emb.title = name
+            else:
+                emb = hf.green_embed(f'**`Name`** : {name}')
+                emb.description += f"\n**`ID`** : {user_id}"
+                emb.title = "🔰 Modlog"
+        else:
+            emb = hf.red_embed("COULD NOT FIND USER")
+            emb.set_author(name="🔰 Modlog")
+
+        if member:
+            total_msgs_month = 0
+            total_msgs_week = 0
+            # ### Calculate number of messages ###
+            message_count = {}
+            if str(ctx.guild.id) in self.bot.stats:
+                stats_config = self.bot.stats[str(ctx.guild.id)]['messages']
+                for day in stats_config:
+                    if str(member.id) in stats_config[day]:
+                        user_stats = stats_config[day][str(member.id)]
+                        if 'channels' not in user_stats:
+                            continue
+                        for channel in user_stats['channels']:
+                            message_count[channel] = message_count.get(channel, 0) + user_stats['channels'][channel]
+                            days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                            if days_ago <= 7:
+                                total_msgs_week += user_stats['channels'][channel]
+                            total_msgs_month += user_stats['channels'][channel]
+
+            # ### Calculate voice time ###
+            voice_time_str = "0h"
+            if 'voice' in self.bot.stats.get(str(ctx.guild.id), {}):
+                voice_config = self.bot.stats[str(ctx.guild.id)]['voice']['total_time']
+                voice_time = 0
+                for day in voice_config:
+                    if str(member.id) in voice_config[day]:
+                        time = voice_config[day][str(member.id)]
+                        voice_time += time
+                hours = voice_time // 60
+                minutes = voice_time % 60
+                voice_time_str = f"{hours}h {minutes}m"
+
+            emb.description += f"\n**`Number of messages M | W`** : {total_msgs_month} | {total_msgs_week}"
+            emb.description += f"\n**`Time in voice`** : {voice_time_str}"
+
+        join_history = self.bot.db['joins'][str(ctx.guild.id)].get('join_history', {}).get(user_id, None)
+        if join_history:
+            invite: Optional[str]
+            if invite := join_history['invite']:
+                invite_obj = discord.utils.find(lambda i: i.code == invite, await ctx.guild.invites())
+                if invite_obj:
+                    emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
+                                       f"{invite} by {invite_obj.inviter.name}"
+                else:
+                    emb.description += f"\n[**`Used Invite`** : {invite}]" \
+                                       f"({join_history['jump_url']})"
+
+        # emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+        # elif user:
+        # emb.set_author(name=str(user), icon_url=user.avatar_url_as(static_format="png"))
+        # else:
+        # emb.description += f'\n{username}'
+        # emb.set_author(name=username)
+
+        if member or user:
+            if user_id in config:
+                config = config[user_id]
+            else:
+                emb.color = hf.red_embed("").color
+                emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
+                config = []
+        else:
+            config = []
+
+        if member:
+            emb.set_footer(text="Join Date")
+            emb.timestamp = member.joined_at
+        else:
+            emb.set_footer(text="User not in server")
+
         first_embed = None  # only to be used if the first embed goes over 6000 characters
         for entry in config[-25:]:
             name = f"{config.index(entry) + 1}) {entry['type']}"
@@ -558,14 +650,11 @@ class ChannelMods(commands.Cog):
                 value += f"__Reason__: {entry['reason']}\n"
             if entry['jump_url']:
                 value += f"[Jump URL]({entry['jump_url']})\n"
-            if index < list_length:
-                value += "⠀"  # invisible character to guarantee the empty new line
-                index += 1
 
             first_embed = None
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
                 first_embed = emb.copy()
-                emb = hf.green_embed(f"Modlog for {username} (part 2)")
+                emb.clear_fields()
 
             emb.add_field(name=name, value=value[:1024], inline=False)
 
