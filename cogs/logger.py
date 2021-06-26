@@ -401,8 +401,8 @@ class Logger(commands.Cog):
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
-                            await hf.safe_send(channel, embed=self.make_edit_embed(before[1024:],
-                                                                                   after[1024:],
+                            await hf.safe_send(channel, embed=self.make_edit_embed(before.message.content[1024:],
+                                                                                   after.message.content[1024:],
                                                                                    levenshtein_distance))
                         except discord.errors.Forbidden:
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
@@ -1098,20 +1098,7 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
                     if mod_channel:
                         await hf.safe_send(mod_channel, "@here", embed=emb)
-            hf.add_to_modlog(None, [member, guild], 'Ban', emb.description, False, None)
-
-        # """Spanish Server welcome"""
-        # spanServ = self.bot.get_guild(SPAN_SERV_ID)
-        # if member.guild == spanServ:
-        #     nadeko_obj = spanServ.get_member(NADEKO_ID)
-        #     if str(nadeko_obj.status) == 'offline':
-        #         await self.bot.get_channel(SPAN_WELCOME_CHAN_ID).send(
-        #             'Welcome to the server.  Nadeko is currently down, '
-        #             'so please state your roles and someone in welcoming party will come to'
-        #             ' assign your role as soon as possible.  If no one comes, please tag the mods with `@Mods`.  '
-        #             'Thanks! '
-        #             '(<@&470364944479813635>)'
-        #         )
+            hf.add_to_modlog(None, [member, member.guild], 'Ban', emb.description, False, None)
 
     # ############### leaves #####################
 
