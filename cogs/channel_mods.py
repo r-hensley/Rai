@@ -680,7 +680,7 @@ class ChannelMods(commands.Cog):
             return
         config = config[user_id]
         if index in ['-a', '-all']:
-            del config
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
             await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
         else:
             try:

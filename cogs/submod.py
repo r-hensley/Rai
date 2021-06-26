@@ -86,6 +86,7 @@ class Submod(commands.Cog):
             return
 
         # this memorial exists to forever remember the robot head, may you rest in peace ['_']
+        # this comment exists to wonder what the hell the robot head was...
         if hasattr(target, "joined_at"):  # will be false if the user is not in the server
             joined_at = datetime.utcnow() - target.joined_at
         else:

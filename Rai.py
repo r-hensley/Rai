@@ -237,7 +237,7 @@ class Rai(Bot):
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
         traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
         e.timestamp = datetime.utcnow()
-        await self.get_channel(554572239836545074).send(traceback_text, embed=e)
+        await self.get_channel(554572239836545074).send(traceback_text[:2000], embed=e)
         print('')
 
     async def on_error(self, event, *args, **kwargs):

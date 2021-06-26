@@ -1,3 +1,5 @@
+import urllib
+
 import discord
 from discord.ext import commands
 from datetime import datetime, timedelta
@@ -251,7 +253,7 @@ class General(commands.Cog):
                             except (discord.Forbidden, discord.NotFound):
                                 pass
                             try:
-                                asyncio.sleep(3)
+                                await asyncio.sleep(3)
                                 await msg.author.ban(reason=reason)
                             except (discord.Forbidden, discord.HTTPException):
                                 pass
@@ -650,7 +652,7 @@ class General(commands.Cog):
                             return None, False
                     else:
                         lang = await hf.textblob_detect_language(stripped_msg)
-                except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError):
+                except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
                     pass
             return lang, hardcore
         lang, hardcore = await lang_check()
