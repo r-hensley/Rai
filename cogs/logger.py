@@ -1460,10 +1460,12 @@ class Logger(commands.Cog):
             time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
             if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
                 already_added = True
-            if last_modlog['length']:
+            if last_modlog['length'] and last_modlog['type'] == 'Ban':
                 emb.add_field(name="Temporary ban length", value=last_modlog['length'])
         except KeyError:
             pass
+
+        # if you used the Rai command, then this should've already been run in that command with more info
         if not already_added:
             hf.add_to_modlog(None, [member, guild], 'Ban', reason, False, None)
 
