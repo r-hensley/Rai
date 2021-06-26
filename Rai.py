@@ -104,6 +104,13 @@ class Rai(Bot):
             await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
             return
 
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            if ctx.author == self.user:
+                pass
+            else:
+                await ctx.send("You're sending that command too many times. Please wait a bit.")
+                return
+
         elif isinstance(error, discord.DiscordServerError):
             try:
                 await asyncio.sleep(5)

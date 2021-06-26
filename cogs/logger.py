@@ -401,7 +401,9 @@ class Logger(commands.Cog):
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
-                            await hf.safe_send(channel, embed=self.make_edit_embed(before, after, levenshtein_distance))
+                            await hf.safe_send(channel, embed=self.make_edit_embed(before[1024:],
+                                                                                   after[1024:],
+                                                                                   levenshtein_distance))
                         except discord.errors.Forbidden:
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
@@ -1096,6 +1098,7 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
                     if mod_channel:
                         await hf.safe_send(mod_channel, "@here", embed=emb)
+            hf.add_to_modlog(None, [member, guild], 'Ban', emb.description, False, None)
 
         # """Spanish Server welcome"""
         # spanServ = self.bot.get_guild(SPAN_SERV_ID)
@@ -1424,7 +1427,7 @@ class Logger(commands.Cog):
             if reason:
                 break  # this breaks the while loop if it found an entry
             attempts += 1
-            asyncio.sleep(15)
+            await asyncio.sleep(15)
         emb = discord.Embed(colour=0x000000, timestamp=datetime.utcnow(), description='')
         if not reason:
             reason = '(none given)'
@@ -1452,6 +1455,8 @@ class Logger(commands.Cog):
             time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
             if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
                 already_added = True
+            if last_modlog['length']:
+                emb.add_field(name="Temporary ban length", value=last_modlog['length'])
         except KeyError:
             pass
         if not already_added:

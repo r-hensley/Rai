@@ -167,7 +167,7 @@ class General(commands.Cog):
                 else:
                     spam_count += 1
 
-            reason = f"Antispam: Sent the message `{msg.content[:400]}` {config['message_threshhold']} " \
+            reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshhold']} " \
                      f"times in {config['time_threshhold']} seconds."
             if config['action'] == 'ban':
                 try:
@@ -180,10 +180,33 @@ class General(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     pass
             elif config['action'] == 'mute':
+                # prevents this code from running multiple times
+                if not hasattr(self.bot, "spammer_mute"):
+                    self.bot.spammer_mute = []
+
+                if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
+                    print(f"Returned {spammer_mute_entry=}")
+                    return
+                else:
+                    print(f"APPENDED {spammer_mute_entry=}")
+                    self.bot.spammer_mute.append(spammer_mute_entry)
+
+                try:
+                    raise KeyError
+                    last_modlog = self.bot.db['modlog'][str(msg.guild.id)][str(msg.author.id)][-1]
+                    print(f"{last_modlog=}")
+                    time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
+                    print(f"{time=}\n{datetime.utcnow()=}\n{(datetime.utcnow() - time).total_seconds()=}")
+                    if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                        print("Returned\n")
+                        return
+                except KeyError:
+                    pass
+                print(f"Will mute\n")
                 try:
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
-                    await ctx.invoke(self.bot.get_command('mute'), '1h', str(msg.author.id), reason)
+                    await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
                         if mod_channel:
@@ -192,6 +215,11 @@ class General(commands.Cog):
                                                                   f"[Jump URL]({msg.jump_url})"))
                 except (discord.Forbidden, discord.HTTPException):
                     pass
+
+            def purge_check(m):
+                return m.author == msg.author and m.content == msg.content
+            await msg.channel.purge(limit=50, check=purge_check)
+
         await antispam_check()
 
         "automatic word filter"
@@ -552,9 +580,9 @@ class General(commands.Cog):
                     return
                 args = msg.content.split()[1:]
                 if len(args) == 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args[0])
+                    await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args[0]))
                 elif len(args) > 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args[0], member=' '.join(args[1:]))
+                    await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args))
                 else:
                     await hf.safe_send(ctx, "Use `;mute` instead")
 
@@ -1448,11 +1476,11 @@ class General(commands.Cog):
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
             msg = await hf.safe_send(ctx,
                                      "I've added 📝 to your name.  This means you wish to be corrected in your sentences")
-            asyncio.sleep(7)
+            await asyncio.sleep(7)
             await msg.delete()
         except discord.errors.Forbidden:
             msg = await hf.safe_send(ctx, "I lack the permissions to change your nickname")
-            asyncio.sleep(7)
+            await asyncio.sleep(7)
             await msg.delete()
         except discord.errors.HTTPException:
             try:
