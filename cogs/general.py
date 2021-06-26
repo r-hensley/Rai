@@ -185,24 +185,18 @@ class General(commands.Cog):
                     self.bot.spammer_mute = []
 
                 if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
-                    print(f"Returned {spammer_mute_entry=}")
                     return
                 else:
-                    print(f"APPENDED {spammer_mute_entry=}")
                     self.bot.spammer_mute.append(spammer_mute_entry)
 
                 try:
                     raise KeyError
                     last_modlog = self.bot.db['modlog'][str(msg.guild.id)][str(msg.author.id)][-1]
-                    print(f"{last_modlog=}")
                     time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
-                    print(f"{time=}\n{datetime.utcnow()=}\n{(datetime.utcnow() - time).total_seconds()=}")
                     if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Mute":
-                        print("Returned\n")
                         return
                 except KeyError:
                     pass
-                print(f"Will mute\n")
                 try:
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
@@ -417,10 +411,8 @@ class General(commands.Cog):
                                 return
 
             except KeyError as e:
-                print(f'>>passed for key error on amazingsexdating: {e}<<')
                 pass
             except AttributeError as e:
-                print(f'>>passed for attributeerror in amazingsexdating: {e}<<')
                 pass
 
         await spam_account_bans()

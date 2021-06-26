@@ -426,8 +426,6 @@ class Questions(commands.Cog):
                 except ValueError:
                     pass
 
-        print(ctx.author, target_message.author)
-
         config['questions'][str(question_number)] = {}
         config['questions'][str(question_number)]['title'] = title
         config['questions'][str(question_number)]['question_message'] = target_message.id
