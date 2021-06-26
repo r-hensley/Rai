@@ -9,6 +9,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
+from typing import Optional, Union
 
 import os
 
@@ -690,7 +691,7 @@ class Logger(commands.Cog):
                 await self.get_invites(ctx.guild)
 
     @staticmethod
-    async def make_join_embed(member, used_invites, channel, config, list_of_roles=None):
+    async def make_join_embed(member: discord.Member, used_invites, channel, config, list_of_roles=None):
         minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
         if 60 < minutes_ago_created < 3600:
             time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
@@ -836,8 +837,8 @@ class Logger(commands.Cog):
         await hf.safe_send(ctx, "```" + config['message'] + "```")
 
     @staticmethod
-    async def make_invites_dict(guild, invites_in):
-        invites_dict = {}
+    async def make_invites_dict(guild, invites_in: list[discord.Invite]):
+        invites_dict: dict[str: tuple[int, Optional[float]]] = {}
         for invite in invites_in:
             if invite.max_age:
                 expiration = (invite.created_at + timedelta(seconds=invite.max_age)).timestamp()
@@ -854,10 +855,10 @@ class Logger(commands.Cog):
         if 'invites' not in config:
             config['invites'] = {}
 
-        old_invites = self.bot.db['joins'][guild_id]['invites']
+        old_invites: dict[str, list[Optional[str]]] = self.bot.db['joins'][guild_id]['invites']
 
         try:
-            invites = await guild.invites()
+            invites: list[discord.Invite] = await guild.invites()
         except discord.Forbidden:
             self.bot.db['joins'][guild_id]['invites_enable'] = False
             return None, None
@@ -875,7 +876,7 @@ class Logger(commands.Cog):
         return old_invites, invites
 
     @commands.Cog.listener()
-    async def on_member_join(self, member):
+    async def on_member_join(self, member: discord.Member):
         """auto role"""
         if member.guild.id == 780188673575485463:
             role = member.guild.get_role(834936351778144316)
@@ -887,7 +888,7 @@ class Logger(commands.Cog):
         if guild in self.bot.db['welcome_message']:
             config = self.bot.db['welcome_message'][guild]
             if 'channel' in self.bot.db['welcome_message'][guild]:
-                welcome_channel = self.bot.get_channel(config['channel'])
+                welcome_channel: discord.TextChannel = self.bot.get_channel(config['channel'])
             if self.bot.db['welcome_message'][guild]['enable']:
                 message = config['message']
                 message = message. \
@@ -898,11 +899,11 @@ class Logger(commands.Cog):
 
         """Join logging"""
         async def join_logging():
-            guild = member.guild
+            guild: discord.Guild = member.guild
             guild_id = str(member.guild.id)
             try:
-                server_config = self.bot.db['joins'][guild_id]
-                log_channel = self.bot.get_channel(server_config['channel'])
+                server_config: dict = self.bot.db['joins'][guild_id]
+                log_channel: discord.TextChannel = self.bot.get_channel(server_config['channel'])
                 if not log_channel:
                     del server_config
                     return
@@ -926,11 +927,13 @@ class Logger(commands.Cog):
                 server_config['enable'] = False
                 return
 
+            old_invites: Optional[dict[str, list[Optional[float]]]]
+            invites: Optional[list[discord.Invite]]
             old_invites, invites = await self.get_invites(guild)
-            used_invite = []
-            maybe_used_invite = []
+            used_invite: list[discord.Invite] = []
+            maybe_used_invite: list[discord.Invite] = []
             if invites:
-                invites_dict = {i.code: i for i in invites}  # made to same form as old_invites
+                invites_dict: dict[int, discord.Invite] = {i.code: i for i in invites}  # same form as old_invites
 
                 for invite in old_invites:
                     if invite not in invites_dict:  # the invite disappeared
@@ -955,7 +958,7 @@ class Logger(commands.Cog):
 
             def get_list_of_roles():
                 try:
-                    config = self.bot.db['joins'][guild_id]['readd_roles']
+                    config: dict = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
                     return None, None
                 if not config['enable'] or str(member.id) not in config['users']:
@@ -987,8 +990,18 @@ class Logger(commands.Cog):
                 del readd_config['users'][str(member.id)]
 
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config, list_of_readd_roles)
-            await hf.safe_send(log_channel, embed=x)
+            log_message = await hf.safe_send(log_channel, embed=x)
 
+            # Logging join info for modlog pulls
+            if log_message:
+                if invites:
+                    first_invite: Optional[str] = invites[0].code
+                else:
+                    first_invite = None
+                server_config.setdefault('join_history', {})[str(member.id)] = {'jump_url': log_message.jump_url,
+                                                                                'invite': first_invite}
+
+            # Special Japanese server invite management
             if guild_id == str(JP_SERV_ID) and used_invite:
                 jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
                 # check if they joined from a Japanese site or other
@@ -1206,6 +1219,12 @@ class Logger(commands.Cog):
                     return
                 if emb:
                     await hf.safe_send(channel, embed=emb)
+
+        # ### Remove from join_history used in modlog command
+        try:
+            del self.bot.db['joins'][str(member.guild.id)]['join_history'][str(member.id)]
+        except KeyError:
+            pass
 
     # ############### nicknames/usernames #####################
 
