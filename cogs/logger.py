@@ -401,8 +401,8 @@ class Logger(commands.Cog):
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
-                            await hf.safe_send(channel, embed=self.make_edit_embed(before.message.content[1024:],
-                                                                                   after.message.content[1024:],
+                            await hf.safe_send(channel, embed=self.make_edit_embed(before.content[1024:],
+                                                                                   after.content[1024:],
                                                                                    levenshtein_distance))
                         except discord.errors.Forbidden:
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
