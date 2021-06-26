@@ -218,10 +218,20 @@ class Submod(commands.Cog):
 
     @commands.command()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    @commands.max_concurrency(1, commands.BucketType.member)
     @hf.is_submod()
-    async def mute(self, ctx, *args):
+    async def mute(self, ctx, *, args):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-        args = list(args)
+        args = args.split()
+
+        try:
+            last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(ctx.author.id)][-1]
+            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
+            if (datetime.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                if last_modlog['reason'].startswith("Antispam"):
+                    return  # Prevents multiple mute calls for spammed text
+        except KeyError:
+            pass
 
         async def set_channel_overrides(role):
             failed_channels = []
@@ -326,7 +336,7 @@ class Submod(commands.Cog):
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
 
-        notif_text = f"**{target.name}#{target.discriminator}** has been **muted** from text and voice chat."
+        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat.\n"
         if time_string:
             notif_text = f"{notif_text[:-1]} for {time}."
         if reason:

@@ -642,8 +642,9 @@ class Admin(commands.Cog):
     @commands.command(aliases=['purge', 'prune'])
     @commands.bot_has_permissions(manage_messages=True)
     async def clear(self, ctx, num=None, *args):
-        """Deletes messages from a channel, ;clear <num_of_messages> [user] [after_message_id]. See the docs for \
-        more instructions."""
+        """Deletes messages from a channel,
+        Usage: `;clear <num_of_messages> [user] [after_message_id]`.
+        See [the docs](https://github.com/ryry013/Rai#clearprune-messages) for a full explanation on how to use this."""
         if not num:
             await hf.safe_send(ctx, "Please input a number")
             return

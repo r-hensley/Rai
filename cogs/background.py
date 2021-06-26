@@ -13,7 +13,8 @@ RYRY_SPAM_CHAN = 275879535977955330
 class Background(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot.bg_tasks = [self.risk_check, self.check_rawmangas, self.check_desync_voice, self.unban_users,
+        # self.risk_check
+        self.bot.bg_tasks = [self.check_rawmangas, self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days, self.check_lovehug,
                              self.check_downed_tasks]
         for task in self.bot.bg_tasks:
@@ -58,7 +59,7 @@ class Background(commands.Cog):
         ch = self.bot.get_channel(RYRY_SPAM_CHAN)
         for task in self.bot.bg_tasks:
             if not task.is_running():
-                hf.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
+                await hf.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
 
     @tasks.loop(minutes=10.0)
     async def risk_check(self):
@@ -109,7 +110,8 @@ class Background(commands.Cog):
                 event = f"⚔️ {event}"
             elif "ended the turn" in event:
                 event = f"__⏩ {event}__\n⠀"  # invisible non-space character at end of this line
-            await hf.safe_send(risk_ch, event)
+            if event:
+                await hf.safe_send(risk_ch, event)
         config['log'] = log[-20:]
 
         for li in soup.find_all('li'):
