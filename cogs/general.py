@@ -169,46 +169,56 @@ class General(commands.Cog):
 
             reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshhold']} " \
                      f"times in {config['time_threshhold']} seconds."
-            if config['action'] == 'ban':
+
+            action: str = config['action']
+
+            time_ago: timedelta = datetime.utcnow() - msg.author.joined_at
+            if ban_threshhold := config.get('ban_override', 0):
+                if time_ago < timedelta(minutes=ban_threshhold):
+                    action = 'ban'
+                    mins_ago = int(time_ago.total_seconds())
+                    reason = reason[:-1] + f" (joined {mins_ago} minutes ago)."
+
+            if action == 'ban':
                 try:
                     await msg.author.ban(reason=reason)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
-            elif config['action'] == 'kick':
+            elif action == 'kick':
                 try:
                     await msg.author.kick(reason=reason)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
-            elif config['action'] == 'mute':
-                # prevents this code from running multiple times
+            elif action == 'mute':
+                # prevents this code from running multiple times if they're spamming fast
                 if not hasattr(self.bot, "spammer_mute"):
-                    self.bot.spammer_mute = []
+                    self.bot.spammer_mute = []  # a temporary list
 
                 if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
                     return
                 else:
-                    self.bot.spammer_mute.append(spammer_mute_entry)
+                    self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
 
                 try:
-                    raise KeyError
-                    last_modlog = self.bot.db['modlog'][str(msg.guild.id)][str(msg.author.id)][-1]
-                    time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
-                    if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Mute":
-                        return
-                except KeyError:
-                    pass
-                try:
+                    # execute the 1h mute command
                     ctx = await self.bot.get_context(msg)
                     ctx.author = self.bot.user
                     await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
+
+                    # notify in mod channel if it is set
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
                         if mod_channel:
                             await hf.safe_send(mod_channel,
                                                embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
                                                                   f"[Jump URL]({msg.jump_url})"))
+
+                # skip if something went wrong
                 except (discord.Forbidden, discord.HTTPException):
                     pass
+
+                # remove from temporary list after all actions done
+                self.bot.spammer_mute.remove(spammer_mute_entry)
 
             def purge_check(m):
                 return m.author == msg.author and m.content == msg.content
