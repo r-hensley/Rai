@@ -544,29 +544,115 @@ class ChannelMods(commands.Cog):
                                         "use an ID")
                 return
 
-        if member or user:
-            if getattr(user, "nick", None):
-                name = f"{str(user)} ({user.nick})"
-            else:
-                name = f"{str(user)}"
-            # emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+        #
+        #
+        # ######### Start building embed #########
+        #
+        #
 
-            author = "Title"  # three design possibilities, users have no way of changing this
-            if author == "Author":
-                emb = hf.green_embed(f"\n**`ID`** : {user_id}")
-                emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
-                emb.title = "🔰 Modlog"
-            elif author == "Title":
-                emb = hf.green_embed(f"\n**`ID`** : {user_id}")
-                emb.set_author(name="🔰 Modlog")
-                emb.title = name
-            else:
-                emb = hf.green_embed(f'**`Name`** : {name}')
-                emb.description += f"\n**`ID`** : {user_id}"
-                emb.title = "🔰 Modlog"
+        if not member and not user:  # Can't find user at all
+            emb = hf.red_embed("")
+            emb.set_author(name="COULD NOT FIND USER")
+
         else:
-            emb = hf.red_embed("COULD NOT FIND USER")
-            emb.set_author(name="🔰 Modlog")
+
+            #
+            #
+            # ######### Check whether the user is muted or banned #########
+            #
+            #
+
+            # Check DB for mute entry
+            muted = False
+            unmute_date_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
+            if unmute_date_str := self.bot.db['mutes']\
+                    .get(str(ctx.guild.id), {})\
+                    .get('timed_mutes', {})\
+                    .get(user_id, None):
+                muted = True
+                unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC")
+                time_left = unmute_date - datetime.utcnow()
+                days_left = time_left.days
+                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
+                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
+                print(f"{time_left=}\n"
+                      f"seconds={time_left.total_seconds()}")
+                unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+            else:
+                unmute_time_left_str = None
+
+            # Check for mute role in member roles
+            if member:
+                mute_role_id: str = self.bot.db['mutes'].get(str(ctx.guild.id), {}).get('role', None)
+                mute_role: discord.Role = ctx.guild.get_role(int(mute_role_id))
+                if mute_role in member.roles:
+                    muted = True
+                else:
+                    muted = False  # even if the user is in the DB for a mute, if they don't the role they aren't muted
+
+            # Check DB for ban entry
+            banned = False  # unban_date looks like "2021/06/26 23:24 UTC"
+            if unban_date_str := self.bot.db['bans'] \
+                    .get(str(ctx.guild.id), {}) \
+                    .get('timed_bans', {}) \
+                    .get(user_id, None):
+                banned = True
+                unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC")
+                time_left = unban_date - datetime.utcnow()
+                days_left = time_left.days
+                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
+                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
+                unban_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+            else:
+                unban_time_left_str = None  # indefinite ban
+
+            # Check guild ban logs for ban entry
+            try:
+                ban_entry = await ctx.guild.fetch_ban(user)
+                banned = True
+            except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+                ban_entry = None
+                banned = False  # manual unbans are possible, leaving the ban entry in the DB
+
+            #
+            #
+            # ############ Author / Title ############
+            #
+            #
+
+            emb = hf.green_embed("")
+
+            if getattr(user, "nick", None):
+                name = f"{str(user)} ({user.nick})\n{user_id}"
+            else:
+                name = f"{str(user)}\n{user_id}"
+
+            emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+
+            rai_emoji = str(self.bot.get_emoji(858486763802853387))
+            if banned:
+                if unban_time_left_str:
+                    emb.title = f"{rai_emoji} **`Current Status`** : Banned for {unban_time_left_str}"
+                else:
+                    emb.title = f"{rai_emoji} **`Current Status`** : Indefinitely Banned"
+            elif muted:
+                if unmute_time_left_str:
+                    emb.title = f"{rai_emoji} **`Current Status`** : Muted for {unmute_time_left_str}"
+                else:
+                    emb.title = f"{rai_emoji} **`Current Status`** : Indefinitely Muted"
+            elif not member:
+                if muted and not banned:
+                    emb.title += " (user has left the server)"
+                elif not muted and not banned:
+                    emb.title = f"{rai_emoji} **`Current Status`** : User is not in server"
+            else:
+                emb.title = f"{rai_emoji} **`Current Status`** : No active incidents"
+
+        #
+        #
+        # ############ Number of messages / voice hours ############
+        #
+        #
 
         if member:
             total_msgs_month = 0
@@ -615,28 +701,33 @@ class ChannelMods(commands.Cog):
                     emb.description += f"\n[**`Used Invite`** : {invite}]" \
                                        f"({join_history['jump_url']})"
 
-        # emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
-        # elif user:
-        # emb.set_author(name=str(user), icon_url=user.avatar_url_as(static_format="png"))
-        # else:
-        # emb.description += f'\n{username}'
-        # emb.set_author(name=username)
-
-        if member or user:
-            if user_id in config:
-                config = config[user_id]
-            else:
-                emb.color = hf.red_embed("").color
-                emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
-                config = []
-        else:
-            config = []
+        #
+        #
+        # ############ Footer / Timestamp ############
+        #
+        #
 
         if member:
             emb.set_footer(text="Join Date")
             emb.timestamp = member.joined_at
         else:
             emb.set_footer(text="User not in server")
+
+        #
+        #
+        # ############ Modlog entries into fields ############
+        #
+        #
+
+        if member or user:
+            if user_id in config:  # Modlog entries
+                config = config[user_id]
+            else:  # No entries
+                emb.color = hf.red_embed("").color
+                emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
+                config = []
+        else:  # Non-existant user
+            config = []
 
         first_embed = None  # only to be used if the first embed goes over 6000 characters
         for entry in config[-25:]:
@@ -657,6 +748,12 @@ class ChannelMods(commands.Cog):
                 emb.clear_fields()
 
             emb.add_field(name=name, value=value[:1024], inline=False)
+
+        #
+        #
+        # ############ !! SEND !! ############
+        #
+        #
 
         if first_embed:
             await hf.safe_send(ctx, embed=first_embed)

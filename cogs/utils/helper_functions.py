@@ -112,15 +112,15 @@ def add_to_modlog(ctx, user, type, reason, silent, length=None):
 
 
 def green_embed(text):
-    return discord.Embed(description=text, color=discord.Color(int('0C910F', 16)))
+    return discord.Embed(description=text, color=0x23ddf1)
 
 
 def red_embed(text):
-    return discord.Embed(description=text, color=discord.Color(int('9C1313', 16)))
+    return discord.Embed(description=text, color=0x9C1313)
 
 
 def grey_embed(text):
-    return discord.Embed(description=text, color=discord.Color(int('848A84', 16)))
+    return discord.Embed(description=text, color=0x848A84)
 
 
 async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
