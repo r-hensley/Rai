@@ -1,4 +1,5 @@
 import urllib
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -538,7 +539,6 @@ class General(commands.Cog):
                                timestamp=datetime.utcnow())
             if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
                 if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
-
                     content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
                     if content:
                         em.add_field(name="Content", value=content)
@@ -551,8 +551,14 @@ class General(commands.Cog):
                         notif_channel = self.bot.get_channel(self.bot.db['submod_channel'][str(msg.guild.id)])
                     else:
                         return
-                    await hf.safe_send(notif_channel, embed=em)
+                    notif = await hf.safe_send(notif_channel, embed=em)
 
+                    # Add message to list of synchronized reaction messages
+                    if hasattr(self.bot, 'synced_reactions'):
+                        self.bot.synced_reactions[notif] = msg
+                        self.bot.synced_reactions[msg] = notif
+                    else:
+                        self.bot.synced_reactions = {notif: msg, msg: notif}
 
                 """ mods ping on other servers"""
             else:
@@ -1232,6 +1238,20 @@ class General(commands.Cog):
             except KeyError:
                 pass
         await remove_selfmute_reactions()
+
+        "Synchronize reactions on specified messages (staff pings)"
+        async def synchronize_reactions():
+            if hasattr(self.bot, 'synced_reactions'):
+                if reaction.message in self.bot.synced_reactions:
+                    target_msg = self.bot.synced_reactions[reaction.message]
+                    try:
+                        await target_msg.add_reaction(reaction)
+                    except (discord.Forbidden, discord.HTTPException) as e:
+                        return
+            else:
+                return
+        await synchronize_reactions()
+
 
     def reactionroles_get_role(self, payload, guild):
         guild_id = str(payload.guild_id)
@@ -2302,12 +2322,20 @@ class General(commands.Cog):
                     f"{ctx.author.mention}."
         if len(ctx.message.content.split()) > 1:
             desc_text += f"\n\nMessage content: {' '.join(ctx.message.content.split()[1:])}"
+
         emb = hf.green_embed(desc_text)
-        await channel.send("@here", embed=emb)
+        notif: Optional[discord.Message] = await channel.send("@here", embed=emb)
+
         try:
             await ctx.message.add_reaction("✅")
         except discord.Forbidden:
             pass
+
+        if hasattr(self.bot, 'synced_reactions'):
+            self.bot.synced_reactions[notif] = ctx.message
+            self.bot.synced_reactions[ctx.message] = notif
+        else:
+            self.bot.synced_reactions = {notif: ctx.message, ctx.message: notif}
 
 def setup(bot):
     bot.add_cog(General(bot))
