@@ -1,3 +1,5 @@
+from typing import Optional
+
 import discord
 import asyncio
 import os
@@ -315,7 +317,7 @@ def rem_emoji_url(msg):
 
 async def ban_check_servers(bot, bans_channel, member, ping=False):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
-    guilds = []
+    guilds: list[list[discord.Guild, int, str]] = []  # type: 
     if member in bans_channel.guild.members:
         ping = False
     for guild in bot.guilds:  # type: discord.Guild
@@ -323,7 +325,7 @@ async def ban_check_servers(bot, bans_channel, member, ping=False):
             continue
         if member in guild.members:
             messages: int = count_messages(member, guild)
-            day = None
+            day = ''
             if messages:
                 try:
                     config = bot.stats[str(guild.id)]['messages']
@@ -334,14 +336,14 @@ async def ban_check_servers(bot, bans_channel, member, ping=False):
                     pass
             guilds.append([guild, messages, day])
 
-    for guild in guilds:  # type: list
-        in_servers_msg += f"\n**{guild[0].name}**"
-        if guild[1]:
-            date = f"{guild[2][0:4]}/{guild[2][4:6]}/{guild[2][6:]}"
-            in_servers_msg += f" (Messages: {guild[1]}, Last message: {date})"
+    for guild_entry in guilds:
+        in_servers_msg += f"\n**{guild_entry[0].name}**"
+        if guild_entry[1]:
+            date = f"{guild_entry[2][0:4]}/{guild_entry[2][4:6]}/{guild_entry[2][6:]}"
+            in_servers_msg += f" (Messages: {guild_entry[1]}, Last message: {date})"
         if ping:
-            if str(guild[0].id) in bot.db['bansub']['guild_to_role']:
-                role_id = bot.db['bansub']['guild_to_role'][str(guild[0].id)]
+            if str(guild_entry[0].id) in bot.db['bansub']['guild_to_role']:
+                role_id = bot.db['bansub']['guild_to_role'][str(guild_entry[0].id)]
                 for user in bot.db['bansub']['user_to_role']:
                     if role_id in bot.db['bansub']['user_to_role'][user]:
                         in_servers_msg += f" <@{user}> "
