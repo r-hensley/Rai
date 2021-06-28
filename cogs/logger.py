@@ -454,7 +454,7 @@ class Logger(commands.Cog):
                 emb.add_field(name='**Message:**', value=message.content)
             else:
                 emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
-                emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:])
+                emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:2000])
 
         if message.attachments and imgur_client:
             list_of_attachments = []
@@ -979,7 +979,10 @@ class Logger(commands.Cog):
                     stage_visitor = member.guild.get_role(645021058184773643)
                     if stage_visitor in list_of_readd_roles:
                         list_of_readd_roles.remove(stage_visitor)
-                    await member.add_roles(*list_of_readd_roles)
+                    try:
+                        await member.add_roles(*list_of_readd_roles)
+                    except discord.NotFound:
+                        pass
                     try:
                         await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
                                           f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")

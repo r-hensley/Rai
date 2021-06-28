@@ -860,7 +860,7 @@ class Admin(commands.Cog):
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
         """Lists the users in superwatch list."""
-        config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
+        config: list = self.bot.db['super_watch'].get(str(ctx.guild.id), {'users': []})['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
             await hf.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")

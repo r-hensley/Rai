@@ -583,7 +583,7 @@ class ChannelMods(commands.Cog):
 
             # Check for mute role in member roles
             if member:
-                mute_role_id: str = self.bot.db['mutes'].get(str(ctx.guild.id), {}).get('role', None)
+                mute_role_id: str = self.bot.db['mutes'].get(str(ctx.guild.id), {}).get('role', 0)
                 mute_role: discord.Role = ctx.guild.get_role(int(mute_role_id))
                 if mute_role in member.roles:
                     muted = True
