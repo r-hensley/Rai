@@ -40,6 +40,8 @@ class Owner(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
+        if not ctx.guild:
+            return
         if str(ctx.guild.id) not in self.bot.db['guildstats']:
             self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
         config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
