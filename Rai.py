@@ -249,7 +249,6 @@ class Rai(Bot):
         args_str = ['```py']
         jump_url = ''
         for index, arg in enumerate(args):
-            print(type(arg))
             args_str.append(f'[{index}]: {arg!r}')
             if type(arg) == discord.Message:
                 e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})')

@@ -575,8 +575,6 @@ class ChannelMods(commands.Cog):
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                 minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
-                print(f"{time_left=}\n"
-                      f"seconds={time_left.total_seconds()}")
                 unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
             else:
                 unmute_time_left_str = None

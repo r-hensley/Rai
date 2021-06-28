@@ -1098,22 +1098,34 @@ class Logger(commands.Cog):
                 emb.description += f"⠀⠀- [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
 
             pings = ""
-            if guild in self.bot.db['bansub']['guild_to_role']:
+            if guild in self.bot.db['bansub']['guild_to_role']:  # type: dict[str: int]
                 role_id: int = self.bot.db['bansub']['guild_to_role'][guild]
-                for user in self.bot.db['bansub']['user_to_role']:
-                    if role_id in self.bot.db['bansub']['user_to_role'][user]:
-                        pings += f" <@{user}> "
+                for user_id in self.bot.db['bansub']['user_to_role']:  # type: dict[str: list[int]]
+                    if role_id in self.bot.db['bansub']['user_to_role'][user_id]:
+                        pings += f" <@{user_id}> "
 
-                if config:  # this will be False if the last entry in config was deleted above from the NotFound error
-                    await hf.safe_send(bans_channel, f"{member.mention}\n{pings}", embed=emb)
-                else:
-                    del(self.bot.db['banlogs'][str(member.id)])  # cleanup
-
+                sent_to_mod_channel = False  # default to False unless it sends it below
+                # The point of this is: if you can send to mod_channel, ping the mods there.
+                # Otherwise, ping them in the mod server
                 if guild in self.bot.db['mod_channel']:
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
                     if mod_channel:
-                        await hf.safe_send(mod_channel, "@here", embed=emb)
-            hf.add_to_modlog(None, [member, member.guild], 'Ban', emb.description, False, None)
+                        try:
+                            await hf.safe_send(mod_channel, f"@here{pings}", embed=emb)
+                            sent_to_mod_channel = True
+                        except (discord.Forbidden, discord.HTTPException):
+                            pass
+
+                if config:  # this will be False if the last entry in config was deleted above from the NotFound error
+                    if sent_to_mod_channel:
+                        msg = f"{member.mention}"
+                    else:
+                        msg = f"{member.mention}\n{pings}"
+                    await hf.safe_send(bans_channel, msg, embed=emb)
+                else:
+                    del(self.bot.db['banlogs'][str(member.id)])  # cleanup
+
+            hf.add_to_modlog(None, [member, member.guild], 'Log', emb.description, False, None)
 
     # ############### leaves #####################
 
@@ -1570,6 +1582,8 @@ class Logger(commands.Cog):
                 await hf.safe_send(channel, embed=ban_emb)
 
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
+                # ⁣ is a flag to *skip* crossposting
+                # "⠀" is flag to specially *enable* crossposting for one  ban
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
                         (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)

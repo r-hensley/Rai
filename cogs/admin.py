@@ -689,7 +689,6 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, 'Message not found')
                 return
             except IndexError:  # no message ID given
-                print('>>No message ID found<<')
                 msg = None
                 pass
         else:
@@ -2361,8 +2360,7 @@ class Admin(commands.Cog):
                 config['ignored'].remove(i)
                 continue
             channels += f"{channel.mention}\n"
-        print(type(ctx), type(channels))
-        print(f"{ctx=},\n{channels=}")
+
         await hf.safe_send(ctx, channels)
         await ctx.invoke(self.antispam, menu)
 
