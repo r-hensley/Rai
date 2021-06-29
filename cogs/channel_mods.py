@@ -630,21 +630,21 @@ class ChannelMods(commands.Cog):
             rai_emoji = str(self.bot.get_emoji(858486763802853387))
             if banned:
                 if unban_time_left_str:
-                    emb.title = f"{rai_emoji} **`Current Status`** : Banned for {unban_time_left_str}"
+                    emb.description = f"{rai_emoji} **`Current Status`** Banned for {unban_time_left_str}"
                 else:
-                    emb.title = f"{rai_emoji} **`Current Status`** : Indefinitely Banned"
+                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Banned"
             elif muted:
                 if unmute_time_left_str:
-                    emb.title = f"{rai_emoji} **`Current Status`** : Muted for {unmute_time_left_str}"
+                    emb.description = f"{rai_emoji} **`Current Status`** Muted for {unmute_time_left_str}"
                 else:
-                    emb.title = f"{rai_emoji} **`Current Status`** : Indefinitely Muted"
+                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Muted"
             elif not member:
                 if muted and not banned:
-                    emb.title += " (user has left the server)"
+                    emb.description += " (user has left the server)"
                 elif not muted and not banned:
-                    emb.title = f"{rai_emoji} **`Current Status`** : User is not in server"
+                    emb.description = f"{rai_emoji} **`Current Status`** : User is not in server"
             else:
-                emb.title = f"{rai_emoji} **`Current Status`** : No active incidents"
+                emb.description = f"{rai_emoji} **`Current Status`** : No active incidents"
 
         #
         #

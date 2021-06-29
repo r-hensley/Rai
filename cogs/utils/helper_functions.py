@@ -234,7 +234,7 @@ def _predump_json():
 
 
 async def dump_json():
-    with await _lock:
+    async with _lock:
         try:
             await _loop.run_in_executor(None, _predump_json)
         except RuntimeError:
@@ -315,7 +315,7 @@ def rem_emoji_url(msg):
     return new_msg
 
 
-async def ban_check_servers(bot, bans_channel, member, ping=False):
+async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
     guilds: list[list[discord.Guild, int, str]] = []  # type: 
     if member in bans_channel.guild.members:
@@ -324,6 +324,7 @@ async def ban_check_servers(bot, bans_channel, member, ping=False):
         if guild.id in bot.db['ignored_servers']:
             continue
         if member in guild.members:
+            print(f"Banned user: found {member.name} in {guild.name}")
             messages: int = count_messages(member, guild)
             day = ''
             if messages:
@@ -336,17 +337,36 @@ async def ban_check_servers(bot, bans_channel, member, ping=False):
                     pass
             guilds.append([guild, messages, day])
 
-    for guild_entry in guilds:
+    for guild_entry in guilds:  # discord.Guild, number_of_messages: int, last_message_day: str
         in_servers_msg += f"\n**{guild_entry[0].name}**"
         if guild_entry[1]:
             date = f"{guild_entry[2][0:4]}/{guild_entry[2][4:6]}/{guild_entry[2][6:]}"
             in_servers_msg += f" (Messages: {guild_entry[1]}, Last message: {date})"
+
+        pings = ''
         if ping:
             if str(guild_entry[0].id) in bot.db['bansub']['guild_to_role']:
                 role_id = bot.db['bansub']['guild_to_role'][str(guild_entry[0].id)]
                 for user in bot.db['bansub']['user_to_role']:
                     if role_id in bot.db['bansub']['user_to_role'][user]:
-                        in_servers_msg += f" <@{user}> "
+                        pings += f" <@{user}> "
+
+            # Try to send the notification of a newly banned user directly to mod channels with pings
+            sent_to_mod_channel = False
+            mod_channel_id = bot.db['mod_channel'].get(str(guild_entry[0].id), 0)
+            mod_channel = bot.get_channel(mod_channel_id)
+            if mod_channel:
+                try:
+                    if embed:
+                        await safe_send(mod_channel, f"{member.mention}\n", embed=embed)
+                    msg = await safe_send(mod_channel, f"@here {pings} The above user has been found in your server.")
+                    sent_to_mod_channel = True
+                    ctx = await bot.get_context(msg)
+                    await ctx.invoke(bot.get_command("modlog"), member.id)
+                except (discord.HTTPException, discord.Forbidden):
+                    pass
+            if not sent_to_mod_channel:
+                in_servers_msg += pings
 
     if guilds:
         await bans_channel.send(in_servers_msg)
