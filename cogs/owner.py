@@ -11,6 +11,7 @@ import json
 from .utils import helper_functions as hf
 import re
 from ast import literal_eval
+import importlib
 
 import datetime
 from datetime import datetime, timedelta
@@ -396,14 +397,26 @@ class Owner(commands.Cog):
             await ctx.message.delete()
         except discord.Forbidden:
             pass
-        try:
-            self.bot.reload_extension(f'cogs.{cog}')
-        except Exception as e:
-            await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
-        else:
-            await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
 
-    def cleanup_code(self, content):
+        if cog in ['hf', 'helper_function']:
+            try:
+                old_module = sys.modules['cogs.utils.helper_functions']
+                importlib.reload(sys.modules['cogs.utils.helper_functions'])
+                self.bot.reload_extension("cogs.general")  #
+            except Exception as e:
+                await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+            else:
+                await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
+
+        else:
+            try:
+                self.bot.reload_extension(f'cogs.{cog}')
+            except Exception as e:
+                await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+            else:
+                await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
+
+    def cleanup_code(self, content):  # credit Danny
         """Automatically removes code blocks from the code."""
         # remove triple quotes + py\n
         if content.startswith("```") and content.endswith("```"):

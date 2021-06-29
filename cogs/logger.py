@@ -104,8 +104,10 @@ class Logger(commands.Cog):
             emb_value += f"\n・`{module.name}` ― {module.brief}"
             emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
 
-        emb_value = "**TO EDIT SETTINGS**\nTo edit the settings of a module, type the name of it into the chat " \
-                    "below, for example: `edits` or `joins`."
+        emb_value = "**TO EDIT SETTINGS**\nTo enable/disable a module, type just the module name as a command. \n" \
+                    "- Examples: `;joins`   `;edits`   `leaves`\n" \
+                    "To set where that channel logs to, add `set` to the command.\n" \
+                    "- Examples: `joins set`   `;edits set`   `;leaves set`"
         emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
         await hf.safe_send(ctx, embed=emb)
 
@@ -367,13 +369,13 @@ class Logger(commands.Cog):
                 emb.add_field(name='**Before:**', value=before.content)
             else:
                 emb.add_field(name='**Before:** (Part 1):', value=before.content[:1000])
-                emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:])
+                emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:2000])
 
             if len(after.content) < 1025:
                 emb.add_field(name='**After:**', value=after.content)
             else:
                 emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
-                emb.add_field(name='**After:** (Part 2)', value=after.content[1000:])
+                emb.add_field(name='**After:** (Part 2)', value=after.content[1000:2000])
 
         emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
 
@@ -1075,7 +1077,7 @@ class Logger(commands.Cog):
                                                                             "on the global blacklist but I lacked "
                                                                             "the permission to ban users on that "
                                                                             "server."))
-                    await hf.ban_check_servers(self.bot, bans_channel, member, ping=True)
+                    await hf.ban_check_servers(self.bot, bans_channel, member, ping=True, embed=None)
                     return
             except KeyError:
                 pass
@@ -1095,7 +1097,9 @@ class Logger(commands.Cog):
                     config.remove(entry)
                     continue
                 date_str = message.created_at.strftime("%Y/%m/%d")
-                emb.description += f"⠀⠀- [{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+                emb.description += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+                emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
+
 
             pings = ""
             if guild in self.bot.db['bansub']['guild_to_role']:  # type: dict[str: int]
@@ -1122,6 +1126,7 @@ class Logger(commands.Cog):
                     else:
                         msg = f"{member.mention}\n{pings}"
                     await hf.safe_send(bans_channel, msg, embed=emb)
+
                 else:
                     del(self.bot.db['banlogs'][str(member.id)])  # cleanup
 
@@ -1588,12 +1593,19 @@ class Logger(commands.Cog):
                         (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
                     crosspost_msg = await bans_channel.send(member.mention, embed=crosspost_emb)
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'].get(guild, 0))
+                    if mod_channel:
+                        try:
+                            await hf.safe_send(mod_channel, f"@here {member.mention}", embed=crosspost_emb)
+                            sent_to_mod_channel = True
+                        except (discord.Forbidden, discord.HTTPException):
+                            pass
 
                     if member.id == self.bot.user.id:
                         return
 
                     if member not in bans_channel.guild.members:
-                        await hf.ban_check_servers(self.bot, bans_channel, member, ping=True)
+                        await hf.ban_check_servers(self.bot, bans_channel, member, ping=True, embed=crosspost_emb)
 
                     await crosspost_msg.add_reaction('⬆')
 

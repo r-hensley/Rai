@@ -323,7 +323,7 @@ class General(commands.Cog):
                             if user:
                                 users.append(user)
                     for user in users:
-                        await hf.ban_check_servers(self.bot, bans_channel, user, ping=False)
+                        await hf.ban_check_servers(self.bot, bans_channel, user, ping=False, embed=None)
 
                 await check_user(msg.content)
                 for embed in msg.embeds:
@@ -1242,7 +1242,7 @@ class General(commands.Cog):
         "Synchronize reactions on specified messages (staff pings)"
         async def synchronize_reactions():
             if hasattr(self.bot, 'synced_reactions'):
-                if reaction.message in self.bot.synced_reactions:
+                if reaction.message in self.bot.synced_reactions and not reaction.message.author.bot:
                     target_msg = self.bot.synced_reactions[reaction.message]
                     try:
                         await target_msg.add_reaction(reaction)
@@ -1251,7 +1251,6 @@ class General(commands.Cog):
             else:
                 return
         await synchronize_reactions()
-
 
     def reactionroles_get_role(self, payload, guild):
         guild_id = str(payload.guild_id)
