@@ -687,7 +687,7 @@ class ChannelMods(commands.Cog):
             emb.description += f"\n**`Number of messages M | W`** : {total_msgs_month} | {total_msgs_week}"
             emb.description += f"\n**`Time in voice`** : {voice_time_str}"
 
-        join_history = self.bot.db['joins'][str(ctx.guild.id)].get('join_history', {}).get(user_id, None)
+        join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
         if join_history:
             invite: Optional[str]
             if invite := join_history['invite']:
