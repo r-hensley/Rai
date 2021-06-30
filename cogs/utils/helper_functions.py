@@ -324,7 +324,6 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
         if guild.id in bot.db['ignored_servers']:
             continue
         if member in guild.members:
-            print(f"Banned user: found {member.name} in {guild.name}")
             messages: int = count_messages(member, guild)
             day = ''
             if messages:

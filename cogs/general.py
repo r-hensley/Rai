@@ -605,6 +605,8 @@ class General(commands.Cog):
             if str(msg.author.id) in config['users']:
                 desc = "❗ "
                 which = 'sw'
+            if not hasattr(msg.author, "guild"):
+                return  # idk why this should be an issue but it returned an error once
             elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
                 minutes_ago_created = int(((datetime.utcnow() - msg.author.created_at).total_seconds()) // 60)
                 if minutes_ago_created > 60 or msg.channel.id == SP_SERVER_ID:
