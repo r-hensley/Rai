@@ -68,7 +68,7 @@ class Questions(commands.Cog):
             await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
             return
         if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {r.status_code}: {r.reason} ({url})')
+            await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
             return
 
         jr = json.loads(data)
@@ -193,7 +193,7 @@ class Questions(commands.Cog):
             await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
             return
         if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {r.status}: {r.reason} ({url})')
+            await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
             return
 
         jr = json.loads(data)
