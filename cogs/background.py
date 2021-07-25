@@ -291,6 +291,8 @@ class Background(commands.Cog):
                             text_list.append(f"{user.mention} ({user.name})")
                         if not user:
                             text_list.append(f"{i}")
+                    if mod_channel.guild.id == 243838819743432704:  # spanish server
+                        mod_channel = self.bot.get_channel(297877202538594304)  # incidents channel
                     await hf.safe_send(mod_channel,
                                        embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
