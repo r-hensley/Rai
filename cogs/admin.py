@@ -1992,16 +1992,23 @@ class Admin(commands.Cog):
     async def asar(self, ctx, *args):
         """Adds a self-assignable role to the list of self-assignable roles."""
         try:
-            group = str(int(args[0]))  # I want a string, but want to see if it's a number first
-            role_name = ' '.join(args[1:])
-        except ValueError:
-            group = '0'
-            role_name = ' '.join(args[0:])
+            if re.search(r"^\d{1,2}$", args[0]):  # I want a string, but want to see if it's a number first
+                group = args[0]
+                role_name = ' '.join(args[1:])
+                print(0, group, role_name)
+            else:
+                group = '0'
+                role_name = ' '.join(args[0:])
+                print(1, group, role_name)
         except IndexError:
             await hf.safe_send(ctx, "Type the name of the role you wish to make self assignable.")
             return
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
-        role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+        print(role_name, args)
+        if re.search(r"\d{17,22}", role_name):
+            role = ctx.guild.get_role(int(role_name))
+        else:
+            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -2021,7 +2028,10 @@ class Admin(commands.Cog):
     async def rsar(self, ctx, *, role_name):
         """Removes a self-assignable role"""
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
-        role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+        if re.search(r"\d{17,22}", role_name):
+            role = ctx.guild.get_role(int(role_name))
+        else:
+            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "Role not found")
             return
