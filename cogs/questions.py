@@ -409,9 +409,9 @@ class Questions(commands.Cog):
         while str(question_number) in config['questions']:
             question_number += 1
         if question_number > 9:
-            await hf.safe_send(ctx, f"Note, there's too many questions for me to add a reaction to this, but it has"
+            await hf.safe_send(ctx, f"Note, there's too many questions for me to add a reaction to this, but it has "
                                     f"still been recorded. To find the ID for your question to close it later, "
-                                    f"check `';q list`.")
+                                    f"check `;q list`.")
 
         if ctx.author.id == 720900750724825138 and ctx.channel.id == 620997764524015647:
             # burdbot submitted a question to AOTW_feedback
