@@ -276,22 +276,24 @@ class General(commands.Cog):
                         cont = cont.replace(word, "")
 
             found_word = False
-            ignored_words = ['bryan', 'aryan', 'biryani', 'ryan gosling', 'ryan-reynold', 'ryan reynold', 'ryan_army']
-            for word in ignored_words:
-                if word in cont.casefold():  # why do people say these so often...
-                    cont = re.sub(word, '', cont, flags=re.IGNORECASE)
-                if msg.guild:
-                    if msg.guild.id == SP_SERVER_ID:
-                        cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
+            ignored_words = ['ryan gosling', 'ryan reynold']
+            for ignored_word in ignored_words:
+                if ignored_word in cont.casefold():  # why do people say these so often...
+                    cont = re.sub(ignored_word, '', cont, flags=re.IGNORECASE)
+                # if msg.guild:
+                #     if msg.guild.id == SP_SERVER_ID:
+                #         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
 
             to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
-            for word in to_check_words:
-                if word in cont.casefold():
+
+            for to_check_word in to_check_words:
+                # if word in cont.casefold():
+                if re.search(f"\b{to_check_word}\b", cont.casefold()):
                     found_word = True
 
             if found_word:
-                spamChan = self.bot.get_channel(RYRY_SPAM_CHAN)
-                await spamChan.send(
+                spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
+                await spam_chan.send(
                     f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
                     f'\n{msg.jump_url} <@202995638860906496>'[:2000])
