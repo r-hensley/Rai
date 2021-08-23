@@ -1443,13 +1443,14 @@ class Logger(commands.Cog):
         while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
             async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                 action=discord.AuditLogAction.ban,
-                                                after=datetime.utcnow() - timedelta(seconds=20)):
+                                                after=datetime.utcnow() - timedelta(seconds=60)):
+                print(f"{member=}, {entry.action=}, {entry.target=}")
                 if entry.action == discord.AuditLogAction.ban and entry.target == member:
                     ban_entry = entry
                     reason = ban_entry.reason
                     by = ban_entry.user
                     break  # this breaks the for entry in guild.audit_logs() if it finds the entry
-            if reason:
+            if by:
                 break  # this breaks the while loop if it found an entry
             attempts += 1
             await asyncio.sleep(15)
@@ -1578,6 +1579,7 @@ class Logger(commands.Cog):
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
             try:
+                print(f"Entering make_ban_embed for {guild}: {member}")
                 ban_emb, crosspost_emb = await self.make_ban_embed(guild, member)
             except discord.errors.Forbidden:
                 await self.module_disable_notification(guild, guild_config, 'bans')
