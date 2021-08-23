@@ -36,8 +36,34 @@ class Submod(commands.Cog):
         if not args:
             await hf.safe_send(ctx, ctx.command.help)
             return
-        timed_ban = re.findall('^\d+d\d+h$|^\d+d$|^\d+h$', args[0])
+
+        timed_ban = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?$', args[0])
         if timed_ban:
+            if years := timed_ban.group(2):
+                years = int(years)
+            else:
+                years = 0
+
+            if days := timed_ban.group(4):
+                days = years * 365 + int(days)
+            else:
+                days = years * 365
+
+            if hours := timed_ban.group(6):
+                hours = int(hours)
+            else:
+                hours = 0
+
+            length = [days, hours]
+            print(length)
+
+            unban_time = datetime.utcnow() + timedelta(days=length[0], hours=length[1])
+
+            target = await hf.member_converter(ctx, args[1])
+            reason = ' '.join(args[2:])
+            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
+
+            """
             if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
                 length = timed_ban[0][:-1].split('d')
                 length = [length[0], length[1]]
@@ -45,10 +71,8 @@ class Submod(commands.Cog):
                 length = [timed_ban[0][:-1], '0']
             else:  # format: #h
                 length = ['0', timed_ban[0][:-1]]
-            unban_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
-            target = await hf.member_converter(ctx, args[1])
-            reason = ' '.join(args[2:])
-            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
+            """
+
         else:
             target = await hf.member_converter(ctx, args[0])
             length = []
