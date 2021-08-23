@@ -29,15 +29,30 @@ class Submod(commands.Cog):
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
     @hf.is_submod()
     async def ban(self, ctx, *, args):
-        """Bans a user.  Usage: `;ban [time #d#h] <user> [reason]`
+        """Bans a user.  Usage: `;ban [time #y#d#h] <user> [reason]`
         Examples:   `;ban @Ryry013 being mean`   `;ban 2d3h @Abelian posting invite links`.
+        The time and user ID position can be swapped (`;ban @Abelian 2d3h`).
         On a certain Spanish server, helpers can ban users within an hour of their joining the server."""
         args = args.split()
         if not args:
             await hf.safe_send(ctx, ctx.command.help)
             return
 
-        timed_ban = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?$', args[0])
+        time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
+        user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
+
+        timed_ban = re.search(time_regex, args[0])
+        if not timed_ban:
+            timed_ban = re.search(time_regex, args[1])
+            if not timed_ban:
+                reason = ' '.join(args[1:])
+            else:
+                reason = ' '.join(args[2:])
+            user_id = re.search(user_regex, args[0]).group(1)
+        else:
+            user_id = re.search(user_regex, args[1]).group(1)
+            reason = ' '.join(args[2:])
+
         if timed_ban:
             if years := timed_ban.group(2):
                 years = int(years)
@@ -59,8 +74,6 @@ class Submod(commands.Cog):
 
             unban_time = datetime.utcnow() + timedelta(days=length[0], hours=length[1])
 
-            target = await hf.member_converter(ctx, args[1])
-            reason = ' '.join(args[2:])
             time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
 
             """
@@ -74,30 +87,31 @@ class Submod(commands.Cog):
             """
 
         else:
-            target = await hf.member_converter(ctx, args[0])
             length = []
             time_string = None
-            reason = ' '.join(args[1:])
+
+        target = await hf.member_converter(ctx, user_id)
+
         if not target:
             try:
-                if re.search('^<@!?\d{17,22}>$', args[0]):
-                    user_id = int(args[0].replace('<@', '').replace('!', '').replace('>', ''))
-                    target = await self.bot.fetch_user(user_id)
-                elif re.search('^\d{17,22}$', args[0]):
-                    user_id = int(args[0])
-                    target = await self.bot.fetch_user(user_id)
-                else:
+                target = await self.bot.fetch_user(user_id)
+                if not target:
+                    await hf.safe_send(ctx, "I could not find the user you specified.")
                     return
             except discord.NotFound:
+                await hf.safe_send(ctx, "I could not find the user you specified.")
                 return
             except ValueError:
-                await hf.safe_send("I couldn't find the user. Please try again.")
+                await hf.safe_send(ctx, "I could not find the user you specified.")
                 return
 
-            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(ctx.guild.id)]}
-            if user_id in id_to_member_dict:  # target is an ID
-                target = id_to_member_dict[user_id]
-                
+            try:
+                id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(ctx.guild.id)]}
+                if user_id in id_to_member_dict:  # target is an ID
+                    target = id_to_member_dict[user_id]
+            except KeyError:
+                pass
+
         if not reason:
             reason = '(no reason given)'
 
