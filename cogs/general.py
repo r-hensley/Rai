@@ -528,7 +528,7 @@ class General(commands.Cog):
                 txt2 = "You can add more roles in <#703075065016877066>:\n" \
                        "Puedes añadirte más en <#703075065016877066>:\n\n" \
                        "Before using the server, please read the rules in <#243859172268048385>.\n" \
-                       "Antes de usar el servidor, por favor lee las reglas en <#499544213466120192>."
+                       "Antes de usar el servidor, por favor lee las reglas en <#243859172268048385>."
                 await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
         await smart_welcome(msg)
 
