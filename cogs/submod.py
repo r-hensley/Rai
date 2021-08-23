@@ -48,10 +48,17 @@ class Submod(commands.Cog):
                 reason = ' '.join(args[1:])
             else:
                 reason = ' '.join(args[2:])
-            user_id = re.search(user_regex, args[0]).group(1)
+            user_id_match = re.search(user_regex, args[0])
+
         else:
-            user_id = re.search(user_regex, args[1]).group(1)
+            user_id_match = re.search(user_regex, args[1])
             reason = ' '.join(args[2:])
+
+        if user_id_match:
+            user_id = user_id_match.group(1)
+        else:
+            await hf.safe_send(ctx, "I could not find where you specified the user. Please check your syntax.")
+            return
 
         if timed_ban:
             if years := timed_ban.group(2):
@@ -70,9 +77,12 @@ class Submod(commands.Cog):
                 hours = 0
 
             length = [days, hours]
-            print(length)
 
-            unban_time = datetime.utcnow() + timedelta(days=length[0], hours=length[1])
+            try:
+                unban_time = datetime.utcnow() + timedelta(days=length[0], hours=length[1])
+            except OverflowError:
+                await hf.safe_send(ctx, "Give smaller number please :(")
+                return
 
             time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
 
