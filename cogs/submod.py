@@ -6,10 +6,12 @@ from datetime import datetime, timedelta
 import re
 
 import os
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 SP_SERV = 243838819743432704
 JP_SERVER_ID = 189571157446492161
+
 
 class Submod(commands.Cog):
     """Help"""
@@ -41,18 +43,23 @@ class Submod(commands.Cog):
         time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
         user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
 
-        timed_ban = re.search(time_regex, args[0])
-        if not timed_ban:
-            timed_ban = re.search(time_regex, args[1])
-            if not timed_ban:
-                reason = ' '.join(args[1:])
-            else:
-                reason = ' '.join(args[2:])
+        if len(args) == 1:
             user_id_match = re.search(user_regex, args[0])
-
+            reason = None
+            timed_ban = None
         else:
-            user_id_match = re.search(user_regex, args[1])
-            reason = ' '.join(args[2:])
+            timed_ban = re.search(time_regex, args[0])
+            if not timed_ban:
+                timed_ban = re.search(time_regex, args[1])
+                if not timed_ban:
+                    reason = ' '.join(args[1:])
+                else:
+                    reason = ' '.join(args[2:])
+                user_id_match = re.search(user_regex, args[0])
+
+            else:
+                user_id_match = re.search(user_regex, args[1])
+                reason = ' '.join(args[2:])
 
         if user_id_match:
             user_id = user_id_match.group(1)
@@ -86,15 +93,15 @@ class Submod(commands.Cog):
 
             time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
 
-            """
-            if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
-                length = timed_ban[0][:-1].split('d')
-                length = [length[0], length[1]]
-            elif re.findall('^\d+d$', args[0]):  # format: #d
-                length = [timed_ban[0][:-1], '0']
-            else:  # format: #h
-                length = ['0', timed_ban[0][:-1]]
-            """
+            # """
+            # if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
+            #     length = timed_ban[0][:-1].split('d')
+            #     length = [length[0], length[1]]
+            # elif re.findall('^\d+d$', args[0]):  # format: #d
+            #     length = [timed_ban[0][:-1], '0']
+            # else:  # format: #h
+            #     length = ['0', timed_ban[0][:-1]]
+            # """
 
         else:
             length = []
