@@ -216,6 +216,8 @@ class General(commands.Cog):
                     # notify in mod channel if it is set
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+                        if msg.guild.id == SP_SERVER_ID:
+                            mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
                         if mod_channel:
                             await hf.safe_send(mod_channel,
                                                embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
