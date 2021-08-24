@@ -389,23 +389,31 @@ class General(commands.Cog):
             links = ["freenitros.ru", 'discorcl.click', 'discord-giveaway.com', 'bit.do/randomgift',
                      'stmeacomunnitty.ru', 'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
 
-            if msg.guild.id != SP_SERVER_ID:
-                return  # this module only works for spanish server
+            if msg.guild.id == SP_SERVER_ID:
+                if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
+                    return  # exempt all people in staff channel
 
-            if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
-                print('2')
-                return  # exempt all people in staff channel
+            elif msg.guild.id == JP_SERVER_ID:
+                if msg.guild.get_channel(755269708579733626).permissions_for(msg.author).read_messages:
+                    return  # exempt all people in anything_goes_tho channel
+
+            else:
+                return  # this module only works for spanish/japanese server
 
             number_of_messages = hf.count_messages(msg.author)
             if number_of_messages > 100:
-                print('3')
                 return  # only potentially ban users who are inactive to avoid false positives
 
             for link in links:
                 if link in msg.content:
                     await msg.delete()
                     await msg.author.ban(reason=f"Potential spam link: {msg.content}")
-                    mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+
+                    if msg.guild.id == SP_SERVER_ID:
+                        mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+                    else:  # JP_SERVER_ID
+                        mod_channel = msg.guild.get_channel(755269708579733626)  # anything_goes_tho
+
                     await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
                                                               f"potential  spam link:\n{msg.content}"))
                     return
