@@ -670,11 +670,17 @@ class Questions(commands.Cog):
             del questions[number]
             msg = await hf.safe_send(ctx, f"Original question message not found.  Closing question")
             await asyncio.sleep(5)
-            await msg.delete()
+
+            try:
+                await msg.delete()
+            except discord.NotFound:
+                pass
+
             try:
                 await ctx.message.delete()
             except discord.NotFound:
                 pass
+
             return
 
         if log_message:
