@@ -31,7 +31,6 @@ CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 
-
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
     320439136236601344: 474825178204078081  # r/CL Learning English Role
@@ -67,6 +66,7 @@ class General(commands.Cog):
             return
 
         """BurdBot's window to open questions in #audio_of_the_week"""
+
         async def burdbot_window():
             if msg.channel.id != 620997764524015647:  # aotw_feedback
                 return
@@ -77,6 +77,7 @@ class General(commands.Cog):
             ctx = await self.bot.get_context(msg)
             if "AOTW recording" in msg.content:
                 await ctx.invoke(self.bot.get_command("question"), args=msg.content)
+
         await burdbot_window()
 
         # """Messages/pings to Rai"""
@@ -118,6 +119,7 @@ class General(commands.Cog):
         # await message_to_bot()
 
         """Message as the bot"""
+
         async def message_as_bot():
             if isinstance(msg.channel, discord.DMChannel) \
                     and msg.author.id == self.bot.owner_id and msg.content[0:3] == 'msg':
@@ -141,12 +143,14 @@ class General(commands.Cog):
         ##########################################
 
         """guild stats"""
-        config: dict = self.bot.db['guildstats']
-        if str(msg.guild.id) not in config:
-            config[str(msg.guild.id)] = {'messages': {}, 'commands': {}}
-        config = config[str(msg.guild.id)]['messages']
-        date_str = datetime.utcnow().strftime("%Y%m%d")
-        config[date_str] = config.setdefault(date_str, 0) + 1
+        def guild_stats():
+            config: dict = self.bot.db['guildstats']
+            if str(msg.guild.id) not in config:
+                config[str(msg.guild.id)] = {'messages': {}, 'commands': {}}
+            config = config[str(msg.guild.id)]['messages']
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            config[date_str] = config.setdefault(date_str, 0) + 1
+        guild_stats()
 
         "antispam"
         async def antispam_check():
@@ -162,6 +166,7 @@ class General(commands.Cog):
 
             def check(m):
                 return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
+
             while spam_count < config['message_threshhold']:
                 try:
                     await self.bot.wait_for('message', timeout=config['time_threshhold'], check=check)
@@ -225,8 +230,8 @@ class General(commands.Cog):
 
             def purge_check(m):
                 return m.author == msg.author and m.content == msg.content
-            await msg.channel.purge(limit=50, check=purge_check)
 
+            await msg.channel.purge(limit=50, check=purge_check)
         await antispam_check()
 
         "automatic word filter"
@@ -239,7 +244,10 @@ class General(commands.Cog):
             if not config:
                 return
 
-            time_ago = datetime.utcnow() - msg.author.joined_at
+            try:
+                time_ago = datetime.utcnow() - msg.author.joined_at
+            except AttributeError:  # 'User' object has no attribute 'joined_at'
+                return
 
             for filter_word in config:
                 if msg.content:
@@ -326,13 +334,16 @@ class General(commands.Cog):
                 for embed in msg.embeds:
                     if embed.description:
                         await check_user(embed.description)
+
         await check_guilds()
 
         """chinese server banned words"""
-        words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
-                 '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
-                 '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
-        if msg.guild.id in [CH_SERVER_ID, 494502230385491978, CL_SERVER_ID, RY_SERVER_ID]:
+        async def chinese_server_banned_words():
+            words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
+                     '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
+                     '人權', 'Human Rights', '民運', 'Democratization', '自由', 'Freedom', '獨立', 'Independence']
+            if msg.guild.id not in [CH_SERVER_ID, 494502230385491978, CL_SERVER_ID, RY_SERVER_ID]:
+                return
             word_count = 0
             for word in words:
                 if word in msg.content:
@@ -340,51 +351,77 @@ class General(commands.Cog):
                 if word_count == 5:
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                     log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
-                    if datetime.utcnow() - msg.author.joined_at < timedelta(minutes=60):
-                        try:
-                            await msg.delete()
-                        except discord.Forbidden:
-                            await hf.safe_send(mod_channel,
-                                               f"Rai is lacking the permission to delete messages for the Chinese "
-                                               f"spam message.")
-                        except discord.NotFound:
-                            pass
-
-                        # await msg.author.send("That message doesn't do anything to Chinese computers.  It doesn't "
-                        #                       "get their internet shut down or get them arrested or anything.  "
-                        #                       "It's just annoying, so please stop trying it.")
-                        try:
-                            await asyncio.sleep(3)
-                            await msg.author.ban(reason=f"__Reason__: Automatic ban: Chinese banned words spam\n"
-                                                        f"{msg.content[:100]}")
-                        except discord.Forbidden:
-                            await hf.safe_send(mod_channel,
-                                               f"I tried to ban someone for the Chinese spam message, but I lack "
-                                               f"the permission to ban users.")
-
-                        await hf.safe_send(log_channel, f"Banned {msg.author.name} for the banned words spam message."
-                                                        f"\nMessage was posted in {msg.channel.mention}.  Message:"
-                                                        f"\n```{msg.content}"[:1850] + '```')
-
-                        break
-                    else:
+                    if datetime.utcnow() - msg.author.joined_at > timedelta(minutes=60):
                         await hf.safe_send(mod_channel,
                                            f"Warning: {msg.author.name} may have said the banned words spam message"
                                            f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                            f"\n```{msg.content}"[:1995] + '```')
-                        break
+                        return
+                    try:
+                        await msg.delete()
+                    except discord.Forbidden:
+                        await hf.safe_send(mod_channel,
+                                           f"Rai is lacking the permission to delete messages for the Chinese "
+                                           f"spam message.")
+                    except discord.NotFound:
+                        pass
+
+                    try:
+                        await asyncio.sleep(3)
+                        await msg.author.ban(reason=f"__Reason__: Automatic ban: Chinese banned words spam\n"
+                                                    f"{msg.content[:100]}")
+                    except discord.Forbidden:
+                        await hf.safe_send(mod_channel,
+                                           f"I tried to ban someone for the Chinese spam message, but I lack "
+                                           f"the permission to ban users.")
+
+                    await hf.safe_send(log_channel, f"Banned {msg.author} for the banned words spam message."
+                                                    f"\nMessage was posted in {msg.channel.mention}.  Message:"
+                                                    f"\n```{msg.content}"[:1850] + '```')
+
+                    return
+        await chinese_server_banned_words()
+
+        """Spanish server hacked account bans"""
+        async def hacked_account_ban():
+            links = ["freenitros.ru", 'discorcl.click', 'discord-giveaway.com', 'bit.do/randomgift',
+                     'stmeacomunnitty.ru', 'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
+
+            if msg.guild.id != SP_SERVER_ID:
+                return  # this module only works for spanish server
+
+            if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
+                print('2')
+                return  # exempt all people in staff channel
+
+            number_of_messages = hf.count_messages(msg.author)
+            if number_of_messages > 100:
+                print('3')
+                return  # only potentially ban users who are inactive to avoid false positives
+
+            for link in links:
+                if link in msg.content:
+                    await msg.delete()
+                    await msg.author.ban(reason=f"Potential spam link: {msg.content}")
+                    mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+                    await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
+                                                              f"potential  spam link:\n{msg.content}"))
+                    return
+        await hacked_account_ban()
 
         """best sex dating"""
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
-                     'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!"]
+                     'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!", "freenitros.ru/",
+                     'discorcl.click/', 'discord-giveaway.com/', 'bit.do/randomgift', 'stmeacomunnitty.ru',
+                     'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
             try:
                 for word in words:
                     if word in msg.content:
                         time_ago = datetime.utcnow() - msg.author.joined_at
                         msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by " \
-                                   f"{msg.author.name} (joined {time_ago.seconds//3600}h " \
-                                   f"{time_ago.seconds%3600//60}m ago [{time_ago}])```{msg.content}```"
+                                   f"{msg.author.name} (joined {time_ago.seconds // 3600}h " \
+                                   f"{time_ago.seconds % 3600 // 60}m ago [{time_ago}])```{msg.content}```"
                         await self.bot.get_user(self.bot.owner_id).send(msg_text)
                         if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
                             return
@@ -407,9 +444,9 @@ class General(commands.Cog):
                                           f"\n**Server:** {msg.author.guild.name}" \
                                           f"\n**Name:** {msg.author.name} {msg.author.mention}" \
                                           f"\n**Account creation:** {msg.author.created_at} " \
-                                          f"({created_ago.days}d {created_ago.seconds//3600}h ago)" \
+                                          f"({created_ago.days}d {created_ago.seconds // 3600}h ago)" \
                                           f"\n**Server join:** {msg.author.joined_at} " \
-                                          f"({joined_ago.days}d {joined_ago.seconds//3600}h ago)" \
+                                          f"({joined_ago.days}d {joined_ago.seconds // 3600}h ago)" \
                                           f"\n**Message:** {msg.content}"
                                 emb2 = hf.red_embed(message)
                                 emb2.color = discord.Color(int('000000', 16))
@@ -420,11 +457,10 @@ class General(commands.Cog):
                                         await self.bot.get_channel(channel_id).send(embed=emb2)
                                 return
 
-            except KeyError as e:
+            except KeyError:
                 pass
-            except AttributeError as e:
+            except AttributeError:
                 pass
-
         await spam_account_bans()
 
         """spanish server welcome channel module"""
@@ -578,20 +614,21 @@ class General(commands.Cog):
                     await hf.safe_send(notif_channel, embed=em)
         await mods_ping()
 
-
         """Replace .mute on spanish server"""
-        if msg.guild.id == SP_SERVER_ID:
-            if msg.content.startswith('.mute'):
-                ctx = await self.bot.get_context(msg)
-                if not hf.submod_check(ctx):
-                    return
-                args = msg.content.split()[1:]
-                if len(args) == 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args[0]))
-                elif len(args) > 1:
-                    await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args))
-                else:
-                    await hf.safe_send(ctx, "Use `;mute` instead")
+        async def replace_nadeko_mute():
+            if msg.guild.id == SP_SERVER_ID:
+                if msg.content.startswith('.mute'):
+                    ctx = await self.bot.get_context(msg)
+                    if not hf.submod_check(ctx):
+                        return
+                    args = msg.content.split()[1:]
+                    if len(args) == 1:
+                        await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args[0]))
+                    elif len(args) > 1:
+                        await ctx.invoke(self.bot.get_command('mute'), args=' '.join(args))
+                    else:
+                        await hf.safe_send(ctx, "Use `;mute` instead")
+        await replace_nadeko_mute()
 
         """super_watch"""
         async def super_watch():
@@ -624,15 +661,15 @@ class General(commands.Cog):
                 if config['users'][str(msg.author.id)]:
                     link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
             link += ')'
-            emb.add_field(name="Message:", value=msg.content[:2000-len(link)] + link)
+            emb.add_field(name="Message:", value=msg.content[:2000 - len(link)] + link)
 
             await hf.safe_send(self.bot.get_channel(config['channel']), embed=emb)
         await super_watch()
 
         """Lang check: will check if above 3 characters + hardcore, or if above 15 characters + stats"""
         async def lang_check():
-            lang = None
-            hardcore = False
+            detected_lang = None
+            is_hardcore = False
             if str(msg.guild.id) not in self.bot.stats:
                 return None, False
             stripped_msg = hf.rem_emoji_url(msg)
@@ -644,7 +681,7 @@ class General(commands.Cog):
                         hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
                         if hardcore_role in msg.author.roles:
                             check_lang = True
-                            hardcore = True
+                            is_hardcore = True
 
             if str(msg.guild.id) in self.bot.stats:
                 if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
@@ -654,14 +691,14 @@ class General(commands.Cog):
                 try:
                     if msg.guild.id == SP_SERVER_ID and msg.channel.id != 817074401680818186:
                         if hasattr(self.bot, 'langdetect'):
-                            lang = hf.detect_language(stripped_msg)
+                            detected_lang = hf.detect_language(stripped_msg)
                         else:
                             return None, False
                     else:
-                        lang = await hf.textblob_detect_language(stripped_msg)
+                        detected_lang = await hf.textblob_detect_language(stripped_msg)
                 except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
                     pass
-            return lang, hardcore
+            return detected_lang, is_hardcore
         lang, hardcore = await lang_check()
 
         """Message counting"""
@@ -720,7 +757,7 @@ class General(commands.Cog):
             today[author]['channels'][channel] = today[author]['channels'].get(channel, 0) + 1
 
             # emojis
-            emojis = re.findall(':([A-Za-z0-9\_]+):', msg.content)
+            emojis = re.findall(r':([A-Za-z0-9_]+):', msg.content)
             for character in msg.content:
                 if hf.is_emoji(character):
                     emojis.append(character)
@@ -736,12 +773,14 @@ class General(commands.Cog):
             if lang:  # language is detected in separate lang_check function
                 today[author].setdefault('lang', {})
                 today[author]['lang'][lang] = today[author]['lang'].get(lang, 0) + 1
+
         await msg_count()
 
         """Ultra Hardcore"""
         await hf.uhc_check(msg)
 
         """Chinese server hardcore mode"""
+
         async def cn_lang_check(check_hardcore_role=True):
             content = re.sub("(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
             if len(content) > 3:
@@ -790,6 +829,7 @@ class General(commands.Cog):
                 self.bot.db['forcehardcore'] = []
 
         """Spanish server hardcore"""
+
         async def spanish_server_hardcore():
             if not hardcore:  # this should be set in the lang_check function
                 return
@@ -822,9 +862,11 @@ class General(commands.Cog):
                                           "page")
                 except discord.errors.Forbidden:
                     pass
+
         await spanish_server_hardcore()
 
         """no filter hc"""
+
         async def no_filter_hc():
             if msg.channel.id == 193966083886153729:
                 jpRole = msg.guild.get_role(196765998706196480)
@@ -854,6 +896,7 @@ class General(commands.Cog):
                             await msg.author.send(f"```{msg.content[:1993]}```")
                         except (discord.errors.NotFound, discord.Forbidden):
                             pass
+
         await no_filter_hc()
 
     @commands.Cog.listener()
@@ -1097,7 +1140,7 @@ class General(commands.Cog):
             return
         if url not in self.bot.db['lovehug']:
             self.bot.db['lovehug'][url] = {'last': f"{url}{search['href']}",
-                                          'subscribers': [ctx.author.id]}
+                                           'subscribers': [ctx.author.id]}
         else:
             if ctx.author.id not in self.bot.db['lovehug'][url]['subscribers']:
                 self.bot.db['lovehug'][url]['subscribers'].append(ctx.author.id)
@@ -1175,6 +1218,7 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
+
         async def remove_from_waiting_list():
             if reaction.emoji == '🚫':
                 if user == self.bot.user:
@@ -1192,18 +1236,22 @@ class General(commands.Cog):
                             await hf.safe_send(mod_channel, msg_to_mod_channel)
                             return
                     await user.send("You aren't on the waiting list.")
+
         await remove_from_waiting_list()
 
         "I or people with manage messages permission can delete bot messages by attaching X or trash can"
+
         async def delete_rai_message():
             if str(reaction.emoji) in '🗑❌':
                 if reaction.message.author == self.bot.user and \
                         (user.id == self.bot.owner_id or
                          reaction.message.channel.permissions_for(user).manage_messages):
                     await reaction.message.delete()
+
         await delete_rai_message()
 
         "Count emojis for stats"
+
         def count_emojis_for_stats():
             if user.bot:
                 return  # ignore reactions from bots
@@ -1224,9 +1272,11 @@ class General(commands.Cog):
                 today.setdefault(str(user.id), {})
                 today[str(user.id)].setdefault('emoji', {})
                 today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+
         count_emojis_for_stats()
 
         "Remove reactions for if you're self muted"
+
         async def remove_selfmute_reactions():
             if not reaction.message.guild:
                 return
@@ -1238,9 +1288,11 @@ class General(commands.Cog):
                         pass
             except KeyError:
                 pass
+
         await remove_selfmute_reactions()
 
         "Synchronize reactions on specified messages (staff pings)"
+
         async def synchronize_reactions():
             if hasattr(self.bot, 'synced_reactions'):
                 if reaction.message in self.bot.synced_reactions and not reaction.message.author.bot:
@@ -1251,6 +1303,7 @@ class General(commands.Cog):
                         return
             else:
                 return
+
         await synchronize_reactions()
 
     def reactionroles_get_role(self, payload, guild):
@@ -1269,7 +1322,7 @@ class General(commands.Cog):
                 role_id = self.bot.db['reactionroles'][guild_id][message_id][emoji_str]
                 role = guild.get_role(role_id)
                 if not role:
-                    del(self.bot.db['reactionroles'][guild_id][message_id][emoji_str])
+                    del (self.bot.db['reactionroles'][guild_id][message_id][emoji_str])
                     return
                 return role
 
@@ -1586,7 +1639,7 @@ class General(commands.Cog):
 
         if guild.afk_channel:
             em.add_field(name="Voice AFK Timeout",
-                         value=f"{guild.afk_timeout//60} mins → {guild.afk_channel.mention}")
+                         value=f"{guild.afk_timeout // 60} mins → {guild.afk_channel.mention}")
 
         if guild.explicit_content_filter != "disabled":
             em.add_field(name="Explicit Content Filter", value=guild.explicit_content_filter)
@@ -1807,7 +1860,7 @@ class General(commands.Cog):
                 result = re.search('(\((.*)\))? \((.) votes?\)', title_str)
                 # target_username = result.group(2)
                 num_of_votes = result.group(3)
-                emb.title = re.sub('(.) vote', f'{int(num_of_votes)+1} vote', emb.title)
+                emb.title = re.sub('(.) vote', f'{int(num_of_votes) + 1} vote', emb.title)
                 if num_of_votes in '1':  # 1-->2
                     emb.title = emb.title.replace('vote', 'votes')
                 if num_of_votes in '12':  # 1-->2 or 2-->3
@@ -1992,7 +2045,7 @@ class General(commands.Cog):
             role_list_str += f"⠀{role.name}\n"
 
         emb = discord.Embed(description=role_list_str, color=discord.Color(int('00ff00', 16)))
-        num_of_pages = (len(roles_list)//20)+1
+        num_of_pages = (len(roles_list) // 20) + 1
         footer_text = f"{page_num} / {num_of_pages}"
         if page_num <= num_of_pages:
             footer_text += f" ・ (view the next page: ;lsar {page_num + 1})"
@@ -2095,6 +2148,7 @@ class General(commands.Cog):
     async def voicemute(self, ctx, time, member=None, *, reason=None):
         """Mutes a user.  Syntax: `;voicemute <time> <member>`.
         Example: `;voicemute 1d2h Abelian`"""
+
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -2336,6 +2390,7 @@ class General(commands.Cog):
             self.bot.synced_reactions[ctx.message] = notif
         else:
             self.bot.synced_reactions = {notif: ctx.message, ctx.message: notif}
+
 
 def setup(bot):
     bot.add_cog(General(bot))
