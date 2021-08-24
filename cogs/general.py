@@ -270,10 +270,6 @@ class General(commands.Cog):
                     return  # I ain't trying to spy on people
             except AttributeError:
                 pass
-            for word in cont.casefold():
-                for ignored_word in ['http', ':']:
-                    if ignored_word in word:
-                        cont = cont.replace(word, "")
 
             found_word = False
             ignored_words = ['ryan gosling', 'ryan reynold']
@@ -285,10 +281,9 @@ class General(commands.Cog):
                 #         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
 
             to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
-
             for to_check_word in to_check_words:
                 # if word in cont.casefold():
-                if re.search(f"\b{to_check_word}\b", cont.casefold()):
+                if re.search(fr"\b{to_check_word}\b", cont.casefold()):
                     found_word = True
 
             if found_word:
@@ -296,7 +291,7 @@ class General(commands.Cog):
                 await spam_chan.send(
                     f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
-                    f'\n{msg.jump_url} <@202995638860906496>'[:2000])
+                    f'\n{msg.jump_url}'[:2000])
 
         await mention_ping()
 

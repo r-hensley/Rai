@@ -1444,7 +1444,6 @@ class Logger(commands.Cog):
             async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                 action=discord.AuditLogAction.ban,
                                                 after=datetime.utcnow() - timedelta(seconds=60)):
-                print(f"{member=}, {entry.action=}, {entry.target=}")
                 if entry.action == discord.AuditLogAction.ban and entry.target == member:
                     ban_entry = entry
                     reason = ban_entry.reason
@@ -1579,7 +1578,6 @@ class Logger(commands.Cog):
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
             try:
-                print(f"Entering make_ban_embed for {guild}: {member}")
                 ban_emb, crosspost_emb = await self.make_ban_embed(guild, member)
             except discord.errors.Forbidden:
                 await self.module_disable_notification(guild, guild_config, 'bans')
