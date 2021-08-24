@@ -732,7 +732,8 @@ class ChannelMods(commands.Cog):
             name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
                 name += " (silent)"
-            value = f"{entry['date']}\n"
+            incident_time = datetime.strptime(entry['date'], "%Y/%m/%d %H:%M UTC")
+            value = f"<t:{int(incident_time.timestamp())}:f>\n"
             if entry['length']:
                 value += f"*For {entry['length']}*\n"
             if entry['reason']:
