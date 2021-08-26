@@ -15,6 +15,7 @@ from collections import Counter
 from inspect import cleandoc
 from random import choice
 
+
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -35,7 +36,6 @@ ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
-
 
 def blacklist_check():
     async def pred(ctx):
@@ -371,7 +371,7 @@ class General(commands.Cog):
                     try:
                         await asyncio.sleep(3)
                         await msg.author.ban(reason=f"__Reason__: Automatic ban: Chinese banned words spam\n"
-                                                    f"{msg.content[:100]}")
+                                                    f"{msg.content[:100]}", delete_message_days=1)
                     except discord.Forbidden:
                         await hf.safe_send(mod_channel,
                                            f"I tried to ban someone for the Chinese spam message, but I lack "
@@ -387,7 +387,8 @@ class General(commands.Cog):
         """Spanish server hacked account bans"""
         async def hacked_account_ban():
             links = ["freenitros.ru", 'discorcl.click', 'discord-giveaway.com', 'bit.do/randomgift',
-                     'stmeacomunnitty.ru', 'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
+                     'stmeacomunnitty.ru', 'Discord Nitro for Free', 'AIRDROP DISCORD NITRO',
+                     'steamcommrnunity.com']
 
             if msg.guild.id == SP_SERVER_ID:
                 if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
@@ -401,13 +402,13 @@ class General(commands.Cog):
                 return  # this module only works for spanish/japanese server
 
             number_of_messages = hf.count_messages(msg.author)
-            if number_of_messages > 100:
+            if number_of_messages > 50:
                 return  # only potentially ban users who are inactive to avoid false positives
 
             for link in links:
                 if link in msg.content:
                     await msg.delete()
-                    await msg.author.ban(reason=f"Potential spam link: {msg.content}")
+                    await msg.author.ban(reason=f"Potential spam link: {msg.content}", delete_message_days=1)
 
                     if msg.guild.id == SP_SERVER_ID:
                         mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel

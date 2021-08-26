@@ -1,5 +1,5 @@
 from typing import Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands
@@ -733,7 +733,7 @@ class ChannelMods(commands.Cog):
             if entry['silent']:
                 name += " (silent)"
             incident_time = datetime.strptime(entry['date'], "%Y/%m/%d %H:%M UTC")
-            value = f"<t:{int(incident_time.timestamp())}:f>\n"
+            value = f"<t:{int(incident_time.replace(tzinfo=timezone.utc).timestamp())}:f>\n"
             if entry['length']:
                 value += f"*For {entry['length']}*\n"
             if entry['reason']:
