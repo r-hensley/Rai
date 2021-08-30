@@ -346,10 +346,11 @@ class General(commands.Cog):
 
         # ### hacked account bans (free nitro scams)
         async def hacked_account_ban():
-            links = ["freenitros", 'discord.ciick', 'discord-giveaway', 'bit.do/randomgift',
-                     'stmeacomunnitty.ru', 'discord nitro for free', 'free nitro', 'airdrop discord nitro',
-                     'steamcommrnunity.com', 'discord-airdrop', 'discord.oniine', "hi, i'm tired of csgo, i'm ieaving",
-                     'discord-app.com', 'discord-nitro', 'rust-iic.com', 'nitro distribution']
+            links = ["freenitros", 'discord nitro for free', 'free nitro', 'airdrop discord nitro',
+                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution'
+                     'discord.ciick', 'discordgiveaway', 'discord-app.com', 'discordnitro', 'discordairdrop',
+                     'discord.oniine', 'bit.do/randomgift',
+                     'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rust-iic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
 
@@ -365,6 +366,10 @@ class General(commands.Cog):
                 if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
                     return  # exempt all people in #bot-dev channel
 
+            elif msg.guild.id in [541500177018650641,  # german/english learning server (michdi)
+                                  477628709378195456]:  # español e ingles (yoshi)
+                pass
+
             else:
                 return  # this module only works for spanish/japanese/chinese server
 
@@ -372,7 +377,9 @@ class General(commands.Cog):
             if number_of_messages > 50:
                 return  # only potentially ban users who are inactive to avoid false positives
 
+            # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
+            msg.content = msg.content.replace('-', '').replace('discod', 'discord')
             for link in links:
                 if link in msg_content:
                     await msg.delete()
@@ -383,7 +390,7 @@ class General(commands.Cog):
                     elif msg.guild.id == JP_SERVER_ID:  # JP_SERVER_ID
                         mod_channel = msg.guild.get_channel(755269708579733626)  # anything_goes_tho
                     else:
-                        mod_channel = msg.guild.get_channel(266696869453889538)  # mod-channel
+                        mod_channel = msg.guild.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
 
                     await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
                                                               f"potential  spam link:\n{msg.content}"))
