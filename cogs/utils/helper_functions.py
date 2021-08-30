@@ -167,7 +167,7 @@ def parse_time(time):
     time_re = re.search('(\d+d\d+h)|(\d+d)|(\d+h)', time)
     if time_re:
         if time_re.group(1):  # format: #d#h
-            length = time_re.group(1)[:-1].split('d')
+            length: Optional[str, str] = time_re.group(1)[:-1].split('d')
             length = [length[0], length[1]]
         elif time_re.group(2):  # format: #d
             length = [time_re.group(2)[:-1], '0']
@@ -176,7 +176,7 @@ def parse_time(time):
     else:
         return False, False
     finish_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
-    time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     return time_string, length
 
 
