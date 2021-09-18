@@ -1212,9 +1212,9 @@ class Logger(commands.Cog):
                     codes = config['roles'] = {}
                 found_roles = []
                 for role in member.roles:
-                    if role.name in ['Nitro Booster', 'New User'] or role.id in [249695630606336000,
-                                                                                 member.guild.id,
-                                                                                 645021058184773643]:
+                    if role.name in ['Nitro Booster', 'New User'] or \
+                            role.id in [249695630606336000, member.guild.id, 645021058184773643, 802629332425375794,
+                                        802657919400804412, 831574815718506507]:
                         pass
                     else:
                         if str(role.id) in codes:
