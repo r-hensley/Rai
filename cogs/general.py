@@ -6,7 +6,7 @@ from discord.ext import commands
 from datetime import datetime, timedelta
 from .utils import helper_functions as hf
 import re
-import textblob
+# import textblob
 from Levenshtein import distance as LDist
 import string
 import asyncio
@@ -230,12 +230,17 @@ class General(commands.Cog):
 
         async def mention_ping():
             cont = str(msg.content).casefold()
+
             if msg.author.bot or msg.author.id == 202995638860906496:
                 return
+
             try:
+                ryry = msg.guild.get_member(202995638860906496)
+                if not ryry:
+                    return
                 if not msg.channel.permissions_for(msg.guild.get_member(202995638860906496)).read_messages:
                     return  # I ain't trying to spy on people
-            except AttributeError:
+            except AttributeError as e:
                 pass
 
             found_word = False
@@ -250,7 +255,7 @@ class General(commands.Cog):
             to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
             for to_check_word in to_check_words:
                 # if word in cont.casefold():
-                if re.search(fr"\b{to_check_word}\b", cont.casefold()):
+                if re.search(fr"(^| |\.){to_check_word}($|\W)", cont.casefold()):
                     found_word = True
 
             if found_word:
@@ -348,26 +353,35 @@ class General(commands.Cog):
         async def hacked_account_ban():
             links = ["freenitros", 'discord nitro for free', 'free nitro', 'airdrop discord nitro',
                      "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution'
-                     'discord.ciick', 'discordgiveaway', 'discordapp.com', 'discordnitro', 'discordairdrop',
-                     'discord.oniine', 'bit.do/randomgift',
+                     'discord.ciick', 'discordgiveaway', 'discordnitro', 'discordairdrop',
+                     'discord.oniine', 'discordgift', 'bit.do/randomgift',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
+
+            if "@everyone" not in msg.content:
+                return
 
             if msg.guild.id == SP_SERVER_ID:
                 if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
                     return  # exempt all people in staff channel
 
             elif msg.guild.id == JP_SERVER_ID:
-                if msg.guild.get_channel(755269708579733626).permissions_for(msg.author).read_messages:
-                    return  # exempt all people in anything_goes_tho channel
+                if msg.guild.get_channel(277384105245802497).permissions_for(msg.author).read_messages:
+                    return  # exempt all people in everything_will_be_fine channel
 
             elif msg.guild.id == CH_SERVER_ID:
                 if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
                     return  # exempt all people in #bot-dev channel
 
             elif msg.guild.id in [541500177018650641,  # german/english learning server (michdi)
-                                  477628709378195456]:  # español e ingles (yoshi)
+                                  477628709378195456,  # español e ingles (yoshi)
+                                  472283823955116032,  # nyaa langs (naru)
+                                  320439136236601344,  # /r/ChineseLanguages
+                                  116379774825267202,  # nihongo to eigo
+                                  484840490651353119,  # go! billy korean
+                                  541522953423290370,  # /r/korean
+                                  234492134806257665]:  # let's learn korean
                 pass
 
             else:
@@ -383,7 +397,8 @@ class General(commands.Cog):
             for link in links:
                 if link in msg_content:
                     await msg.delete()
-                    await msg.author.ban(reason=f"Potential spam link: {msg.content}", delete_message_days=1)
+                    cont = msg.content.replace('http', 'http ')  # break links
+                    await msg.author.ban(reason=f"Potential spam link: {cont}", delete_message_days=1)
 
                     if msg.guild.id == SP_SERVER_ID:
                         mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
@@ -393,7 +408,7 @@ class General(commands.Cog):
                         mod_channel = msg.guild.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
 
                     await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
-                                                              f"potential  spam link:\n{msg.content}"))
+                                                              f"potential  spam link:\n{cont}"))
                     return
 
         await hacked_account_ban()
@@ -404,6 +419,8 @@ class General(commands.Cog):
                      'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!", "freenitros.ru/",
                      'discorcl.click/', 'discord-giveaway.com/', 'bit.do/randomgift', 'stmeacomunnitty.ru',
                      'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
+            if "@everyone" not in msg.content:
+                return
             try:
                 for word in words:
                     if word in msg.content:
@@ -674,8 +691,10 @@ class General(commands.Cog):
                         else:
                             return None, False
                     else:
-                        detected_lang = await hf.textblob_detect_language(stripped_msg)
-                except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
+                        return None, False
+                        # detected_lang = await hf.textblob_detect_language(stripped_msg)
+                    # except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
+                except (HTTPError, TimeoutError, urllib.error.URLError):
                     pass
             return detected_lang, is_hardcore
 
@@ -1590,7 +1609,9 @@ class General(commands.Cog):
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)
         else:
-            lang_result = await hf.textblob_detect_language(stripped_msg)
+            await hf.safe_send(ctx, "Textblob disabled")
+            return
+            # lang_result = await hf.textblob_detect_language(stripped_msg)
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
               f"The language I detect: ```{lang_result}```"

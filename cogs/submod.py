@@ -172,7 +172,8 @@ class Submod(commands.Cog):
         msg2 = f"Do you wish to continue?  Options:\n" \
                f"⠀・ `Yes` Silently ban the user\n" \
                f"⠀・ `Send` Ban the user and send them the above notification\n" \
-               f"⠀・ `No` Cancel the ban\n"
+               f"⠀・ `No` Cancel the ban\n" \
+               f"⠀・ Add `delete` or `d` to delete last 24 hours of messages (example `send d`)\n"
 
         if ctx.author in self.bot.get_guild(257984339025985546).members:
             try:
@@ -220,6 +221,12 @@ class Submod(commands.Cog):
             text = '⁣' + text
         if content.endswith('-c'):
             text = '⠀' + text
+
+        if 'delete' in content or 'd' in content:
+            delete = 1
+        else:
+            delete = 0
+
         if content.startswith('send'):
             try:
                 await target.send(embed=em)
@@ -227,9 +234,9 @@ class Submod(commands.Cog):
                 await hf.safe_send(ctx, "The target user has PMs disabled so I didn't send the notification.")
         try:
             if hasattr(target, 'ban'):  # if the user is in the server
-                await target.ban(reason=text, delete_message_days=0)
+                await target.ban(reason=text, delete_message_days=delete)
             else:  # if the user is not in the server
-                await ctx.guild.ban(target, reason=text, delete_message_days=0)
+                await ctx.guild.ban(target, reason=text, delete_message_days=delete)
         except discord.Forbidden:
             await hf.safe_send(ctx, f"I couldn't ban that user. They're probably above me in the role list.")
             return
