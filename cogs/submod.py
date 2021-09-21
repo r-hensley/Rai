@@ -173,7 +173,7 @@ class Submod(commands.Cog):
                f"⠀・ `Yes` Silently ban the user\n" \
                f"⠀・ `Send` Ban the user and send them the above notification\n" \
                f"⠀・ `No` Cancel the ban\n" \
-               f"⠀・ Add `delete` or `d` to delete last 24 hours of messages (example `send d`)\n"
+               f"⠀・ Add `delete` or `del` to delete last 24 hours of messages (example `send del`)\n"
 
         if ctx.author in self.bot.get_guild(257984339025985546).members:
             try:
@@ -222,7 +222,7 @@ class Submod(commands.Cog):
         if content.endswith('-c'):
             text = '⠀' + text
 
-        if 'delete' in content or 'd' in content:
+        if 'delete' in content or 'del' in content:
             delete = 1
         else:
             delete = 0

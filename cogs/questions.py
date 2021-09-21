@@ -372,9 +372,12 @@ class Questions(commands.Cog):
     @commands.bot_has_permissions(send_messages=True)
     async def jisho(self, ctx, *, text):
         """Provides a link to a Jisho search"""
-        await ctx.message.delete()
-        await hf.safe_send(ctx,
-                           f"Try finding the meaning to the word you're looking for here: https://jisho.org/search/{text}")
+        try:
+            await ctx.message.delete()
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        await hf.safe_send(ctx, f"Try finding the meaning to the word you're looking for here: "
+                                f"https://jisho.org/search/{text}")
 
     def get_color_from_name(self, ctx):
         config = self.bot.db['questions'][str(ctx.channel.guild.id)]

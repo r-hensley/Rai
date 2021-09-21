@@ -396,7 +396,10 @@ class General(commands.Cog):
             msg.content = msg.content.replace('-', '').replace('discod', 'discord')
             for link in links:
                 if link in msg_content:
-                    await msg.delete()
+                    try:
+                        await msg.delete()
+                    except discord.NotFound:
+                        pass
                     cont = msg.content.replace('http', 'http ')  # break links
                     await msg.author.ban(reason=f"Potential spam link: {cont}", delete_message_days=1)
 
