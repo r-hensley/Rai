@@ -352,7 +352,7 @@ class General(commands.Cog):
         # ### hacked account bans (free nitro scams)
         async def hacked_account_ban():
             links = ["freenitros", 'discord nitro for free', 'free nitro', 'airdrop discord nitro',
-                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution'
+                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free'
                      'discord.ciick', 'discordgiveaway', 'discordnitro', 'discordairdrop',
                      'discord.oniine', 'discordgift', 'bit.do/randomgift',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
@@ -401,7 +401,17 @@ class General(commands.Cog):
                     except discord.NotFound:
                         pass
                     cont = msg.content.replace('http', 'http ')  # break links
-                    await msg.author.ban(reason=f"Potential spam link: {cont}", delete_message_days=1)
+
+                    # a temporary list to prevent the spamming of multiple embeds and bans, dels at end of function
+                    if not hasattr(self.bot, "spammer_mute"):
+                        self.bot.spammer_mute = []  # a temporary list
+
+                    if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
+                        return
+                    else:
+                        self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
+
+                    await msg.author.ban(reason=f"Potential spam link: {cont}"[:512], delete_message_days=1)
 
                     if msg.guild.id == SP_SERVER_ID:
                         mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
@@ -412,6 +422,10 @@ class General(commands.Cog):
 
                     await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
                                                               f"potential  spam link:\n{cont}"))
+
+                    # remove from temporary list after all actions done
+                    self.bot.spammer_mute.remove(spammer_mute_entry)
+
                     return
 
         await hacked_account_ban()
@@ -439,7 +453,7 @@ class General(commands.Cog):
                                     (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
                                 if msg.author.id in [202995638860906496, 414873201349361664]:
                                     return
-                                await msg.author.ban(reason=f'For posting spam link: {msg.content}',
+                                await msg.author.ban(reason=f'For posting spam link: {msg.content}'[:512],
                                                      delete_message_days=1)
                                 self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
                                 channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
