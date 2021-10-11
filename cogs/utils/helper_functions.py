@@ -357,8 +357,13 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
             if mod_channel:
                 try:
                     if embed:
-                        await safe_send(mod_channel, f"{member.mention}\n", embed=embed)
-                    msg = await safe_send(mod_channel, f"@here {pings} The above user has been found in your server.")
+                        msg = await safe_send(mod_channel,
+                                              f"{member.mention}\n"
+                                              f"@here {pings} The above user has been found in your server.",
+                                              embed=embed)
+                    else:
+                        msg = await safe_send(mod_channel, f"@here {pings} The below user has been banned on another "
+                                                           f"server and is currently in your server.")
                     sent_to_mod_channel = True
                     ctx = await bot.get_context(msg)
                     await ctx.invoke(bot.get_command("modlog"), member.id)

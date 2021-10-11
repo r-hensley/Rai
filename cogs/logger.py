@@ -1520,7 +1520,8 @@ class Logger(commands.Cog):
                 reason = re_reason
 
         emb = discord.Embed(colour=colour, timestamp=datetime.utcnow(),
-                            title="", description=f"**{str(member)}** － {member.mention}\n({member.id})\n")
+                            title="GBL Network Ban",
+                            description=f"**{str(member)}** － {member.mention}\n({member.id})\n")
 
         emb.description += f"__Server__: [{guild.name}](https://rai/server-id-is-S{guild.id})\n"
 
@@ -1555,8 +1556,6 @@ class Logger(commands.Cog):
             elif 86400 < time_ago.total_seconds() <= 2592000:  # they joined less than a day ago
                 join_date += f" ({int(time_ago.total_seconds() // 86400)} days ago)"
             emb.description += f"__Join date__: {join_date}\n"
-
-
 
         if reason:
             emb.description += f"\n__Reason__: {reason}"
