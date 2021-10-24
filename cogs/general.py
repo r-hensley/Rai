@@ -362,30 +362,36 @@ class General(commands.Cog):
             if "@everyone" not in msg.content:
                 return
 
-            if msg.guild.id == SP_SERVER_ID:
-                if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
-                    return  # exempt all people in staff channel
+            try:
+                if msg.guild.id == SP_SERVER_ID:
+                    if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
+                        return  # exempt all people in staff channel
 
-            elif msg.guild.id == JP_SERVER_ID:
-                if msg.guild.get_channel(277384105245802497).permissions_for(msg.author).read_messages:
-                    return  # exempt all people in everything_will_be_fine channel
+                elif msg.guild.id == JP_SERVER_ID:
+                    if msg.guild.get_channel(277384105245802497).permissions_for(msg.author).read_messages:
+                        return  # exempt all people in everything_will_be_fine channel
 
-            elif msg.guild.id == CH_SERVER_ID:
-                if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
-                    return  # exempt all people in #bot-dev channel
+                elif msg.guild.id == CH_SERVER_ID:
+                    if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
+                        return  # exempt all people in #bot-dev channel
 
-            elif msg.guild.id in [541500177018650641,  # german/english learning server (michdi)
-                                  477628709378195456,  # español e ingles (yoshi)
-                                  472283823955116032,  # nyaa langs (naru)
-                                  320439136236601344,  # /r/ChineseLanguages
-                                  116379774825267202,  # nihongo to eigo
-                                  484840490651353119,  # go! billy korean
-                                  541522953423290370,  # /r/korean
-                                  234492134806257665]:  # let's learn korean
-                pass
+                elif msg.guild.id in [541500177018650641,  # german/english learning server (michdi)
+                                      477628709378195456,  # español e ingles (yoshi)
+                                      472283823955116032,  # nyaa langs (naru)
+                                      320439136236601344,  # /r/ChineseLanguages
+                                      116379774825267202,  # nihongo to eigo
+                                      484840490651353119,  # go! billy korean
+                                      541522953423290370,  # /r/korean
+                                      234492134806257665]:  # let's learn korean
+                    pass
 
-            else:
-                return  # this module only works for spanish/japanese/chinese server
+                else:
+                    return  # this module only works for spanish/japanese/chinese server
+
+            except AttributeError:
+                return
+                # permissions_for(msg.author).read_messages -->
+                # AttributeError: 'User' object has no attribute '_roles'
 
             number_of_messages = hf.count_messages(msg.author)
             if number_of_messages > 50:
