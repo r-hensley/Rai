@@ -601,7 +601,7 @@ class General(commands.Cog):
                 if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
                     content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
                     if content:
-                        em.add_field(name="Content", value=content)
+                        em.add_field(name="Content", value=content[1024:])
                     for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
                         await hf.safe_send(self.bot.get_user(user), embed=em)
 
