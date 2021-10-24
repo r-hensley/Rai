@@ -164,7 +164,7 @@ class General(commands.Cog):
                 try:
                     # execute the 1h mute command
                     ctx = await self.bot.get_context(msg)
-                    ctx.author = self.bot.user
+                    ctx.author = msg.guild.me
                     await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
 
                     # notify in mod channel if it is set
