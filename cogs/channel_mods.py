@@ -271,6 +271,11 @@ class ChannelMods(commands.Cog):
             return
         for channel_id in self.bot.db['channel_mods'][str(ctx.guild.id)]:
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await hf.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
+                                        f"{', '.join(self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id])}")
+                self.bot.db['channel_mods'][str(ctx.guild.id)].remove(channel_id)
+                continue
             output_msg += f"#{channel.name}\n"
             for user_id in self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id]:
                 user = self.bot.get_user(int(user_id))
