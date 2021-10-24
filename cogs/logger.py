@@ -716,6 +716,8 @@ class Logger(commands.Cog):
             emb.add_field(name="Notification", value="I was unable to determine exactly which invite the user "
                                                      "used. Here were the multiple possibilities.", inline=False)
         for invite in used_invites:  # considering the possibilty of the bot not being able to pinpoint a link
+            if not invite:
+                continue
             if type(invite) == str:
                 emb.add_field(name="Invite Link Used", value=f"Expired invite: {invite}")
                 continue
