@@ -2271,19 +2271,20 @@ class General(commands.Cog):
         await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            voice_state = target.voice
-            try:
-                if ctx.guild.afk_channel:
-                    await target.move_to(ctx.guild.afk_channel)
-                    await target.move_to(voice_state.channel)
-                else:
-                    for channel in ctx.guild.voice_channels:
-                        if not channel.members:
+            old_channel = target.voice.channel
+
+            if ctx.guild.afk_channel:
+                await target.move_to(ctx.guild.afk_channel)
+                await target.move_to(old_channel)
+            else:
+                for channel in ctx.guild.voice_channels:
+                    if not channel.members:
+                        try:
                             await target.move_to(channel)
-                            await target.move_to(voice_state.channel)
+                            await target.move_to(old_channel)
                             break
-            except discord.Forbidden:
-                pass
+                        except discord.Forbidden:
+                            pass
 
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
