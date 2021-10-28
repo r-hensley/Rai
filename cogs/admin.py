@@ -2425,6 +2425,52 @@ class Admin(commands.Cog):
 
             await ctx.invoke(self.antispam)
 
+    @commands.command()
+    async def vcc(self, ctx):
+        """Gives most active voice channels in Spanish server"""
+        # ('Join', 1635314436.453157, 871772651314618480, 859845745292214282)
+        # ('Leave', 1635314434.395545, 898191413366366228, 902673467969785897)
+        # (str: action, timestamp, user_id, channel_id)
+        config = self.bot.db['spvoice']
+        joins = {}
+        times = {}
+        for i in config:
+            action = i[0]
+            time = i[1]
+            user_id = i[2]
+            channel_id = i[3]
+            if action == "Join":
+                joins[user_id] = (time, channel_id)
+            else:
+                if user_id in joins:
+                    times[channel_id] = times.get(channel_id, 0) + round(time - joins[user_id][0], 3)
+                    del joins[user_id]
+
+        sorted_dict = sorted(list(times.items()), key=lambda channel: channel[1], reverse=True)
+        msg = '__Most active voice channels (mins. of voice activity)__\n'
+        first_msg = ''  # only to be used if character length goes over 2000char
+        for channel in sorted_dict:
+            time = channel[1]
+            hours = int(time // 3600)
+            minutes = int(time % 3600 // 60)
+            seconds = int(time % 3600 % 60)
+            if hours:
+                addition = f"<#{channel[0]}>: {hours}h{minutes}m{seconds}s\n"
+            else:
+                addition = f"<#{channel[0]}>: {minutes}m{seconds}s\n"
+
+            if len(msg + addition) > 2000:
+                first_msg = msg
+                msg = addition
+            else:
+                msg += addition
+
+        if first_msg:
+            await hf.safe_send(ctx, first_msg)
+            await hf.safe_send(ctx, msg)
+        else:
+            await hf.safe_send(ctx, msg)
+
 
 def setup(bot):
     bot.add_cog(Admin(bot))
