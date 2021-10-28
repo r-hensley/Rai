@@ -234,12 +234,16 @@ class Logger(commands.Cog):
             description = f"➡️ **{member.name}#{member.discriminator}** has `joined` **#{after.channel.name}**."
             color = 0x3B88C3
             footer_text = "Voice Join"
+            if after.channel.guild.id == 243838819743432704:
+                self.bot.db['spvoice'].append(("Join", datetime.utcnow().timestamp(),  member.id, after.channel.id))
 
         # leave voice  DD2E44
         elif before.channel and not after.channel:
             description = f"❌ **{member.name}#{member.discriminator}** has `left` **#{before.channel.name}**."
             color = 0xDD2E44
             footer_text = "Voice Leave"
+            if before.channel.guild.id == 243838819743432704:
+                self.bot.db['spvoice'].append(("Leave", datetime.utcnow().timestamp(),  member.id, before.channel.id))
 
         # switch channel 🔄️ 3B88C3
         elif before.channel and after.channel and before.channel != after.channel:
@@ -247,6 +251,9 @@ class Logger(commands.Cog):
                           f"**#{before.channel.name}** to **#{after.channel.name}**."
             color = 0x3B88C3
             footer_text = "Voice Switch"
+            if after.channel.guild.id == 243838819743432704:
+                self.bot.db['spvoice'].append(("Leave", datetime.utcnow().timestamp(), member.id, before.channel.id))
+                self.bot.db['spvoice'].append(("Join", datetime.utcnow().timestamp(),  member.id, after.channel.id))
 
         ############################
         # streaming / broadcasting
