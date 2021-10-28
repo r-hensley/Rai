@@ -930,24 +930,28 @@ class ChannelMods(commands.Cog):
         await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            voice_state = target.voice
-            try:
-                if ctx.guild.afk_channel:
-                    try:
-                        await target.move_to(ctx.guild.afk_channel)
-                        await target.move_to(voice_state.channel)
-                    except discord.HTTPException:
-                        pass
-                else:
-                    for channel in ctx.guild.voice_channels:
-                        if not channel.members:
-                            try:
-                                await target.move_to(channel)
-                                await target.move_to(voice_state.channel)
-                            except discord.HTTPException:
-                                pass
+            old_channel = target.voice.channel
+
+            success = False
+            if ctx.guild.afk_channel:
+                try:
+                    await target.move_to(ctx.guild.afk_channel)
+                    await target.move_to(old_channel)
+                    success = True
+                except (discord.HTTPException, discord.Forbidden):
+                    pass
+            else:
+                for channel in ctx.guild.voice_channels:
+                    if not channel.members:
+                        try:
+                            await target.move_to(channel)
+                            await target.move_to(old_channel)
+                            success = True
                             break
-            except discord.Forbidden:
+                        except (discord.HTTPException, discord.Forbidden):
+                            pass
+
+            if not success:
                 await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
                                         "give Rai this permission, then it'll move the user to the AFK channel and "
                                         "back to force the mute into effect. Otherwise, Discord's implementation of "
