@@ -269,19 +269,20 @@ class ChannelMods(commands.Cog):
         output_msg = '```md\n'
         if str(ctx.guild.id) not in self.bot.db['channel_mods']:
             return
-        for channel_id in self.bot.db['channel_mods'][str(ctx.guild.id)]:
+        config = self.bot.db['channel_mods'][str(ctx.guild.id)]
+        for channel_id in config.copy():
             channel = self.bot.get_channel(int(channel_id))
             if not channel:
                 await hf.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
-                                        f"{', '.join(self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id])}")
-                self.bot.db['channel_mods'][str(ctx.guild.id)].remove(channel_id)
+                                        f"{', '.join([str(i) for i in config[channel_id]])}")
+                del config[channel_id]
                 continue
             output_msg += f"#{channel.name}\n"
-            for user_id in self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id]:
+            for user_id in config[channel_id]:
                 user = self.bot.get_user(int(user_id))
                 if not user:
                     await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
-                    self.bot.db['channel_mods'][str(ctx.guild.id)][channel_id].remove(user_id)
+                    config[channel_id].remove(user_id)
                     continue
                 output_msg += f"{user.display_name}\n"
             output_msg += '\n'
