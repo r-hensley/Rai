@@ -107,91 +107,6 @@ class General(commands.Cog):
 
         guild_stats()
 
-        # ### antispam
-        async def antispam_check():
-            if str(msg.guild.id) in self.bot.db['antispam']:
-                config = self.bot.db['antispam'][str(msg.guild.id)]
-            else:
-                return
-            if not config['enable']:
-                return
-            if msg.channel.id in config['ignored']:
-                return
-            spam_count = 1
-
-            def check(m):
-                return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
-
-            while spam_count < config['message_threshhold']:
-                try:
-                    await self.bot.wait_for('message', timeout=config['time_threshhold'], check=check)
-                except asyncio.TimeoutError:
-                    return
-                else:
-                    spam_count += 1
-
-            reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshhold']} " \
-                     f"times in {config['time_threshhold']} seconds."
-
-            action: str = config['action']
-
-            time_ago: timedelta = datetime.utcnow() - msg.author.joined_at
-            if ban_threshhold := config.get('ban_override', 0):
-                if time_ago < timedelta(minutes=ban_threshhold):
-                    action = 'ban'
-                    mins_ago = int(time_ago.total_seconds())
-                    reason = reason[:-1] + f" (joined {mins_ago} minutes ago)."
-
-            if action == 'ban':
-                try:
-                    await msg.author.ban(reason=reason)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
-            elif action == 'kick':
-                try:
-                    await msg.author.kick(reason=reason)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
-            elif action == 'mute':
-                # prevents this code from running multiple times if they're spamming fast
-                if not hasattr(self.bot, "spammer_mute"):
-                    self.bot.spammer_mute = []  # a temporary list
-
-                if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
-                    return
-                else:
-                    self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
-
-                try:
-                    # execute the 1h mute command
-                    ctx = await self.bot.get_context(msg)
-                    ctx.author = msg.guild.me
-                    await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
-
-                    # notify in mod channel if it is set
-                    if str(msg.guild.id) in self.bot.db['mod_channel']:
-                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
-                        if msg.guild.id == SP_SERVER_ID:
-                            mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
-                        if mod_channel:
-                            await hf.safe_send(mod_channel,
-                                               embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
-                                                                  f"[Jump URL]({msg.jump_url})"))
-
-                # skip if something went wrong
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
-
-                # remove from temporary list after all actions done
-                self.bot.spammer_mute.remove(spammer_mute_entry)
-
-            def purge_check(m):
-                return m.author == msg.author and m.content == msg.content
-
-            await msg.channel.purge(limit=50, check=purge_check)
-
-        await antispam_check()
-
         # automatic word filter
         async def wordfilter():
             if not msg.guild.me.guild_permissions.ban_members:
@@ -284,7 +199,7 @@ class General(commands.Cog):
             if msg.guild.id == MODCHAT_SERVER_ID:
                 async def check_user(content):
                     bans_channel = msg.channel
-                    re_result = re.findall('(?:^| |\n)(\d{17,22})', content)
+                    re_result = re.findall(r'(?:^| |\n)(\d{17,22})', content)
                     users = []
                     if re_result:
                         for user_id in [int(user_id) for user_id in re_result]:
@@ -350,18 +265,20 @@ class General(commands.Cog):
 
         await chinese_server_banned_words()
 
-        # ### hacked account bans (free nitro scams)
+        # ### bans accounts that have been in the server for a while but got hacked so started spamming
         async def hacked_account_ban():
-            links = ["freenitros", 'discord nitro for free', 'free nitro', 'airdrop discord nitro',
-                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free'
-                     'discord.ciick', 'discordgiveaway', 'discordnitro', 'discordairdrop',
+            links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro',
+                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
+                     "take nitro faster, it's aiready running out",
+                     'discord.ciick', 'discordgiveaway',
+                     'discordnitro', 'discordairdrop',
                      'discord.oniine', 'discordgift', 'bit.do/randomgift',
+                     'discordrgift.com', 'discord.gift', 'discord-gifte.com',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
 
-            if "@everyone" not in msg.content:
-                return
+            everyone = "@everyone" in msg.content  # only ban if they ping everyone
 
             try:
                 if msg.guild.id == SP_SERVER_ID:
@@ -383,7 +300,8 @@ class General(commands.Cog):
                                       116379774825267202,  # nihongo to eigo
                                       484840490651353119,  # go! billy korean
                                       541522953423290370,  # /r/korean
-                                      234492134806257665]:  # let's learn korean
+                                      234492134806257665,  # let's learn korean
+                                      275146036178059265]:  # test server
                     pass
 
                 else:
@@ -394,13 +312,15 @@ class General(commands.Cog):
                 # permissions_for(msg.author).read_messages -->
                 # AttributeError: 'User' object has no attribute '_roles'
 
-            number_of_messages = hf.count_messages(msg.author)
-            if number_of_messages > 50:
-                return  # only potentially ban users who are inactive to avoid false positives
+            try:
+                number_of_messages = hf.count_messages(msg.author)
+            except AttributeError:  # AttributeError: 'User' object has no attribute 'guild'
+                return
+            messages = (number_of_messages < 50)  # only potentially ban users who are inactive to avoid false positives
 
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
-            msg.content = msg.content.replace('-', '').replace('discod', 'discord')
+            msg.content = msg.content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
             for link in links:
                 if link in msg_content:
                     try:
@@ -418,8 +338,6 @@ class General(commands.Cog):
                     else:
                         self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
 
-                    await msg.author.ban(reason=f"Potential spam link: {cont}"[:512], delete_message_days=1)
-
                     if msg.guild.id == SP_SERVER_ID:
                         mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
                     elif msg.guild.id == JP_SERVER_ID:  # JP_SERVER_ID
@@ -427,8 +345,30 @@ class General(commands.Cog):
                     else:
                         mod_channel = msg.guild.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
 
-                    await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
-                                                              f"potential  spam link:\n{cont}"))
+                    if everyone and messages:  # ban
+                        try:
+                            await msg.author.ban(reason=f"Potential spam link: {cont}"[:512], delete_message_days=1)
+                        except discord.Forbidden:
+                            return
+                        await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
+                                                                  f"potential  spam link:\n```{cont}```"))
+                    elif messages:  # mute
+                        ctx = await self.bot.get_context(msg)
+                        ctx.author = ctx.guild.me
+                        await ctx.invoke(self.bot.get_command('mute'),
+                                         args=f"1h {str(msg.author.id)} "
+                                              f"{'Inactive user sending Nitro spam-like message (please confirm)'}")
+                        await mod_channel.send(msg.author.mention,
+                                               embed=hf.red_embed(f"🔇❓**MUTED** user {msg.author} ({msg.author.id}) "
+                                                                  f"for potential spam link, [please confirm "
+                                                                  f"the content]({msg.jump_url}) and possibly ban:"
+                                                                  f"\n```{cont}```"))
+
+                    else:  # notify
+                        await mod_channel.send(msg.author.mention,
+                                               embed=hf.red_embed(f"❓The active user {msg.author} ({msg.author.id}) "
+                                                                  f"sent a potential spam link, please confirm "
+                                                                  f"the content and possibly ban:\n```{cont}```"))
 
                     # remove from temporary list after all actions done
                     self.bot.spammer_mute.remove(spammer_mute_entry)
@@ -437,11 +377,12 @@ class General(commands.Cog):
 
         await hacked_account_ban()
 
-        # ### best sex dating
+        # ### bans accounts that spam right after having joined the server
         async def spam_account_bans():
             words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
                      'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!", "freenitros.ru/",
                      'discorcl.click/', 'discord-giveaway.com/', 'bit.do/randomgift', 'stmeacomunnitty.ru',
+                     'discordrgift.com', 'discordc.gift', 'discord-gifte.com'
                      'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
             if "@everyone" not in msg.content:
                 return
@@ -460,8 +401,11 @@ class General(commands.Cog):
                                     (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
                                 if msg.author.id in [202995638860906496, 414873201349361664]:
                                     return
-                                await msg.author.ban(reason=f'For posting spam link: {msg.content}'[:512],
-                                                     delete_message_days=1)
+                                try:
+                                    await msg.author.ban(reason=f'For posting spam link: {msg.content}'[:512],
+                                                         delete_message_days=1)
+                                except discord.Forbidden:
+                                    return
                                 self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
                                 channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
                                 emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
@@ -607,8 +551,9 @@ class General(commands.Cog):
             if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
                 if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
                     content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
+
                     if content:
-                        em.add_field(name="Content", value=content[1024:])
+                        em.add_field(name="Content", value=content[:1024])
                     for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
                         await hf.safe_send(self.bot.get_user(user), embed=em)
 
@@ -759,6 +704,7 @@ class General(commands.Cog):
         #                     channel2: 10}
         #                 ...}
         #             ...
+
         async def msg_count():
             if msg.author.bot:
                 return
@@ -922,6 +868,92 @@ class General(commands.Cog):
                             pass
 
         await no_filter_hc()
+
+        # ### antispam 
+        # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
+        async def antispam_check():
+            if str(msg.guild.id) in self.bot.db['antispam']:
+                config = self.bot.db['antispam'][str(msg.guild.id)]
+            else:
+                return
+            if not config['enable']:
+                return
+            if msg.channel.id in config['ignored']:
+                return
+            spam_count = 1
+
+            def check(m):
+                return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
+
+            while spam_count < config['message_threshhold']:
+                try:
+                    await self.bot.wait_for('message', timeout=config['time_threshhold'], check=check)
+                except asyncio.TimeoutError:
+                    return
+                else:
+                    spam_count += 1
+
+            reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshhold']} " \
+                     f"times in {config['time_threshhold']} seconds."
+
+            action: str = config['action']
+
+            time_ago: timedelta = datetime.utcnow() - msg.author.joined_at
+            if ban_threshhold := config.get('ban_override', 0):
+                if time_ago < timedelta(minutes=ban_threshhold):
+                    action = 'ban'
+                    mins_ago = int(time_ago.total_seconds())
+                    reason = reason[:-1] + f" (joined {mins_ago} minutes ago)."
+
+            if action == 'ban':
+                try:
+                    await msg.author.ban(reason=reason)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            elif action == 'kick':
+                try:
+                    await msg.author.kick(reason=reason)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            elif action == 'mute':
+                # prevents this code from running multiple times if they're spamming fast
+                if not hasattr(self.bot, "spammer_mute"):
+                    self.bot.spammer_mute = []  # a temporary list
+
+                if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
+                    return
+                else:
+                    self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
+
+                try:
+                    # execute the 1h mute command
+                    ctx = await self.bot.get_context(msg)
+                    ctx.author = msg.guild.me
+                    await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
+
+                    # notify in mod channel if it is set
+                    if str(msg.guild.id) in self.bot.db['mod_channel']:
+                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+                        if msg.guild.id == SP_SERVER_ID:
+                            mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+                        if mod_channel:
+                            await hf.safe_send(mod_channel,
+                                               embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
+                                                                  f"[Jump URL]({msg.jump_url})"))
+
+                # skip if something went wrong
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+                # remove from temporary list after all actions done
+                self.bot.spammer_mute.remove(spammer_mute_entry)
+
+            def purge_check(m):
+                return m.author == msg.author and m.content == msg.content
+
+            await msg.channel.purge(limit=50, check=purge_check)
+
+        # await antispam_check()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
