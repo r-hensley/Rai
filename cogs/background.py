@@ -51,7 +51,7 @@ class Background(commands.Cog):
         else:
             try:
                 await ctx.message.add_reaction("✅")
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
 
     @tasks.loop(hours=1.0)

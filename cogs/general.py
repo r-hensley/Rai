@@ -58,6 +58,7 @@ class General(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
+
         if msg.author.bot:
             if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
                 return
@@ -240,7 +241,7 @@ class General(commands.Cog):
                     return
                 if not msg.channel.permissions_for(msg.guild.get_member(202995638860906496)).read_messages:
                     return  # I ain't trying to spy on people
-            except AttributeError as e:
+            except AttributeError:
                 pass
 
             found_word = False
@@ -844,7 +845,7 @@ class General(commands.Cog):
                 if msg.channel.id in self.bot.db['forcehardcore']:
                     await cn_lang_check(check_hardcore_role=False)
 
-                elif msg.guild.id == CH_SERVER_ID:
+                else:
                     if ('*' not in msg.content
                             and msg.channel.id not in self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']):
                         await cn_lang_check()
@@ -1002,7 +1003,9 @@ class General(commands.Cog):
             for cog in sorted([name for name in cmd_dict]):
                 if cmd_dict[cog]:
                     to_send += f"__**{cog}**__  {', '.join(sorted(cmd_dict[cog]))}\n"
-            await hf.safe_send(ctx, to_send)
+            await hf.safe_send(ctx, to_send[:2000])
+            if len(to_send) > 2000:
+                await hf.safe_send(ctx, to_send[2000:])
 
     @commands.command()
     @commands.check(lambda ctx: ctx.guild.id == 759132637414817822 if ctx.guild else False)
@@ -1125,6 +1128,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
 
     @hardcore.command()
+    @hf.is_admin()
     async def list(self, ctx):
         """Lists the channels in hardcore mode."""
         channels = []
@@ -1621,6 +1625,8 @@ class General(commands.Cog):
         repeated results of the same exact message might give different results every time.
 
         Usage: `;cl <text you wish to check>`"""
+        if not ctx.guild:
+            return
         stripped_msg = hf.rem_emoji_url(msg)
         if len(msg) > 900:
             await hf.safe_send(ctx, "Please pick a shorter test  message")
@@ -2262,7 +2268,7 @@ class General(commands.Cog):
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)
 
-        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
+        modlog_config = hf.add_to_modlog(ctx, target, 'Voice Mute', reason, silent, time)
         modlog_channel = self.bot.get_channel(modlog_config['channel'])
 
         emb = hf.red_embed(f"You have been voice muted on {ctx.guild.name} server")

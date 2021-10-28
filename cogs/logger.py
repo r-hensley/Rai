@@ -286,7 +286,14 @@ class Logger(commands.Cog):
 
         """Voice logging"""
         if guild_config:
-            await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+            try:
+                await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+            except discord.DiscordServerError:
+                await asyncio.sleep(3)
+                try:
+                    await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                except discord.DiscordServerError:
+                    pass
 
         """ Super voice watch"""
         if config:
@@ -1500,7 +1507,7 @@ class Logger(commands.Cog):
             for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
                          'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
                 if text in reason:
-                    colour = 0xFF9D00
+                    colour = 0x9C1313
             reason = reason.replace('%20', ' ')
 
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
