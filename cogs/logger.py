@@ -204,9 +204,9 @@ class Logger(commands.Cog):
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
             if not guild_config['enable'] or not guild_config['channel']:
-                guild_config = None
+                guild_config = {}
         else:
-            guild_config = None
+            guild_config = {}
 
         try:
             await self.bot.wait_for('voice_state_update', timeout=0.5, check=lambda m, b, a: m == member)
