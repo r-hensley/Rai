@@ -3,10 +3,10 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-from datetime import datetime, timedelta
+from datetime import timedelta
 from .utils import helper_functions as hf
 import re
-# import textblob
+import textblob
 from Levenshtein import distance as LDist
 import string
 import asyncio
@@ -662,9 +662,10 @@ class General(commands.Cog):
                         else:
                             return None, False
                     else:
-                        return None, False
-                        # detected_lang = await hf.textblob_detect_language(stripped_msg)
-                    # except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
+                        try:
+                            detected_lang = await hf.textblob_detect_language(stripped_msg)
+                        except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
+                            return None, False
                 except (HTTPError, TimeoutError, urllib.error.URLError):
                     pass
             return detected_lang, is_hardcore
@@ -1672,9 +1673,7 @@ class General(commands.Cog):
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)
         else:
-            await hf.safe_send(ctx, "Textblob disabled")
-            return
-            # lang_result = await hf.textblob_detect_language(stripped_msg)
+            lang_result = await hf.textblob_detect_language(stripped_msg)
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
               f"The language I detect: ```{lang_result}```"
