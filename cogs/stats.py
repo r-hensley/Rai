@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 
 import os
@@ -131,7 +131,8 @@ class Stats(commands.Cog):
                     continue
                 for channel in user['channels']:
                     message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
-                    days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                    days_ago = (discord.utils.utcnow() -
+                                datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                     if days_ago <= 7:
                         total_msgs_week += user['channels'][channel]
                     total_msgs_month += user['channels'][channel]
@@ -292,7 +293,7 @@ class Stats(commands.Cog):
         emb = discord.Embed(title=title,
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
-                            timestamp=datetime.utcnow())
+                            timestamp=discord.utils.utcnow())
         if channel_in:
             if isinstance(channel_in, list):
                 emb.title = "Leaderboard for #" + ', #'.join([c.name for c in channel_in])
@@ -444,7 +445,7 @@ class Stats(commands.Cog):
                 if emoji not in emoji_dict:
                     continue
                 emoji_obj = emoji_dict[emoji]
-                x = datetime.utcnow() - emoji_obj.created_at
+                x = discord.utils.utcnow() - emoji_obj.created_at
                 if x < timedelta(days=30):
                     emojis[emoji] = int(emojis[emoji] * 30 / (x.days + 1))
             args = '-a'

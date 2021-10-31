@@ -577,7 +577,7 @@ class ChannelMods(commands.Cog):
                     .get(user_id, None):
                 muted = True
                 unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC")
-                time_left = unmute_date - datetime.utcnow()
+                time_left = unmute_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                 minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
@@ -602,7 +602,7 @@ class ChannelMods(commands.Cog):
                     .get(user_id, None):
                 banned = True
                 unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC")
-                time_left = unban_date - datetime.utcnow()
+                time_left = unban_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                 minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
@@ -631,7 +631,7 @@ class ChannelMods(commands.Cog):
             else:
                 name = f"{str(user)}\n{user_id}"
 
-            emb.set_author(name=name, icon_url=user.avatar_url_as(static_format="png"))
+            emb.set_author(name=name, icon_url=user.display_avatar.replace(static_format="png").url)
 
             rai_emoji = str(self.bot.get_emoji(858486763802853387))
             if banned:
@@ -672,7 +672,8 @@ class ChannelMods(commands.Cog):
                             continue
                         for channel in user_stats['channels']:
                             message_count[channel] = message_count.get(channel, 0) + user_stats['channels'][channel]
-                            days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                            days_ago = (discord.utils.utcnow() -
+                                        datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                             if days_ago <= 7:
                                 total_msgs_week += user_stats['channels'][channel]
                             total_msgs_month += user_stats['channels'][channel]
@@ -832,7 +833,7 @@ class ChannelMods(commands.Cog):
         try:
             last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(ctx.author.id)][-1]
             event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
-            if (datetime.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
                 if last_modlog['reason'].startswith("Antispam"):
                     return  # Prevents multiple mute calls for spammed text
         except KeyError:

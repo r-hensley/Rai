@@ -41,7 +41,10 @@ def blacklist_check():
     async def pred(ctx):
         if not ctx.guild:
             return
-        if ctx.author in ctx.bot.get_guild(MODCHAT_SERVER_ID).members:
+        modchat = ctx.bot.get_guild(MODCHAT_SERVER_ID)
+        if not modchat:
+            return
+        if ctx.author in modchat.members:
             if ctx.guild.id == MODCHAT_SERVER_ID or hf.admin_check(ctx):
                 return True
 
@@ -58,7 +61,6 @@ class General(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
-
         if msg.author.bot:
             if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
                 return
@@ -102,7 +104,7 @@ class General(commands.Cog):
             if str(msg.guild.id) not in config:
                 config[str(msg.guild.id)] = {'messages': {}, 'commands': {}}
             config = config[str(msg.guild.id)]['messages']
-            date_str = datetime.utcnow().strftime("%Y%m%d")
+            date_str = discord.utils.utcnow().strftime("%Y%m%d")
             config[date_str] = config.setdefault(date_str, 0) + 1
 
         guild_stats()
@@ -118,7 +120,7 @@ class General(commands.Cog):
                 return
 
             try:
-                time_ago = datetime.utcnow() - msg.author.joined_at
+                time_ago = discord.utils.utcnow() - msg.author.joined_at
             except AttributeError:  # 'User' object has no attribute 'joined_at'
                 return
 
@@ -233,7 +235,7 @@ class General(commands.Cog):
                 if word_count == 5:
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                     log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
-                    if datetime.utcnow() - msg.author.joined_at > timedelta(minutes=60):
+                    if discord.utils.utcnow() - msg.author.joined_at > timedelta(minutes=60):
                         await hf.safe_send(mod_channel,
                                            f"Warning: {msg.author.name} may have said the banned words spam message"
                                            f"\nMessage was posted in {msg.channel.mention}.  Message:"
@@ -389,7 +391,7 @@ class General(commands.Cog):
             try:
                 for word in words:
                     if word in msg.content:
-                        time_ago = datetime.utcnow() - msg.author.joined_at
+                        time_ago = discord.utils.utcnow() - msg.author.joined_at
                         msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by " \
                                    f"{msg.author.name} (joined {time_ago.seconds // 3600}h " \
                                    f"{time_ago.seconds % 3600 // 60}m ago [{time_ago}])```{msg.content}```"
@@ -411,8 +413,8 @@ class General(commands.Cog):
                                 emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
                                 emb.add_field(name="Reason", value=msg.content)
                                 await hf.safe_send(channel, embed=emb)
-                                created_ago = datetime.utcnow() - msg.author.created_at
-                                joined_ago = datetime.utcnow() - msg.author.joined_at
+                                created_ago = discord.utils.utcnow() - msg.author.created_at
+                                joined_ago = discord.utils.utcnow() - msg.author.joined_at
                                 message = f"**Banned a user for posting a {word} link.**" \
                                           f"\n**ID:** {msg.author.id}" \
                                           f"\n**Server:** {msg.author.guild.name}" \
@@ -456,7 +458,7 @@ class General(commands.Cog):
             for role in [english_role, spanish_role, other_role]:
                 if role in msg.author.roles:
                     return  # ignore messages by users with tags already
-            if datetime.utcnow() - msg.author.joined_at < timedelta(seconds=3):
+            if discord.utils.utcnow() - msg.author.joined_at < timedelta(seconds=3):
                 return
 
             english = ['english', 'inglés', 'anglohablante', 'angloparlante']
@@ -547,7 +549,7 @@ class General(commands.Cog):
                                description=f"From {msg.author.mention} ({msg.author.name}) "
                                            f"in {msg.channel.mention}\n[Jump URL]({msg.jump_url})",
                                color=discord.Color(int('FFAA00', 16)),
-                               timestamp=datetime.utcnow())
+                               timestamp=discord.utils.utcnow())
             if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
                 if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
                     content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
@@ -608,7 +610,7 @@ class General(commands.Cog):
                 desc = "❗ "
                 which = 'sw'
             elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
-                minutes_ago_created = int(((datetime.utcnow() - msg.author.created_at).total_seconds()) // 60)
+                minutes_ago_created = int(((discord.utils.utcnow() - msg.author.created_at).total_seconds()) // 60)
                 if minutes_ago_created > 60 or msg.channel.id == SP_SERVER_ID:
                     return
                 desc = '🆕 '
@@ -617,7 +619,7 @@ class General(commands.Cog):
                 return
 
             desc += f"**{msg.author.name}#{msg.author.discriminator}** ({msg.author.id})"
-            emb = discord.Embed(description=desc, color=0x00FFFF, timestamp=datetime.utcnow())
+            emb = discord.Embed(description=desc, color=0x00FFFF, timestamp=discord.utils.utcnow())
             emb.set_footer(text=f"#{msg.channel.name}")
 
             link = f"\n([Jump URL]({msg.jump_url})"
@@ -714,7 +716,7 @@ class General(commands.Cog):
                 return
 
             config = self.bot.stats[str(msg.guild.id)]
-            date_str = datetime.utcnow().strftime("%Y%m%d")
+            date_str = discord.utils.utcnow().strftime("%Y%m%d")
             if date_str not in config['messages']:
                 config['messages'][date_str] = {}
             today = config['messages'][date_str]
@@ -773,7 +775,7 @@ class General(commands.Cog):
                         if ratio < .55:
                             try:
                                 await msg.delete()
-                            except discord.errors.NotFound:
+                            except discord.NotFound:
                                 pass
                             if len(content) > 30:
                                 await hf.long_deleted_msg_notification(msg)
@@ -781,7 +783,7 @@ class General(commands.Cog):
                         if ratio > .45:
                             try:
                                 await msg.delete()
-                            except discord.errors.NotFound:
+                            except discord.NotFound:
                                 pass
                             if len(content) > 60:
                                 await hf.long_deleted_msg_notification(msg)
@@ -809,7 +811,7 @@ class General(commands.Cog):
                 if lang == 'es':
                     try:
                         await msg.delete()
-                    except discord.errors.NotFound:
+                    except discord.NotFound:
                         return
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
@@ -819,7 +821,7 @@ class General(commands.Cog):
                 if lang == 'en':
                     try:
                         await msg.delete()
-                    except discord.errors.NotFound:
+                    except discord.NotFound:
                         return
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
@@ -830,7 +832,7 @@ class General(commands.Cog):
                                           "'Learning English' to properly use hardcore mode, or take "
                                           "off hardcore mode using the reactions in the server rules "
                                           "page")
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     pass
 
         await spanish_server_hardcore()
@@ -855,7 +857,7 @@ class General(commands.Cog):
                                                   "people must speak English only. Here is the message I deleted:")
 
                             await msg.author.send(f"```{msg.content[:1993]}```")
-                        except (discord.errors.NotFound, discord.Forbidden):
+                        except (discord.NotFound, discord.Forbidden):
                             pass
                 else:
                     if ratio > .45:
@@ -864,7 +866,7 @@ class General(commands.Cog):
                             await msg.author.send(f"I've deleted your message from {nf}. In that channel, you must "
                                                   "speak Japanese only. Here is the message I deleted:")
                             await msg.author.send(f"```{msg.content[:1993]}```")
-                        except (discord.errors.NotFound, discord.Forbidden):
+                        except (discord.NotFound, discord.Forbidden):
                             pass
 
         await no_filter_hc()
@@ -898,7 +900,7 @@ class General(commands.Cog):
 
             action: str = config['action']
 
-            time_ago: timedelta = datetime.utcnow() - msg.author.joined_at
+            time_ago: timedelta = discord.utils.utcnow() - msg.author.joined_at
             if ban_threshhold := config.get('ban_override', 0):
                 if time_ago < timedelta(minutes=ban_threshhold):
                     action = 'ban'
@@ -1324,7 +1326,7 @@ class General(commands.Cog):
                 except AttributeError:
                     emoji = reaction.emoji
                 config = self.bot.stats[str(user.guild.id)]
-                date_str = datetime.utcnow().strftime("%Y%m%d")
+                date_str = discord.utils.utcnow().strftime("%Y%m%d")
                 if date_str not in config['messages']:
                     config['messages'][date_str] = {}
                 today = config['messages'][date_str]
@@ -1449,7 +1451,7 @@ class General(commands.Cog):
                         try:
                             await guild.get_member(payload.user_id).add_roles(role)
                             return
-                        except discord.errors.Forbidden:
+                        except discord.Forbidden:
                             await self.bot.get_user(202995638860906496).send(
                                 'on_raw_reaction_add: Lacking `Manage Roles` permission'
                                 f' <#{payload.guild_id}>')
@@ -1517,7 +1519,7 @@ class General(commands.Cog):
             role = guild.get_role(roles[payload.emoji.name])
             try:
                 await user.add_roles(role)
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_add: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
@@ -1592,7 +1594,7 @@ class General(commands.Cog):
             role = guild.get_role(roles[payload.emoji.name])
             try:
                 await user.remove_roles(role)
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_remove: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
@@ -1614,11 +1616,11 @@ class General(commands.Cog):
                                      "I've added 📝 to your name.  This means you wish to be corrected in your sentences")
             await asyncio.sleep(7)
             await msg.delete()
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             msg = await hf.safe_send(ctx, "I lack the permissions to change your nickname")
             await asyncio.sleep(7)
             await msg.delete()
-        except discord.errors.HTTPException:
+        except discord.HTTPException:
             try:
                 await ctx.message.add_reaction('💢')
             except discord.NotFound:
@@ -1632,7 +1634,7 @@ class General(commands.Cog):
         try:
             await ctx.author.edit(nick=ctx.author.display_name[:-1])
             await ctx.message.add_reaction('◀')
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await hf.safe_send(ctx, "I lack the permissions to change your nickname")
 
     @commands.command(aliases=['ryry'])
@@ -1720,7 +1722,7 @@ class General(commands.Cog):
         else:
             em.add_field(name="Roles", value=str(len(guild.roles)))
 
-        how_long_ago = datetime.utcnow() - guild.created_at
+        how_long_ago = discord.utils.utcnow() - guild.created_at
         days = how_long_ago.days
         years = days // 365
         bef_str = ''

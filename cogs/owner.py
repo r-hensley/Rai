@@ -14,7 +14,7 @@ from ast import literal_eval
 import importlib
 
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import os
 
@@ -47,7 +47,7 @@ class Owner(commands.Cog):
             self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
         config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
 
-        date_str = datetime.utcnow().strftime("%Y%m%d")
+        date_str = discord.utils.utcnow().strftime("%Y%m%d")
         config[date_str] = config.setdefault(date_str, 0) + 1
 
     @commands.command()
@@ -59,7 +59,7 @@ class Owner(commands.Cog):
         for guild_id in config:
             message_count = 0
             for day in config[guild_id]['messages']:
-                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del(config[guild_id]['messages'][day])
                 else:
@@ -67,7 +67,7 @@ class Owner(commands.Cog):
 
             command_count = 0
             for day in config[guild_id]['commands']:
-                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del(config[guild_id]['commands'][day])
                 else:
@@ -148,7 +148,7 @@ class Owner(commands.Cog):
             else:
                 result_channel_id = result_channel_id.group(1)
             if result_channel_id:
-                if (datetime.utcnow() - msg.created_at).seconds > 1:
+                if (discord.utils.utcnow() - msg.created_at).seconds > 1:
                     if index > 1:
                         index -= 1
                     else:
@@ -271,7 +271,7 @@ class Owner(commands.Cog):
         """Checks to see who is currently accumulating voice chat time with the stats module"""
         try:
             config = self.bot.db['stats'][str(ctx.guild.id)]['voice']['in_voice']
-            in_voice_users = f'{datetime.utcnow()}\n\n'
+            in_voice_users = f'{discord.utils.utcnow()}\n\n'
         except KeyError:
             return
         for user_id in config:
@@ -285,33 +285,6 @@ class Owner(commands.Cog):
         sys.stderr.flush()
         sys.stdout.flush()
         await ctx.message.add_reaction('🚽')
-
-    # @commands.command(aliases=['elt'])
-    # async def embed_len_test(self, ctx, length: int):
-    #     author = ctx.author
-    #     time_dif = '3.5'
-    #     emb = discord.Embed(
-    #         description=f'**{author.name}#{author.discriminator}** ({author.id})'
-    #                     f'\n**Message edited after {time_dif} seconds.**',
-    #         colour=0xFF9933,
-    #         timestamp=datetime.utcnow()
-    #     )
-    #     x = 'a'*length
-    #
-    #     emb.add_field(name='**Before:**', value=f'{x}')
-    #     emb.add_field(name='**After:**', value=f'{x}')
-    #     emb.add_field(name='**After again!**', value=f'{x}')
-    #     emb.add_field(name='**After again!**', value=f'{x}')
-    #     emb.add_field(name='**After again!**', value=f'{x}')
-    #     emb.add_field(name='**After again!**', value=f'{x}')
-    #     emb.add_field(name='**After again!**', value=f'{x}')
-    #
-    #     emb.set_footer(text=f'#{ctx.channel.name}', icon_url=ctx.author.avatar_url_as(static_format="png"))
-    #     await hf.safe_send(ctx, embed=emb)
-    #     y = 5 * x + \
-    #         f'**{author.name}#{author.discriminator}** ({author.id})\n**Message edited after ' \
-    #         f'{time_dif} seconds.****Before:****After:**#{ctx.channel.name}'
-    #     await hf.safe_send(ctx, f'Possibly about {len(y)}')
 
     @commands.command(aliases=['sdb', 'dump'], hidden=True)
     async def savedatabase(self, ctx):
@@ -356,7 +329,7 @@ class Owner(commands.Cog):
         await ctx.invoke(self.flush)
         await ctx.invoke(self.savedatabase)
         self.bot.restart = True
-        await self.bot.logout()
+        await self.bot.close()
 
     @commands.command(aliases=['quit'])
     async def kill(self, ctx):
@@ -365,7 +338,7 @@ class Owner(commands.Cog):
             await ctx.message.add_reaction('💀')
             await ctx.invoke(self.flush)
             await ctx.invoke(self.savedatabase)
-            await self.bot.logout()
+            await self.bot.close()
             await self.bot.close()
         except Exception as e:
             await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
@@ -504,7 +477,7 @@ class Owner(commands.Cog):
                 if value:
                     try:
                         await hf.safe_send(ctx, f'```py\n{value}\n```')
-                    except discord.errors.HTTPException:
+                    except discord.HTTPException:
                         st = f'```py\n{value}\n```'
                         await hf.safe_send(ctx, 'Result over 2000 characters')
                         await hf.safe_send(ctx, st[0:1996] + '\n```')
@@ -522,7 +495,7 @@ class Owner(commands.Cog):
         for channel in channel_list:
             if isinstance(channel, discord.TextChannel):
                 try:
-                    async for message in channel.history(limit=None, after=datetime.utcnow() - timedelta(days=31)):
+                    async for message in channel.history(limit=None, after=discord.utils.utcnow() - timedelta(days=31)):
                         emoji_list = pattern.findall(message.content)
                         if emoji_list:
                             for emoji in emoji_list:
@@ -531,7 +504,7 @@ class Owner(commands.Cog):
                                     emoji_dict[name] += 1
                                 except KeyError:
                                     emoji_dict[name] = 1
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     pass
         print(emoji_dict)
         sorted_list = sorted(emoji_dict.items(), key=lambda x: x[1], reverse=True)
@@ -564,7 +537,7 @@ class Owner(commands.Cog):
         channel = self.bot.get_channel(277384105245802497)
         name_to_id = {role.name: role.id for role in channel.guild.roles}
         id_to_role = {role.id: role for role in channel.guild.roles}
-        # self.bot.messages = await channel.history(limit=None, after=datetime.utcnow() - timedelta(days=60)).flatten()
+        # self.bot.messages = await channel.history(limit=None, after=discord.utils.utcnow() - timedelta(days=60)).flatten()
         config = self.bot.db['joins'][str(channel.guild.id)]['readd_roles']
         config['users'] = {}
         print(len(self.bot.messages))
@@ -635,7 +608,7 @@ class Owner(commands.Cog):
             description='title, description, url, timestamp, color\n'
                         'em.set_footer(), em.set_image(url=), em.set_thumbnail(url=), em.set_author(), em.add_field()',
             url='https://url.com',
-            timestamp=datetime.utcnow(),
+            timestamp=discord.utils.utcnow(),
             color=discord.Color(int(color, 16))
         )
         em.set_footer(text='em.set_footer(text=str, icon_url=str)', icon_url='https://i.imgur.com/u6tDx8h.png')

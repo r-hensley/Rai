@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from .utils import helper_functions as hf
 from bs4 import BeautifulSoup
 import aiohttp, async_timeout
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 import traceback, sys
 
@@ -153,7 +153,7 @@ class Background(commands.Cog):
 
     @tasks.loop(hours=1.0)
     async def check_rawmangas(self):
-        time = datetime.utcnow()
+        time = discord.utils.utcnow()
         config = self.bot.db['rawmangas']
         for manga in config:
             if time.weekday() != config[manga]['update']:
@@ -229,8 +229,9 @@ class Background(commands.Cog):
                 mod_channel = None
             if 'timed_bans' in guild_config:
                 for member_id in list(guild_config['timed_bans']):
-                    unban_time = datetime.strptime(guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC")
-                    if unban_time < datetime.utcnow():
+                    unban_time = datetime.strptime(
+                        guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                    if unban_time < discord.utils.utcnow():
                         guild = self.bot.get_guild(int(guild_id))
                         member = discord.Object(id=member_id)
                         try:
@@ -275,8 +276,9 @@ class Background(commands.Cog):
                     mod_channel = None
                 if 'timed_mutes' in guild_config:
                     for member_id in list(guild_config['timed_mutes']):
-                        unmute_time = datetime.strptime(guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC")
-                        if unmute_time < datetime.utcnow():
+                        unmute_time = datetime.strptime(
+                            guild_config['timed_mutes'][member_id], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                        if unmute_time < discord.utils.utcnow():
                             if db_name == 'mutes':
                                 result = await ctx.invoke(self.bot.get_command('unmute'), member_id, int(guild_id))
                             else:
@@ -310,12 +312,13 @@ class Background(commands.Cog):
             guild_config = config[guild_id]
             for user_id in list(guild_config):
                 try:
-                    unmute_time = datetime.strptime(guild_config[user_id]['time'], "%Y/%m/%d %H:%M UTC")
+                    unmute_time = datetime.strptime(guild_config[user_id]['time'],
+                                                    "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 except TypeError:
                     print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'])
                     del (guild_config[user_id])
                     continue
-                if unmute_time < datetime.utcnow():
+                if unmute_time < discord.utils.utcnow():
                     del (guild_config[user_id])
                     unmuted_users.append(user_id)
             if unmuted_users:
@@ -335,7 +338,7 @@ class Background(commands.Cog):
         for server_id in self.bot.stats:
             config = self.bot.stats[server_id]
             for day in list(config['messages']):
-                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     for user_id in config['messages'][day]:
                         for channel_id in config['messages'][day][user_id]:
@@ -351,7 +354,7 @@ class Background(commands.Cog):
                                 config['member_totals'][user_id] = config['messages'][day][user_id][channel_id]
                     del config['messages'][day]
             for day in list(config['voice']['total_time']):
-                days_ago = (datetime.utcnow() - datetime.strptime(day, "%Y%m%d")).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 

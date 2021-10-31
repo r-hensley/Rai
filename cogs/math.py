@@ -64,7 +64,7 @@ class Math(commands.Cog):
                 bet_increase = float(bet_increase)
                 try:
                     await ctx.message.add_reaction('👍')
-                except discord.errors.NotFound:
+                except discord.NotFound:
                     pass
 
         except asyncio.TimeoutError:

@@ -235,7 +235,7 @@ class Logger(commands.Cog):
             color = 0x3B88C3
             footer_text = "Voice Join"
             if after.channel.guild.id == 243838819743432704:
-                self.bot.db['spvoice'].append(("Join", datetime.utcnow().timestamp(),  member.id, after.channel.id))
+                self.bot.db['spvoice'].append(("Join", discord.utils.utcnow().timestamp(),  member.id, after.channel.id))
 
         # leave voice  DD2E44
         elif before.channel and not after.channel:
@@ -243,7 +243,7 @@ class Logger(commands.Cog):
             color = 0xDD2E44
             footer_text = "Voice Leave"
             if before.channel.guild.id == 243838819743432704:
-                self.bot.db['spvoice'].append(("Leave", datetime.utcnow().timestamp(),  member.id, before.channel.id))
+                self.bot.db['spvoice'].append(("Leave", discord.utils.utcnow().timestamp(),  member.id, before.channel.id))
 
         # switch channel 🔄️ 3B88C3
         elif before.channel and after.channel and before.channel != after.channel:
@@ -252,8 +252,8 @@ class Logger(commands.Cog):
             color = 0x3B88C3
             footer_text = "Voice Switch"
             if after.channel.guild.id == 243838819743432704:
-                self.bot.db['spvoice'].append(("Leave", datetime.utcnow().timestamp(), member.id, before.channel.id))
-                self.bot.db['spvoice'].append(("Join", datetime.utcnow().timestamp(),  member.id, after.channel.id))
+                self.bot.db['spvoice'].append(("Leave", discord.utils.utcnow().timestamp(), member.id, before.channel.id))
+                self.bot.db['spvoice'].append(("Join", discord.utils.utcnow().timestamp(),  member.id, after.channel.id))
 
         ############################
         # streaming / broadcasting
@@ -288,8 +288,9 @@ class Logger(commands.Cog):
 
         footer_text = f"V{member.id} - " + footer_text
 
-        emb = discord.Embed(description=description, color=color, timestamp=datetime.utcnow())
-        emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
+        emb = discord.Embed(description=description, color=color, timestamp=discord.utils.utcnow())
+        emb.set_footer(text=footer_text,
+                       icon_url=member.display_avatar.replace(static_format="png").url)
 
         """Voice logging"""
         if guild_config:
@@ -324,7 +325,7 @@ class Logger(commands.Cog):
         color = 0x00FFFF  # slightly lighter blue than the "joined" blue
         footer_text = f"{channel.id} - Channel Creation"
 
-        emb = discord.Embed(description=description, color=color, timestamp=datetime.utcnow())
+        emb = discord.Embed(description=description, color=color, timestamp=discord.utils.utcnow())
         emb.set_footer(text=footer_text)
         await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
 
@@ -369,13 +370,13 @@ class Logger(commands.Cog):
     @staticmethod
     def make_edit_embed(before, after, levenshtein_distance):
         author = before.author
-        time_dif = round((datetime.utcnow() - before.created_at).total_seconds(), 1)
+        time_dif = round((discord.utils.utcnow() - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
                         f'(https://en.wikipedia.org/wiki/Levenshtein_distance) - ([Jump URL]({after.jump_url}))',
             colour=0xFF9933,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
 
         if len(before.content) > 0 and len(after.content) > 0:
@@ -391,7 +392,7 @@ class Logger(commands.Cog):
                 emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
                 emb.add_field(name='**After:** (Part 2)', value=after.content[1000:2000])
 
-        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.avatar_url_as(static_format="png"))
+        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.discord_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -420,7 +421,7 @@ class Logger(commands.Cog):
                         try:
                             await hf.safe_send(channel, embed=self.make_edit_embed(before, after,
                                                                                    levenshtein_distance))
-                        except discord.errors.Forbidden:
+                        except discord.Forbidden:
                             await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
         await hf.uhc_check(after)
 
@@ -454,7 +455,7 @@ class Logger(commands.Cog):
 
     async def make_delete_embed(self, message):
         author = message.author
-        time_dif = round((datetime.utcnow() - message.created_at).total_seconds(), 1)
+        time_dif = round((discord.utils.utcnow() - message.created_at).total_seconds(), 1)
         jump_url = ''
         async for msg in message.channel.history(limit=1, before=message):
             jump_url = msg.jump_url
@@ -462,7 +463,7 @@ class Logger(commands.Cog):
             description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
             colour=0xDB3C3C,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
 
         if message.content:
@@ -519,7 +520,8 @@ class Logger(commands.Cog):
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
-        emb.set_footer(text=f'#{message.channel.name}', icon_url=message.author.avatar_url_as(static_format="png"))
+        emb.set_footer(text=f'#{message.channel.name}',
+                       icon_url=message.author.display_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -544,7 +546,7 @@ class Logger(commands.Cog):
                         return
                     try:
                         await hf.safe_send(channel, embed=await self.make_delete_embed(message))
-                    except discord.errors.Forbidden:
+                    except discord.Forbidden:
                         await self.module_disable_notification(message.guild, guild_config, 'message deletes')
 
     @commands.Cog.listener()
@@ -633,7 +635,7 @@ class Logger(commands.Cog):
 
         try:
             await hf.safe_send(channel, embed=emb, file=file)
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await self.module_disable_notification(channel.guild, guild_config, 'message deletes')
 
     # ############### joins #####################
@@ -654,7 +656,7 @@ class Logger(commands.Cog):
                 await hf.safe_send(ctx,
                                    'Enabled join logging + invite tracking for this server (type `;joins invites` to '
                                    'disable invite tracking)')
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx, "I've enabled join tracking, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
                                         f"`{ctx.message.content} invites` to enable invite tracking for future joins.")
@@ -682,7 +684,7 @@ class Logger(commands.Cog):
                 await hf.safe_send(ctx,
                                    f'Enabled join logging + invite tracking / set the channel to `{ctx.channel.name}`.'
                                    f'  Enable/disable logging by typing `;joins`.')
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx, "I've enabled join logging, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
                                         "`;joins invites` to enable invite tracking for future joins.")
@@ -708,7 +710,7 @@ class Logger(commands.Cog):
 
     @staticmethod
     async def make_join_embed(member: discord.Member, used_invites, channel, config, list_of_roles=None):
-        minutes_ago_created = int(((datetime.utcnow() - member.created_at).total_seconds()) // 60)
+        minutes_ago_created = int(((discord.utils.utcnow() - member.created_at).total_seconds()) // 60)
         if 60 < minutes_ago_created < 3600:
             time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
         elif minutes_ago_created < 60:
@@ -720,7 +722,7 @@ class Logger(commands.Cog):
             description=f":inbox_tray: **[{member.name}#{member.discriminator}](https://rai/user-id-is-J{member.id})** "
                         f"has `joined`. ({member.mention}){time_str}",
             colour=0x7BA600,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
 
         if channel and hasattr(channel.last_message, 'jump_url'):
@@ -746,7 +748,7 @@ class Logger(commands.Cog):
                                f"([ID](https://rai/inviter-id-is-I{invite.inviter.id}))"
             field_value += f" ({invite.uses}{max_uses} uses"  # add a final ')' below
             if invite.created_at:
-                seconds_ago_created = (datetime.utcnow() - invite.created_at).total_seconds()
+                seconds_ago_created = (discord.utils.utcnow() - invite.created_at).total_seconds()
 
                 if 3600 < seconds_ago_created < 86400:
                     field_value += f" - created **{int(seconds_ago_created//3600)}** hours ago)"
@@ -769,7 +771,7 @@ class Logger(commands.Cog):
             emb.add_field(name='Readded roles:', value=', '.join(reversed([role.name for role in list_of_roles])))
 
         footer_text = f'User Join ({member.guild.member_count}) - {member.id}'
-        emb.set_footer(text=footer_text, icon_url=member.avatar_url_as(static_format="png"))
+        emb.set_footer(text=footer_text, icon_url=member.discord_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -956,7 +958,7 @@ class Logger(commands.Cog):
                 for invite in old_invites:
                     if invite not in invites_dict:  # the invite disappeared
                         if old_invites[invite][1]:
-                            if datetime.utcnow().timestamp() > old_invites[invite][1]:
+                            if discord.utils.utcnow().timestamp() > old_invites[invite][1]:
                                 continue  # it was a timed invite that simply expired
                         maybe_used_invite.append(invite)  # it was an invite that reached its max uses
                         continue
@@ -1006,7 +1008,7 @@ class Logger(commands.Cog):
                                           f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
                     except discord.HTTPException:
                         pass
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     pass
                 del readd_config['users'][str(member.id)]
 
@@ -1183,7 +1185,7 @@ class Logger(commands.Cog):
                         f":outbox_tray: **[{member.name}#{member.discriminator}](https://rai/user-id-is-J{member.id})**"
                         f" has `left` the server. ({member.mention})",
             colour=0xD12B2B,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
 
         if len(member.roles) > 1:  # all members have the @everyone role
@@ -1191,7 +1193,7 @@ class Logger(commands.Cog):
 
         emb.set_footer(
             text=f'User Leave ({member.guild.member_count}) - {member.id}',
-            icon_url=member.avatar_url_as(static_format="png")
+            icon_url=member.discord_avatar.replace(static_format="png").url
         )
         return emb
 
@@ -1213,7 +1215,7 @@ class Logger(commands.Cog):
                     return
                 try:
                     await hf.safe_send(channel, embed=self.make_leave_embed(member))
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
         try:
@@ -1242,7 +1244,7 @@ class Logger(commands.Cog):
                             found_roles.append(codes[str(role.id)])
 
                 if found_roles:  # if the role list isn't empty (i.e., no roles)
-                    config['users'][str(member.id)] = [datetime.utcnow().strftime("%Y%m%d"), ','.join(found_roles)]
+                    config['users'][str(member.id)] = [discord.utils.utcnow().strftime("%Y%m%d"), ','.join(found_roles)]
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
@@ -1250,7 +1252,7 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(guild_config["channel"])
                 try:
                     emb = await self.make_kick_embed(member)
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     await self.module_disable_notification(member.guild, guild_config, 'member kick')
                     return
                 if emb:
@@ -1293,10 +1295,10 @@ class Logger(commands.Cog):
 
     @staticmethod
     def make_nickname_embed(before, after):
-        emb = discord.Embed(timestamp=datetime.utcnow())
+        emb = discord.Embed(timestamp=discord.utils.utcnow())
         emb.set_footer(
             text=f'{after.name}#{before.discriminator} (N{before.id})',
-            icon_url=before.avatar_url_as(static_format="png")
+            icon_url=before.discord_avatar.replace(static_format="png").url
         )
         return emb
 
@@ -1334,7 +1336,7 @@ class Logger(commands.Cog):
             return
 
         emb = self.make_nickname_embed(before, after)
-        emb.color = 0xFFA500
+        emb.colour = 0xFFA500
 
         if before.nick and not after.nick:  # nickname removed
             emb.description = f"**{before.nick}**'s nickname was **removed**"
@@ -1382,7 +1384,7 @@ class Logger(commands.Cog):
             description=f'**{member.name}#{member.discriminator}** ({member.id}) '
                         f' removed a reaction. ([Jump URL]({reaction.message.jump_url}))',
             colour=0xD12B2B,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
 
         if reaction.message.content:
@@ -1393,7 +1395,7 @@ class Logger(commands.Cog):
             emb.add_field(name='Removed reaction', value=f'{reaction.emoji}')
 
         emb.set_footer(text=f'#{reaction.message.channel.name}',
-                       icon_url=member.avatar_url_as(static_format="png"))
+                       icon_url=member.discord_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -1408,7 +1410,7 @@ class Logger(commands.Cog):
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
                             await hf.safe_send(channel, embed=self.make_reaction_embed(reaction, member))
-                        except discord.errors.Forbidden:
+                        except discord.Forbidden:
                             await self.module_disable_notification(
                                 reaction.message.guild, guild_config, 'reaction remove')
                             return
@@ -1459,7 +1461,7 @@ class Logger(commands.Cog):
         while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
             async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                 action=discord.AuditLogAction.ban,
-                                                after=datetime.utcnow() - timedelta(seconds=60)):
+                                                after=discord.utils.utcnow() - timedelta(seconds=60)):
                 if entry.action == discord.AuditLogAction.ban and entry.target == member:
                     ban_entry = entry
                     reason = ban_entry.reason
@@ -1469,7 +1471,7 @@ class Logger(commands.Cog):
                 break  # this breaks the while loop if it found an entry
             attempts += 1
             await asyncio.sleep(15)
-        emb = discord.Embed(colour=0x000000, timestamp=datetime.utcnow(), description='')
+        emb = discord.Embed(colour=0x000000, timestamp=discord.utils.utcnow(), description='')
         if not reason:
             reason = '(none given)'
         if reason.startswith('⁣') or '-s' in reason:  # skip crossposting if enabled
@@ -1488,13 +1490,13 @@ class Logger(commands.Cog):
             emb.description += f'**Reason**: {reason}'
 
         emb.set_footer(text=f'User Banned - {member.id}',
-                       icon_url=member.avatar_url_as(static_format="png"))
+                       icon_url=member.discord_avatar.replace(static_format="png").url)
 
         already_added = False  # if the ban event has already been added to the modlog, don't do it here again
         try:
             last_modlog = self.bot.db['modlog'][str(guild.id)][str(member.id)][-1]
-            time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
-            if (datetime.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
+            time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            if (discord.utils.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
                 already_added = True
             if last_modlog['length'] and last_modlog['type'] == 'Ban':
                 emb.add_field(name="Temporary ban length", value=last_modlog['length'])
@@ -1535,7 +1537,7 @@ class Logger(commands.Cog):
                 by = admin
                 reason = re_reason
 
-        emb = discord.Embed(colour=colour, timestamp=datetime.utcnow(),
+        emb = discord.Embed(colour=colour, timestamp=discord.utils.utcnow(),
                             title="GBL Network Ban",
                             description=f"**{str(member)}** － {member.mention}\n({member.id})\n")
 
@@ -1548,12 +1550,12 @@ class Logger(commands.Cog):
         messages_in_guild = hf.count_messages(member, guild)
         if messages_in_guild:
             emb.set_footer(text=f"Messages: {messages_in_guild}\n",
-                           icon_url=member.avatar_url_as(static_format="png"))
+                           icon_url=member.discord_avatar.replace(static_format="png").url)
         else:
-            emb.set_footer(text='Ban', icon_url=member.avatar_url_as(static_format="png"))
+            emb.set_footer(text='Ban', icon_url=member.discord_avatar.replace(static_format="png").url)
 
         creation_date = member.created_at.strftime("%Y/%m/%d")
-        time_ago = datetime.utcnow() - member.created_at
+        time_ago = discord.utils.utcnow() - member.created_at
         if time_ago.total_seconds() <= 3600:  # they joined less than a day ago
             creation_date += f" (**__{int(time_ago.total_seconds() // 60)} minutes__** ago)"
         elif 3600 < time_ago.total_seconds() <= 86400:  # they joined less than a day ago
@@ -1564,7 +1566,7 @@ class Logger(commands.Cog):
 
         if hasattr(member, "joined_at"):  # if it's a user, there will be no join date
             join_date = member.joined_at.strftime("%Y/%m/%d")
-            time_ago = datetime.utcnow() - member.joined_at
+            time_ago = discord.utils.utcnow() - member.joined_at
             if time_ago.total_seconds() <= 3600:  # they joined less than a day ago
                 join_date += f" (**__{int(time_ago.total_seconds() // 60)} minutes__** ago)"
             elif 3600 < time_ago.total_seconds() <= 86400:  # they joined less than a day ago
@@ -1594,7 +1596,7 @@ class Logger(commands.Cog):
             guild_config: dict = self.bot.db['bans'][guild_id]
             try:
                 ban_emb, crosspost_emb = await self.make_ban_embed(guild, member)
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await self.module_disable_notification(guild, guild_config, 'bans')
                 return
             if guild_config['enable']:
@@ -1652,10 +1654,10 @@ class Logger(commands.Cog):
         emb = discord.Embed(
             description=f'❕ **{user.name}#{user.discriminator}** was `unbanned` ({user.id})',
             colour=0x7F8C8D,
-            timestamp=datetime.utcnow()
+            timestamp=discord.utils.utcnow()
         )
         emb.set_footer(text=f'User unbanned',
-                       icon_url=user.avatar_url_as(static_format="png"))
+                       icon_url=user.discord_avatar.replace(static_format="png").url)
         return emb
 
     @commands.Cog.listener()
@@ -1676,7 +1678,7 @@ class Logger(commands.Cog):
                         emb = crosspost_msg.embeds[0]
                         emb.color = 0xFFFFFE  # for some reason, FFFFFF defaults to black, and FFFFFE is fine
                         emb.description.replace('\n', '~~\n')
-                        emb.description = f"UNBANNED {datetime.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')}\n" \
+                        emb.description = f"UNBANNED {discord.utils.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')}\n" \
                                           f"~~{emb.description}~~"
                         await crosspost_msg.edit(embed=emb)
 
@@ -1686,7 +1688,7 @@ class Logger(commands.Cog):
                 channel = self.bot.get_channel(guild_config["channel"])
                 try:
                     await hf.safe_send(channel, embed=self.make_unban_embed(user))
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     await self.module_disable_notification(guild, guild_config, 'unban')
                     return
 
@@ -1724,12 +1726,12 @@ class Logger(commands.Cog):
         try:
             emb = None  # action=discord.AuditLogAction.kick
             async for entry in member.guild.audit_logs(limit=1, oldest_first=False, action=discord.AuditLogAction.kick,
-                                                       after=datetime.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > datetime.utcnow() - timedelta(seconds=10) and entry.target == member:
+                                                       after=discord.utils.utcnow() - timedelta(seconds=10)):
+                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == member:
                     kick_entry = entry
                     reason = kick_entry.reason
                     emb = True
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await log_channel.send('Failed to post kick log due to lacking audit logs or embed permissions')
             return
         if not reason:
@@ -1741,10 +1743,10 @@ class Logger(commands.Cog):
                 description=f'❌ **{member.name}#{member.discriminator}** was `kicked` ({member.id})\n\n'
                             f'*by* {kick_entry.user.mention}\n**Reason**: {reason}',
                 colour=0x4C4C4C,
-                timestamp=datetime.utcnow()
+                timestamp=discord.utils.utcnow()
             )
             emb.set_footer(text=f'User Kicked',
-                           icon_url=member.avatar_url_as(static_format="png"))
+                           icon_url=member.discord_avatar.replace(static_format="png").url)
             return emb
 
 

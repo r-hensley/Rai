@@ -1,7 +1,7 @@
 import asyncio
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from sre_constants import error as sre_constants_error
 from typing import Optional
 
@@ -319,7 +319,8 @@ class Admin(commands.Cog):
                 except discord.NotFound:
                     continue
                 member_text = f"{user.name} ({user.id})"
-            seconds = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC") - datetime.utcnow()).total_seconds()
+            seconds = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                       - discord.utils.utcnow()).total_seconds()
             hours = int(seconds // 3600)
             minutes = int((3600 % 3600) // 60)
             embed_text += f"• {member_text}\n" \
@@ -405,7 +406,7 @@ class Admin(commands.Cog):
         async for message in ctx.channel.history(limit=30):
             try:
                 await message.delete()
-            except discord.errors.NotFound:
+            except discord.NotFound:
                 pass
             except discord.Forbidden:
                 await hf.safe_send(ctx, "I was unable to delete the old messages!")
@@ -685,7 +686,7 @@ class Admin(commands.Cog):
                     return
             try:
                 msg = await ctx.channel.fetch_message(args[1])
-            except discord.errors.NotFound:  # invalid message ID given
+            except discord.NotFound:  # invalid message ID given
                 await hf.safe_send(ctx, 'Message not found')
                 return
             except IndexError:  # no message ID given
@@ -935,7 +936,7 @@ class Admin(commands.Cog):
                 string += f"{ID}\n"
         try:
             await hf.safe_send(ctx, string)
-        except discord.errors.HTTPException:
+        except discord.HTTPException:
             await hf.safe_send(ctx, string[0:2000])
             await hf.safe_send(ctx, string[2000:])
 
@@ -954,7 +955,7 @@ class Admin(commands.Cog):
         member_id = str(member.id)
         config = self.bot.stats[guild]['voice']
         if member_id not in config['in_voice']:
-            config['in_voice'][member_id] = datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+            config['in_voice'][member_id] = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
 
     @commands.command(hidden=True)
     async def command_out_of_voice(self, ctx, member):
@@ -970,15 +971,16 @@ class Admin(commands.Cog):
             return
 
         # calculate how long they've been in voice
-        join_time = datetime.strptime(config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC")
-        total_length = (datetime.utcnow() - join_time).seconds
+        join_time = datetime.strptime(
+            config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+        total_length = (discord.utils.utcnow() - join_time).seconds
         hours = total_length // 3600
         minutes = total_length % 3600 // 60
         del config['in_voice'][member_id]
 
         # add to their total
         if not date_str:
-            date_str = datetime.utcnow().strftime("%Y%m%d")
+            date_str = discord.utils.utcnow().strftime("%Y%m%d")
         if date_str not in config['total_time']:
             config['total_time'][date_str] = {}
         today = config['total_time'][date_str]
@@ -1195,7 +1197,7 @@ class Admin(commands.Cog):
                         return
                 else:
                     channel = None
-                start = datetime.utcnow().timestamp()
+                start = discord.utils.utcnow().timestamp()
                 while True:
                     try:
                         _, _, aft = await self.bot.wait_for('voice_state_update', timeout=30.0,
@@ -1222,7 +1224,7 @@ class Admin(commands.Cog):
                             return
 
                     except asyncio.TimeoutError:
-                        now = datetime.utcnow().timestamp()
+                        now = discord.utils.utcnow().timestamp()
                         if now - start > 60 * config['wait_time']:
                             try:
                                 await member.add_roles(role)
@@ -1995,16 +1997,13 @@ class Admin(commands.Cog):
             if re.search(r"^\d{1,2}$", args[0]):  # I want a string, but want to see if it's a number first
                 group = args[0]
                 role_name = ' '.join(args[1:])
-                print(0, group, role_name)
             else:
                 group = '0'
                 role_name = ' '.join(args[0:])
-                print(1, group, role_name)
         except IndexError:
             await hf.safe_send(ctx, "Type the name of the role you wish to make self assignable.")
             return
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
-        print(role_name, args)
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:

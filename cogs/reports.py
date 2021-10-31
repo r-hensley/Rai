@@ -103,7 +103,7 @@ class Reports(commands.Cog):
 
         try:
             await ctx.message.delete()
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await report_room.send(f"I tried to delete the invocation for a ;report in {ctx.channel.mention} but I "
                                    f"lacked the `Manage Messages` permission so I could not.  Please delete"
                                    f"the `;report` message that the user sent to maintain their privacy.")
@@ -150,7 +150,7 @@ class Reports(commands.Cog):
             try:
                 await hf.safe_send(ctx, "I need permissions for reading messages, reading message history, and "
                                         "managing either channel permissions or server roles.  Please check these")
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx.author, f"Rai lacks the permission to send messages in {ctx.channel.mention}.")
             return
 
@@ -183,7 +183,7 @@ class Reports(commands.Cog):
         try:
             start_message = await ctx.channel.fetch_message(config['entry_message'])
         except discord.NotFound:
-            start_message = datetime.utcnow()
+            start_message = discord.utils.utcnow()
         config['current_user'] = None
         config['entry_message'] = None
         await report_room.set_permissions(user, overwrite=None)
@@ -312,7 +312,7 @@ class Reports(commands.Cog):
 
         try:
             msg = await hf.safe_send(ctx.author, report_text[0])  # when the user first enters the module
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                     f"from server members enabled.")
             ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None
@@ -400,7 +400,7 @@ class Reports(commands.Cog):
         if from_mod:
             try:
                 await user.send(report_text[6])
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                         f"from server members enabled.")
                 ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None

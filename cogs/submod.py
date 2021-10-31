@@ -86,7 +86,7 @@ class Submod(commands.Cog):
             length = [days, hours]
 
             try:
-                unban_time = datetime.utcnow() + timedelta(days=length[0], hours=length[1])
+                unban_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
             except OverflowError:
                 await hf.safe_send(ctx, "Give smaller number please :(")
                 return
@@ -143,7 +143,7 @@ class Submod(commands.Cog):
         # this memorial exists to forever remember the robot head, may you rest in peace ['_']
         # this comment exists to wonder what the hell the robot head was...
         if hasattr(target, "joined_at"):  # will be false if the user is not in the server
-            joined_at = datetime.utcnow() - target.joined_at
+            joined_at = discord.utils.utcnow() - target.joined_at
         else:
             joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
 
@@ -354,7 +354,7 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, "Setting number of messages to the maximum of `50`.", delete_after=3)
 
         await ctx.channel.purge(limit=num_of_messages, check=lambda m: m.author.bot and m.content[0:7] != "Setting",
-                                after=datetime.utcnow() - timedelta(minutes=60))
+                                after=discord.utils.utcnow() - timedelta(minutes=60))
         try:
             await ctx.message.add_reaction('✅')
             await asyncio.sleep(1)
