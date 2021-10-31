@@ -881,6 +881,9 @@ class Logger(commands.Cog):
 
         try:
             invites: list[discord.Invite] = await guild.invites()
+            for i in invites:
+                if not i:  # in case there are some NoneType returned in the list
+                    invites.remove(i)
         except discord.Forbidden:
             self.bot.db['joins'][guild_id]['invites_enable'] = False
             return None, None
