@@ -723,7 +723,16 @@ class General(commands.Cog):
                 config['messages'][date_str] = {}
             today = config['messages'][date_str]
             author = str(msg.author.id)
-            channel = str(msg.channel.id)
+            channel = msg.channel
+            if isinstance(channel, discord.TextChannel):
+                channel = str(msg.channel.id)
+            elif isinstance(channel, discord.Thread):
+                if msg.channel.parent:
+                    channel = str(msg.channel.parent.id)
+                else:
+                    return
+            else:
+                return
 
             # message count
             today.setdefault(author, {})
