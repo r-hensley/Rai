@@ -1713,7 +1713,7 @@ class General(commands.Cog):
             em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
 
         # count top 6 member roles
-        if len(guild.members) < 30000:
+        if len(guild.members) < 60000:
             role_count = Counter(role.name for member in guild.members
                                  for role in member.roles if not role.is_default())
 
