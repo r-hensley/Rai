@@ -273,9 +273,9 @@ class General(commands.Cog):
                      "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
                      "take nitro faster, it's aiready running out",
                      'discord.ciick', 'discordgiveaway',
-                     'discordnitro', 'discordairdrop',
+                     'discordnitro', 'discordairdrop', 'discord-gift',
                      'discord.oniine', 'discordgift', 'bit.do/randomgift',
-                     'discordrgift.com', 'discord.gift', 'discord-gifte.com',
+                     'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
@@ -323,6 +323,7 @@ class General(commands.Cog):
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
             msg.content = msg.content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
+            msg.content = msg.content.replace('rcd', 'rd')
             for link in links:
                 if link in msg_content:
                     try:
