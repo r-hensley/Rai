@@ -183,6 +183,8 @@ class Rai(Bot):
                         pass
                 return
             try:
+                if not ctx.guild:
+                    raise discord.Forbidden
                 if str(ctx.guild.id) in self.db['mod_role']:
                     await ctx.send("You lack permissions to do that.")
                 else:

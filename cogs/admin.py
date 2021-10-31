@@ -2450,14 +2450,18 @@ class Admin(commands.Cog):
         msg = '__Most active voice channels (mins. of voice activity)__\n'
         first_msg = ''  # only to be used if character length goes over 2000char
         for channel in sorted_dict:
+            channel_obj = ctx.guild.get_channel(channel[0])
+            if not channel_obj:
+                continue
+            category_c = channel_obj.category.name[0].replace("S", " Ｓ ").replace("G", " Ｇ ")
             time = channel[1]
             hours = int(time // 3600)
             minutes = int(time % 3600 // 60)
             seconds = int(time % 3600 % 60)
             if hours:
-                addition = f"<#{channel[0]}>: {hours}h{minutes}m{seconds}s\n"
+                addition = f"[{category_c}] {channel_obj.mention}: {hours}h{minutes}m{seconds}s\n"
             else:
-                addition = f"<#{channel[0]}>: {minutes}m{seconds}s\n"
+                addition = f"[{category_c}] {channel_obj.mention}: {minutes}m{seconds}s\n"
 
             if len(msg + addition) > 2000:
                 first_msg = msg

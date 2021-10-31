@@ -1109,7 +1109,7 @@ class General(commands.Cog):
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
-    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID] if ctx.guild else False)
+    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID, CL_SERVER_ID] if ctx.guild else False)
     async def hardcore(self, ctx):
         """Adds/removes the hardcore role from you."""
         role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
