@@ -1695,7 +1695,7 @@ class General(commands.Cog):
                            description=f"**ID:** {guild.id}",
                            timestamp=guild.created_at,
                            colour=discord.Colour(0x877AD6))
-        em.set_thumbnail(url=guild.icon_url)
+        em.set_thumbnail(url=guild.icon.replace(static_format='png').url)
         em.add_field(name="Region", value=guild.region)
         em.add_field(name="Channels", value=f"{len(guild.text_channels)} text / {len(guild.voice_channels)} voice")
         em.add_field(name="Verification Level", value=guild.verification_level)
