@@ -392,7 +392,7 @@ class Logger(commands.Cog):
                 emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
                 emb.add_field(name='**After:** (Part 2)', value=after.content[1000:2000])
 
-        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.discord_avatar.replace(static_format="png").url)
+        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.display_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -771,7 +771,7 @@ class Logger(commands.Cog):
             emb.add_field(name='Readded roles:', value=', '.join(reversed([role.name for role in list_of_roles])))
 
         footer_text = f'User Join ({member.guild.member_count}) - {member.id}'
-        emb.set_footer(text=footer_text, icon_url=member.discord_avatar.replace(static_format="png").url)
+        emb.set_footer(text=footer_text, icon_url=member.display_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -1193,7 +1193,7 @@ class Logger(commands.Cog):
 
         emb.set_footer(
             text=f'User Leave ({member.guild.member_count}) - {member.id}',
-            icon_url=member.discord_avatar.replace(static_format="png").url
+            icon_url=member.display_avatar.replace(static_format="png").url
         )
         return emb
 
@@ -1298,7 +1298,7 @@ class Logger(commands.Cog):
         emb = discord.Embed(timestamp=discord.utils.utcnow())
         emb.set_footer(
             text=f'{after.name}#{before.discriminator} (N{before.id})',
-            icon_url=before.discord_avatar.replace(static_format="png").url
+            icon_url=before.display_avatar.replace(static_format="png").url
         )
         return emb
 
@@ -1395,7 +1395,7 @@ class Logger(commands.Cog):
             emb.add_field(name='Removed reaction', value=f'{reaction.emoji}')
 
         emb.set_footer(text=f'#{reaction.message.channel.name}',
-                       icon_url=member.discord_avatar.replace(static_format="png").url)
+                       icon_url=member.display_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -1490,7 +1490,7 @@ class Logger(commands.Cog):
             emb.description += f'**Reason**: {reason}'
 
         emb.set_footer(text=f'User Banned - {member.id}',
-                       icon_url=member.discord_avatar.replace(static_format="png").url)
+                       icon_url=member.display_avatar.replace(static_format="png").url)
 
         already_added = False  # if the ban event has already been added to the modlog, don't do it here again
         try:
@@ -1550,9 +1550,9 @@ class Logger(commands.Cog):
         messages_in_guild = hf.count_messages(member, guild)
         if messages_in_guild:
             emb.set_footer(text=f"Messages: {messages_in_guild}\n",
-                           icon_url=member.discord_avatar.replace(static_format="png").url)
+                           icon_url=member.display_avatar.replace(static_format="png").url)
         else:
-            emb.set_footer(text='Ban', icon_url=member.discord_avatar.replace(static_format="png").url)
+            emb.set_footer(text='Ban', icon_url=member.display_avatar.replace(static_format="png").url)
 
         creation_date = member.created_at.strftime("%Y/%m/%d")
         time_ago = discord.utils.utcnow() - member.created_at
@@ -1657,7 +1657,7 @@ class Logger(commands.Cog):
             timestamp=discord.utils.utcnow()
         )
         emb.set_footer(text=f'User unbanned',
-                       icon_url=user.discord_avatar.replace(static_format="png").url)
+                       icon_url=user.display_avatar.replace(static_format="png").url)
         return emb
 
     @commands.Cog.listener()
@@ -1746,7 +1746,7 @@ class Logger(commands.Cog):
                 timestamp=discord.utils.utcnow()
             )
             emb.set_footer(text=f'User Kicked',
-                           icon_url=member.discord_avatar.replace(static_format="png").url)
+                           icon_url=member.display_avatar.replace(static_format="png").url)
             return emb
 
 
