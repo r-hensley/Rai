@@ -958,7 +958,10 @@ class Logger(commands.Cog):
             used_invite: list[discord.Invite] = []
             maybe_used_invite: list[discord.Invite] = []
             if invites:
-                invites_dict: dict[int, discord.Invite] = {i.code: i for i in invites}  # same form as old_invites
+                invites_dict: dict[str, discord.Invite] = {}
+                for i in invites:
+                    if i:
+                        invites_dict[i.code] = i  # same form as old_invites
 
                 for invite in old_invites:
                     if invite not in invites_dict:  # the invite disappeared
@@ -1406,7 +1409,7 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
-        if reaction.message.guild:
+        if isinstance(member, discord.Member):
             guild = str(member.guild.id)
             if not member.bot:
                 if guild in self.bot.db['reactions']:
