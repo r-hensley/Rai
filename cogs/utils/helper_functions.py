@@ -106,7 +106,7 @@ def add_to_modlog(ctx, user, type, reason, silent, length=None):
 
     config.setdefault(str(user.id), []).append({'type': type,
                                                 'reason': reason,
-                                                'date': datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
+                                                'date': discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
                                                 'silent': silent,
                                                 'length': length,
                                                 'jump_url': jump_url})
@@ -175,7 +175,7 @@ def parse_time(time):
             length = ['0', time_re.group(3)[:-1]]
     else:
         return False, False
-    finish_time = datetime.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+    finish_time = discord.utils.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
     time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     return time_string, length
 
@@ -499,7 +499,7 @@ async def long_deleted_msg_notification(msg):
     try:
         notification = 'Hardcore deleted a long message:'
         await msg.author.send(f"{notification}```{msg.content[:1962]}```")
-    except discord.errors.Forbidden:
+    except discord.Forbidden:
         return
 
 
@@ -532,7 +532,7 @@ async def uhc_check(msg):
                             if ratio < .55:
                                 try:
                                     await msg.delete()
-                                except discord.errors.NotFound:
+                                except discord.NotFound:
                                     pass
                                 if len(msg_content) > 30:
                                     await long_deleted_msg_notification(msg)
@@ -540,7 +540,7 @@ async def uhc_check(msg):
                             if ratio > .45:
                                 try:
                                     await msg.delete()
-                                except discord.errors.NotFound:
+                                except discord.NotFound:
                                     pass
                                 if len(msg_content) > 60:
                                     await long_deleted_msg_notification(msg)

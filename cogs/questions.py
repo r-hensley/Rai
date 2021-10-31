@@ -441,7 +441,7 @@ class Questions(commands.Cog):
                             description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
                                         f"in {target_message.channel.mention}",
                             color=discord.Color(color),
-                            timestamp=datetime.utcnow())
+                            timestamp=discord.utils.utcnow())
         if len(f"{title}\n") > (1024 - len(target_message.jump_url)):
             emb.add_field(name=f"Question:", value=f"{title}"[:1024])
             if title[1024:]:
@@ -455,7 +455,7 @@ class Questions(commands.Cog):
             await self._delete_log(ctx)
             log_message = await hf.safe_send(log_channel, embed=emb)
             await self._post_log(ctx)
-        except discord.errors.HTTPException as err:
+        except discord.HTTPException as err:
             if err.status == 400:
                 await hf.safe_send(ctx, "The question was too long, or the embed is too big.")
             elif err.status == 403:
@@ -470,7 +470,7 @@ class Questions(commands.Cog):
         if question_number < 10:
             try:
                 await target_message.add_reaction(number_map[str(question_number)])
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except discord.NotFound:
                 await hf.safe_send(ctx, "I can't find the question message.")
@@ -516,7 +516,7 @@ class Questions(commands.Cog):
                 title = target_message.content  # if there was no text after the ID
             else:
                 title = ' '.join(args[1:])  # if there was some text after the ID
-        except (discord.errors.NotFound, ValueError):  # no ID cited in the args
+        except (discord.NotFound, ValueError):  # no ID cited in the args
             target_message = ctx.message  # use the current message as the question link
             title = ' '.join(args)  # turn all of args into the title
 
@@ -609,7 +609,7 @@ class Questions(commands.Cog):
                 elif 17 <= len(str(single_arg)) <= 21:  # ;q a <message ID>
                     try:
                         answer_message = await ctx.channel.fetch_message(single_arg)
-                    except discord.errors.NotFound:
+                    except discord.NotFound:
                         await hf.safe_send(ctx, f"I thought `{single_arg}` was a message ID but I couldn't find that "
                                                 f"message in this channel.")
                         return
@@ -631,7 +631,7 @@ class Questions(commands.Cog):
             except (ValueError, TypeError):  # Supplies text answer:   ;q a 1 blah blah answer goes here
                 answer_message = ctx.message
                 answer_text = ' '.join(args[1:])
-            except discord.errors.NotFound:
+            except discord.NotFound:
                 await hf.safe_send(ctx,
                                    f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
                                    f"<message id>`")
@@ -652,7 +652,7 @@ class Questions(commands.Cog):
         try:
             log_channel = self.bot.get_channel(config['log_channel'])
             log_message = await log_channel.fetch_message(question['log_message'])
-        except discord.errors.NotFound:
+        except discord.NotFound:
             log_message = None
             await hf.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
         except KeyError:
@@ -667,7 +667,7 @@ class Questions(commands.Cog):
                 await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
                                         f"originally can mark it as answered.")
                 return
-        except discord.errors.NotFound:
+        except discord.NotFound:
             if log_message:
                 await log_message.delete()
             del questions[number]
@@ -704,9 +704,9 @@ class Questions(commands.Cog):
                 if reaction.me:
                     try:
                         await question_message.remove_reaction(reaction.emoji, self.bot.user)
-                    except discord.errors.Forbidden:
+                    except discord.Forbidden:
                         await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-        except discord.errors.NotFound:
+        except discord.NotFound:
             msg = await hf.safe_send(ctx, "That question was deleted")
             await log_message.delete()
             await asyncio.sleep(5)
@@ -720,7 +720,7 @@ class Questions(commands.Cog):
         if ctx.message:
             try:
                 await ctx.message.add_reaction('\u2705')
-            except discord.errors.Forbidden:
+            except discord.Forbidden:
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except discord.NotFound:
                 pass
@@ -740,7 +740,7 @@ class Questions(commands.Cog):
         log_channel = self.bot.get_channel(config['log_channel'])
         try:
             log_message = await log_channel.fetch_message(int(message_id))
-        except discord.errors.NotFound:
+        except discord.NotFound:
             await hf.safe_send(ctx, f"Specified log message not found")
             return
         emb = log_message.embeds[0]
@@ -748,7 +748,7 @@ class Questions(commands.Cog):
             emb.description = emb.description.split('\n')[0]
             try:
                 question_message = await ctx.channel.fetch_message(int(emb.fields[0].value.split('/')[-1]))
-            except discord.errors.NotFound:
+            except discord.NotFound:
                 await hf.safe_send(ctx, f"The message for the original question was not found")
                 return
             await self.add_question(ctx, question_message, question_message.content)
@@ -838,7 +838,7 @@ class Questions(commands.Cog):
                         question_text = question_text[:-3] + '...'
                     value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice])
                     emb.add_field(name=f"Question `{question}`", value=value_text)
-                except discord.errors.NotFound:
+                except discord.NotFound:
                     emb.add_field(name=f"Question `{question}`",
                                   value="original message not found")
         await hf.safe_send(target_channel, embed=emb)
@@ -912,7 +912,7 @@ class Questions(commands.Cog):
         await target_message.edit(embed=emb)
         try:
             await ctx.message.add_reaction('\u2705')
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
     # 'questions'

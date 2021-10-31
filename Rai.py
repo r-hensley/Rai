@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
 # handler = logging.FileHandler(
-#     filename=f'{dir_path}/log/{datetime.utcnow().strftime("%y%m%d_%H%M")}.log',
+#     filename=f'{dir_path}/log/{discord.utils.utcnow().strftime("%y%m%d_%H%M")}.log',
 #     encoding='utf-8',
 #     mode='a')
 # handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
@@ -132,7 +132,8 @@ class Rai(Bot):
                 pass
 
         elif isinstance(error, commands.BotMissingPermissions):
-            msg = f"To do that command, Rai is missing the following permissions: `{'`, `'.join(error.missing_perms)}`"
+            msg = f"To do that command, Rai is missing the following permissions: " \
+                  f"`{'`, `'.join(error.missing_permissions)}`"
             try:
                 await ctx.send(msg)
             except discord.Forbidden:
@@ -211,7 +212,7 @@ class Rai(Bot):
 
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send(f"To do that command, you are missing the following permissions: "
-                           f"`{'`, `'.join(error.missing_perms)}`")
+                           f"`{'`, `'.join(error.missing_permissions)}`")
             return
 
         elif isinstance(error, commands.NotOwner):
@@ -238,7 +239,7 @@ class Rai(Bot):
 
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
         traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
-        e.timestamp = datetime.utcnow()
+        e.timestamp = discord.utils.utcnow()
         await self.get_channel(554572239836545074).send(traceback_text[:2000], embed=e)
         print('')
 
@@ -246,7 +247,7 @@ class Rai(Bot):
         e = discord.Embed(title='Event Error', colour=0xa32952)
         e.add_field(name='Event', value=event)
         e.description = f'```py\n{traceback.format_exc()}\n```'
-        e.timestamp = datetime.utcnow()
+        e.timestamp = discord.utils.utcnow()
 
         args_str = ['```py']
         jump_url = ''

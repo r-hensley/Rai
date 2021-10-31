@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from .utils import helper_functions as hf
 from copy import deepcopy
 
@@ -58,7 +58,7 @@ class Jpserv(commands.Cog):
                     return
                 try:
                     await member.remove_roles(role)
-                except discord.errors.Forbidden:
+                except discord.Forbidden:
                     await ctx.send("I couldn't remove the ultra hardcore role")
                 await ctx.send(f'Undid ultra hardcore mode for {member.name}')
             else:
@@ -92,7 +92,7 @@ class Jpserv(commands.Cog):
 
         try:
             await ctx.author.add_roles(role)
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             await ctx.send("I couldn't add the ultra hardcore role")
         await ctx.send(f"{ctx.author.name} has chosen to enable ultra hardcore mode.  It works the same as "
                        "normal hardcore mode except that you can't undo it and asterisks don't change "
@@ -140,7 +140,8 @@ class Jpserv(commands.Cog):
         time_dict = deepcopy(self.bot.db['ultraHardcore']['users'])
         for i in time_dict:
             if time_dict[i][0]:
-                time_dict[i][2] += (datetime.today() - datetime.strptime(time_dict[i][1], "%Y/%m/%d")).days
+                time_dict[i][2] += (datetime.today() -
+                                    datetime.strptime(time_dict[i][1], "%Y/%m/%d").replace(tzinfo=timezone.utc)).days
 
         # {('243703909166612480', [True, '2019/02/14', 124]),
         # ('219617844973797376', [False, '2018/11/30', 122]), ...}
