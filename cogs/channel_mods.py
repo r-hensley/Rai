@@ -846,29 +846,49 @@ class ChannelMods(commands.Cog):
                     try:
                         await channel.set_permissions(role, speak=False)
                     except discord.Forbidden:
-                        failed_channels.append(channel.name)
+                        failed_channels.append(channel.mention)
             for channel in ctx.guild.text_channels:
                 if role not in channel.overwrites:
                     try:
                         await channel.set_permissions(role, send_messages=False, add_reactions=False,
                                                       attach_files=False)
                     except discord.Forbidden:
-                        failed_channels.append(channel.name)
+                        failed_channels.append(channel.mention)
             return failed_channels
 
-        if str(ctx.guild.id) not in self.bot.db['mutes']:
-            await hf.safe_send(ctx, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
-                                    "add then a permission override for it to every channel to prevent communication")
+        async def make_role():
             role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
-            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+            return role
+
+        async def first_time_setup():
+            if ctx.author == self.bot.user:
+                dest = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+            else:
+                dest = ctx.channel
+            await hf.safe_send(dest, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
+                                     "add then a permission override for it to every channel to prevent communication")
+            role = await make_role()
+
             failed_channels = await set_channel_overrides(role)
             if failed_channels:
                 await hf.safe_send(ctx,
-                                   f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
-                                   f"member joins this (these) channel(s), they'll be able to type/speak.")
+                                   f"Couldn't add the role permission to {', '.join(failed_channels)}.  If a muted "
+                                   f"member joins this (these) channel(s), they'll be able to type/speak. If you "
+                                   f"want to edit the permissions and have Rai reapply all the permissions, please "
+                                   f"delete the `rai-mute` role and then try to mute someone again.")
+
+            return role
+
+        if str(ctx.guild.id) not in self.bot.db['mutes']:
+            role = await first_time_setup()
+            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+
         else:
             config = self.bot.db['mutes'][str(ctx.guild.id)]
             role = ctx.guild.get_role(config['role'])
+            if not role:  # rai mute role got deleted
+                role = await first_time_setup()
+                config['role'] = role.id
             await set_channel_overrides(role)
 
         re_result = None
