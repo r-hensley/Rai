@@ -860,6 +860,8 @@ class Logger(commands.Cog):
     async def make_invites_dict(guild, invites_in: list[discord.Invite]):
         invites_dict: dict[str: tuple[int, Optional[float]]] = {}
         for invite in invites_in:
+            if not invite:
+                continue
             if invite.max_age:
                 expiration = (invite.created_at + timedelta(seconds=invite.max_age)).timestamp()
             else:
