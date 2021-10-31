@@ -56,9 +56,9 @@ class Owner(commands.Cog):
         config = self.bot.db['guildstats']
         guild_info = {}
         id_to_guild = {str(g.id): g for g in self.bot.guilds}
-        for guild_id in config:
+        for guild_id in config.copy():
             message_count = 0
-            for day in config[guild_id]['messages']:
+            for day in config[guild_id]['messages'].copy():
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del(config[guild_id]['messages'][day])
@@ -66,7 +66,7 @@ class Owner(commands.Cog):
                     message_count += config[guild_id]['messages'][day]
 
             command_count = 0
-            for day in config[guild_id]['commands']:
+            for day in config[guild_id]['commands'].copy():
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del(config[guild_id]['commands'][day])
@@ -666,22 +666,30 @@ class Owner(commands.Cog):
         except discord.Forbidden:
             pass
 
+    @commands.command(aliases=['ls'])
+    async def leaveserver(self, ctx, *, guild_id):
+        guilds_in = guild_id.split()
+        guilds = {guild.id: guild for guild in self.bot.guilds}
+        for guild_id in guilds_in:
+            if int(guild_id) in guilds:
+                await guilds[int(guild_id)].leave()
+
+                try:
+                    await ctx.message.add_reaction("🗑️")
+                except discord.Forbidden:
+                    pass
+
+            else:
+                try:
+                    await ctx.message.add_reaction("❓")
+                except discord.Forbidden:
+                    pass
+
     @commands.command()
-    async def leaveserver(self, ctx, guild_id):
-        guilds = {guild_id: guild for guild in self.bot.guilds}
-        if int(guild_id) in guilds:
-            await guilds[int(guild_id)].leave()
-
-            try:
-                await ctx.message.add_reaction("🗑️")
-            except discord.Forbidden:
-                pass
-
-        else:
-            try:
-                await ctx.message.add_reaction("❓")
-            except discord.Forbidden:
-                pass
+    async def initcontext(self, ctx):
+        @self.bot.message_command(guild_ids=[275146036178059265], name="Test 3")
+        async def show_id(ctx, message: discord.Message):  # message commands return the message
+            await ctx.respond(f"{ctx.author.name}, here'sssssss the message id: {message.id}!")
 
 
 def setup(bot):
