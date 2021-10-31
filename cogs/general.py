@@ -645,7 +645,13 @@ class General(commands.Cog):
 
             if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
                 if stripped_msg[0] not in '=;>' and len(stripped_msg) > 3:
-                    if msg.channel.id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                    if isinstance(msg.channel, discord.Thread):
+                        channel_id = msg.channel.parent.id
+                    elif isinstance(msg.channel, discord.TextChannel):
+                        channel_id = msg.channel.id
+                    else:
+                        return
+                    if channel_id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
                         hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
                         if hardcore_role in msg.author.roles:
                             check_lang = True
@@ -763,7 +769,6 @@ class General(commands.Cog):
         await hf.uhc_check(msg)
 
         """Chinese server hardcore mode"""
-
         async def cn_lang_check(check_hardcore_role=True):
             content = re.sub("(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
             if len(content) > 3:
@@ -805,8 +810,14 @@ class General(commands.Cog):
                     await cn_lang_check(check_hardcore_role=False)
 
                 else:
+                    if isinstance(msg.channel, discord.Thread):
+                        channel_id = msg.channel.parent.id
+                    elif isinstance(msg.channel, discord.TextChannel):
+                        channel_id = msg.channel.id
+                    else:
+                        return
                     if ('*' not in msg.content
-                            and msg.channel.id not in self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']):
+                            and channel_id not in self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']):
                         await cn_lang_check()
             except KeyError:
                 self.bot.db['forcehardcore'] = []

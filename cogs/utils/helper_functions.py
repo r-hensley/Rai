@@ -526,7 +526,13 @@ async def uhc_check(msg):
 
                 # delete the messages
                 if ratio or ratio == 0.0:
-                    if msg.channel.id not in here.bot.db['ultraHardcore']['ignore']:
+                    if isinstance(msg.channel, discord.Thread):
+                        channel_id = msg.channel.parent.id
+                    elif isinstance(msg.channel, discord.TextChannel):
+                        channel_id = msg.channel.id
+                    else:
+                        return
+                    if channel_id not in here.bot.db['ultraHardcore']['ignore']:
                         msg_content = msg.content
                         if jpRole in msg.author.roles:
                             if ratio < .55:
