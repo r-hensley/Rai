@@ -832,7 +832,7 @@ class ChannelMods(commands.Cog):
 
         try:
             last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(ctx.author.id)][-1]
-            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC")
+            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
             if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
                 if last_modlog['reason'].startswith("Antispam"):
                     return  # Prevents multiple mute calls for spammed text
