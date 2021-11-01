@@ -1056,9 +1056,8 @@ class Logger(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
-
                 if member.id == ABELIAN_ID:  # secret entry for Abelian
-                    async for message in self.bot.jpJHO.history(limit=10):
+                    async for message in jpJHO.history(limit=10):
                         if message.author.id == 159985870458322944:
                             await message.delete()
                             break
