@@ -267,6 +267,19 @@ class Rai(Bot):
 
 
 bot = Rai()
+guilds = [189571157446492161, 243838819743432704, 275146036178059265]
+
+
+@bot.message_command(name="Delete message", guild_ids=guilds)
+async def delete_and_log(ctx, message: discord.Message):
+    delete = ctx.bot.get_command("delete")
+    if await delete.can_run(ctx):
+        await delete.__call__(ctx, str(message.id))
+        await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
+    else:
+        await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
+
+
 bot.restart = True
 while bot.restart:
     bot.restart = False
