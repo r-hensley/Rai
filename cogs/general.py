@@ -272,7 +272,7 @@ class General(commands.Cog):
             links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro',
                      "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
                      "take nitro faster, it's aiready running out",
-                     'discord.ciick', 'discordgiveaway',
+                     'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop'
                      'discordnitro', 'discordairdrop', 'discord-gift',
                      'discord.oniine', 'discordgift', 'bit.do/randomgift',
                      'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
