@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError, ImgurClientRateLimitError
 import functools
