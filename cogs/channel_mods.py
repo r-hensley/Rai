@@ -1015,7 +1015,8 @@ class ChannelMods(commands.Cog):
 
         emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
         emb.description = "Mute"
-        emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+        if ctx.message:
+            emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
         emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
         try:
             if modlog_channel:
