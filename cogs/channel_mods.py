@@ -578,7 +578,7 @@ class ChannelMods(commands.Cog):
                     .get('timed_mutes', {})\
                     .get(user_id, None):
                 muted = True
-                unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC")
+                unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 time_left = unmute_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
@@ -603,7 +603,7 @@ class ChannelMods(commands.Cog):
                     .get('timed_bans', {}) \
                     .get(user_id, None):
                 banned = True
-                unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC")
+                unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 time_left = unban_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
@@ -741,8 +741,8 @@ class ChannelMods(commands.Cog):
             name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
                 name += " (silent)"
-            incident_time = datetime.strptime(entry['date'], "%Y/%m/%d %H:%M UTC")
-            value = f"<t:{int(incident_time.replace(tzinfo=timezone.utc).timestamp())}:f>\n"
+            incident_time = datetime.strptime(entry['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            value = f"<t:{int(incident_time.timestamp())}:f>\n"
             if entry['length']:
                 value += f"*For {entry['length']}*\n"
             if entry['reason']:
