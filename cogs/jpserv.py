@@ -140,7 +140,7 @@ class Jpserv(commands.Cog):
         time_dict = deepcopy(self.bot.db['ultraHardcore']['users'])
         for i in time_dict:
             if time_dict[i][0]:
-                time_dict[i][2] += (datetime.today() -
+                time_dict[i][2] += (discord.utils.utcnow() -
                                     datetime.strptime(time_dict[i][1], "%Y/%m/%d").replace(tzinfo=timezone.utc)).days
 
         # {('243703909166612480', [True, '2019/02/14', 124]),
