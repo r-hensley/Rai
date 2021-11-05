@@ -873,11 +873,15 @@ class ChannelMods(commands.Cog):
 
             failed_channels = await set_channel_overrides(role)
             if failed_channels:
-                await hf.safe_send(ctx,
-                                   f"Couldn't add the role permission to {', '.join(failed_channels)}.  If a muted "
-                                   f"member joins this (these) channel(s), they'll be able to type/speak. If you "
-                                   f"want to edit the permissions and have Rai reapply all the permissions, please "
-                                   f"delete the `rai-mute` role and then try to mute someone again.")
+                msg = f"Couldn't add the role permission to {', '.join(failed_channels)}.  If a muted " \
+                      f"member joins this (these) channel(s), they'll be able to type/speak. If you " \
+                      f"want to edit the permissions and have Rai reapply all the permissions, please " \
+                      f"delete the `rai-mute` role and then try to mute someone again."
+                if len(msg) <= 2000:
+                    await hf.safe_send(ctx, msg)
+                else:
+                    await hf.safe_send(ctx, msg[:2000])
+                    await hf.safe_send(ctx, msg[1980:])
 
             return role
 

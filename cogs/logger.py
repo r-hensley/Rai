@@ -1395,7 +1395,7 @@ class Logger(commands.Cog):
         )
 
         if reaction.message.content:
-            emb.add_field(name='Original message:', value=reaction.message.content)
+            emb.add_field(name='Original message:', value=reaction.message.content[:1024])
         if type(reaction.emoji) == discord.Emoji:
             emb.set_thumbnail(url=reaction.emoji.url)
         else:
