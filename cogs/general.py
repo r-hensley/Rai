@@ -628,7 +628,7 @@ class General(commands.Cog):
                 if config['users'][str(msg.author.id)]:
                     link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
             link += ')'
-            emb.add_field(name="Message:", value=msg.content[:2000 - len(link)] + link)
+            emb.add_field(name="Message:", value=msg.content[:1024 - len(link)] + link)
 
             await hf.safe_send(self.bot.get_channel(config['channel']), embed=emb)
 
@@ -671,7 +671,8 @@ class General(commands.Cog):
                     else:
                         try:
                             detected_lang = await hf.textblob_detect_language(stripped_msg)
-                        except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError):
+                        except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError,
+                                ConnectionResetError):
                             return None, False
                 except (HTTPError, TimeoutError, urllib.error.URLError):
                     pass

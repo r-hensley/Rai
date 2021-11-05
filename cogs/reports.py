@@ -210,7 +210,7 @@ class Reports(commands.Cog):
                       'wish to be removed from the waiting list, please react with the below emoji.'
                 waiting_msg = await member.send(msg)
                 await waiting_msg.add_reaction('🚫')
-                asyncio.sleep(10)
+                await asyncio.sleep(10)
 
     @report.command()
     @hf.is_admin()
