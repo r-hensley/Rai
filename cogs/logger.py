@@ -1,3 +1,4 @@
+import aiohttp.client_exceptions
 import discord
 from discord.ext import commands
 import asyncio
@@ -296,7 +297,7 @@ class Logger(commands.Cog):
         if guild_config:
             try:
                 await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
-            except discord.DiscordServerError:
+            except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
                 await asyncio.sleep(3)
                 try:
                     await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
@@ -308,7 +309,10 @@ class Logger(commands.Cog):
             b = before.channel
             a = after.channel
             if member.id in config['users'] and a and not b:
-                await hf.safe_send(channel, embed=emb)
+                try:
+                    await hf.safe_send(channel, embed=emb)
+                except discord.Forbidden:
+                    pass
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -1328,8 +1332,11 @@ class Logger(commands.Cog):
             emb = self.make_nickname_embed(before, after)
             emb.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
                               f"**{after.name}#{after.discriminator}**"
-            emb.color = 0xFF8800
-            await hf.safe_send(channel, embed=emb)
+            emb.colour = 0xFF8800
+            try:
+                await hf.safe_send(channel, embed=emb)
+            except discord.Forbidden:
+                pass
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
