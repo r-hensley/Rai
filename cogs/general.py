@@ -360,7 +360,8 @@ class General(commands.Cog):
                         ctx.author = ctx.guild.me
                         await ctx.invoke(self.bot.get_command('mute'),
                                          args=f"1h {str(msg.author.id)} "
-                                              f"{'Inactive user sending Nitro spam-like message (please confirm)'}")
+                                              f"Inactive user sending Nitro spam-like message (please confirm)"
+                                              f"\n```{cont}```")
                         await mod_channel.send(msg.author.mention,
                                                embed=hf.red_embed(f"🔇❓**MUTED** user {msg.author} ({msg.author.id}) "
                                                                   f"for potential spam link, [please confirm "
