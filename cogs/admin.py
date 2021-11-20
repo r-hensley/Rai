@@ -854,7 +854,7 @@ class Admin(commands.Cog):
         try:
             del (config[str(target_id)])
             await hf.safe_send(ctx, f"Removed <@{target_id}> from super_watch list")
-        except ValueError:
+        except KeyError:
             await hf.safe_send(ctx, f"That user wasn't on the super_watch list")
 
     @super_watch.command(name="list")
