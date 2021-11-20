@@ -295,8 +295,7 @@ class General(commands.Cog):
                     if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
                         return  # exempt all people in #bot-dev channel
 
-                elif msg.guild.id in [541500177018650641,  # german/english learning server (michdi)
-                                      477628709378195456,  # español e ingles (yoshi)
+                elif msg.guild.id in [477628709378195456,  # español e ingles (yoshi)
                                       472283823955116032,  # nyaa langs (naru)
                                       320439136236601344,  # /r/ChineseLanguages
                                       116379774825267202,  # nihongo to eigo
@@ -304,6 +303,7 @@ class General(commands.Cog):
                                       541522953423290370,  # /r/korean
                                       234492134806257665,  # let's learn korean
                                       275146036178059265]:  # test server
+                    # 541500177018650641,  # german/english learning server (michdi)
                     pass
 
                 else:

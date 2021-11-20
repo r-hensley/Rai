@@ -16,7 +16,7 @@ class Background(commands.Cog):
         # self.risk_check
         self.bot.bg_tasks = [self.check_rawmangas, self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days, self.check_lovehug,
-                             self.check_downed_tasks]
+                             self.check_downed_tasks, self.save_db]
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 task.start()
@@ -60,6 +60,10 @@ class Background(commands.Cog):
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 await hf.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
+
+    @tasks.loop(minutes=10.0)
+    async def save_db(self):
+        await hf.dump_json()
 
     @tasks.loop(minutes=10.0)
     async def risk_check(self):
