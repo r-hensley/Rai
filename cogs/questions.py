@@ -986,7 +986,7 @@ class Questions(commands.Cog):
         except KeyError:
             return
 
-        log_channel = ctx.guild.get_channel(config['log_channel'])
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
         if not log_channel:
             await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
@@ -1010,7 +1010,7 @@ class Questions(commands.Cog):
         except KeyError:
             return
 
-        log_channel = ctx.guild.get_channel(config['log_channel'])
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
         if not log_channel:
             await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
