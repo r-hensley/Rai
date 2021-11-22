@@ -46,7 +46,13 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         if not hf.submod_check(ctx):
-            if ctx.author.id in self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(ctx.channel.id), {}):
+            if isinstance(ctx.channel, discord.TextChannel):
+                channel_id = ctx.channel.id
+            elif isinstance(ctx.channel, discord.Thread):
+                channel_id = ctx.channel.parent.id
+            else:
+                return
+            if ctx.author.id in self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(channel_id), {}):
                 return True
             if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
                 return True
