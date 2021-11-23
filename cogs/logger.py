@@ -1525,12 +1525,12 @@ class Logger(commands.Cog):
 
         # #################### crossposting ban embed #######################
 
-        colour = 0xDD2E44
+        colour = 0x9C1313
         if reason:
             for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
                          'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
                 if text in reason:
-                    colour = 0x9C1313
+                    colour = 0xDD2E44
             reason = reason.replace('%20', ' ')
 
         author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
