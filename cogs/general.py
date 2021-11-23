@@ -1380,7 +1380,7 @@ class General(commands.Cog):
 
         async def synchronize_reactions():
             if hasattr(self.bot, 'synced_reactions'):
-                if reaction.message in self.bot.synced_reactions and not reaction.message.author.bot:
+                if reaction.message in self.bot.synced_reactions and not user.bot:
                     target_msg = self.bot.synced_reactions[reaction.message]
                     try:
                         await target_msg.add_reaction(reaction)
@@ -2469,7 +2469,7 @@ class General(commands.Cog):
         notif: Optional[discord.Message] = await channel.send("@here", embed=emb)
 
         try:
-            await ctx.message.add_reaction("✅")
+            await ctx.message.add_reaction("📨")
         except discord.Forbidden:
             pass
 
