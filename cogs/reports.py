@@ -181,15 +181,15 @@ class Reports(commands.Cog):
 
         user = ctx.guild.get_member(config['current_user'])
         try:
-            start_message = await ctx.channel.fetch_message(config['entry_message'])
-        except discord.NotFound:
-            start_message = discord.utils.utcnow()
+            start_message_time = await ctx.channel.fetch_message(config['entry_message'])
+        except (discord.NotFound, discord.HTTPException):
+            start_message_time = discord.utils.utcnow()
         config['current_user'] = None
         config['entry_message'] = None
         await report_room.set_permissions(user, overwrite=None)
 
         message_log = 'Start of log:\n'
-        async for message in ctx.channel.history(limit=None, after=start_message):
+        async for message in ctx.channel.history(limit=None, after=start_message_time):
             next_line = f'**__{message.author}:__** {message.content} \n'
             if len(message_log + next_line) > 2000:
                 await user.send(message_log)
@@ -370,7 +370,7 @@ class Reports(commands.Cog):
                   f"{config['waiting_list'].index(user.id)+1} on the list"
             await user.send(msg)  # someone is in the room, you've been added to waiting list
             try:
-                mod_channel = ctx.guild.get_channel(ctx.cog.bot.db['mod_channel'][str(ctx.guild.id)])
+                mod_channel = ctx.guild.get_channel_or_thread(ctx.cog.bot.db['mod_channel'][str(ctx.guild.id)])
                 await hf.safe_send(mod_channel,
                                    f"{user.mention} ({user.name}) tried to enter the report room, but someone "
                                    f"else is already in it.  Try typing `;report done` in the report room, "

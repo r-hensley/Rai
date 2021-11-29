@@ -823,7 +823,7 @@ class Questions(commands.Cog):
                     value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n"
 
                     if q_config.get('responses', None):
-                        log_message = ctx.guild.get_channel(log_channel_id)
+                        log_message = ctx.guild.get_channel_or_thread(log_channel_id)
                         try:
                             log_message = await log_message.fetch_message(q_config['log_message'])
                         except discord.Forbidden:
@@ -958,7 +958,7 @@ class Questions(commands.Cog):
             return
 
         try:
-            log_channel = ctx.guild.get_channel(config['log_channel'])
+            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
         except discord.NotFound:
             await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
             return

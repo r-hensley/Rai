@@ -75,7 +75,7 @@ class Stats(commands.Cog):
                 if channel_tuple[0] in self.bot.stats[str(ctx.guild.id)]['hidden']:
                     continue
             try:
-                channel = ctx.guild.get_channel(int(channel_tuple[0]))
+                channel = ctx.guild.get_channel_or_thread(int(channel_tuple[0]))
                 if not channel:
                     continue
                 lb += f"**{index}) {channel.name}**: {round((channel_tuple[1]/total)*100, 2)}% ({channel_tuple[1]})\n"
@@ -362,7 +362,10 @@ class Stats(commands.Cog):
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def chlb(self, ctx, *channels):
         if not channels:
-            channel_obs = [ctx.channel]
+            if isinstance(ctx.channel, discord.Thread):
+                channel_obs = [ctx.channel.parent]
+            else:
+                channel_obs = [ctx.channel]
         else:
             channel_ids = []
             channel_obs = []
@@ -370,8 +373,10 @@ class Stats(commands.Cog):
                 channel_ids.append(channel[2:-1])
             for channel_id in channel_ids:
                 try:
-                    c = ctx.guild.get_channel(int(channel_id))
+                    c = ctx.guild.get_channel_or_thread(int(channel_id))
                     if c:
+                        if isinstance(c, discord.Thread):
+                            c = c.parent
                         channel_obs.append(c)
                     else:
                         await hf.safe_send(ctx, f"I couldn't find the channel `{channel_id}`.")

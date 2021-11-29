@@ -76,7 +76,7 @@ class Logger(commands.Cog):
             except KeyError:
                 disabled_modules.append(module)
                 continue
-            emb_value += f"\n\n・{module.name.capitalize()} ({ctx.guild.get_channel(config['channel']).mention})"
+            emb_value += f"\n\n・{module.name.capitalize()} ({ctx.guild.get_channel_or_thread(config['channel']).mention})"
             if module.name == 'edits':
                 emb_value += f"\n[Levenshtein limit](https://github.com/ryry013/Rai/wiki/Rai-Info-Pages#" \
                              f"levenshtein-distance-limit): {config.get('distance_limit', False)}"

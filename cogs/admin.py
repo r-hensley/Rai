@@ -1418,7 +1418,7 @@ class Admin(commands.Cog):
                     emb.title = "Setting mod channel"
                     config = self.bot.db['mod_channel']
                     try:
-                        channel = ctx.guild.get_channel(config[str(ctx.guild.id)])
+                        channel = ctx.guild.get_channel_or_thread(config[str(ctx.guild.id)])
                         emb.description = f"Current channel is {channel.mention} ({channel.id})\n" + emb.description
                     except KeyError:
                         emb.description = f"There is no mod channel currently set\n" + emb.description
@@ -1518,7 +1518,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track deleted messages in " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1552,7 +1552,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track edited messages in " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1587,7 +1587,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to log member joins in " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1623,7 +1623,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to log when members leave the server in " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1657,7 +1657,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track kicked members " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1690,7 +1690,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track banned members " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1724,7 +1724,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track member nickname changes " \
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
@@ -1758,7 +1758,7 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(config['channel'])
                                 emb.description = f"I am currently set to track when users remove a reaction from a " \
                                                   f"message in {channel.mention}\n\nReply with any of the option " \
                                                   f"numbers or letters (b/x)"
@@ -1798,7 +1798,7 @@ class Admin(commands.Cog):
                     emb.title = "Setting up the report module"
                     try:
                         config = self.bot.db['report'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(config['channel'])
                         emb.description = f"Current report channel is {channel.mention} ({channel.id})\n" \
                                           f"{emb.description}"
                     except KeyError:
@@ -1875,7 +1875,7 @@ class Admin(commands.Cog):
                     emb.title = "Reaction-to-enter requirement for entering the server"
                     try:
                         config = self.bot.db['captcha'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(config['channel'])
                         role = ctx.guild.get_role(config['role'])
                         word_dict = {True: 'enabled', False: 'disabled'}
                         emb.description = f"This module is currently {word_dict[config['enable']]}.\n" \
@@ -1922,7 +1922,7 @@ class Admin(commands.Cog):
                     emb.title = "Super voice watch"
                     try:
                         config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(config['channel'])
                         emb.description = f"When a user on the super voice list joins a voice channel, this will be " \
                                           f"logged in {channel.mention}\n" \
                                           f"{emb.description}"
@@ -1958,7 +1958,7 @@ class Admin(commands.Cog):
                     emb.title = "Super text watch"
                     try:
                         config = self.bot.db['super_watch'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(config['channel'])
                         emb.description = f"When a user on the super text watch list sends any message, this will be " \
                                           f"logged in {channel.mention}.  The purpose for this is if a user joins " \
                                           f"who you suspect to be a troll, and you want to watch them very carefully." \
@@ -2449,7 +2449,7 @@ class Admin(commands.Cog):
         msg = '__Most active voice channels (mins. of voice activity)__\n'
         first_msg = ''  # only to be used if character length goes over 2000char
         for channel in sorted_dict:
-            channel_obj = ctx.guild.get_channel(channel[0])
+            channel_obj = ctx.guild.get_channel_or_thread(channel[0])
             if not channel_obj:
                 continue
             category_c = channel_obj.category.name[0].replace("S", " Ｓ ").replace("G", " Ｇ ")

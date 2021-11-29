@@ -284,15 +284,15 @@ class General(commands.Cog):
 
             try:
                 if msg.guild.id == SP_SERVER_ID:
-                    if msg.guild.get_channel(838403437971767346).permissions_for(msg.author).read_messages:
+                    if msg.guild.get_channel_or_thread(838403437971767346).permissions_for(msg.author).read_messages:
                         return  # exempt all people in staff channel
 
                 elif msg.guild.id == JP_SERVER_ID:
-                    if msg.guild.get_channel(277384105245802497).permissions_for(msg.author).read_messages:
+                    if msg.guild.get_channel_or_thread(277384105245802497).permissions_for(msg.author).read_messages:
                         return  # exempt all people in everything_will_be_fine channel
 
                 elif msg.guild.id == CH_SERVER_ID:
-                    if msg.guild.get_channel(267784908531957770).permissions_for(msg.author).read_messages:
+                    if msg.guild.get_channel_or_thread(267784908531957770).permissions_for(msg.author).read_messages:
                         return  # exempt all people in #bot-dev channel
 
                 elif msg.guild.id in [477628709378195456,  # español e ingles (yoshi)
@@ -342,11 +342,11 @@ class General(commands.Cog):
                         self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
 
                     if msg.guild.id == SP_SERVER_ID:
-                        mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+                        mod_channel = msg.guild.get_channel_or_thread(297877202538594304)  # incidents channel
                     elif msg.guild.id == JP_SERVER_ID:  # JP_SERVER_ID
-                        mod_channel = msg.guild.get_channel(755269708579733626)  # anything_goes_tho
+                        mod_channel = msg.guild.get_channel_or_thread(755269708579733626)  # anything_goes_tho
                     else:
-                        mod_channel = msg.guild.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
+                        mod_channel = msg.guild.get_channel_or_thread(self.bot.db['mod_channel'][str(msg.guild.id)])
 
                     if everyone and messages:  # ban
                         try:
@@ -961,7 +961,7 @@ class General(commands.Cog):
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
                         if msg.guild.id == SP_SERVER_ID:
-                            mod_channel = msg.guild.get_channel(297877202538594304)  # incidents channel
+                            mod_channel = msg.guild.get_channel_or_thread(297877202538594304)  # incidents channel
                         if mod_channel:
                             await hf.safe_send(mod_channel,
                                                embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
