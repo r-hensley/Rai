@@ -207,7 +207,7 @@ class ChannelMods(commands.Cog):
                     return
             elif re.search('^\d{17,22}-\d{17,22}$', args[0]):
                 channel_id = int(args[0].split('-')[0])
-                channel = ctx.guild.get_channel(channel_id)
+                channel = ctx.guild.get_channel_or_thread(channel_id)
                 if not channel:
                     await hf.safe_send(ctx, "I couldn't find the channel you specified!")
                     return
@@ -218,7 +218,7 @@ class ChannelMods(commands.Cog):
                 return
         elif len(args) == 2:
             channel_id = int(args[0])
-            channel = ctx.guild.get_channel(channel_id)
+            channel = ctx.guild.get_channel_or_thread(channel_id)
             if not channel:
                 await hf.safe_send(ctx, "I couldn't find the channel you specified!")
                 return
@@ -378,7 +378,7 @@ class ChannelMods(commands.Cog):
                 config['channel'] = int(input_id.replace("<#", "").replace(">", ""))
                 await hf.safe_send(ctx, f"I've set the notification channel for staff pings as <#{input_id}>.")
             elif re.search(r"^\d{17,22}$", ctx.message.content):  # a channel id
-                channel = ctx.guild.get_channel(int(input_id))
+                channel = ctx.guild.get_channel_or_thread(int(input_id))
                 if channel:
                     config['channel'] = int(input_id)
 
