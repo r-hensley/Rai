@@ -271,7 +271,7 @@ class General(commands.Cog):
         async def hacked_account_ban():
             links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro',
                      "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
-                     "take nitro faster, it's aiready running out",
+                     "take nitro faster, it's aiready running out", "free discord nitro airdrop"
                      'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop'
                      'discordnitro', 'discordairdrop', 'discord-gift',
                      'discord.oniine', 'discordgift', 'bit.do/randomgift',
@@ -323,7 +323,7 @@ class General(commands.Cog):
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
             msg.content = msg.content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
-            msg.content = msg.content.replace('rcd', 'rd')
+            msg.content = msg.content.replace('rcd', 'rd').replace("niitro", "nitro")
             for link in links:
                 if link in msg_content:
                     try:
