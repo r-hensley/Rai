@@ -5,7 +5,7 @@ import asyncio, aiohttp, async_timeout
 from bs4 import BeautifulSoup
 import re
 import json
-from datetime import datetime, date
+from datetime import date, timedelta
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -16,6 +16,879 @@ class Questions(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_thread_join(self, thread):
+        try:
+            channel_config = self.bot.db['questions'][str(thread.guild.id)][str(thread.parent.id)]
+            if not channel_config.get('threads', False):
+                return
+        except KeyError:
+            return
+
+        if not hasattr(self.bot, "recently_joined_threads"):
+            self.bot.recently_joined_threads = []
+
+        if thread not in self.bot.recently_joined_threads:
+            # self.bot.recently_joined_threads.append(thread.id)
+            pass
+        else:
+            return
+
+        try:
+            opening_message = await thread.parent.fetch_message(thread.id)
+        except discord.NotFound:
+            return
+        ctx = await self.bot.get_context(opening_message)
+        try:
+            await self.question(ctx, args=opening_message.content)  # open a question
+            try:
+                self.bot.recently_joined_threads.remove(thread.id)
+            except ValueError:
+                pass
+        except Exception:
+            try:
+                self.bot.recently_joined_threads.remove(thread.id)
+            except ValueError:
+                pass
+            raise
+
+    @commands.Cog.listener()
+    async def on_thread_update(self, before, after):
+        try:
+            channel_config = self.bot.db['questions'][str(after.guild.id)][str(after.parent.id)]
+            questions = channel_config['questions']
+        except KeyError:
+            return
+
+        if not channel_config.get('threads', False):
+            return
+
+        is_question = False
+        for question in questions:
+            if questions[question].get('thread', 0) == after.id:
+                is_question = True
+                break
+        if not is_question:
+            return  # this thread is not associated with a question
+
+        # archive a thread
+        if not before.archived and after.archived:
+            human_closed = False  # True if a human manually archvied the thread
+            async for entry in after.guild.audit_logs(limit=5, oldest_first=False,
+                                                      action=discord.AuditLogAction.thread_update,
+                                                      after=discord.utils.utcnow() - timedelta(seconds=10)):
+                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                    if entry.user.bot:
+                        return
+                    if entry.after.archived:
+                        human_closed = True
+                    break
+
+            if human_closed:  # a user manually archived the thread ==> close the question
+                try:
+                    last_message = await after.history(limit=1).flatten()  # returns a list of length 1
+                    last_message = last_message[0]  # get the first message in it
+                    if not last_message:
+                        raise discord.NotFound
+                except (IndexError, discord.NotFound):
+                    return
+                ctx = await self.bot.get_context(last_message)  # just need a random ctx
+                ctx.message.author = ctx.guild.me  # to get permissions right
+                ctx.message.content = ";q a"
+                await self.answer(ctx, args="a")  # close the question
+
+            else:  # the thread was auto-archived, reopen it
+                try:
+                    await after.edit(archived=False)
+                except discord.Forbidden:
+                    pass
+
+        # unarchive a thread
+        elif before.archived and not after.archived:
+            opening_message = await after.parent.fetch_message(after.id)
+            ctx = await self.bot.get_context(opening_message)
+            await self.question(ctx, args=opening_message.content)  # open the question
+
+
+    def get_color_from_name(self, ctx):
+        config = self.bot.db['questions'][str(ctx.channel.guild.id)]
+        channel_list = sorted([int(channel) for channel in config])
+        index = channel_list.index(ctx.channel.id) % 6
+        # colors = ['00ff00', 'ff9900', '4db8ff', 'ff0000', 'ff00ff', 'ffff00'] below line is in hex
+        colors = [65280, 16750848, 5093631, 16711680, 16711935, 16776960]
+        return colors[index]
+
+    async def add_question(self, ctx, target_message, title=None):
+        try:
+            config: dict = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        except KeyError:
+            try:
+                await hf.safe_send(ctx,
+                                   f"This channel is not setup as a questions channel.  Run `;question setup` in the "
+                                   f"questions channel to start setup.")
+            except discord.Forbidden:
+                await hf.safe_send(ctx.author, "Rai lacks permissions to send messages in that channel")
+                return
+            return
+        if not title:
+            title = target_message.content
+
+        # assign lowest available question index
+        question_number = 1
+        while str(question_number) in config['questions']:
+            question_number += 1
+        if question_number > 9:
+            await hf.safe_send(ctx, f"Note, there's too many questions for me to add a reaction to this, but it has "
+                                    f"still been recorded. To find the ID for your question to close it later, "
+                                    f"check `;q list`.")
+
+        # allow burdbot to make questions in a certain channel
+        if ctx.author.id == 720900750724825138 and ctx.channel.id == 620997764524015647:
+            # burdbot submitted a question to AOTW_feedback
+            if ctx.message.attachments:
+                try:
+                    actual_user_id = int(ctx.message.attachments[0].filename.split('-')[0])
+                    actual_user = ctx.guild.get_member(actual_user_id)
+                    if not actual_user:
+                        raise ValueError
+                    ctx.author = actual_user
+                    target_message.author = actual_user
+                except ValueError:
+                    pass
+
+        # if threads enabled in "config", create a thread for the channel
+        if config.setdefault('threads', False):
+            try:
+                thread_title = f"[{question_number}] " + target_message.content.replace(";q ", "").split('\n')[0][:95]
+                if not hasattr(self.bot, "recently_joined_threads"):
+                    self.bot.recently_joined_threads = []
+                if target_message.id not in self.bot.recently_joined_threads:
+                    self.bot.recently_joined_threads.append(target_message.id)
+                else:
+                    return
+
+                try:
+                    thread = await target_message.create_thread(name=thread_title)
+
+                except discord.HTTPException:
+                    thread = ctx.guild.get_thread(target_message.id)
+                    raise
+
+                await hf.safe_send(thread, "I've opened a thread corresponding to this question. Closing the thread "
+                                           "will close the question, or you can type `;q a` inside this channel. "
+                                           "If you give me permission to manage threads, I will automatically "
+                                           "reopen this thread if it is autoarchived until someone "
+                                           "closes the question.")
+
+                try:
+                    self.bot.recently_joined_threads.remove(thread)
+                except ValueError:
+                    pass
+
+                thread_id = thread.id
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "You've enabled thread support for this channel but I don't have the "
+                                   "permission to create threads in this channel. Please fix this or rerun "
+                                   "`;q setup` and choose to disable thread support.")
+                return
+        else:
+            thread_id = None
+
+        # begin filling in the database entry
+        config['questions'][str(question_number)] = {}
+        config['questions'][str(question_number)]['title'] = title
+        config['questions'][str(question_number)]['question_message'] = target_message.id
+        config['questions'][str(question_number)]['author'] = target_message.author.id
+        config['questions'][str(question_number)]['command_caller'] = ctx.author.id
+        config['questions'][str(question_number)]['date'] = date.today().strftime("%Y/%m/%d")
+        config['questions'][str(question_number)]['thread'] = thread_id
+
+        # assign a unique color to questions from each channel for logs with multiple channels
+        color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every channel
+
+        # begin creating question log embed
+        emb = discord.Embed(title=f"Question number: `{question_number}`",
+                            description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
+                                        f"in {target_message.channel.mention}",
+                            color=discord.Color(color),
+                            timestamp=discord.utils.utcnow())
+
+        # add question information to log embed
+        if thread_id:
+            thread_link = f"https://discord.com/channels/{ctx.guild.id}/{thread_id}/"
+            jump_links = f"[Original Question]({target_message.jump_url})\n[Thread Link]({thread_link})"
+        else:
+            jump_links = f"[Original Question]({target_message.jump_url})"
+        if len(f"{title}\n") > (1024 - len(target_message.jump_url)):
+            emb.add_field(name=f"Question:", value=f"{title}"[:1024])
+            if title[1024:]:
+                emb.add_field(name=f"Question (cont.):", value=f"{title[1024:]}\n")
+
+            emb.add_field(name=f"Jump Link to Question:", value=jump_links)
+        else:
+            emb.add_field(name=f"Question:", value=f"{title}\n{jump_links}")
+        if ctx.author != target_message.author:
+            emb.set_footer(text=f"Question added by {ctx.author.name}")
+
+        # update ;q list at bottom of log channel
+        try:
+            await self._delete_log(ctx)
+            log_channel = self.bot.get_channel(config['log_channel'])
+            log_message = await hf.safe_send(log_channel, embed=emb)
+            await self._post_log(ctx)
+            config['questions'][str(question_number)]['log_message'] = log_message.id
+        except discord.HTTPException as err:
+            if err.status == 400:
+                await hf.safe_send(ctx, "The question was too long, or the embed is too big.")
+            elif err.status == 403:
+                await hf.safe_send(ctx, "I didn't have permissions to post in that channel")
+            else:
+                raise
+            del (config['questions'][str(question_number)])
+            return
+
+        # react with question ID on user message if ID is less than 10
+        number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
+                      '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
+        if question_number < 10:
+            try:
+                await target_message.add_reaction(number_map[str(question_number)])
+            except discord.Forbidden:
+                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+            except discord.NotFound:
+                await hf.safe_send(ctx, "I can't find the question message.")
+                await ctx.invoke(self.answer, args=str(question_number))
+                return
+
+        # If someone creates a question for someone else, notify that user
+        if target_message.author != ctx.author:
+            msg_text = f"Hello, someone has marked one of your questions using my questions log feature.  It is now " \
+                       f"logged in <#{config['log_channel']}>.  This will" \
+                       f" help make sure you receive an answer.  When someone answers your question, please type " \
+                       f"`;q a` to mark the question as answered.  Thanks!"
+            try:
+                await hf.safe_send(target_message.author, msg_text)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+    @commands.group(invoke_without_command=True, aliases=['q'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.guild_only()
+    async def question(self, ctx, *, args=None):
+        """A module for asking questions, put the title of your quesiton like `;question <title>`"""
+        if not args:
+            msg = f"Type `;q <question text>` to make a question, or do `;help q`. For now, here's the questions list:"
+            await hf.safe_send(ctx, msg)
+            await ctx.invoke(self.question_list)
+            return
+        args = args.split(' ')
+
+        if len(args) == 2:  # in case someone accidentally writes ;q 1 a instead of ;q a 1
+            try:
+                index = int(args[0])
+                if args[1] != 'a':
+                    raise ValueError
+            except ValueError:
+                pass
+            else:
+                await ctx.invoke(self.answer, args=args[0])
+                return
+
+        try:  # there is definitely some text in the arguments
+            target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
+            await ctx.message.add_reaction('⤴')
+            if len(args) == 1:
+                title = target_message.content  # if there was no text after the ID
+            else:
+                title = ' '.join(args[1:])  # if there was some text after the ID
+        except (discord.NotFound, ValueError):  # no ID cited in the args
+            target_message = ctx.message  # use the current message as the question link
+            title = ' '.join(args)  # turn all of args into the title
+
+        await self.add_question(ctx, target_message, title)
+
+    @question.command(name='setup')
+    @hf.is_admin()
+    async def question_setup(self, ctx):
+        """Use this command in your questions channel"""
+        config = self.bot.db['questions'].setdefault(str(ctx.guild.id), {})
+        if str(ctx.channel.id) in config:
+            msg = await hf.safe_send(ctx, "This will reset the questions database for this channel.  "
+                                          "Do you wish to continue?  Type `y` to continue.")
+            try:
+                await self.bot.wait_for('message', timeout=15.0, check=lambda m: m.content == 'y' and
+                                                                                 m.author == ctx.author)
+            except asyncio.TimeoutError:
+                await msg.edit(content="Canceled...", delete_after=10.0)
+                return
+        msg_1 = await hf.safe_send(ctx,
+                                   f"Questions channel set as {ctx.channel.mention}.  In the way I just linked this "
+                                   f"channel, please give me a link to the log channel "
+                                   f"you wish to use for this channel.")
+        try:
+            msg_2 = await self.bot.wait_for('message', timeout=20.0, check=lambda m: m.author == ctx.author)
+        except asyncio.TimeoutError:
+            await msg_1.edit(content="Canceled...", delete_after=10.0)
+            return
+
+        try:
+            log_channel_id = int(msg_2.content.split('<#')[1][:-1])
+            log_channel = self.bot.get_channel(log_channel_id)
+            if not log_channel:
+                raise NameError
+        except (IndexError, NameError):
+            await hf.safe_send(ctx, f"Invalid channel specified.  Please start over and specify a link to a channel "
+                                    f"(should highlight blue)")
+            return
+
+        msg_3 = await hf.safe_send(ctx,
+                                   f"Set the log channel as {log_channel.mention}.\n\n"
+                                   f"Do you wish to integrate the questions "
+                                   f"module with Discord threads? [Yes/No]")
+        try:
+            def check(m):
+                return (m.author == ctx.author) and \
+                       (m.channel == ctx.channel) and \
+                       (m.content.casefold() in ['yes', 'no'])
+            msg_4 = await self.bot.wait_for('message', timeout=20.0, check=check)
+        except asyncio.TimeoutError:
+            await msg_3.edit(content="Question has timed out. Please restart the command.", delete_after=10.0)
+            return
+
+        if msg_4.content.casefold() == "yes":
+            threads = True
+        elif msg_4.content.casefold() == "no":
+            threads = False
+        else:
+            return
+
+        config[str(ctx.channel.id)] = {'questions': {},
+                                       'log_channel': log_channel_id,
+                                       "threads": threads}
+
+        await hf.safe_send(ctx, "Setup complete. Try starting your first "
+                                "question with `;question <title>` in this channel.")
+
+    @question.command(aliases=['a'])
+    async def answer(self, ctx, *, args=''):
+        """Marks a question as answered, format: `;q a <question_id 0-9> [answer_id]`
+        and has an optional answer_id field for if you wish to specify an answer message"""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        # get database configuration for this channel
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
+        except KeyError:
+            await hf.safe_send(ctx,
+                               f"This channel is not setup as a questions channel.  Please make sure you mark your "
+                               f"question as 'answered' in the channel you asked it in.")
+            return
+        except AttributeError: # NoneType object has no attribute 'id' (used in a DM)
+            return
+        questions = config['questions']
+        args = args.split(' ')
+
+        # code for the ";q a" shortcut
+        async def self_answer_shortcut():
+            for question_number in questions:
+                if ctx.author.id == questions[question_number]['author']:
+                    return int(question_number)  # question author can use just ";q a"
+                if questions[question_number].get('thread', 0) == ctx.channel.id:
+                    return int(question_number)   # mods can also use it in a thread
+            await hf.safe_send(ctx, f"Only the asker of the question can omit stating the question ID.  You "
+                                    f"must specify which question  you're trying to answer: `;q a <question id>`.  "
+                                    f"For example, `;q a 3`.")
+            return
+
+        if args == ['']:  # if a user just inputs ;q a
+            number = await self_answer_shortcut()
+            answer_message = ctx.message
+            answer_text = ''
+            if not number:
+                await hf.safe_send(ctx, f"Please enter the number of the question you wish to answer, like `;q a 3`.")
+                return
+
+        elif len(args) == 1:  # 1) ;q a <question ID>     2) ;q a <word>      3) ;q a <message ID>
+            try:  # arg is a number
+                single_arg = int(args[0])
+            except ValueError:  # arg is a single text word
+                number = await self_answer_shortcut()
+                answer_message = ctx.message
+                answer_text = args[0]
+            else:
+
+                if len(str(single_arg)) <= 2:  # ;q a <question ID>
+                    number = args[0]
+                    answer_message = ctx.message
+                    answer_text = ctx.message.content
+
+                elif 17 <= len(str(single_arg)) <= 21:  # ;q a <message ID>
+                    try:
+                        answer_message = await ctx.channel.fetch_message(single_arg)
+                    except discord.NotFound:
+                        await hf.safe_send(ctx, f"I thought `{single_arg}` was a message ID but I couldn't find that "
+                                                f"message in this channel.")
+                        return
+                    answer_text = answer_message.content[:900]
+                    number = await self_answer_shortcut()
+
+                else:  # ;q a <single word>
+                    number = await self_answer_shortcut()
+                    answer_message = ctx.message
+                    answer_text = str(single_arg)
+
+        else:  # args is more than one word
+            number = args[0]
+            try:  # example: ;q a 1 554490627279159341
+                if 17 < len(args[1]) < 21:
+                    answer_message = await ctx.channel.fetch_message(int(args[1]))
+                    answer_text = answer_message.content[:900]
+                else:
+                    raise TypeError
+            except (ValueError, TypeError):  # Supplies text answer:   ;q a 1 blah blah answer goes here
+                answer_message = ctx.message
+                answer_text = ' '.join(args[1:])
+            except discord.NotFound:
+                await hf.safe_send(ctx,
+                                   f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
+                                   f"<message id>`")
+                return
+
+        # Set question number and question
+        try:
+            number = str(number)  # the question number
+            question = questions[number]  # question config
+        except KeyError:
+            await hf.safe_send(ctx,
+                               f"Invalid question number.  Check the log channel again and input a single number like "
+                               f"`;question answer 3`.  Also, make sure you're answering in the right channel.")
+            return
+        except Exception:
+            await hf.safe_send(ctx, f"You've done *something* wrong... (´・ω・`)")
+            raise
+
+        try:
+            log_channel = self.bot.get_channel(config['log_channel'])
+            log_message = await log_channel.fetch_message(question['log_message'])
+        except discord.NotFound:
+            log_message = None
+            await hf.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
+        except KeyError:
+            log_message = None
+            await hf.safe_send(ctx, "Sorry I think this question got a bit bugged out. I'm going to close it.")
+
+        try:
+            question_message = await question_channel.fetch_message(question['question_message'])
+            if ctx.author.id not in [question_message.author.id, question['command_caller'], self.bot.user.id] \
+                    and not hf.submod_check(ctx) and ctx.author.id not in \
+                    self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(question_channel.id), []):
+                await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
+                                        f"originally can mark it as answered.")
+                return
+        except discord.NotFound:
+            if log_message:
+                await log_message.delete()
+            del questions[number]
+            msg = await hf.safe_send(ctx, f"Original question message not found.  Closing question")
+            await asyncio.sleep(5)
+
+            try:
+                await msg.delete()
+            except discord.NotFound:
+                pass
+
+            try:
+                await ctx.message.delete()
+            except discord.NotFound:
+                pass
+
+            return
+
+        if log_message:
+            emb = log_message.embeds[0]
+            if answer_message.author != question_message.author:
+                emb.description += f"\nAnswered by {answer_message.author.mention} ({answer_message.author.name})"
+            emb.title = "ANSWERED"
+            emb.color = discord.Color.default()
+            if not answer_text:
+                answer_text = ''
+            emb.add_field(name=f"Answer: ",
+                          value=answer_text + '\n' + f"[Jump URL]({answer_message.jump_url})")
+            await log_message.edit(embed=emb)
+
+        try:
+            question_message = await question_channel.fetch_message(question['question_message'])
+            for reaction in question_message.reactions:
+                if reaction.me:
+                    try:
+                        await question_message.remove_reaction(reaction.emoji, self.bot.user)
+                        thread = ctx.guild.get_thread(question_message.id)
+
+                        # archive the thread attached to the message if it exists
+                        if thread:
+                            try:
+                                await thread.edit(archived=True)
+                            except (discord.Forbidden, discord.HTTPException):
+                                pass
+
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+        except discord.NotFound:
+            msg = await hf.safe_send(ctx, "That question was deleted")
+            await log_message.delete()
+            await asyncio.sleep(5)
+            await msg.delete()
+            await ctx.message.delete()
+
+        try:
+            del (config['questions'][number])
+        except KeyError:
+            pass
+        if ctx.message:
+            try:
+                await ctx.message.add_reaction('\u2705')
+            except discord.Forbidden:
+                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+        await self._delete_log(ctx)
+        await self._post_log(ctx)
+
+    @question.command(aliases=['reopen', 'bump'])
+    @hf.is_admin()
+    async def open(self, ctx, message_id):
+        """Reopens a closed question, point message_id to the log message in the log channel"""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
+
+        question = None
+        for question in config['questions']:
+            if int(message_id) == config['questions'][question]['log_message']:
+                question = config['questions'][question]
+                break
+        if not question:
+            return
+
+        log_channel = self.bot.get_channel(config['log_channel'])
+        try:
+            log_message = await log_channel.fetch_message(int(message_id))
+        except discord.NotFound:
+            await hf.safe_send(ctx, f"Specified log message not found")
+            return
+        emb = log_message.embeds[0]
+        if emb.title == 'ANSWERED':
+            emb.description = emb.description.split('\n')[0]
+            try:
+                question_message = await question_channel.fetch_message(int(emb.fields[0].value.split('/')[-1]))
+            except discord.NotFound:
+                await hf.safe_send(ctx, f"The message for the original question was not found")
+                return
+            await self.add_question(ctx, question_message, question_message.content)
+        else:
+            new_log_message = await hf.safe_send(log_channel, embed=emb)
+            question['log_message'] = new_log_message.id
+        await log_message.delete()
+
+    @question.command(name='list')
+    async def question_list(self, ctx, target_channel=None):
+        """Shows a list of currently open questions"""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        if not target_channel:
+            target_channel = question_channel
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)]
+        except KeyError:
+            await hf.safe_send(target_channel, f"There are no questions channels on this server.  Run `;question"
+                                               f" setup` in the questions channel to start setup.")
+            return
+
+        # getting the main log channel
+        if str(question_channel.id) in config:
+            log_channel_id = config[str(question_channel.id)]['log_channel']  # main question channels
+        elif str(ctx.guild.id) in config:
+            log_channel_id = config[str(ctx.guild.id)]['log_channel']  # a default log channel for "all other chan."
+        else:
+            log_channel_id = None
+            for q_chan in config:
+                if config[q_chan]['log_channel'] == question_channel.id:
+                    log_channel_id = question_channel.id  # if you call from a log channel instead of a question channel
+                    break
+            if not log_channel_id:
+                await hf.safe_send(target_channel, "This channel is not setup as a questions channel.")
+                return
+
+        first = True
+        # the ⁣ are invisble tags to help the _list_update function find this embed
+        emb = discord.Embed(title=f"⁣List⁣ of open questions (sorted by channel then date):", color=0x707070)
+        for channel in config:
+            if config[channel]['log_channel'] != log_channel_id:
+                continue
+            channel_config = config[str(channel)]['questions']
+            question_channel = self.bot.get_channel(int(channel))
+            if first:
+                first = False
+                emb.description=f"**__#{question_channel.name}__**"
+            else:
+                if channel_config:
+                    emb.add_field(name=f"⁣**__{'　'*30}__**⁣",
+                                  value=f'**__#{question_channel.name}__**', inline=False)
+            for question in channel_config.copy():
+                try:
+                    if question not in channel_config:  # race conditions failing
+                        await hf.safe_send(ctx, "Seems you're maybe trying things too fast. Try again.")
+                        return
+                    q_config = channel_config[question]
+                    question_message = await question_channel.fetch_message(q_config['question_message'])
+                    question_text = ' '.join(question_message.content.split(' '))
+
+                    if question_message.channel.id == 620997764524015647:
+                        if question_message.author.id == 720900750724825138:
+                            if question_message.attachments:
+                                try:
+                                    actual_user_id = int(question_message.attachments[0].filename.split('-')[0])
+                                    actual_user = ctx.guild.get_member(actual_user_id)
+                                    if not actual_user:
+                                        raise ValueError
+                                    question_message.author = actual_user
+                                except ValueError:
+                                    pass
+
+                    value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n"
+
+                    if q_config.get('responses', None):
+                        log_message = ctx.guild.get_channel_or_thread(log_channel_id)
+                        try:
+                            log_message = await log_message.fetch_message(q_config['log_message'])
+                        except discord.Forbidden:
+                            await hf.safe_send(ctx, f"I Lack the ability to see messages or message history in "
+                                                    f"{log_message.mention}.")
+                            return
+                        value_text += f"__[Responses: {len(q_config['responses'])}]({log_message.jump_url})__\n"
+
+                    thread_id = q_config.get("thread", None)
+                    if thread_id:
+                        thread_link = f"https://discord.com/channels/{ctx.guild.id}/{thread_id}/"
+                        jump_links = f"[Original Question]({question_message.jump_url})\n[Thread Link]({thread_link})"
+                    else:
+                        jump_links = f"[Original Question]({question_message.jump_url})"
+                    value_text += f"⁣⁣⁣⁣\n{jump_links}"
+                    text_splice = 800 - len(value_text)
+                    if len(question_text) > text_splice:
+                        question_text = question_text[:-3] + '...'
+                    value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice])
+                    emb.add_field(name=f"Question `{question}`", value=value_text)
+                except discord.NotFound:
+                    emb.add_field(name=f"Question `{question}`",
+                                  value="original message not found")
+        await hf.safe_send(target_channel, embed=emb)
+
+    @question.command()
+    @hf.is_admin()
+    async def edit(self, ctx, log_id, target, *text):
+        """
+        Edit either the asker, answerer, question, title, or answer of a question log in the log channel
+
+        Usage: `;q edit <log_id> <asker|answerer|question|title|answer> <new data>`.
+
+        Example: `;q edit 2 question  What is the difference between が and は`.
+        """
+        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
+        log_channel = self.bot.get_channel(config['log_channel'])
+        target_message = await log_channel.fetch_message(int(log_id))
+        if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
+            await hf.safe_send(ctx,
+                               f"Invalid field specified in the log message.  Please choose a target to edit out of "
+                               f"`asker`, `answerer`, `question`, `title`, `answer`")
+            return
+        emb = target_message.embeds[0]
+
+        if target == 'question':
+            try:
+                question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
+                question_message = await ctx.channel.fetch_message(question_id)
+                emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_message.content[:900]}\n"
+                                                                   f"[Jump URL]({question_message.jump_url}))")
+            except ValueError:
+                question_message = ctx.message  # ;q edit 555932038612385798 question <New question text>
+                question_text = ' '.join(question_message.content.split(' ')[3:])
+                emb.set_field_at(0, name=emb.fields[0].name,
+                                 value=f"{question_text}\n[Jump URL]({question_message.jump_url})")
+        if target == 'title':
+            title = ' '.join(text)
+            jump_url = emb.fields[0].split('\n')[-1]
+            emb.set_field_at(0, name=emb.fields[0].name, value=f"{title}\n[Jump URL]({jump_url})")
+        if target == 'asker':
+            try:
+                asker = ctx.guild.get_member(int(text[0]))
+            except ValueError:
+                await hf.safe_send(ctx, f"To edit the asker, give the user ID of the user.  For example: "
+                                        f"`;q edit <log_message_id> asker <user_id>`")
+                return
+            new_description = emb.description.split(' ')
+            new_description[2] = f"{asker.mention} ({asker.name})"
+            del new_description[3]
+            emb.description = ' '.join(new_description)
+
+        if emb.title == 'ANSWERED':
+            if target == 'answerer':
+                answerer = ctx.guild.get_member(int(text[0]))
+                new_description = emb.description.split('Answered by ')[1] = answerer.mention
+                emb.description = 'Answered by '.join(new_description)
+            elif target == 'answer':
+                try:  # ;q edit <log_message_id> answer <answer_id>
+                    answer_message = await ctx.channel.fetch_message(int(text[0]))
+                    emb.set_field_at(1, name=emb.fields[1].name, value=f"[Jump URL]({answer_message.jump_url})")
+                except ValueError:
+                    answer_message = ctx.message  # ;q edit <log_message_id> answer <new text>
+                    answer_text = 'answer '.join(ctx.message.split('answer ')[1:])
+                    emb.set_field_at(1, name=emb.fields[1].name, value=f"{answer_text[:900]}\n"
+                                                                       f"[Jump URL]({answer_message.jump_url})")
+
+        if emb.footer.text:
+            emb.set_footer(text=emb.footer.text + f", Edited by {ctx.author.name}")
+        else:
+            emb.set_footer(text=f"Edited by {ctx.author.name}")
+        await target_message.edit(embed=emb)
+        try:
+            await ctx.message.add_reaction('\u2705')
+        except discord.Forbidden:
+            await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+
+    # 'questions'
+    #   >id of guild
+    #     > id of question channel
+    #           > 'log_channel'
+    #           > 'questions'
+    #                 > 1
+    #                       > title, question_message, author, command_caller, date, log_message(id)
+    #                 > 2
+    #                       > title, question_message, author, command_caller, date, log_message
+
+    @commands.command(hidden=True)
+    async def resp(self, ctx, index, *, response):
+        """Alias for `;q resp`"""
+        x = self.bot.get_command('question respond')
+        if await x.can_run(ctx):
+            await ctx.invoke(x, index, response=response)
+
+    @question.command(aliases=['resp', 'r'])
+    async def respond(self, ctx, index, *, response):
+        """Respond to a question in the question log and log your response. You must do this in the channel \
+        that the question was originally logged in. Example: `;q resp 3 I think this is correct`."""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
+        except KeyError:
+            return
+        if not response:
+            await hf.safe_send(ctx, "You need to type something for your response.")
+            return
+        if len(response.split()) == 1:  # refers to a question ID of your response in the same channel
+            try:
+                msg = await ctx.channel.fetch_message(int(response))
+                await ctx.message.add_reaction('⤴')
+                ctx.message = msg
+                ctx.author = msg.author
+                response = msg.content
+            except (discord.NotFound, ValueError):
+                pass
+        if index not in config['questions']:
+            await hf.safe_send(ctx, "Invalid question index. Make sure you're typing this command in the channel "
+                                    "the question was originally made in.")
+            return
+
+        try:
+            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+        except discord.NotFound:
+            await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
+            return
+        try:
+            log_message = await log_channel.fetch_message(config['questions'][index]['log_message'])
+        except discord.NotFound:
+            await hf.safe_send(ctx, "The original question log message could not be found. Type `;q a <index>` to "
+                                    "close the question and clear it.")
+            return
+
+        emb: discord.Embed = log_message.embeds[0]
+        value_text = f"⁣⁣⁣\n[Jump URL]({ctx.message.jump_url})"
+        emb.add_field(name=f"Response by {ctx.author.name}#{ctx.author.discriminator}",
+                      value=value_text.replace('⁣⁣⁣', response[:1024-len(value_text)]))
+        await log_message.edit(embed=emb)
+        config['questions'][index].setdefault('responses', []).append(ctx.message.jump_url)
+        await self._delete_log(ctx)
+        await self._post_log(ctx)
+        await ctx.message.add_reaction('✅')
+
+    async def _delete_log(self, ctx):
+        """Internal command for deleting the last message in log channel if it is `;q list` result"""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
+        except KeyError:
+            return
+
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+        if not log_channel:
+            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            return
+        try:
+            last_message = None
+            async for msg in log_channel.history(limit=5).filter(lambda m: m.author == m.guild.me and m.embeds):
+                last_message = msg
+                break
+            if last_message.embeds[0].title.startswith('⁣List⁣'):
+                try:
+                    await last_message.delete()  # replace the last message in the channel (it should be a log)
+                except discord.NotFound:
+                    pass
+        except (TypeError, AttributeError, discord.Forbidden):
+            return
+
+    async def _post_log(self, ctx):
+        """Internal command for updating the list at the bottom of question log channels"""
+        if isinstance(ctx.channel, discord.Thread):
+            question_channel = ctx.channel.parent
+        else:
+            question_channel = ctx.channel
+
+        try:
+            config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
+        except KeyError:
+            return
+
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+        if not log_channel:
+            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            return
+
+        await ctx.invoke(self.question_list, log_channel)
+
+    # ###################################################
+    #
+    # Commands for Japanese questions channel
+    #
+    # #####################################################
 
     @commands.command(aliases=['tk', 'taekim', 'gram', 'g'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -117,7 +990,7 @@ class Questions(commands.Cog):
 
         def make_embed(page):
             search_url = f"https://cse.google.com/cse?cx=013657184909367434363:djogpwlkrc0" \
-                         f"&q={search_term.replace(' ','%20').replace('　', '%E3%80%80')}"
+                         f"&q={search_term.replace(' ', '%20').replace('　', '%E3%80%80')}"
             emb = hf.green_embed(f"Search for {search_term} ー [(see full results)]({search_url})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
@@ -206,7 +1079,7 @@ class Questions(commands.Cog):
 
         def make_embed(page):
             emb = hf.green_embed(f"Search for {search_term} ー [(See full results)](https://cse.google.com/cse?cx="
-                                 f"ddde7b27ce4758ac8&q={search_term.replace(' ','%20').replace('　', '%E3%80%80')})")
+                                 f"ddde7b27ce4758ac8&q={search_term.replace(' ', '%20').replace('　', '%E3%80%80')})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
                 url = result['link']
@@ -378,644 +1251,6 @@ class Questions(commands.Cog):
             pass
         await hf.safe_send(ctx, f"Try finding the meaning to the word you're looking for here: "
                                 f"https://jisho.org/search/{text}")
-
-    def get_color_from_name(self, ctx):
-        config = self.bot.db['questions'][str(ctx.channel.guild.id)]
-        channel_list = sorted([int(channel) for channel in config])
-        index = channel_list.index(ctx.channel.id) % 6
-        # colors = ['00ff00', 'ff9900', '4db8ff', 'ff0000', 'ff00ff', 'ffff00'] below line is in hex
-        colors = [65280, 16750848, 5093631, 16711680, 16711935, 16776960]
-        return colors[index]
-
-    async def add_question(self, ctx, target_message, title=None):
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        except KeyError:
-            try:
-                await hf.safe_send(ctx,
-                                   f"This channel is not setup as a questions channel.  Run `;question setup` in the "
-                                   f"questions channel to start setup.")
-            except discord.Forbidden:
-                await hf.safe_send(ctx.author, "Rai lacks permissions to send messages in that channel")
-                return
-            return
-        if not title:
-            title = target_message.content
-        # for channel in self.bot.db['questions'][str(ctx.guild.id)]:
-        # for question in self.bot.db['questions'][str(ctx.guild.id)][channel]:
-        # question = self.bot.db['questions'][str(ctx.guild.id)][channel][question]
-        # if (datetime.today() - datetime.strptime(question['date'], "%Y/%m/%d")).days >= 3:
-        # log_channel = self.bot.get_channel(self.bot.db['questions']['channel']['log_channel'])
-        # await hf.safe_send(log_channel, f"Closed question for being older than three days and unanswered")
-
-        question_number = 1
-        while str(question_number) in config['questions']:
-            question_number += 1
-        if question_number > 9:
-            await hf.safe_send(ctx, f"Note, there's too many questions for me to add a reaction to this, but it has "
-                                    f"still been recorded. To find the ID for your question to close it later, "
-                                    f"check `;q list`.")
-
-        if ctx.author.id == 720900750724825138 and ctx.channel.id == 620997764524015647:
-            # burdbot submitted a question to AOTW_feedback
-            if ctx.message.attachments:
-                try:
-                    actual_user_id = int(ctx.message.attachments[0].filename.split('-')[0])
-                    actual_user = ctx.guild.get_member(actual_user_id)
-                    if not actual_user:
-                        raise ValueError
-                    ctx.author = actual_user
-                    target_message.author = actual_user
-                except ValueError:
-                    pass
-
-        config['questions'][str(question_number)] = {}
-        config['questions'][str(question_number)]['title'] = title
-        config['questions'][str(question_number)]['question_message'] = target_message.id
-        config['questions'][str(question_number)]['author'] = target_message.author.id
-        config['questions'][str(question_number)]['command_caller'] = ctx.author.id
-        config['questions'][str(question_number)]['date'] = date.today().strftime("%Y/%m/%d")
-        log_channel = self.bot.get_channel(config['log_channel'])
-        color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every username
-        emb = discord.Embed(title=f"Question number: `{question_number}`",
-                            description=f"Asked by {target_message.author.mention} ({target_message.author.name}) "
-                                        f"in {target_message.channel.mention}",
-                            color=discord.Color(color),
-                            timestamp=discord.utils.utcnow())
-        if len(f"{title}\n") > (1024 - len(target_message.jump_url)):
-            emb.add_field(name=f"Question:", value=f"{title}"[:1024])
-            if title[1024:]:
-                emb.add_field(name=f"Question (cont.):", value=f"{title[1024:]}\n")
-            emb.add_field(name=f"Jump Link to Question:", value=f"[Jump URL]({target_message.jump_url})")
-        else:
-            emb.add_field(name=f"Question:", value=f"{title}\n[Jump URL]({target_message.jump_url})")
-        if ctx.author != target_message.author:
-            emb.set_footer(text=f"Question added by {ctx.author.name}")
-        try:
-            await self._delete_log(ctx)
-            log_message = await hf.safe_send(log_channel, embed=emb)
-            await self._post_log(ctx)
-        except discord.HTTPException as err:
-            if err.status == 400:
-                await hf.safe_send(ctx, "The question was too long, or the embed is too big.")
-            elif err.status == 403:
-                await hf.safe_send(ctx, "I didn't have permissions to post in that channel")
-            else:
-                raise
-            del (config['questions'][str(question_number)])
-            return
-        config['questions'][str(question_number)]['log_message'] = log_message.id
-        number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
-                      '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
-        if question_number < 10:
-            try:
-                await target_message.add_reaction(number_map[str(question_number)])
-            except discord.Forbidden:
-                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-            except discord.NotFound:
-                await hf.safe_send(ctx, "I can't find the question message.")
-                await ctx.invoke(self.answer, args=str(question_number))
-                return
-        if target_message.author != ctx.author:
-            msg_text = f"Hello, someone has marked one of your questions using my questions log feature.  It is now " \
-                       f"logged in <#{config['log_channel']}>.  This will" \
-                       f" help make sure you receive an answer.  When someone answers your question, please type " \
-                       f"`;q a` to mark the question as answered.  Thanks!"
-            try:
-                await hf.safe_send(target_message.author, msg_text)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
-
-    @commands.group(invoke_without_command=True, aliases=['q'])
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    @commands.guild_only()
-    async def question(self, ctx, *, args=None):
-        """A module for asking questions, put the title of your quesiton like `;question <title>`"""
-        if not args:
-            msg = f"Type `;q <question text>` to make a question, or do `;help q`. For now, here's the questions list:"
-            await hf.safe_send(ctx, msg)
-            await ctx.invoke(self.question_list)
-            return
-        args = args.split(' ')
-
-        if len(args) == 2:  # in case someone accidentally writes ;q 1 a instead of ;q a 1
-            try:
-                index = int(args[0])
-                if args[1] != 'a':
-                    raise ValueError
-            except ValueError:
-                pass
-            else:
-                await ctx.invoke(self.answer, args=args[0])
-                return
-
-        try:  # there is definitely some text in the arguments
-            target_message = await ctx.channel.fetch_message(int(args[0]))  # this will work if the first arg is an ID
-            await ctx.message.add_reaction('⤴')
-            if len(args) == 1:
-                title = target_message.content  # if there was no text after the ID
-            else:
-                title = ' '.join(args[1:])  # if there was some text after the ID
-        except (discord.NotFound, ValueError):  # no ID cited in the args
-            target_message = ctx.message  # use the current message as the question link
-            title = ' '.join(args)  # turn all of args into the title
-
-        await self.add_question(ctx, target_message, title)
-
-    @question.command(name='setup')
-    @hf.is_admin()
-    async def question_setup(self, ctx):
-        """Use this command in your questions channel"""
-        config = self.bot.db['questions'].setdefault(str(ctx.guild.id), {})
-        if str(ctx.channel.id) in config:
-            msg = await hf.safe_send(ctx, "This will reset the questions database for this channel.  "
-                                          "Do you wish to continue?  Type `y` to continue.")
-            try:
-                await self.bot.wait_for('message', timeout=15.0, check=lambda m: m.content == 'y' and
-                                                                                 m.author == ctx.author)
-            except asyncio.TimeoutError:
-                await msg.edit(content="Canceled...", delete_after=10.0)
-                return
-        msg_1 = await hf.safe_send(ctx,
-                                   f"Questions channel set as {ctx.channel.mention}.  In the way I just linked this "
-                                   f"channel, please give me a link to the log channel you wish to use for this channel.")
-        try:
-            msg_2 = await self.bot.wait_for('message', timeout=20.0, check=lambda m: m.author == ctx.author)
-        except asyncio.TimeoutError:
-            await msg_1.edit(content="Canceled...", delete_after=10.0)
-            return
-
-        try:
-            log_channel_id = int(msg_2.content.split('<#')[1][:-1])
-            log_channel = self.bot.get_channel(log_channel_id)
-            if not log_channel:
-                raise NameError
-        except (IndexError, NameError):
-            await hf.safe_send(ctx, f"Invalid channel specified.  Please start over and specify a link to a channel "
-                                    f"(should highlight blue)")
-            return
-        config[str(ctx.channel.id)] = {'questions': {},
-                                       'log_channel': log_channel_id}
-        await hf.safe_send(ctx,
-                           f"Set the log channel as {log_channel.mention}.  Setup complete.  Try starting your first "
-                           f"question with `;question <title>` in this channel.")
-
-    @question.command(aliases=['a'])
-    async def answer(self, ctx, *, args=''):
-        """Marks a question as answered, format: `;q a <question_id 0-9> [answer_id]`
-        and has an optional answer_id field for if you wish to specify an answer message"""
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        except KeyError:
-            await hf.safe_send(ctx,
-                               f"This channel is not setup as a questions channel.  Please make sure you mark your "
-                               f"question as 'answered' in the channel you asked it in.")
-            return
-        except AttributeError: # NoneType object has no attribute 'id' (used in a DM)
-            return
-        questions = config['questions']
-        args = args.split(' ')
-
-        async def self_answer_shortcut():
-            for question_number in questions:
-                if ctx.author.id == questions[question_number]['author']:
-                    return int(question_number)
-            await hf.safe_send(ctx, f"Only the asker of the question can omit stating the question ID.  You "
-                                    f"must specify which question  you're trying to answer: `;q a <question id>`.  "
-                                    f"For example, `;q a 3`.")
-            return
-
-        answer_message = answer_text = answer_id = None
-        if args == ['']:  # if a user just inputs ;q a
-            number = await self_answer_shortcut()
-            answer_message = ctx.message
-            answer_text = ''
-            if not number:
-                await hf.safe_send(ctx, f"Please enter the number of the question you wish to answer, like `;q a 3`.")
-                return
-
-        elif len(args) == 1:  # 1) ;q a <question ID>     2) ;q a <word>      3) ;q a <message ID>
-            try:  # arg is a number
-                single_arg = int(args[0])
-            except ValueError:  # arg is a single text word
-                number = await self_answer_shortcut()
-                answer_message = ctx.message
-                answer_text = args[0]
-            else:
-                if len(str(single_arg)) <= 2:  # ;q a <question ID>
-                    number = args[0]
-                    answer_message = ctx.message
-                    answer_text = ctx.message.content
-                elif 17 <= len(str(single_arg)) <= 21:  # ;q a <message ID>
-                    try:
-                        answer_message = await ctx.channel.fetch_message(single_arg)
-                    except discord.NotFound:
-                        await hf.safe_send(ctx, f"I thought `{single_arg}` was a message ID but I couldn't find that "
-                                                f"message in this channel.")
-                        return
-                    answer_text = answer_message.content[:900]
-                    number = await self_answer_shortcut()
-                else:  # ;q a <single word>
-                    number = await self_answer_shortcut()
-                    answer_message = ctx.message
-                    answer_text = str(single_arg)
-
-        else:  # args is more than one word
-            number = args[0]
-            try:  # example: ;q a 1 554490627279159341
-                if 17 < len(args[1]) < 21:
-                    answer_message = await ctx.channel.fetch_message(int(args[1]))
-                    answer_text = answer_message.content[:900]
-                else:
-                    raise TypeError
-            except (ValueError, TypeError):  # Supplies text answer:   ;q a 1 blah blah answer goes here
-                answer_message = ctx.message
-                answer_text = ' '.join(args[1:])
-            except discord.NotFound:
-                await hf.safe_send(ctx,
-                                   f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
-                                   f"<message id>`")
-                return
-
-        try:
-            number = str(number)
-            question = questions[number]
-        except KeyError:
-            await hf.safe_send(ctx,
-                               f"Invalid question number.  Check the log channel again and input a single number like "
-                               f"`;question answer 3`.  Also, make sure you're answering in the right channel.")
-            return
-        except Exception:
-            await hf.safe_send(ctx, f"You've done *something* wrong... (´・ω・`)")
-            raise
-
-        try:
-            log_channel = self.bot.get_channel(config['log_channel'])
-            log_message = await log_channel.fetch_message(question['log_message'])
-        except discord.NotFound:
-            log_message = None
-            await hf.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
-        except KeyError:
-            log_message = None
-            await hf.safe_send(ctx, "Sorry I think this question got a bit bugged out. I'm going to close it.")
-
-        try:
-            question_message = await ctx.channel.fetch_message(question['question_message'])
-            if ctx.author.id not in [question_message.author.id, question['command_caller']] \
-                    and not hf.submod_check(ctx) and ctx.author.id not in \
-                    self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(ctx.channel.id), []):
-                await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
-                                        f"originally can mark it as answered.")
-                return
-        except discord.NotFound:
-            if log_message:
-                await log_message.delete()
-            del questions[number]
-            msg = await hf.safe_send(ctx, f"Original question message not found.  Closing question")
-            await asyncio.sleep(5)
-
-            try:
-                await msg.delete()
-            except discord.NotFound:
-                pass
-
-            try:
-                await ctx.message.delete()
-            except discord.NotFound:
-                pass
-
-            return
-
-        if log_message:
-            emb = log_message.embeds[0]
-            if answer_message.author != question_message.author:
-                emb.description += f"\nAnswered by {answer_message.author.mention} ({answer_message.author.name})"
-            emb.title = "ANSWERED"
-            emb.color = discord.Color.default()
-            if not answer_text:
-                answer_text = ''
-            emb.add_field(name=f"Answer: ",
-                          value=answer_text + '\n' + f"[Jump URL]({answer_message.jump_url})")
-            await log_message.edit(embed=emb)
-
-        try:
-            question_message = await ctx.channel.fetch_message(question['question_message'])
-            for reaction in question_message.reactions:
-                if reaction.me:
-                    try:
-                        await question_message.remove_reaction(reaction.emoji, self.bot.user)
-                    except discord.Forbidden:
-                        await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-        except discord.NotFound:
-            msg = await hf.safe_send(ctx, "That question was deleted")
-            await log_message.delete()
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
-
-        try:
-            del (config['questions'][number])
-        except KeyError:
-            pass
-        if ctx.message:
-            try:
-                await ctx.message.add_reaction('\u2705')
-            except discord.Forbidden:
-                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-            except discord.NotFound:
-                pass
-
-        await self._delete_log(ctx)
-        await self._post_log(ctx)
-
-    @question.command(aliases=['reopen', 'bump'])
-    @hf.is_admin()
-    async def open(self, ctx, message_id):
-        """Reopens a closed question, point message_id to the log message in the log channel"""
-        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        for question in config['questions']:
-            if int(message_id) == config['questions'][question]['log_message']:
-                question = config['questions'][question]
-                break
-        log_channel = self.bot.get_channel(config['log_channel'])
-        try:
-            log_message = await log_channel.fetch_message(int(message_id))
-        except discord.NotFound:
-            await hf.safe_send(ctx, f"Specified log message not found")
-            return
-        emb = log_message.embeds[0]
-        if emb.title == 'ANSWERED':
-            emb.description = emb.description.split('\n')[0]
-            try:
-                question_message = await ctx.channel.fetch_message(int(emb.fields[0].value.split('/')[-1]))
-            except discord.NotFound:
-                await hf.safe_send(ctx, f"The message for the original question was not found")
-                return
-            await self.add_question(ctx, question_message, question_message.content)
-        else:
-            new_log_message = await hf.safe_send(log_channel, embed=emb)
-            question['log_message'] = new_log_message.id
-        await log_message.delete()
-
-    @question.command(name='list')
-    async def question_list(self, ctx, target_channel=None):
-        """Shows a list of currently open questions"""
-        if not target_channel:
-            target_channel = ctx.channel
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)]
-        except KeyError:
-            await hf.safe_send(target_channel, f"There are no questions channels on this server.  Run `;question"
-                                               f" setup` in the questions channel to start setup.")
-            return
-
-        # getting the main log channel
-        if str(ctx.channel.id) in config:
-            log_channel_id = config[str(ctx.channel.id)]['log_channel']  # main question channels
-        elif str(ctx.guild.id) in config:
-            log_channel_id = config[str(ctx.guild.id)]['log_channel']  # a default log channel for "all other chan."
-        else:
-            log_channel_id = None
-            for q_chan in config:
-                if config[q_chan]['log_channel'] == ctx.channel.id:
-                    log_channel_id = ctx.channel.id  # if you call from a log channel instead of a question channel
-                    break
-            if not log_channel_id:
-                await hf.safe_send(target_channel, "This channel is not setup as a questions channel.")
-                return
-
-        first = True
-        # the ⁣ are invisble tags to confirm that this is indeed a `;q list` result for the _list_update function
-        emb = discord.Embed(title=f"⁣List⁣ of open questions (sorted by channel then date):")
-        for channel in config:
-            if config[channel]['log_channel'] != log_channel_id:
-                continue
-            channel_config = config[str(channel)]['questions']
-            question_channel = self.bot.get_channel(int(channel))
-            if first:
-                first = False
-                emb.description=f"**__#{question_channel.name}__**"
-            else:
-                if channel_config:
-                    emb.add_field(name=f"⁣**__{'　'*30}__**⁣",
-                                  value=f'**__#{question_channel.name}__**', inline=False)
-            for question in channel_config.copy():
-                try:
-                    if question not in channel_config:
-                        await hf.safe_send(ctx, "Seems you're maybe trying things too fast. Try again.")
-                        return
-                    q_config = channel_config[question]
-                    question_message = await question_channel.fetch_message(q_config['question_message'])
-                    question_text = ' '.join(question_message.content.split(' '))
-
-                    if question_message.channel.id == 620997764524015647:
-                        if question_message.author.id == 720900750724825138:
-                            if question_message.attachments:
-                                try:
-                                    actual_user_id = int(question_message.attachments[0].filename.split('-')[0])
-                                    actual_user = ctx.guild.get_member(actual_user_id)
-                                    if not actual_user:
-                                        raise ValueError
-                                    question_message.author = actual_user
-                                except ValueError:
-                                    pass
-
-                    value_text = f"By {question_message.author.mention} in {question_message.channel.mention}\n"
-
-                    if q_config.get('responses', None):
-                        log_message = ctx.guild.get_channel_or_thread(log_channel_id)
-                        try:
-                            log_message = await log_message.fetch_message(q_config['log_message'])
-                        except discord.Forbidden:
-                            await hf.safe_send(ctx, f"I Lack the ability to see messages or message history in "
-                                                    f"{log_message.mention}.")
-                            return
-                        value_text += f"__[Responses: {len(q_config['responses'])}]({log_message.jump_url})__\n"
-
-                    value_text += f"⁣⁣⁣⁣\n[Jump URL]({question_message.jump_url})"
-                    text_splice = 800 - len(value_text)
-                    if len(question_text) > text_splice:
-                        question_text = question_text[:-3] + '...'
-                    value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice])
-                    emb.add_field(name=f"Question `{question}`", value=value_text)
-                except discord.NotFound:
-                    emb.add_field(name=f"Question `{question}`",
-                                  value="original message not found")
-        await hf.safe_send(target_channel, embed=emb)
-
-    @question.command()
-    @hf.is_admin()
-    async def edit(self, ctx, log_id, target, *text):
-        """
-        Edit either the asker, answerer, question, title, or answer of a question log in the log channel
-
-        Usage: `;q edit <log_id> <asker|answerer|question|title|answer> <new data>`.
-
-        Example: `;q edit 2 question  What is the difference between が and は`.
-        """
-        config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        log_channel = self.bot.get_channel(config['log_channel'])
-        target_message = await log_channel.fetch_message(int(log_id))
-        if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
-            await hf.safe_send(ctx,
-                               f"Invalid field specified in the log message.  Please choose a target to edit out of "
-                               f"`asker`, `answerer`, `question`, `title`, `answer`")
-            return
-        emb = target_message.embeds[0]
-
-        if target == 'question':
-            try:
-                question_id = int(text[0])  # ;q edit 555932038612385798 question 555943517994614784
-                question_message = await ctx.channel.fetch_message(question_id)
-                emb.set_field_at(0, name=emb.fields[0].name, value=f"{question_message.content[:900]}\n"
-                                                                   f"[Jump URL]({question_message.jump_url}))")
-            except ValueError:
-                question_message = ctx.message  # ;q edit 555932038612385798 question <New question text>
-                question_text = ' '.join(question_message.content.split(' ')[3:])
-                emb.set_field_at(0, name=emb.fields[0].name,
-                                 value=f"{question_text}\n[Jump URL]({question_message.jump_url})")
-        if target == 'title':
-            title = ' '.join(text)
-            jump_url = emb.fields[0].split('\n')[-1]
-            emb.set_field_at(0, name=emb.fields[0].name, value=f"{title}\n[Jump URL]({jump_url})")
-        if target == 'asker':
-            try:
-                asker = ctx.guild.get_member(int(text[0]))
-            except ValueError:
-                await hf.safe_send(ctx, f"To edit the asker, give the user ID of the user.  For example: "
-                                        f"`;q edit <log_message_id> asker <user_id>`")
-                return
-            new_description = emb.description.split(' ')
-            new_description[2] = f"{asker.mention} ({asker.name})"
-            del new_description[3]
-            emb.description = ' '.join(new_description)
-
-        if emb.title == 'ANSWERED':
-            if target == 'answerer':
-                answerer = ctx.guild.get_member(int(text[0]))
-                new_description = emb.description.split('Answered by ')[1] = answerer.mention
-                emb.description = 'Answered by '.join(new_description)
-            elif target == 'answer':
-                try:  # ;q edit <log_message_id> answer <answer_id>
-                    answer_message = await ctx.channel.fetch_message(int(text[0]))
-                    emb.set_field_at(1, name=emb.fields[1].name, value=f"[Jump URL]({answer_message.jump_url})")
-                except ValueError:
-                    answer_message = ctx.message  # ;q edit <log_message_id> answer <new text>
-                    answer_text = 'answer '.join(ctx.message.split('answer ')[1:])
-                    emb.set_field_at(1, name=emb.fields[1].name, value=f"{answer_text[:900]}\n"
-                                                                       f"[Jump URL]({answer_message.jump_url})")
-
-        if emb.footer.text:
-            emb.set_footer(text=emb.footer.text + f", Edited by {ctx.author.name}")
-        else:
-            emb.set_footer(text=f"Edited by {ctx.author.name}")
-        await target_message.edit(embed=emb)
-        try:
-            await ctx.message.add_reaction('\u2705')
-        except discord.Forbidden:
-            await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-
-    # 'questions'
-    #   >id of guild
-    #     > id of question channel
-    #           > 'log_channel'
-    #           > 'questions'
-    #                 > 1
-    #                       > title, question_message, author, command_caller, date, log_message(id)
-    #                 > 2
-    #                       > title, question_message, author, command_caller, date, log_message
-
-    @commands.command(hidden=True)
-    async def resp(self, ctx, index, *, response):
-        """Alias for `;q resp`"""
-        x = self.bot.get_command('question respond')
-        if await x.can_run(ctx):
-            await ctx.invoke(x, index, response=response)
-
-    @question.command(aliases=['resp', 'r'])
-    async def respond(self, ctx, index, *, response):
-        """Respond to a question in the question log and log your response. You must do this in the channel \
-        that the question was originally logged in. Example: `;q resp 3 I think this is correct`."""
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        except KeyError:
-            return
-        if not response:
-            await hf.safe_send(ctx, "You need to type something for your response.")
-            return
-        if len(response.split()) == 1:
-            try:
-                msg = await ctx.channel.fetch_message(int(response))
-                await ctx.message.add_reaction('⤴')
-                ctx.message = msg
-                ctx.author = msg.author
-                response = msg.content
-            except (discord.NotFound, ValueError):
-                pass
-        if index not in config['questions']:
-            await hf.safe_send(ctx, "Invalid question index. Make sure you're typing this command in the channel "
-                                    "the question was originally made in.")
-            return
-
-        try:
-            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
-        except discord.NotFound:
-            await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
-            return
-        try:
-            log_message = await log_channel.fetch_message(config['questions'][index]['log_message'])
-        except discord.NotFound:
-            await hf.safe_send(ctx, "The original question log message could not be found. Type `;q a <index>` to "
-                                    "close the question and clear it.")
-            return
-
-        emb: discord.Embed = log_message.embeds[0]
-        value_text = f"⁣⁣⁣\n[Jump URL]({ctx.message.jump_url})"
-        emb.add_field(name=f"Response by {ctx.author.name}#{ctx.author.discriminator}",
-                      value=value_text.replace('⁣⁣⁣', response[:1024-len(value_text)]))
-        await log_message.edit(embed=emb)
-        config['questions'][index].setdefault('responses', []).append(ctx.message.jump_url)
-        await self._delete_log(ctx)
-        await self._post_log(ctx)
-        await ctx.message.add_reaction('✅')
-
-    async def _delete_log(self, ctx):
-        """Internal command for deleting the last message in log channel if it is `;q list` result"""
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        except KeyError:
-            return
-
-        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
-        if not log_channel:
-            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
-            return
-        try:
-            last_message = None
-            async for msg in log_channel.history(limit=5).filter(lambda m: m.author == m.guild.me and m.embeds):
-                last_message = msg
-                break
-            if last_message.embeds[0].title.startswith('⁣List⁣'):
-                try:
-                    await last_message.delete()  # replace the last message in the channel (it should be a log)
-                except discord.NotFound:
-                    pass
-        except (TypeError, AttributeError, discord.Forbidden):
-            return
-
-    async def _post_log(self, ctx):
-        """Internal command for updating the list at the bottom of question log channels"""
-        try:
-            config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        except KeyError:
-            return
-
-        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
-        if not log_channel:
-            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
-            return
-        # ctx.channel = log_channel
-        await ctx.invoke(self.question_list, log_channel)
 
     @commands.command(aliases=['diff'])
     async def difference(self, ctx, *, query):
