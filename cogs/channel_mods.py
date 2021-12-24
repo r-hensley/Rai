@@ -914,6 +914,7 @@ class ChannelMods(commands.Cog):
         time_string: Optional[str] = None
         target: Optional[discord.Member] = None
         time: Optional[str] = None
+        time_obj: Optional[datetime] = None
         length: Optional[str, str] = None
         new_args = args.copy()
         for arg in args:
@@ -932,6 +933,7 @@ class ChannelMods(commands.Cog):
                 if time_string:
                     time = arg
                     new_args.remove(arg)
+                    time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
 
         if not hf.submod_check(ctx):
@@ -945,6 +947,7 @@ class ChannelMods(commands.Cog):
             if not time_string:
                 time = '3h'
                 time_string, length = hf.parse_time(time)  # time_string: str
+                time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 3h.")
 
@@ -1018,7 +1021,10 @@ class ChannelMods(commands.Cog):
         emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
         emb.color = discord.Color(int('ff8800', 16))  # embed
         if time_string:
-            emb.add_field(name="Length", value=f"{time} (will be unmuted on {time_string})", inline=False)
+            timestamp = int(time_obj.timestamp())
+            emb.add_field(name="Length",
+                          value=f"{time} (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R> )",
+                          inline=False)
         else:
             emb.add_field(name="Length", value="Indefinite", inline=False)
         if reason:
