@@ -271,13 +271,14 @@ class General(commands.Cog):
         async def hacked_account_ban():
             # discord.gift is a legit url
             links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
-                     "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
+                     "hi, i'm tired of csgo, i'm ieaving", 'fuck this trash caiied CS:GO, deieted',
+                     'nitro distribution', 'Discord Nitro free',
                      "take nitro faster, it's aiready running out", "free discord nitro airdrop",
                      'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
-                     'discordnitro', 'discordairdrop', 'discord-gift', 'gift-discord', 'discord-gift',
-                     'discord.oniine', 'discordgift', 'bit.do/randomgift', 'nitro-discord',
+                     'discordnitro', 'discordairdrop', 'discordgift', 'giftdiscord',
+                     'discord.oniine', 'bit.do/randomgift', 'nitrodiscord',
                      'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
-                     'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
+                     'stmeacomunnitty.ru', 'steamcommrnunity.com', 'stearncornmnuity', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
 
