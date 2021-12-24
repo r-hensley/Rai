@@ -810,6 +810,9 @@ class ChannelMods(commands.Cog):
         """Edit the reason for a selected modlog.  Example: `;ml edit ryry 2 trolling in voice channels`."""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
+        if re.search(r"\d{1,3}", user):
+            if re.search(r"\d{17,22}", str(index)):
+                user, index = str(index), int(user)  # swap the variables
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
         member = await hf.member_converter(ctx, user)
         if member:
@@ -820,7 +823,11 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
-        old_reason = config[index - 1]['reason']
+        try:
+            old_reason = config[index - 1]['reason']
+        except IndexError:
+            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index -1}. Please check it "
+                                    f"and try again.")
         config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
                                                      f"```{old_reason}```to```{reason}```"))
