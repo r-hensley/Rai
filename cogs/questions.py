@@ -96,7 +96,7 @@ class Questions(commands.Cog):
                 ctx = await self.bot.get_context(last_message)  # just need a random ctx
                 ctx.message.author = ctx.guild.me  # to get permissions right
                 ctx.message.content = ";q a"
-                await self.answer(ctx, args="a")  # close the question
+                await self.answer(ctx, args="")  # close the question
 
             else:  # the thread was auto-archived, reopen it
                 try:
@@ -687,7 +687,7 @@ class Questions(commands.Cog):
                     text_splice = 800 - len(value_text)
                     if len(question_text) > text_splice:
                         question_text = question_text[:-3] + '...'
-                    value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice])
+                    value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice]).replace(";q ", "")
                     emb.add_field(name=f"Question `{question}`", value=value_text)
                 except discord.NotFound:
                     emb.add_field(name=f"Question `{question}`",
