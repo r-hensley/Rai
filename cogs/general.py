@@ -2257,7 +2257,7 @@ class General(commands.Cog):
             config = self.bot.db['voice_mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
             failed_channels = await set_channel_overrides(role)
             if failed_channels:
-                await hf.safe_send(ctx,
+                await hf.safe_send(ctx.author,
                                    f"Couldn't add the role permission to {' ,'.join(failed_channels)}.  If a muted "
                                    f"member joins this (these) channel(s), they'll be able to speak.")
         else:
