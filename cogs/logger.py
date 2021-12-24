@@ -1339,29 +1339,111 @@ class Logger(commands.Cog):
                 pass
 
     @commands.Cog.listener()
-    async def on_member_update(self, before, after):
-        guild = str(before.guild.id)
-        if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
-            return
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        # ######### Nicknames #############
+        async def check_nickname_change():
+            guild = str(before.guild.id)
+            if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
+                return
 
-        guild_config = self.bot.db['nicknames'][guild]
-        channel = self.bot.get_channel(guild_config['channel'])
-        if not channel or before.nick == after.nick:
-            return
+            guild_config = self.bot.db['nicknames'][guild]
+            channel = self.bot.get_channel(guild_config['channel'])
+            if not channel or before.nick == after.nick:
+                return
 
-        emb = self.make_nickname_embed(before, after)
-        emb.colour = 0xFFA500
+            emb = self.make_nickname_embed(before, after)
+            emb.colour = 0xFFA500
 
-        if before.nick and not after.nick:  # nickname removed
-            emb.description = f"**{before.nick}**'s nickname was **removed**"
-        elif not before.nick and after.nick:  # nickname added
-            emb.description = f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
-        elif before.nick and after.nick:  # nickname changed
-            emb.description = f"**{before.nick}**'s nickname was changed to **{after.nick}**"
-        try:
-            await hf.safe_send(channel, embed=emb)
-        except discord.Forbidden:
-            pass
+            if before.nick and not after.nick:  # nickname removed
+                emb.description = f"**{before.nick}**'s nickname was **removed**"
+            elif not before.nick and after.nick:  # nickname added
+                emb.description = f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
+            elif before.nick and after.nick:  # nickname changed
+                emb.description = f"**{before.nick}**'s nickname was changed to **{after.nick}**"
+            try:
+                await hf.safe_send(channel, embed=emb)
+            except discord.Forbidden:
+                pass
+        await check_nickname_change()
+
+        # ######### Timeouts #############
+        async def check_timeouts():
+            if not (config := self.bot.db['modlog'].get(str(before.guild.id), None)):
+                return  # guild has not setup modlog
+
+            if not (not before.timed_out and after.timed_out):
+                return  # event is not a timeout event
+
+            guild = before.guild
+            attempts = 0
+            time_left = None
+            timeout_length = None
+            timeout_length_str = None
+            reason = None
+            author = None
+            while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
+                async for entry in guild.audit_logs(limit=None, oldest_first=False,
+                                                    action=discord.AuditLogAction.member_update,
+                                                    after=discord.utils.utcnow() - timedelta(seconds=60)):
+                    if entry.target == before:
+                        author = entry.user
+                        time_left = (after.communication_disabled_until - discord.utils.utcnow()).total_seconds()
+                        reason = entry.reason
+
+                        if time_left < 70:  # 60 SEC
+                            timeout_length = 60
+                            timeout_length_str = "1m"
+                        elif 250 < time_left < 350:  # 5 MIN = 300 SEC
+                            timeout_length = 300
+                            timeout_length_str = "5m"
+                        elif 550 < time_left < 650:  # 10 MIN = 600 SEC
+                            timeout_length = 600
+                            timeout_length_str = "10m"
+                        elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
+                            timeout_length = 3600
+                            timeout_length_str = "1h"
+                        elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
+                            timeout_length = 86400
+                            timeout_length_str = "1d"
+                        elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
+                            timeout_length = 604800
+                            timeout_length_str = "7d"
+                        else:
+                            timeout_length = 0
+                            timeout_length_str = "Unknown"
+
+                        break  # this breaks the for entry in guild.audit_logs() if it finds the entry
+                if time_left:
+                    break  # this breaks the while loop if it found an entry
+                attempts += 1
+                await asyncio.sleep(15)
+
+            if not time_left:
+                return  # No matching entries found
+
+            modlog_config = hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
+            modlog_channel = self.bot.get_channel(modlog_config['channel'])
+
+            emb = hf.red_embed("Timeout")
+            emb.color = 0xff8800  # orange
+            emb.add_field(name="User", value=f"{after.name} ({after.id})", inline=False)
+            timestamp = int(after.communication_disabled_until.timestamp())
+            emb.add_field(name="Length",
+                          value=f"{timeout_length_str} (unmute time: <t:{timestamp}> - <t:{timestamp}:R>)",
+                          inline=False)
+            if reason:
+                emb.add_field(name="Reason", value=reason)
+
+            emb.set_footer(text=f"Muted by {author.name} ({author.id})")
+            try:
+                if modlog_channel:
+                    await hf.safe_send(modlog_channel, embed=emb)
+            except AttributeError:
+                pass
+        await check_timeouts()
+
+
+
 
     # ############### reaction removals #####################
 
