@@ -691,6 +691,10 @@ class Owner(commands.Cog):
         async def show_id(ctx, message: discord.Message):  # message commands return the message
             await ctx.respond(f"{ctx.author.name}, here'sssssss the message id: {message.id}!")
 
+    @commands.command()
+    async def console(self, ctx):
+        print("Hello")
+
 
 def setup(bot):
     bot.add_cog(Owner(bot))
