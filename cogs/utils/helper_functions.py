@@ -538,7 +538,7 @@ async def uhc_check(msg):
                     if channel_id not in here.bot.db['ultraHardcore']['ignore']:
                         msg_content = msg.content
                         if jpRole in msg.author.roles:
-                            if ratio < .75:
+                            if ratio < .25:
                                 try:
                                     await msg.delete()
                                 except discord.NotFound:
@@ -546,7 +546,7 @@ async def uhc_check(msg):
                                 if len(msg_content) > 30:
                                     await long_deleted_msg_notification(msg)
                         else:
-                            if ratio > .25:
+                            if ratio > .75:
                                 try:
                                     await msg.delete()
                                 except discord.NotFound:
