@@ -125,8 +125,8 @@ class Jpserv(commands.Cog):
             return
         if str(ctx.author.id) in self.bot.db['ultraHardcore']['users']:
             if self.bot.db['ultraHardcore']['users'][str(ctx.author.id)][0]:
-                await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can't"
-                               f" speak their native language, and they also cannot undo this mode themselves.")
+                await ctx.send(f"{ctx.author.mention} is currently using ultra hardcore mode.  In this mode, they can "
+                               f"only speak their target language, and they also cannot undo this mode themselves.")
                 return
         await ctx.send(f"{ctx.author.mention} is currently NOT using hardcore mode, so I don't know why "
                        f"they're trying to use this command.  But, ultra hardcore mode means a user can't speak "
