@@ -272,11 +272,11 @@ class General(commands.Cog):
             # discord.gift is a legit url
             links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
                      "hi, i'm tired of csgo, i'm ieaving", 'fuck this trash caiied CS:GO, deieted',
-                     'nitro distribution', 'Discord Nitro free',
+                     'nitro distribution', 'Discord Nitro free', "steam gived nitro"
                      "take nitro faster, it's aiready running out", "free discord nitro airdrop",
                      'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
                      'discordnitro', 'discordairdrop', 'discordgift', 'giftdiscord',
-                     'discord.oniine', 'bit.do/randomgift', 'nitrodiscord',
+                     'discord.oniine', 'bit.do/randomgift', 'nitrodiscord', 'steamnitro'
                      'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'stearncornmnuity', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
