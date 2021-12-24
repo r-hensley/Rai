@@ -922,7 +922,7 @@ class ChannelMods(commands.Cog):
                 if role not in channel.overwrites:
                     try:
                         await channel.set_permissions(role, send_messages=False, add_reactions=False,
-                                                      attach_files=False)
+                                                      attach_files=False, send_messages_in_threads=False)
                     except discord.Forbidden:
                         failed_channels.append(channel.mention)
             return failed_channels
@@ -946,11 +946,14 @@ class ChannelMods(commands.Cog):
                       f"member joins this (these) channel(s), they'll be able to type/speak. If you " \
                       f"want to edit the permissions and have Rai reapply all the permissions, please " \
                       f"delete the `rai-mute` role and then try to mute someone again."
-                if len(msg) <= 2000:
-                    await hf.safe_send(ctx, msg)
-                else:
-                    await hf.safe_send(ctx, msg[:2000])
-                    await hf.safe_send(ctx, msg[1980:])
+                try:
+                    if len(msg) <= 2000:
+                        await hf.safe_send(ctx.author, msg)
+                    else:
+                        await hf.safe_send(ctx.author, msg[:2000])
+                        await hf.safe_send(ctx.author, msg[1980:])
+                except discord.HTTPException:
+                    pass
 
             return role
 
