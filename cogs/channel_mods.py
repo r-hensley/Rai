@@ -593,6 +593,27 @@ class ChannelMods(commands.Cog):
             else:
                 unmute_time_left_str = None
 
+            # Check DB for voice mute entry
+            voice_muted = False
+            voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
+            print(1)
+            if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
+                    .get(str(ctx.guild.id), {}) \
+                    .get('timed_mutes', {}) \
+                    .get(user_id, None):
+                print(voice_unmute_time_left_str)
+                voice_muted = True
+                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                time_left = unmute_date - discord.utils.utcnow()
+                days_left = time_left.days
+                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
+                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
+                voice_unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+                print(voice_unmute_time_left_str)
+
+            else:
+                voice_unmute_time_left_str = None
+
             # Check for mute role in member roles
             if member:
                 mute_role_id: str = self.bot.db['mutes'].get(str(ctx.guild.id), {}).get('role', 0)
@@ -601,6 +622,27 @@ class ChannelMods(commands.Cog):
                     muted = True
                 else:
                     muted = False  # even if the user is in the DB for a mute, if they don't the role they aren't muted
+
+            # Check for timeout
+            timeout: bool = False
+            timeout_time_left_str: Optional[str] = None
+            if member:
+                if member.communication_disabled_until:
+                    timeout = True
+                    time_left = member.communication_disabled_until - discord.utils.utcnow()
+                    days_left = time_left.days
+                    hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
+                    minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
+                    timeout_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+
+            # Check for voice mute role in member roles
+            if member:
+                mute_role_id: str = self.bot.db['voice_mutes'].get(str(ctx.guild.id), {}).get('role', 0)
+                mute_role: discord.Role = ctx.guild.get_role(int(mute_role_id))
+                if mute_role in member.roles:
+                    voice_muted = True
+                else:
+                    voice_muted = False  # even if the user is in the DB, if they don't the role they aren't muted
 
             # Check DB for ban entry
             banned = False  # unban_date looks like "2021/06/26 23:24 UTC"
@@ -647,11 +689,25 @@ class ChannelMods(commands.Cog):
                     emb.description = f"{rai_emoji} **`Current Status`** Banned for {unban_time_left_str}"
                 else:
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Banned"
+
+            elif voice_muted:
+                if voice_unmute_time_left_str:
+                    emb.description = f"{rai_emoji} **`Current Status`** Voice Muted for {voice_unmute_time_left_str}"
+                else:
+                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
+
             elif muted:
                 if unmute_time_left_str:
                     emb.description = f"{rai_emoji} **`Current Status`** Muted for {unmute_time_left_str}"
                 else:
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Muted"
+
+            elif timeout:
+                if timeout_time_left_str:
+                    emb.description = f"{rai_emoji} **`Current Status`** Timeout for {timeout_time_left_str}"
+                else:
+                    pass
+
             elif not member:
                 if muted and not banned:
                     emb.description += " (user has left the server)"
