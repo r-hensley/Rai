@@ -1144,7 +1144,7 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
                     if mod_channel:
                         try:
-                            await hf.safe_send(mod_channel, f"@here{pings}", embed=emb)
+                            await hf.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
                             sent_to_mod_channel = True
                         except (discord.Forbidden, discord.HTTPException):
                             pass

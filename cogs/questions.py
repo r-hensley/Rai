@@ -173,7 +173,6 @@ class Questions(commands.Cog):
 
                 except discord.HTTPException:
                     thread = ctx.guild.get_thread(target_message.id)
-                    raise
 
                 await hf.safe_send(thread, "I've opened a thread corresponding to this question. Closing the thread "
                                            "will close the question, or you can type `;q a` inside this channel. "
