@@ -269,12 +269,13 @@ class General(commands.Cog):
 
         # ### bans accounts that have been in the server for a while but got hacked so started spamming
         async def hacked_account_ban():
-            links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro',
+            # discord.gift is a legit url
+            links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
                      "hi, i'm tired of csgo, i'm ieaving", 'nitro distribution', 'Discord Nitro free',
-                     "take nitro faster, it's aiready running out", "free discord nitro airdrop"
-                     'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop'
-                     'discordnitro', 'discordairdrop', 'discord-gift',
-                     'discord.oniine', 'discordgift', 'bit.do/randomgift',
+                     "take nitro faster, it's aiready running out", "free discord nitro airdrop",
+                     'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
+                     'discordnitro', 'discordairdrop', 'discord-gift', 'gift-discord', 'discord-gift',
+                     'discord.oniine', 'discordgift', 'bit.do/randomgift', 'nitro-discord',
                      'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
                      'stmeacomunnitty.ru', 'steamcommrnunity.com', 'rustiic.com']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
@@ -322,8 +323,10 @@ class General(commands.Cog):
 
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
-            msg.content = msg.content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
-            msg.content = msg.content.replace('rcd', 'rd').replace("niitro", "nitro")
+            msg_content = msg_content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
+            msg_content = msg_content.replace('rcd', 'rd').replace("niitro", "nitro").replace("rid", "rd")
+            msg_content = msg_content.replace('ff', 'f').replace('cords', 'cord')
+
             for link in links:
                 if link in msg_content:
                     try:
@@ -362,14 +365,14 @@ class General(commands.Cog):
                                          args=f"1h {str(msg.author.id)} "
                                               f"Inactive user sending Nitro spam-like message (please confirm)"
                                               f"\n```{cont}```")
-                        await mod_channel.send(msg.author.mention,
+                        await mod_channel.send(f"(@here) {msg.author.mention}",
                                                embed=hf.red_embed(f"🔇❓**MUTED** user {msg.author} ({msg.author.id}) "
                                                                   f"for potential spam link, [please confirm "
                                                                   f"the content]({msg.jump_url}) and possibly ban:"
                                                                   f"\n```{cont}```"))
 
                     else:  # notify
-                        await mod_channel.send(msg.author.mention,
+                        await mod_channel.send(f"(@here) {msg.author.mention}",
                                                embed=hf.red_embed(f"❓The active user {msg.author} ({msg.author.id}) "
                                                                   f"sent a potential spam link, please confirm "
                                                                   f"the content and possibly ban:\n```{cont}```"))
