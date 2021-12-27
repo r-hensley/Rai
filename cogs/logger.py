@@ -513,7 +513,7 @@ class Logger(commands.Cog):
 
             if list_of_attachments:
                 if rate_limit:
-                    failure_msg = "I hit my Imgur rate limit for today, the above link may quickly 404."
+                    failure_msg = "The above link may quickly become unviewable."
                 else:
                     failure_msg = 'Failed to reupload to imgur.  The above link may quickly 404.'
                 emb.add_field(name='**Attachments:**', value='\n'.join(list_of_attachments))
