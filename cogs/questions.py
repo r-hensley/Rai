@@ -18,9 +18,10 @@ class Questions(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_thread_join(self, thread):
+    async def on_thread_join(self, thread: discord.Thread):
         try:
             channel_config = self.bot.db['questions'][str(thread.guild.id)][str(thread.parent.id)]
+            questions = channel_config['questions']
             if not channel_config.get('threads', False):
                 return
         except KeyError:
@@ -34,6 +35,14 @@ class Questions(commands.Cog):
             pass
         else:
             return
+
+        print(questions)
+        for question in questions:
+            print(question, thread.id)
+            if thread.id == questions[question].get('thread', 0):
+                return  # a question for this thread already exists
+        if thread.id == channel_config['log_channel']:
+            return  # the opened thread was the log channel being unarchived
 
         try:
             opening_message = await thread.parent.fetch_message(thread.id)
@@ -106,6 +115,12 @@ class Questions(commands.Cog):
 
         # unarchive a thread
         elif before.archived and not after.archived:
+            for question in questions:
+                print(question, after.id)
+                if after.id == questions[question].get('thread', 0):
+                    return  # a question for this thread already exists
+            if after.id == channel_config['log_channel']:
+                return  # the opened thread was the log channel being unarchived
             opening_message = await after.parent.fetch_message(after.id)
             ctx = await self.bot.get_context(opening_message)
             await self.question(ctx, args=opening_message.content)  # open the question
@@ -231,10 +246,26 @@ class Questions(commands.Cog):
             emb.set_footer(text=f"Question added by {ctx.author.name}")
 
         # update ;q list at bottom of log channel
+        log_channel = self.bot.get_channel(config['log_channel'])
+
+        if isinstance(log_channel, discord.Thread):
+            if log_channel.archived:
+                try:
+                    await log_channel.edit(archived=False)
+                except discord.Forbidden:
+                    try:
+                        await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
+                                                "and I don't have permission to unarchive it. Please either unarchive "
+                                                f"the log channel thread {log_channel.mention} or give me the "
+                                                f"permission to `Manage Threads` in that channel.")
+                    except (discord.HTTPException, discord.Forbidden):
+                        pass
+                    return
+
+        log_message = await hf.safe_send(log_channel, embed=emb)
+
         try:
             await self._delete_log(ctx)
-            log_channel = self.bot.get_channel(config['log_channel'])
-            log_message = await hf.safe_send(log_channel, embed=emb)
             await self._post_log(ctx)
             config['questions'][str(question_number)]['log_message'] = log_message.id
         except discord.HTTPException as err:
@@ -517,6 +548,16 @@ class Questions(commands.Cog):
                 answer_text = ''
             emb.add_field(name=f"Answer: ",
                           value=answer_text + '\n' + f"[Jump URL]({answer_message.jump_url})")
+            if isinstance(log_message.channel, discord.Thread):
+                if log_message.channel.archived:
+                    try:
+                        await log_message.channel.edit(archived=False)
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
+                                                "and I don't have permission to unarchive it. Please either unarchive "
+                                                f"the log channel thread {log_message.channel.mention} or give me the "
+                                                f"permission to `Manage Threads` in that channel.")
+                        return
             await log_message.edit(embed=emb)
 
         try:
