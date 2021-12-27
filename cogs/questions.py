@@ -678,6 +678,8 @@ class Questions(commands.Cog):
                 continue
             channel_config = config[str(channel)]['questions']
             question_channel = self.bot.get_channel(int(channel))
+            if not question_channel:
+                continue
             if first:
                 first = False
                 emb.description=f"**__#{question_channel.name}__**"
