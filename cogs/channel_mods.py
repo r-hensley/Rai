@@ -340,7 +340,13 @@ class ChannelMods(commands.Cog):
             await ctx.author.remove_roles(staffrole)
             await hf.safe_send(ctx, "I've removed the staff role from you")
         else:
-            await ctx.author.add_roles(staffrole)
+            try:
+                await ctx.author.add_roles(staffrole)
+            except discord.Forbidden:
+                await hf.safe_send(ctx,
+                                   "I lack the ability to attach the staff role. Please make sure I have the ability "
+                                   "to manage roles, and that the staff role isn't above my highest user role.")
+                return
             await hf.safe_send(ctx, "I've given you the staff role.")
 
     @commands.group(invoke_without_command=True)
@@ -518,7 +524,13 @@ class ChannelMods(commands.Cog):
         if removed:
             await user.remove_roles(*removed)
         if not none:
-            await user.add_roles(*langs)
+            try:
+                await user.add_roles(*langs)
+            except discord.Forbidden:
+                await hf.safe_send(ctx,
+                                   "I lack the ability to attach the roles. Please make sure I have the ability "
+                                   "to manage roles, and that the role isn't above my highest user role.")
+                return
 
         if none and not removed:
             await hf.safe_send(ctx, "There were no roles to remove!")
@@ -1029,7 +1041,12 @@ class ChannelMods(commands.Cog):
         if role in target.roles:
             await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
             return
-        await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+        try:
+            await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
+        except discord.Forbidden:
+            await hf.safe_send(ctx, "I lack the ability to attach the mute role. Please make sure I have the ability "
+                                    "to manage roles, and that the mute role isn't above my highest user role.")
+            return
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
             old_channel = target.voice.channel
