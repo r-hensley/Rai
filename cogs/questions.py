@@ -235,13 +235,13 @@ class Questions(commands.Cog):
         else:
             jump_links = f"[Original Question]({target_message.jump_url})"
         if len(f"{title}\n") > (1024 - len(target_message.jump_url)):
-            emb.add_field(name=f"Question:", value=f"{title}"[:1024])
+            emb.add_field(name=f"Question:", value=title[:1024])
             if title[1024:]:
-                emb.add_field(name=f"Question (cont.):", value=f"{title[1024:]}\n")
+                emb.add_field(name=f"Question (cont.):", value=f"{title[1023:]}\n")
 
             emb.add_field(name=f"Jump Link to Question:", value=jump_links)
         else:
-            emb.add_field(name=f"Question:", value=f"{title}\n{jump_links}")
+            emb.add_field(name=f"Question:", value=f"{title[:1023-len(jump_links)]}\n{jump_links}")
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
 
