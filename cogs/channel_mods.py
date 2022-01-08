@@ -913,15 +913,6 @@ class ChannelMods(commands.Cog):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
         args = args.split()
 
-        try:
-            last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(ctx.author.id)][-1]
-            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
-                if last_modlog['reason'].startswith("Antispam"):
-                    return  # Prevents multiple mute calls for spammed text
-        except KeyError:
-            pass
-
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -1006,6 +997,15 @@ class ChannelMods(commands.Cog):
                     new_args.remove(arg)
                     time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
+
+        try:
+            last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
+            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                if last_modlog['reason'].startswith("Antispam"):
+                    return  # Prevents multiple mute calls for spammed text
+        except (KeyError, IndexError):
+            pass
 
         if not hf.submod_check(ctx):
             if time_string:
