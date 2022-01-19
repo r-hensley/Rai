@@ -2249,9 +2249,22 @@ class General(commands.Cog):
     @commands.command(aliases=['vmute', 'vm'])
     @hf.is_voicemod()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    async def voicemute(self, ctx, time, member=None, *, reason=None):
-        """Mutes a user.  Syntax: `;voicemute <time> <member>`.
+    async def voicemute(self, ctx, *, args):
+        """Mutes a user.  Syntax: `;voicemute <time> <member> [reason]`.
         Example: `;voicemute 1d2h Abelian`"""
+        # async def voicemute(self, ctx, time, member=None, *, reason=None):
+        args = args.split()
+        if len(args) < 2:
+            await hf.safe_send(ctx, "Please check your syntax, you're missing some arguments")
+            return
+        elif len(args) == 2:
+            time = args[0]
+            member = args[1]
+            reason = None
+        else:
+            time = args[0]
+            member = args[1]
+            reason = " ".join(args[2:])
 
         async def set_channel_overrides(role):
             failed_channels = []
