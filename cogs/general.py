@@ -344,6 +344,10 @@ class General(commands.Cog):
                         self.bot.spammer_mute = []  # a temporary list
 
                     if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
+                        try:
+                            await msg.delete()
+                        except (discord.Forbidden, discord.NotFound):
+                            pass
                         return
                     else:
                         self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
@@ -905,6 +909,8 @@ class General(commands.Cog):
         # ### antispam 
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
+            if msg.author.id == 202995638860906496:
+                print(msg.content)
             if str(msg.guild.id) in self.bot.db['antispam']:
                 config = self.bot.db['antispam'][str(msg.guild.id)]
             else:
@@ -954,6 +960,10 @@ class General(commands.Cog):
                     self.bot.spammer_mute = []  # a temporary list
 
                 if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
+                    try:
+                        await msg.delete()
+                    except (discord.Forbidden, discord.NotFound):
+                        pass
                     return
                 else:
                     self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
@@ -986,7 +996,7 @@ class General(commands.Cog):
 
             await msg.channel.purge(limit=50, check=purge_check)
 
-        # await antispam_check()
+        await antispam_check()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
