@@ -909,8 +909,6 @@ class General(commands.Cog):
         # ### antispam 
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
-            if msg.author.id == 202995638860906496:
-                print(msg.content)
             if str(msg.guild.id) in self.bot.db['antispam']:
                 config = self.bot.db['antispam'][str(msg.guild.id)]
             else:
