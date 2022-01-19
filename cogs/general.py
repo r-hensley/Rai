@@ -270,15 +270,18 @@ class General(commands.Cog):
         # ### bans accounts that have been in the server for a while but got hacked so started spamming
         async def hacked_account_ban():
             # discord.gift is a legit url
-            links = ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
-                     "hi, i'm tired of csgo, i'm ieaving", 'fuck this trash caiied CS:GO, deieted',
-                     'nitro distribution', 'Discord Nitro free', "steam gived nitro"
-                     "take nitro faster, it's aiready running out", "free discord nitro airdrop",
-                     'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
-                     'discordnitro', 'discordairdrop', 'discordgift', 'giftdiscord',
-                     'discord.oniine', 'bit.do/randomgift', 'nitrodiscord', 'steamnitro'
-                     'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
-                     'stmeacomunnitty.ru', 'steamcommrnunity.com', 'stearncornmnuity', 'rustiic.com']
+            """
+            ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
+             "hi, i'm tired of csgo, i'm ieaving", 'fuck this trash caiied CS:GO, deieted',
+             'nitro distribution', 'Discord Nitro free', "steam gived nitro"
+             "take nitro faster, it's aiready running out", "free discord nitro airdrop",
+             'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
+             'discordnitro', 'discordairdrop', 'discordgift', 'giftdiscord',
+             'discord.oniine', 'bit.do/randomgift', 'nitrodiscord', 'steamnitro'
+             'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
+             'stmeacomunnitty.ru', 'steamcommrnunity.com', 'stearncornmnuity', 'rustiic.com']
+            """
+            links = self.bot.db['spam_links']
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
 
