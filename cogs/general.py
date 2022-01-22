@@ -2368,8 +2368,9 @@ class General(commands.Cog):
             try:
                 await target.send(embed=emb)
             except discord.Forbidden:
-                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
-                return
+                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  I'll "
+                                        "keep them muted but they will not receive the reason for it.")
+                pass
 
         emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
         emb.description = "Voice Mute"
