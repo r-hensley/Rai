@@ -544,6 +544,7 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} to {user.display_name}.")
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def modlog(self, ctx, id_in):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
@@ -839,7 +840,11 @@ class ChannelMods(commands.Cog):
 
         if first_embed:
             await hf.safe_send(ctx, embed=first_embed)
-        await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
+        try:
+            await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
+        except discord.Forbidden:
+            await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+            return
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
@@ -998,15 +1003,6 @@ class ChannelMods(commands.Cog):
                     time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
 
-        try:
-            last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
-            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
-                if last_modlog['reason'].startswith("Antispam"):
-                    return  # Prevents multiple mute calls for spammed text
-        except (KeyError, IndexError):
-            pass
-
         if not hf.submod_check(ctx):
             if time_string:
                 days = int(length[0])
@@ -1028,6 +1024,15 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
                                     "or a mention to the user (this is to prevent mistaking people).")
             return
+
+        try:
+            last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
+            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                if last_modlog['reason'].startswith("Antispam"):
+                    return  # Prevents multiple mute calls for spammed text
+        except (KeyError, IndexError):
+            pass
 
         reason = ' '.join(args)
         silent = False
@@ -1110,7 +1115,7 @@ class ChannelMods(commands.Cog):
                 await target.send(embed=emb)
             except discord.Forbidden:
                 await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  Canceling...")
-                return
+                pass
 
         emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
         emb.description = "Mute"
