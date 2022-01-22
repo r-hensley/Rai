@@ -293,8 +293,9 @@ class General(commands.Cog):
                         return  # exempt all people in staff channel
 
                 elif msg.guild.id == JP_SERVER_ID:
-                    if msg.guild.get_channel_or_thread(277384105245802497).permissions_for(msg.author).read_messages:
-                        return  # exempt all people in everything_will_be_fine channel
+                    return  # Don't do Japanese server, Cirilla is working there
+                    # if msg.guild.get_channel_or_thread(277384105245802497).permissions_for(msg.author).read_messages:
+                    #     return  # exempt all people in everything_will_be_fine channel
 
                 elif msg.guild.id == CH_SERVER_ID:
                     if msg.guild.get_channel_or_thread(267784908531957770).permissions_for(msg.author).read_messages:
@@ -332,10 +333,10 @@ class General(commands.Cog):
             msg_content = msg_content.replace('ff', 'f').replace('cords', 'cord')
 
             for link in links:
-                if link in msg_content:
+                if re.findall(link, msg_content):
                     try:
                         await msg.delete()
-                    except discord.NotFound:
+                    except (discord.NotFound, discord.Forbidden):
                         pass
                     cont = msg.content.replace('http', 'http ')  # break links
 
