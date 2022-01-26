@@ -1025,8 +1025,11 @@ class ChannelMods(commands.Cog):
         args = new_args
 
         if not target:
-            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
-                                    "or a mention to the user (this is to prevent mistaking people).")
+            try:
+                await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
+                                        "or a mention to the user (this is to prevent mistaking people).")
+            except discord.HTTPException:  # Possibly if Rai is trying to send a message to itself for automatic mutes
+                pass
             return
 
         try:
@@ -1098,7 +1101,8 @@ class ChannelMods(commands.Cog):
         emb = hf.red_embed(notif_text)
         if silent:
             emb.description += " (The user was not notified of this)"
-        await hf.safe_send(ctx, embed=emb)
+        if ctx.author != self.bot.user and "Nitro" not in reason:
+            await hf.safe_send(ctx, embed=emb)
 
         modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
         modlog_channel = self.bot.get_channel(modlog_config['channel'])
