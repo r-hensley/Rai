@@ -428,6 +428,7 @@ class ChannelMods(commands.Cog):
         - Fluency roles: `ee`,  `ae`,  `ie`,  `be`,  `es`,  `as`,  `is`,  `bs`
         (Expert, Advanced, Intermediate, Beginner for English and Spanish)
         - Learning Roles: `le`,  `ls`
+        - Heritage Roles: `he`,  `hs`
         - Remove all roles: `none`,  `n`
 
         __Examples:__
@@ -455,17 +456,20 @@ class ChannelMods(commands.Cog):
         learningenglish = ctx.guild.get_role(247021017740869632)
         learningspanish = ctx.guild.get_role(297415063302832128)
 
+        heritageenglish = ctx.guild.get_role(846112293422497793)
+        heritagespanish = ctx.guild.get_role(402148856629821460)
+
         language_roles = [english, spanish, other]
         all_roles = [english, spanish, other,
                      expertenglish, advancedenglish, intermediateenglish, beginnerenglish,
                      expertspanish, advancedspanish, intermediatespanish, beginnerspanish,
-                     learningenglish, learningspanish]
+                     learningenglish, learningspanish, heritageenglish, heritagespanish]
         langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english,
                       's': spanish, 'spanish': spanish, 'sn': spanish, 'ns': spanish,
                       'other': other, 'ol': other, 'o': other,
                       'ee': expertenglish, 'ae': advancedenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
                       'es': expertspanish, 'as': advancedspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
-                      'le': learningenglish, 'ls': learningspanish,
+                      'le': learningenglish, 'ls': learningspanish, 'he': heritageenglish, 'hs': heritagespanish,
                       'none': None, 'n': None}
 
         args = args.split()
