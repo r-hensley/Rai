@@ -66,9 +66,7 @@ class General(commands.Cog):
                 return
 
         if msg.author.id == self.bot.owner_id:
-            print(f"{msg.channel=}")
-            print(f"{type(msg.channel)=}")
-            print(f"{dir(msg.channel)=}")
+            pass
 
         if not self.bot.is_ready:
             return
@@ -503,6 +501,9 @@ class General(commands.Cog):
             english_role = msg.guild.get_role(243853718758359040)
             spanish_role = msg.guild.get_role(243854128424550401)
             other_role = msg.guild.get_role(247020385730691073)
+            category_roles = [msg.guild.get_role(802629332425375794),
+                              msg.guild.get_role(802657919400804412),
+                              msg.guild.get_role(831574815718506507)]
             for role in [english_role, spanish_role, other_role]:
                 if role in msg.author.roles:
                     return  # ignore messages by users with tags already
@@ -561,25 +562,25 @@ class General(commands.Cog):
             if language_score['english']:
                 txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
                 try:
-                    await msg.author.add_roles(english_role)
+                    await msg.author.add_roles(english_role, *category_roles)
                 except discord.NotFound:
                     return
             if language_score['spanish']:
                 txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
                 try:
-                    await msg.author.add_roles(spanish_role)
+                    await msg.author.add_roles(spanish_role, *category_roles)
                 except discord.NotFound:
                     return
             if language_score['other']:
                 txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
                 try:
-                    await msg.author.add_roles(other_role)
+                    await msg.author.add_roles(other_role, *category_roles)
                 except discord.NotFound:
                     return
             if language_score['both']:
                 txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
                 try:
-                    await msg.author.add_roles(english_role, spanish_role)
+                    await msg.author.add_roles(english_role, spanish_role, *category_roles)
                 except discord.NotFound:
                     return
 
