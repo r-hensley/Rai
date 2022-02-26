@@ -1020,7 +1020,7 @@ class General(commands.Cog):
                         if msg.guild.id == SP_SERVER_ID:
                             mod_channel = msg.guild.get_channel_or_thread(297877202538594304)  # incidents channel
                         if mod_channel:
-                            await hf.safe_send(mod_channel,
+                            await hf.safe_send(mod_channel, msg.author.id,
                                                embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
                                                                   f"[Jump URL]({msg.jump_url})"))
 
