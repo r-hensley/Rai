@@ -576,7 +576,7 @@ class Questions(commands.Cog):
         thread = ctx.guild.get_thread(question_message.id)
         if thread:
             try:
-                await thread.edit(archived=True)
+                await thread.edit(archived=True, auto_archive_duration=60)
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
