@@ -1101,8 +1101,12 @@ class ChannelMods(commands.Cog):
         emb = hf.red_embed(notif_text)
         if silent:
             emb.description += " (The user was not notified of this)"
+        if ctx.author == ctx.guild.me:
+            additonal_text = str(target.id)
+        else:
+            additonal_text = ""
         if ctx.author != self.bot.user and "Nitro" not in reason:
-            await hf.safe_send(ctx, embed=emb)
+            await hf.safe_send(ctx, additonal_text, embed=emb)
 
         modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
         modlog_channel = self.bot.get_channel(modlog_config['channel'])
