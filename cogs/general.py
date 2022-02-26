@@ -294,6 +294,9 @@ class General(commands.Cog):
             # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
             # because of spammers who try to write dlscord.com with an l
 
+            if "giphy" in msg.content or "tenor" in msg.content:
+                return  # Exempt these sites
+
             everyone = "@everyone" in msg.content  # only ban if they ping everyone
 
             try:
