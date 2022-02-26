@@ -26,19 +26,18 @@ class Questions(commands.Cog):
                 return
         except KeyError:
             return
+        except AttributeError:  # probably thread.parent doesn't exist
+            return
 
         if not hasattr(self.bot, "recently_joined_threads"):
             self.bot.recently_joined_threads = []
 
         if thread not in self.bot.recently_joined_threads:
-            # self.bot.recently_joined_threads.append(thread.id)
-            pass
+            self.bot.recently_joined_threads.append(thread.id)
         else:
             return
 
-        print(questions)
         for question in questions:
-            print(question, thread.id)
             if thread.id == questions[question].get('thread', 0):
                 return  # a question for this thread already exists
         if thread.id == channel_config['log_channel']:
@@ -562,27 +561,28 @@ class Questions(commands.Cog):
 
         try:
             question_message = await question_channel.fetch_message(question['question_message'])
-            for reaction in question_message.reactions:
-                if reaction.me:
-                    try:
-                        await question_message.remove_reaction(reaction.emoji, self.bot.user)
-                        thread = ctx.guild.get_thread(question_message.id)
-
-                        # archive the thread attached to the message if it exists
-                        if thread:
-                            try:
-                                await thread.edit(archived=True)
-                            except (discord.Forbidden, discord.HTTPException):
-                                pass
-
-                    except discord.Forbidden:
-                        await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
         except discord.NotFound:
             msg = await hf.safe_send(ctx, "That question was deleted")
             await log_message.delete()
             await asyncio.sleep(5)
             await msg.delete()
             await ctx.message.delete()
+        else:
+            for reaction in question_message.reactions:
+                if reaction.me:
+                    try:
+                        await question_message.remove_reaction(reaction.emoji, self.bot.user)
+
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+
+        # archive the thread attached to the message if it exists
+        thread = ctx.guild.get_thread(question_message.id)
+        if thread:
+            try:
+                await thread.edit(archived=True)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
 
         try:
             del (config['questions'][number])

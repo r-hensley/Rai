@@ -65,6 +65,11 @@ class General(commands.Cog):
             if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
                 return
 
+        if msg.author.id == self.bot.owner_id:
+            print(f"{msg.channel=}")
+            print(f"{type(msg.channel)=}")
+            print(f"{dir(msg.channel)=}")
+
         if not self.bot.is_ready:
             return
 
@@ -156,8 +161,14 @@ class General(commands.Cog):
                 ryry = msg.guild.get_member(202995638860906496)
                 if not ryry:
                     return
-                if not msg.channel.permissions_for(msg.guild.get_member(202995638860906496)).read_messages:
-                    return  # I ain't trying to spy on people
+                try:
+                    if not msg.channel.permissions_for(msg.guild.get_member(202995638860906496)).read_messages:
+                        return  # I ain't trying to spy on people
+                except discord.ClientException:
+                    # probably a message in a forum channel thread without a parent channel
+                    # breaks since pycord doesn't support forums yet
+                    return
+
             except AttributeError:
                 pass
 
@@ -326,6 +337,15 @@ class General(commands.Cog):
                 return
             messages = (number_of_messages < 50)  # only potentially ban users who are inactive to avoid false positives
 
+            # Force a ban for users with a URL + "nitro" in their message and under 10 messages in the last month
+            url_regex = r"https:\/\/(?!(discord|discordapp|discordstatus)\.)[a-zA-Z0-9_\-\.]*\.(com|gift|xyz|ru)"
+            if messages < 10 or (messages < 100 and "@everyone" in msg.content):
+                if re.findall(url_regex, msg.content.casefold()):
+                    if "nitro" in msg.content.casefold() or "Whо is first?" in msg.content.casefold():
+                        if msg.guild.id == SP_SERVER_ID:  # for now, only on Spanish server to test
+                            everyone = messages = True
+
+
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
             msg_content = msg_content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
@@ -364,6 +384,10 @@ class General(commands.Cog):
                         try:
                             await msg.author.ban(reason=f"Potential spam link: {cont}"[:512], delete_message_days=1)
                         except discord.Forbidden:
+                            try:
+                                self.bot.spammer_mute.remove(spammer_mute_entry)
+                            except ValueError:
+                                pass
                             return
                         await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
                                                                   f"potential  spam link:\n```{cont}```"))
@@ -387,11 +411,21 @@ class General(commands.Cog):
                                                                   f"the content and possibly ban:\n```{cont}```"))
 
                     # remove from temporary list after all actions done
-                    self.bot.spammer_mute.remove(spammer_mute_entry)
-
+                    try:
+                        self.bot.spammer_mute.remove(spammer_mute_entry)
+                    except ValueError:
+                        pass
                     return
 
-        await hacked_account_ban()
+        try:
+            await hacked_account_ban()
+        except Exception:
+            if hasattr(self.bot, "spammer_mute"):
+                try:
+                    self.bot.spammer_mute.remove((msg.guild.id, msg.author.id))
+                except ValueError:
+                    pass
+            raise
 
         # ### bans accounts that spam right after having joined the server
         async def spam_account_bans():
