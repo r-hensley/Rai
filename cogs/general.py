@@ -606,7 +606,10 @@ class General(commands.Cog):
                     if content:
                         em.add_field(name="Content", value=content[:1024])
                     for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
-                        await hf.safe_send(self.bot.get_user(user), embed=em)
+                        try:
+                            await hf.safe_send(self.bot.get_user(user), embed=em)
+                        except discord.Forbidden:
+                            pass
 
                     if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
                         notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
