@@ -1116,6 +1116,42 @@ class General(commands.Cog):
             if len(to_send) > 2000:
                 await hf.safe_send(ctx, to_send[2000:])
 
+    def fe_check(ctx):
+        if not ctx.guild:
+            return
+        if ctx.guild.id != JP_SERVER_ID:
+            return
+        role_ids = [role.id for role in ctx.author.roles]
+        lower_fluent_english = 241997079168155649
+        native_japanese = 196765998706196480
+        if native_japanese in role_ids and lower_fluent_english in role_ids:
+            return True
+
+    @commands.command()
+    @commands.check(fe_check)
+    async def fe(self, ctx):
+        """If you have both fluent English and native Japanese tags, type this command
+        to swap out the color in your name between blue and green."""
+        lower_fluent_english = ctx.guild.get_role(241997079168155649)
+        upper_fluent_english = ctx.guild.get_role(820133363700596756)
+        native_japanese = ctx.guild.get_role(196765998706196480)
+
+        if upper_fluent_english in ctx.author.roles:
+            try:
+                await ctx.author.remove_roles(upper_fluent_english)
+            except (discord.Forbidden, discord.HTTPException):
+                await hf.safe_send(ctx, "There has been an error, please try again.")
+                return
+
+        else:
+            try:
+                await ctx.author.add_roles(upper_fluent_english)
+            except (discord.Forbidden, discord.HTTPException):
+                await hf.safe_send(ctx, "There has been an error, please try again.")
+                return
+
+        await ctx.message.add_reaction('✅')
+
     @commands.command()
     @commands.check(lambda ctx: ctx.guild.id == 759132637414817822 if ctx.guild else False)
     async def risk(self, ctx):
