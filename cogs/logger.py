@@ -1442,9 +1442,6 @@ class Logger(commands.Cog):
                 pass
         await check_timeouts()
 
-
-
-
     # ############### reaction removals #####################
 
     @commands.group(invoke_without_command=True, name='reactions')
@@ -1475,43 +1472,55 @@ class Logger(commands.Cog):
                                f'logging by typing `;reaction_logging`.')
 
     @staticmethod
-    def make_reaction_embed(reaction, member):
+    def make_reaction_embed(emoji, member, message, message_id, channel):
+        jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{message_id}"
         emb = discord.Embed(
-            description=f'**{member.name}#{member.discriminator}** ({member.id}) '
-                        f' removed a reaction. ([Jump URL]({reaction.message.jump_url}))',
+            description=f"**{member.name}#{member.discriminator}** (R{member.id}) "
+                        f" removed a reaction. ([Jump URL]({jump_url}))",
             colour=0xD12B2B,
             timestamp=discord.utils.utcnow()
         )
 
-        if reaction.message.content:
-            emb.add_field(name='Original message:', value=reaction.message.content[:1024])
-        if type(reaction.emoji) == discord.Emoji:
-            emb.set_thumbnail(url=reaction.emoji.url)
-        else:
-            emb.add_field(name='Removed reaction', value=f'{reaction.emoji}')
+        if message:
+            if message.content:
+                emb.add_field(name='Original message:', value=message.content[:1024])
 
-        emb.set_footer(text=f'#{reaction.message.channel.name}',
+        if emoji.is_custom_emoji():
+            emb.set_thumbnail(url=emoji.url)
+        else:
+            emb.add_field(name='Removed reaction', value=f'{str(emoji)}')
+
+        emb.set_footer(text=f'#{channel.name}',
                        icon_url=member.display_avatar.replace(static_format="png").url)
 
         return emb
 
     @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, member):
-        if isinstance(member, discord.Member):
-            guild = str(member.guild.id)
-            if not member.bot:
-                if guild in self.bot.db['reactions']:
-                    guild_config: dict = self.bot.db['reactions'][guild]
-                    if guild_config['enable']:
-                        channel = self.bot.get_channel(guild_config["channel"])
-                        try:
-                            await hf.safe_send(channel, embed=self.make_reaction_embed(reaction, member))
-                        except discord.Forbidden:
-                            await self.module_disable_notification(
-                                reaction.message.guild, guild_config, 'reaction remove')
-                            return
-                        except AttributeError:
-                            del guild_config
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if not payload.guild_id:
+            return
+
+        guild_config: dict = self.bot.db['reactions'].get(str(payload.guild_id), {})
+        if not guild_config.get("enable", False):
+            return
+
+        emoji = payload.emoji
+        guild = self.bot.get_guild(payload.guild_id)
+        member = guild.get_member(payload.user_id)
+        channel = guild.get_channel(payload.channel_id)
+
+        cache = {i.id: i for i in self.bot.cached_messages}
+        message = cache.get(payload.message_id, None)
+
+        log_channel = self.bot.get_channel(guild_config["channel"])
+        try:
+            await hf.safe_send(log_channel,
+                               embed=self.make_reaction_embed(emoji, member, message, payload.message_id, channel))
+        except discord.Forbidden:
+            await self.module_disable_notification(guild, guild_config, 'reaction remove')
+            return
+        except AttributeError:
+            del guild_config
 
     # ############### bans/unbans #####################
 
