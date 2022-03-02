@@ -1,3 +1,5 @@
+from typing import Optional
+
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
@@ -9,7 +11,7 @@ import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
-SP_SERV = 243838819743432704
+SP_SERV_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
 
 
@@ -31,10 +33,15 @@ class Submod(commands.Cog):
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
     @hf.is_submod()
     async def ban(self, ctx, *, args):
-        """Bans a user.  Usage: `;ban [time #y#d#h] <user> [reason]`
-        Examples:   `;ban @Ryry013 being mean`   `;ban 2d3h @Abelian posting invite links`.
-        The time and user ID position can be swapped (`;ban @Abelian 2d3h`).
-        On a certain Spanish server, helpers can ban users within an hour of their joining the server."""
+        """Bans a user.  Usage: `;ban <list of users> [time #y#d#h] [reason]`
+        Examples:
+        - `;ban @Ryry013 being mean`
+        - `;ban @Abelian 2d3h specify a time for a temporary ban`
+        - `;ban 2d3h @Abelian swapping time and user mention`
+        - `;ban 202995638860906496 414873201349361664 specify multiple IDs`
+
+        Helpers on Sp-En server can ban users within an hour after they join the server.
+        """
         args = args.split()
         if not args:
             await hf.safe_send(ctx, ctx.command.help)
@@ -42,28 +49,23 @@ class Submod(commands.Cog):
 
         time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
         user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
+        user_ids: list[int] = []  # list of users to ban
+        timed_ban = None
 
-        if len(args) == 1:
-            user_id_match = re.search(user_regex, args[0])
-            reason = None
-            timed_ban = None
-        else:
-            timed_ban = re.search(time_regex, args[0])
-            if not timed_ban:
-                timed_ban = re.search(time_regex, args[1])
-                if not timed_ban:
-                    reason = ' '.join(args[1:])
-                else:
-                    reason = ' '.join(args[2:])
-                user_id_match = re.search(user_regex, args[0])
-
+        # Iterate through beginning arguments taking all IDs and times until you reach the reason
+        for arg in args.copy():
+            print(arg)
+            if user_id_match := re.search(user_regex, arg):
+                user_ids.append(int(user_id_match.group(1)))
+                args.remove(arg)
+            elif t := re.search(time_regex, arg):
+                timed_ban = t
+                args.remove(arg)
             else:
-                user_id_match = re.search(user_regex, args[1])
-                reason = ' '.join(args[2:])
+                break
+        reason = ' '.join(args)
 
-        if user_id_match:
-            user_id = user_id_match.group(1)
-        else:
+        if not user_ids:
             await hf.safe_send(ctx, "I could not find where you specified the user. Please check your syntax.")
             return
 
@@ -107,27 +109,38 @@ class Submod(commands.Cog):
             length = []
             time_string = None
 
-        target = await hf.member_converter(ctx, user_id)
+        targets: list[discord.Member] = []
+        for user_id in user_ids:
+            target = await hf.member_converter(ctx, user_id)
+            if target:
+                targets.append(target)
+            else:
+                # Check users who have recently left the server
+                try:
+                    recently_removed = self.bot.recently_removed_members[str(ctx.guild.id)]
+                    id_to_member_dict: dict[int: discord.Member] = {m.id: m for m in recently_removed}
+                    if user_id in id_to_member_dict:  # target is an ID
+                        targets.append(id_to_member_dict[user_id])
+                        continue
+                except KeyError:
+                    pass
 
-        if not target:
-            try:
-                target = await self.bot.fetch_user(user_id)
-                if not target:
-                    await hf.safe_send(ctx, "I could not find the user you specified.")
-                    return
-            except discord.NotFound:
-                await hf.safe_send(ctx, "I could not find the user you specified.")
-                return
-            except ValueError:
-                await hf.safe_send(ctx, "I could not find the user you specified.")
-                return
+                # Try manually fetching an ID through an API call
+                try:
+                    target = await self.bot.fetch_user(user_id)
+                    if target:
+                        targets.append(target)
+                        continue
+                    else:
+                        await hf.safe_send(ctx, f"I could not find the user {user_id}.")
+                except discord.NotFound:
+                    await hf.safe_send(ctx, f"I could not find the user {user_id}.")
+                except ValueError:
+                    await hf.safe_send(ctx, f"I could not find the user {user_id}.")
 
-            try:
-                id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(ctx.guild.id)]}
-                if user_id in id_to_member_dict:  # target is an ID
-                    target = id_to_member_dict[user_id]
-            except KeyError:
-                pass
+        if not targets:
+            await hf.safe_send(ctx, "I couldn't resolve any users to ban. Please check the IDs you gave again.")
+            return
 
         if not reason:
             reason = '(no reason given)'
@@ -142,16 +155,18 @@ class Submod(commands.Cog):
 
         # this memorial exists to forever remember the robot head, may you rest in peace ['_']
         # this comment exists to wonder what the hell the robot head was...
-        if hasattr(target, "joined_at"):  # will be false if the user is not in the server
-            joined_at = discord.utils.utcnow() - target.joined_at
-        else:
-            joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
+        for target in targets:
+            if hasattr(target, "joined_at"):  # will be false if the user is not in the server
+                joined_at = discord.utils.utcnow() - target.joined_at
+            else:
+                joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
 
-        if not (ctx.guild.id == 243838819743432704 and
-                ctx.guild.get_role(258819531193974784) in ctx.author.roles and
-                joined_at < timedelta(minutes=60)) and not \
-                hf.admin_check(ctx):
-            raise commands.MissingPermissions('ban_members')
+            # Allow server helpers on Spanish server to ban users who joined within last 60 minutes
+            if not (ctx.guild.id == SP_SERV_ID and
+                    ctx.guild.get_role(258819531193974784) in ctx.author.roles and
+                    joined_at < timedelta(minutes=60)) and not \
+                    hf.admin_check(ctx):
+                raise commands.MissingPermissions(['ban_members'])
 
         em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
         if length:
@@ -168,7 +183,7 @@ class Submod(commands.Cog):
             if '-c' in reason:
                 reason = '⠀' + reason  # invisible space = crosspost
             em.add_field(name="Reason:", value=reason)
-        await hf.safe_send(ctx, f"You are about to ban {target.mention}: ", embed=em)
+        await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
         msg2 = f"Do you wish to continue?  Options:\n" \
                f"⠀・ `Yes` Silently ban the user\n" \
                f"⠀・ `Send` Ban the user and send them the above notification\n" \
@@ -227,34 +242,35 @@ class Submod(commands.Cog):
         else:
             delete = 0
 
-        if content.startswith('send'):
+        successes = []
+        for target in targets:
             try:
-                await target.send(embed=em)
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "The target user has PMs disabled so I didn't send the notification.")
-        try:
-            if hasattr(target, 'ban'):  # if the user is in the server
-                await target.ban(reason=text, delete_message_days=delete)
-            else:  # if the user is not in the server
                 await ctx.guild.ban(target, reason=text, delete_message_days=delete)
-        except discord.Forbidden:
-            await hf.safe_send(ctx, f"I couldn't ban that user. They're probably above me in the role list.")
-            return
+                successes.append(target)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, f"I couldn't ban {target.mention}. They're probably above me in the role list.")
+                continue
 
-        if length:
-            config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
-                                                    {'enable': False, 'channel': None, 'timed_bans': {}})
-            timed_bans = config.setdefault('timed_bans', {})
-            timed_bans[str(target.id)] = time_string
-        await hf.safe_send(ctx, f"Successfully banned")
+            if 'send' in content:
+                try:
+                    await target.send(embed=em)
+                except discord.Forbidden:
+                    await hf.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
 
-        if length:
-            length_str = f"{length[0]}d{length[1]}h"
-        else:
-            length_str = None
-        if reason.startswith("*by*"):
-            reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
-        hf.add_to_modlog(ctx, target, 'Ban', reason, silent, length_str)
+            if length:
+                config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
+                                                        {'enable': False, 'channel': None, 'timed_bans': {}})
+                timed_bans = config.setdefault('timed_bans', {})
+                timed_bans[str(target.id)] = time_string
+
+            if length:
+                length_str = f"{length[0]}d{length[1]}h"
+            else:
+                length_str = None
+            if reason.startswith("*by*"):
+                reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
+            hf.add_to_modlog(ctx, target, 'Ban', reason, silent, length_str)
+        await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     @commands.command()
     @hf.is_admin()
