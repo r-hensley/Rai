@@ -788,8 +788,8 @@ class General(commands.Cog):
             if isinstance(channel, discord.TextChannel):
                 channel = str(msg.channel.id)
             elif isinstance(channel, discord.Thread):
-                if msg.channel.parent:
-                    channel = str(msg.channel.parent.id)
+                if msg.channel.parent_id:
+                    channel = str(msg.channel.parent_id)
                 else:
                     return
             else:
@@ -1373,9 +1373,15 @@ class General(commands.Cog):
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
-    async def ping(self, ctx, x=4):
+    async def ping(self, ctx, x=1):
         """sends back 'hello'"""
-        await hf.safe_send(ctx, str(round(self.bot.latency, x)) + 's')
+        latency = str(round(self.bot.latency*1000, x))
+        fortnights = 0.00000082672 * self.bot.latency
+        fortnights = f"{round(fortnights, 11):.11f} fortnights"
+        if ctx.author.id == 233487484791685120:
+            await hf.safe_send(ctx, fortnights)
+        else:
+            await hf.safe_send(ctx, latency + 'ms')
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
