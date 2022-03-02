@@ -988,7 +988,7 @@ class Logger(commands.Cog):
             if maybe_used_invite and not used_invite:
                 used_invite = maybe_used_invite
 
-            def get_list_of_roles():
+            def get_list_of_roles() -> (dict, list[discord.Role]):
                 try:
                     config: dict = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
@@ -996,8 +996,8 @@ class Logger(commands.Cog):
                 if not config['enable'] or str(member.id) not in config['users']:
                     return None, None
 
-                list_of_roles = []
-                roles_dict = {role.id: role for role in member.guild.roles}
+                list_of_roles: list[discord.Role] = []
+                roles_dict: dict[int: discord.Role] = {role.id: role for role in member.guild.roles}
                 for role_code in config['users'][str(member.id)][1].split(','):
                     try:
                         list_of_roles.append(roles_dict[config['roles'][role_code]])
@@ -1005,12 +1005,19 @@ class Logger(commands.Cog):
                         pass
                 return config, list_of_roles
 
+            readd_config: dict
+            list_of_readd_roles: list[discord.Role]
             readd_config, list_of_readd_roles = get_list_of_roles()
             if list_of_readd_roles:
                 try:
                     stage_visitor = member.guild.get_role(645021058184773643)
                     if stage_visitor in list_of_readd_roles:
                         list_of_readd_roles.remove(stage_visitor)
+                    if member.guild.id == SPAN_SERV_ID:
+                        # Category roles
+                        list_of_readd_roles.append(member.guild.get_role(802629332425375794))
+                        list_of_readd_roles.append(member.guild.get_role(802657919400804412))
+                        list_of_readd_roles.append(member.guild.get_role(831574815718506507))
                     try:
                         await member.add_roles(*list_of_readd_roles)
                     except discord.NotFound:
