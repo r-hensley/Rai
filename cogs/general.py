@@ -2592,6 +2592,108 @@ class General(commands.Cog):
         else:
             self.bot.synced_reactions = {notif: ctx.message, ctx.message: notif}
 
+@commands.max_concurrency(1, BucketType.channel)
+@commands.max_concurrency(1, BucketType.user)
+@bot.command()
+async def timer(ctx, time_left=0):
+    """Starts a countdown. The offset must be set to 30 seconds or 1, 2, 3, 4, 5 minutes. It will update the timer
+    every 5 seconds."""
+    time_left = int(time_left)
+    if time_left not in [1, 2, 3, 4, 5, 30]:
+        raise commands.BadArgument
+
+    # When people call the command, this message tells them what the chosen time for the timer is and starts a short
+    # countdown previous to the main one. For 30s:
+    if time_left == 30:
+        time_str = f"{time_left}s"
+    else:  # time is a number of minutes 1-5
+        time_str = f"{time_left}min"
+        time_left = time_left*60
+
+    embed_1 = green_embed(f"The countdown of **{time_str}** set up by "
+                          f"{ctx.author.mention} **will start in: 5s**.")
+    msg_countdown = await ctx.send(embed=embed_1)
+
+    for a in range(4, -1, -1):
+        await asyncio.sleep(1)
+        embed_2 = green_embed(f"The countdown of **{time_str}** set up by "
+                              f"{ctx.author.mention} **will start in: {a}s**.")
+        await msg_countdown.edit(embed=embed_2)
+
+    await msg_countdown.add_reaction('❌')
+    await msg_countdown.add_reaction('↩')
+    await msg_countdown.add_reaction('🔟')
+
+    def check_reactions(reaction: discord.Reaction, user: discord.User) -> bool:
+        return str(reaction) in '❌↩🔟' \
+               and user.id == ctx.author.id \
+               and reaction.message.id == msg_countdown.id
+
+    time_left_backup = time_left
+
+    # Countdown:
+    aborted = False
+    restarted = False
+    added_seconds = False
+    while time_left:  # I deleted the > 0 because when it eventually reaches zero that'll count as not "while time_left"
+        mins, secs = divmod(time_left, 60)
+        time_left_str = f"{mins}:{secs:02d}"
+        if restarted:
+            embed_text = f"The countdown of **{time_str}** set up by {ctx.author.mention} **has been restarted**." \
+                         f"\n\nTime left: `{time_left_str}`"
+        elif added_seconds:
+            embed_text = f"The countdown of **{time_str}** set up by {ctx.author.mention} **is already running**!" \
+                         f"\n\nTime left: `{time_left_str}`. Ten seconds added!"
+        else:  # Normal operation
+            embed_text = f"The countdown of **{time_str}** set up by {ctx.author.mention} **is already running**!" \
+                     f"\n\nTime left: `{time_left_str}`"
+
+        embed_countdown = green_embed(embed_text)
+        await msg_countdown.edit(embed=embed_countdown)
+
+        try:
+            reaction_added, user_react = await bot.wait_for("reaction_add", check=check_reactions, timeout=1)
+        except asyncio.TimeoutError:
+            time_left -= 1  # Restart loop
+        else:
+            if str(reaction_added) == '❌':
+                aborted = True
+                time_left = 0
+
+            if str(reaction_added) == "↩":
+                restarted = True
+
+                try:
+                    await msg_countdown.remove_reaction("↩", ctx.author)
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+
+                time_left = time_left_backup
+
+            if str(reaction_added) == "🔟":
+                added_seconds = True
+
+                try:
+                    await msg_countdown.remove_reaction("🔟", ctx.author)
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+
+                time_left = time_left + 10
+                if time_left > 60*5:
+                    time_left = 60*5  # Don't let timer go over 5 mins
+
+    if aborted:
+        text_end = f"The countdown of **{time_str}** set up by {ctx.author.mention} **has been aborted**."
+    else:
+        text_end = f"The countdown of **{time_str}** set up by {ctx.author.mention} **has finished**!\n\nTime out!"
+
+    embed_end = green_embed(text_end)
+    await msg_countdown.edit(embed=embed_end)
+
+    try:
+        await msg_countdown.clear_reactions()
+    except (discord.Forbidden, discord.NotFound):
+        return
 
 def setup(bot):
     bot.add_cog(General(bot))
