@@ -2621,7 +2621,10 @@ class General(commands.Cog):
             await asyncio.sleep(1)
             embed.description = f"The countdown of **{time_str}** set up by {ctx.author.mention} " \
                                 f"**will start in: {a}s**."
-            await msg_countdown.edit(embed=embed)
+            try:
+                await msg_countdown.edit(embed=embed)
+            except discord.NotFound:
+                return
 
         await msg_countdown.add_reaction('❌')
         await msg_countdown.add_reaction('↩')
@@ -2652,7 +2655,10 @@ class General(commands.Cog):
                              f"\n\nTime left: `{time_left_str}`"
 
             embed_countdown = hf.green_embed(embed_text)
-            await msg_countdown.edit(embed=embed_countdown)
+            try:
+                await msg_countdown.edit(embed=embed_countdown)
+            except discord.NotFound:
+                return
 
             try:
                 reaction_added, user_react = await self.bot.wait_for("reaction_add", check=check_reactions, timeout=1)
@@ -2694,7 +2700,10 @@ class General(commands.Cog):
         embed_end = hf.green_embed(text_end)
         embed_end.set_footer(text="Command made by Fede#5370")
 
-        await msg_countdown.edit(embed=embed_end)
+        try:
+            await msg_countdown.edit(embed=embed_end)
+        except discord.NotFound:
+            return
 
         try:
             await msg_countdown.clear_reactions()
