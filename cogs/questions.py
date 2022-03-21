@@ -241,7 +241,7 @@ class Questions(commands.Cog):
             emb.set_footer(text=f"Question added by {ctx.author.name}")
 
         # update ;q list at bottom of log channel
-        log_channel = self.bot.get_channel(config['log_channel'])
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
 
         if isinstance(log_channel, discord.Thread):
             if log_channel.archived:
@@ -359,7 +359,7 @@ class Questions(commands.Cog):
 
         try:
             log_channel_id = int(msg_2.content.split('<#')[1][:-1])
-            log_channel = self.bot.get_channel(log_channel_id)
+            log_channel = ctx.guild.get_channel_or_thread(log_channel_id)
             if not log_channel:
                 raise NameError
         except (IndexError, NameError):
@@ -497,7 +497,13 @@ class Questions(commands.Cog):
             raise
 
         try:
-            log_channel = self.bot.get_channel(config['log_channel'])
+            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+            if not log_channel:
+                log_channel = discord.utils.get(ctx.guild.threads, id=config['log_channel'])
+            if not log_channel:
+                await hf.safe_send(ctx, "I couldn't find the log channel for this questions channel. Please reset "
+                                        "the questions module here.")
+                return
             log_message = await log_channel.fetch_message(question['log_message'])
         except discord.NotFound:
             log_message = None
@@ -614,7 +620,7 @@ class Questions(commands.Cog):
         if not question:
             return
 
-        log_channel = self.bot.get_channel(config['log_channel'])
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
         try:
             log_message = await log_channel.fetch_message(int(message_id))
         except discord.NotFound:
@@ -673,7 +679,7 @@ class Questions(commands.Cog):
             if config[channel]['log_channel'] != log_channel_id:
                 continue
             channel_config = config[str(channel)]['questions']
-            question_channel = self.bot.get_channel(int(channel))
+            question_channel = ctx.guild.get_channel_or_thread(int(channel))
             if not question_channel:
                 continue
             if first:
@@ -744,7 +750,7 @@ class Questions(commands.Cog):
         Example: `;q edit 2 question  What is the difference between が and は`.
         """
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
-        log_channel = self.bot.get_channel(config['log_channel'])
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
         target_message = await log_channel.fetch_message(int(log_id))
         if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
             await hf.safe_send(ctx,
