@@ -26,8 +26,12 @@ intents = discord.Intents.default()
 # noinspection PyUnresolvedReferences,PyDunderSlots
 intents.members = True
 # noinspection PyUnresolvedReferences,PyDunderSlots
-intents.messages = True
+intents.message_content = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
+
+# Change these two values to channel IDs in your testing server if you are forking the bot
+TRACEBACK_LOGGING_CHANNEL = 554572239836545074
+BOT_TEST_CHANNEL = 304110816607862785
 
 t_start = datetime.now()
 
@@ -112,10 +116,13 @@ class Rai(Bot):
         await hf.load_language_dection_model()
         self.language_detection = True
 
-        testChan = self.get_channel(304110816607862785)
+        test_channel = self.get_channel(BOT_TEST_CHANNEL)
 
-        ctxmsg = await testChan.send("Almost done!")
-        self.ctx = await self.get_context(ctxmsg)
+        if test_channel:
+            ctxmsg = await test_channel.send("Almost done!")
+            self.ctx = await self.get_context(ctxmsg)
+        else:
+            ctxmsg = self.ctx = None
 
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             self.load_extension('cogs.background')
@@ -128,7 +135,8 @@ class Rai(Bot):
 
         t_finish = datetime.now()
 
-        ctxmsg = await ctxmsg.edit(content='Bot loaded (time: {})'.format(t_finish - t_start))
+        if ctxmsg:
+            ctxmsg = await ctxmsg.edit(content=f'Bot loaded (time: {t_finish - t_start})')
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
@@ -284,7 +292,7 @@ class Rai(Bot):
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
         traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
         e.timestamp = discord.utils.utcnow()
-        await self.get_channel(554572239836545074).send(traceback_text[:2000], embed=e)
+        await self.get_channel(TRACEBACK_LOGGING_CHANNEL).send(traceback_text[:2000], embed=e)
         print('')
 
     async def on_error(self, event, *args, **kwargs):
@@ -306,12 +314,16 @@ class Rai(Bot):
                 jump_url = arg.jump_url
         args_str.append('```')
         e.add_field(name='Args', value='\n'.join(args_str), inline=False)
-        await self.get_channel(554572239836545074).send(jump_url, embed=e)
+        try:
+            await self.get_channel(TRACEBACK_LOGGING_CHANNEL).send(jump_url, embed=e)
+        except AttributeError:
+            pass  # Set ID of TRACEBACK_LOGGING_CHANNEL at top of this file to a channel in your testing server
         traceback.print_exc()
 
 
 bot = Rai()
 guilds = [189571157446492161, 243838819743432704, 275146036178059265]
+# There will be a discord.errors.Forbidden error here if you do not have these guilds on your bot
 
 
 @bot.message_command(name="Delete message", guild_ids=guilds)
@@ -395,9 +407,11 @@ if not os.getenv("BOT_TOKEN"):
     raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
 
 # A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
-if "Rai" in os.path.basename(dir_path) and "Ryry013" in dir_path:
+if "Rai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
     bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
-if "Local" in os.path.basename(dir_path) and "Ryry013" in dir_path:
+elif "ForkedRai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
+    bot.run(os.getenv("BOT_TOKEN") + '4')  # Rai
+elif "Local" in os.path.basename(dir_path) and "Ryry013" in dir_path:
     bot.run(os.getenv("BOT_TOKEN") + '4')  # Rai Test
 else:
     bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
