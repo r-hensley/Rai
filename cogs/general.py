@@ -6,7 +6,6 @@ from discord.ext import commands
 from datetime import timedelta
 from .utils import helper_functions as hf
 import re
-import textblob
 from Levenshtein import distance as LDist
 import string
 import asyncio
@@ -722,11 +721,7 @@ class General(commands.Cog):
                         else:
                             return None, False
                     else:
-                        try:
-                            detected_lang = await hf.textblob_detect_language(stripped_msg)
-                        except (textblob.exceptions.TranslatorError, HTTPError, TimeoutError, urllib.error.URLError,
-                                ConnectionResetError):
-                            return None, False
+                        return None, False
                 except (HTTPError, TimeoutError, urllib.error.URLError):
                     pass
             return detected_lang, is_hardcore
@@ -1777,6 +1772,7 @@ class General(commands.Cog):
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
     @commands.cooldown(1, 15, type=commands.BucketType.user)
+    @commands.check(lambda x: x.guild.id in [SP_SERVER_ID, 759132637414817822])
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
         message was typed in, and display the results.  Note that this is non-deterministic code, which means\
@@ -1796,7 +1792,8 @@ class General(commands.Cog):
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)
         else:
-            lang_result = await hf.textblob_detect_language(stripped_msg)
+            await hf.safe_send(ctx, "The language module being used by Rai no longer works. A new one will be found.")
+            return
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
               f"The language I detect: ```{lang_result}```"
