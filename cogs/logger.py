@@ -3,9 +3,6 @@ import discord
 from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta, timezone
-from imgurpython import ImgurClient
-from imgurpython.helpers.error import ImgurClientError, ImgurClientRateLimitError
-import functools
 from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
@@ -24,18 +21,6 @@ JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
 SPAM_CHAN = 275879535977955330
-
-with open(f'{dir_path}/gitignore/imgur_token.txt', 'r') as file:
-    file.readline()  # comment line in text file
-    client_id = file.readline()[:-1]
-    client_secret = file.readline()[:-1]
-    access_token = file.readline()[:-1]
-    refresh_token = file.readline()
-
-try:
-    imgur_client = ImgurClient(client_id, client_secret, access_token, refresh_token)
-except ImgurClientError:
-    imgur_client = None
 
 
 class Logger(commands.Cog):
@@ -477,49 +462,21 @@ class Logger(commands.Cog):
                 emb.add_field(name='**Message:** (Part 1):', value=message.content[:1000])
                 emb.add_field(name='**Message:** (Part 2):', value=message.content[1000:2000])
 
-        if message.attachments and imgur_client:
+        if message.attachments:
             list_of_attachments = []
             attachment_names = []
-            success = None  # will be True unless the code manages to successfully upload an image to imgur
             file_bool = False  # marks if someone uploaded a non-picture file
-            if int(imgur_client.credits['UserRemaining']) < 5:
-                rate_limit = True  # marks if the rate limit was hit
-                for attachment in message.attachments:
-                    list_of_attachments.append(attachment.proxy_url)
-            else:
-                rate_limit = False
-                for attachment in message.attachments:
-                    list_of_attachments.append(attachment.proxy_url)
-                    if imgur_client.credits['ClientRemaining'] < 5:
-                        rate_limit = True
-                    if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
-                                                                             'apng', 'tiff', 'mov', 'mp4']:
-                        attachment_names.append(attachment.filename)
-                        file_bool = True
-                        continue
-                    # asyncio black magic from here: ONE YEAR LATER EDIT I UNDERSTAND IT NOW! ITS JUST A PARTIAL!!
-                    # https://github.com/ScreenZoneProjects/ScreenBot-Discord/blob/master/cogs/image.py
-                    task = functools.partial(imgur_client.upload_from_url, attachment.proxy_url, anon=False)
-                    task = self.bot.loop.run_in_executor(None, task)
-                    try:
-                        image = await asyncio.wait_for(task, timeout=10)
-                        list_of_attachments.append(image['link'])
-                        success = True
-                    except (asyncio.TimeoutError, ImgurClientError):
-                        list_of_attachments.append(attachment.proxy_url)
-                    except ImgurClientRateLimitError:
-                        rate_limit = True
-                        list_of_attachments.append(attachment.proxy_url)
+
+            for attachment in message.attachments:
+                list_of_attachments.append(attachment.proxy_url)
+                if attachment.filename.split('.')[-1].casefold() not in ['jpg', 'jpeg', 'png', 'gif',
+                                                                         'apng', 'tiff', 'mov', 'mp4']:
+                    attachment_names.append(attachment.filename)
+                    file_bool = True
+                    continue
 
             if list_of_attachments:
-                if rate_limit:
-                    failure_msg = "The above link may quickly become unviewable."
-                else:
-                    failure_msg = 'Failed to reupload to imgur.  The above link may quickly 404.'
-                emb.add_field(name='**Attachments:**', value='\n'.join(list_of_attachments))
-                if not success:
-                    emb.add_field(name='**Warning:**',
-                                  value=failure_msg)
+                emb.add_field(name='**Attachments (link may quickly become unviewable):**', value='\n'.join(list_of_attachments))
                 emb.set_thumbnail(url=list_of_attachments[0])
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
