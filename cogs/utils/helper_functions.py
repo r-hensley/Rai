@@ -507,7 +507,7 @@ async def long_deleted_msg_notification(msg):
 async def uhc_check(msg):
     try:
         if msg.guild.id == 189571157446492161 and len(msg.content) > 3:
-            if here.bot.db['ultraHardcore']['users'].get(str(msg.author.id), [False])[0]:
+            if here.bot.db['ultraHardcore'].setdefault('users', {}).get(str(msg.author.id), [False])[0]:
                 lowercase_msg_content = msg.content.casefold().replace('what is your native language', '') \
                     .replace('welcome', '').replace("what's your native language", "")
                 jpRole = msg.guild.get_role(196765998706196480)
