@@ -1187,18 +1187,6 @@ class General(commands.Cog):
             pass
 
     @commands.command()
-    @commands.is_owner()
-    async def get_emojis(self, ctx):
-        emojis = ctx.guild.emojis
-        index = 1
-        for emoji in emojis:
-            if emoji.animated:
-                continue
-            with open(f"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
-                await emoji.url.save(im)
-            index += 1
-
-    @commands.command()
     @commands.guild_only()
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role."""

@@ -695,6 +695,18 @@ class Owner(commands.Cog):
     async def console(self, ctx):
         print("Hello")
 
+    @commands.command()
+    async def get_emojis(self, ctx):
+        """Saves all emojis in a server to pngs"""
+        emojis = ctx.guild.emojis
+        index = 1
+        if not os.path.exists(f"{dir_path}/emojis/"):
+            os.mkdir(f"{dir_path}/emojis/")
+        for emoji in emojis:
+            with open(f"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
+                await emoji.url.save(im)
+            index += 1
+
 
 def setup(bot):
     bot.add_cog(Owner(bot))
