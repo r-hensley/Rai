@@ -41,6 +41,7 @@ class Background(commands.Cog):
             await channel.send(message[2000:4000])
 
     @commands.command()
+    @commands.is_owner()
     async def checkbg(self, ctx):
         s = ''
         for task in self.bot.bg_tasks:
