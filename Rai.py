@@ -8,12 +8,12 @@ import json
 from cogs.utils import helper_functions as hf
 from datetime import datetime
 import os
+from dotenv import load_dotenv
 
 intents = discord.Intents.default()
 intents.members = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
-print(os.stat(f'{dir_path}/stats.json'))
-print(os.stat(f"{dir_path}/db.json"))
+
 import logging
 logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
@@ -45,15 +45,42 @@ class Rai(Bot):
                          help_command=None, intents=intents, max_messages=10000)
         self.language_detection = False
         print('starting loading of jsons')
-        with open(f"{dir_path}/db.json", "r") as read_file1:
-            read_file1.seek(0)
-            self.db = json.load(read_file1)
-        with open(f"{dir_path}/stats.json", "r") as read_file2:
-            read_file2.seek(0)
-            self.stats = json.load(read_file2)
 
-        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+        # Create json files if they don't exist
+        if not os.path.exists(f"{dir_path}/db.json"):
+            db = open(f"{dir_path}/db.json", 'w')
+            json.dump({}, db)
+            db.close()
+        if not os.path.exists(f"{dir_path}/stats.json"):
+            db = open(f"{dir_path}/stats.json", 'w')
+            json.dump({}, db)
+            db.close()
+
+        try:
+            with open(f"{dir_path}/db.json", "r") as read_file1:
+                read_file1.seek(0)
+                self.db = json.load(read_file1)
+        except json.decoder.JSONDecodeError as e:
+            if e.msg == "Expecting value":
+                logging.warning("No data detected in db.json")
+                self.db = {}
+            else:
+                raise
+
+        try:
+            with open(f"{dir_path}/stats.json", "r") as read_file2:
+                read_file2.seek(0)
+                self.stats = json.load(read_file2)
+        except json.decoder.JSONDecodeError as e:
+            if e.msg == "Expecting value":
+                logging.warning("No data detected in stats.json")
+                self.stats = {}
+            else:
+                raise
+
+        initial_extensions = []
+        # initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
+        #                       'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
 
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
@@ -332,9 +359,31 @@ async def ban_and_clear(ctx, message: discord.Message):  # message commands retu
         await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
 """
 
-bot.restart = True
-while bot.restart:
-    bot.restart = False
-    with open(f"{dir_path}/APIKey.txt") as f:
-        bot.run(f.read() + 'k')
+try:
+    with open(f"{dir_path}/.env", 'r') as f:
+        pass
+except FileNotFoundError:
+    txt = """BOT_TOKEN=\nGCSE_API="""
+    print('hello')
+    with open(f'{dir_path}/.env', 'w') as f:
+        f.write(txt)
+    print("I've created a .env file for you, go in there and put your bot token in the file.\n"
+          "There is also a spot for your GCSE api key if you have one, \n"
+          "but if you don't you can leave that blank.")
+    exit()
 
+print(dir_path)
+
+# Credentials
+load_dotenv('.env')
+
+if not os.getenv("BOT_TOKEN"):
+    raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
+
+# A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
+if "Rai" in os.path.basename(dir_path) and "Ryry013" in dir_path:
+    bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
+if "Local" in os.path.basename(dir_path) and "Ryry013" in dir_path:
+    bot.run(os.getenv("BOT_TOKEN") + '4')  # Rai Test
+else:
+    bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
