@@ -1059,7 +1059,7 @@ class Logger(commands.Cog):
 
         """blacklist bans"""
         config = self.bot.db['global_blacklist']
-        if member.id in config['blacklist']:
+        if member.id in config.get('blacklist', {}):
             try:
                 if config[str(member.guild.id)]['enable']:
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)

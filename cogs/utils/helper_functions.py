@@ -560,6 +560,8 @@ async def uhc_check(msg):
 def _pre_load_language_dection_model():
     english = []
     spanish = []
+    if not os.path.exists(f'{dir_path}/cogs/utils/principiante.csv'):
+        return  # Ask Ryry013 for the language files needed to make this work
     for csv_name in ['principiante.csv', 'avanzado.csv', 'beginner.csv', 'advanced.csv']:
         with open(f"{dir_path}/cogs/utils/{csv_name}", newline='', encoding='utf-8') as csvfile:
             reader = csv.reader(csvfile, delimiter=' ', quotechar='|')

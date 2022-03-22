@@ -10,10 +10,6 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-intents = discord.Intents.default()
-intents.members = True
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
 import logging
 logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
@@ -24,6 +20,14 @@ logging.basicConfig(level=logging.WARNING)
 #     mode='a')
 # handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 # logger.addHandler(handler)
+
+# noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
+intents = discord.Intents.default()
+# noinspection PyUnresolvedReferences,PyDunderSlots
+intents.members = True
+# noinspection PyUnresolvedReferences,PyDunderSlots
+intents.messages = True
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 t_start = datetime.now()
 
@@ -49,7 +53,21 @@ class Rai(Bot):
         # Create json files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
             db = open(f"{dir_path}/db.json", 'w')
-            json.dump({}, db)
+            new_db = {'ultraHardcore': {}, 'hardcore': {}, 'welcome_message': {}, 'roles': {}, 'ID': {},
+                      'mod_channel': {}, 'mod_role': {}, 'deletes': {}, 'nicknames': {}, 'edits': {},
+                      'leaves': {}, 'reactions': {}, 'captcha': {}, 'bans': {}, 'kicks': {}, 'welcomes': {},
+                      'auto_bans': {}, 'global_blacklist': {}, 'super_voicewatch': {}, 'report': {},
+                      'super_watch': {}, 'prefix': {}, 'questions': {}, 'mutes': {}, 'submod_role': {},
+                      'colors': {}, 'submod_channel': {}, 'SAR': {}, 'channel_mod': {}, 'channel_mods': {},
+                      'modlog': {}, 'dbtest': {}, 'modsonly': {}, 'voice_mods': [], 'voice_mutes': {},
+                      'selfmute': {}, 'voicemod': {}, 'staff_ping': {}, 'voice': {}, 'new_user_watch': {},
+                      'reactionroles': {}, 'pmbot': {}, 'joins': {}, 'timed_voice_role': {}, 'banlog': {},
+                      'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
+                      'lovehug': {}, 'rawmangas': {}, 'risk': {}, 'guildstats': {}, 'bannedservers': [],
+                      'spvoice': [], 'spam_links': []}
+            # A lot of these are unnecessary now but I'll fix that later when I make a new database
+            print("Creating default values for database.")
+            json.dump(new_db, db)
             db.close()
         if not os.path.exists(f"{dir_path}/stats.json"):
             db = open(f"{dir_path}/stats.json", 'w')
@@ -78,9 +96,8 @@ class Rai(Bot):
             else:
                 raise
 
-        initial_extensions = []
-        # initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-        #                       'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
 
         for extension in initial_extensions:
             try:  # in on_ready because if not I get tons of errors from on_message before bot loads
@@ -364,15 +381,12 @@ try:
         pass
 except FileNotFoundError:
     txt = """BOT_TOKEN=\nGCSE_API="""
-    print('hello')
     with open(f'{dir_path}/.env', 'w') as f:
         f.write(txt)
     print("I've created a .env file for you, go in there and put your bot token in the file.\n"
           "There is also a spot for your GCSE api key if you have one, \n"
           "but if you don't you can leave that blank.")
     exit()
-
-print(dir_path)
 
 # Credentials
 load_dotenv('.env')
