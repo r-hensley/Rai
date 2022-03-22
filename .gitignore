@@ -6,7 +6,6 @@ cogs/__pycache__
 database_backups/
 local/
 .vs
-BasicBot*
 API*
 *.txt
 !cogs/utils/conversation_topics.txt
@@ -14,19 +13,8 @@ API*
 *.png
 *.sh
 *.bat
-Rai Sorted List of Members Per Role.py
 README.md
-scratch.py
-Watch Channel.py
-cogs/test.py
-Rai Test.py
-Rai Count Most Frequent Kanji.py
-cogs/new_years_stats.py
-hardcore_test*
-cogs/~local cogs.lnk
+*.lnk
 scratch*
-fake_discord.py
-Rai/*
-Rai_2*
-Rai_2/*
 *.csv
+old_stuff/*
