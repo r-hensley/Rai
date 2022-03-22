@@ -43,7 +43,9 @@ class ChannelMods(commands.Cog):
         if not ctx.guild:
             return
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
-            await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
+            if not ctx.message.content.endswith("help"):  # ignore if it's the help command
+                print("channel mods", ctx.message.content)
+                await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         if not hf.submod_check(ctx):
             if isinstance(ctx.channel, discord.TextChannel):
