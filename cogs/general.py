@@ -1094,8 +1094,8 @@ class General(commands.Cog):
 
         else:  # user wants to see full command list
             cmd_dict = {}
-            to_send = "Type `;help <command>` for more info on any command or category. For (subcommands), chain with" \
-                      " the parent command.\n\n"
+            help_msg = "Type `;help <command>` for more info on any command or category. For (subcommands), chain with" \
+                       " the parent command.\n\n"
             for cog in self.bot.cogs:
                 cmd_dict[cog] = []
                 for command in self.bot.cogs[cog].get_commands():
@@ -1110,11 +1110,16 @@ class General(commands.Cog):
                             cmd_dict[cog].append(f"`{command.name}`")
 
             for cog in sorted([name for name in cmd_dict]):
+                to_add = ""
                 if cmd_dict[cog]:
-                    to_send += f"__**{cog}**__  {', '.join(sorted(cmd_dict[cog]))}\n"
-            await hf.safe_send(ctx, to_send[:2000])
-            if len(to_send) > 2000:
-                await hf.safe_send(ctx, to_send[2000:])
+                    to_add += f"__**{cog}**__  {', '.join(sorted(cmd_dict[cog]))}\n"
+                if len(help_msg + to_add) <= 2000:
+                    help_msg += to_add
+                else:
+                    await hf.safe_send(ctx, help_msg)
+                    help_msg = to_add
+
+            await hf.safe_send(ctx, help_msg)
 
     def fe_check(ctx):
         if not ctx.guild:
