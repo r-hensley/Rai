@@ -10,8 +10,6 @@ import sys
 from datetime import datetime, timedelta
 from copy import deepcopy
 import shutil
-from textblob import TextBlob as tb
-from functools import partial
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -618,13 +616,3 @@ def detect_language(text):
 
 async def load_language_dection_model():
     await _loop.run_in_executor(None, _pre_load_language_dection_model)
-
-
-
-def _predetect(text):
-    return tb(text).detect_language()
-
-
-async def textblob_detect_language(text):
-    return await _loop.run_in_executor(None, partial(_predetect, text))
-
