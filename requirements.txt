@@ -20,7 +20,7 @@ nltk
 numpy
 packaging
 Pillow
-py-cord
+py-cord --pre
 pyparsing
 python-dateutil
 python-dotenv
