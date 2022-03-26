@@ -22,3 +22,11 @@ old_stuff/*
 bin/*
 lib/*
 *.cfg
+COPYING
+HISTORY.md
+extern/*
+include/*
+*.toml
+setup.py
+share/*
+src/*
