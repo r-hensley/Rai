@@ -255,7 +255,7 @@ class Submod(commands.Cog):
 
             if 'send' in content:
                 try:
-                    await target.send(embed=em)
+                    await hf.safe_send(target, embed=em)
                 except discord.Forbidden:
                     await hf.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
 

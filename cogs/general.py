@@ -2441,7 +2441,7 @@ class General(commands.Cog):
             emb.add_field(name="Reason", value=reason)
         if not silent:
             try:
-                await target.send(embed=emb)
+                await hf.safe_send(target, embed=emb)
             except discord.Forbidden:
                 await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification.  I'll "
                                         "keep them muted but they will not receive the reason for it.")
