@@ -515,7 +515,7 @@ class ChannelMods(commands.Cog):
 
         for lang in langs:
             if lang not in langs_dict:
-                await hf.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;r help`")
+                await hf.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;help r`")
                 return
         if not user:
             await hf.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
