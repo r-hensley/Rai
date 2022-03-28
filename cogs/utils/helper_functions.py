@@ -147,8 +147,8 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
             return
 
     try:
-        if isinstance(destination, discord.Member):
-            if not destination.DMChannel:
+        if isinstance(destination, discord.User):
+            if not destination.dm_channel:
                 await destination.create_dm()
         return await destination.send(content, embed=embed, delete_after=delete_after, file=file)
     except discord.Forbidden:
