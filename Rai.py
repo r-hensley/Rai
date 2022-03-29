@@ -29,9 +29,22 @@ intents.members = True
 intents.message_content = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+try:
+    with open(f"{dir_path}/.env", 'r') as f:
+        pass
+except FileNotFoundError:
+    txt = """BOT_TOKEN=\nGCSE_API=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL="""
+    with open(f'{dir_path}/.env', 'w') as f:
+        f.write(txt)
+    print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
+          "for tracebacks and logging, put channel IDs in those.\n"
+          "There is also a spot for your GCSE api key if you have one, \n"
+          "but if you don't you can leave that blank.")
+    exit()
+
 # Change these two values to channel IDs in your testing server if you are forking the bot
-TRACEBACK_LOGGING_CHANNEL = 554572239836545074
-BOT_TEST_CHANNEL = 304110816607862785
+TRACEBACK_LOGGING_CHANNEL = os.getenv("TRACEBACK_LOGGING_CHANNEL")
+BOT_TEST_CHANNEL = os.getenv("BOT_TEST_CHANNEL")
 
 t_start = datetime.now()
 
@@ -393,18 +406,6 @@ async def ban_and_clear(ctx, message: discord.Message):  # message commands retu
     else:
         await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
 """
-
-try:
-    with open(f"{dir_path}/.env", 'r') as f:
-        pass
-except FileNotFoundError:
-    txt = """BOT_TOKEN=\nGCSE_API="""
-    with open(f'{dir_path}/.env', 'w') as f:
-        f.write(txt)
-    print("I've created a .env file for you, go in there and put your bot token in the file.\n"
-          "There is also a spot for your GCSE api key if you have one, \n"
-          "but if you don't you can leave that blank.")
-    exit()
 
 # Credentials
 load_dotenv('.env')
