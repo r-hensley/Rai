@@ -48,6 +48,9 @@ BOT_TEST_CHANNEL = os.getenv("BOT_TEST_CHANNEL")
 
 t_start = datetime.now()
 
+# Don't change this even on forked copies of Rai
+RYRY_RAI_COPY = 270366726737231884
+
 
 def prefix(bot, msg):
     if bot.user.name == "Rai":
@@ -158,6 +161,71 @@ class Rai(Bot):
             ctxmsg = await ctxmsg.edit(content=f'Bot loaded (time: {t_finish - t_start})')
 
         await self.change_presence(activity=discord.Game(';help for help'))
+
+        guilds = [189571157446492161, 243838819743432704, 275146036178059265]
+        for guild in guilds:
+            if guild not in [g.id for g in self.guilds]:
+                guilds.remove(guild)
+
+        @self.message_command(name="Delete message", guild_ids=guilds)
+        async def delete_and_log(ctx, message: discord.Message):
+            delete = ctx.bot.get_command("delete")
+            try:
+                if await delete.can_run(ctx):
+                    await delete.__call__(ctx, str(message.id))
+                    await ctx.interaction.response.send_message("The message has been successfully deleted",
+                                                                ephemeral=True)
+                else:
+                    await ctx.interaction.response.send_message("You don't have the permission to use that command",
+                                                                ephemeral=True)
+            except commands.BotMissingPermissions:
+                await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                            ephemeral=True)
+
+        @self.message_command(name="1h text/voice mute", guild_ids=guilds)
+        async def context_message_mute(ctx, message: discord.Message):
+            mute = ctx.bot.get_command("mute")
+            ctx.message = ctx.channel.last_message
+
+            try:
+                if await mute.can_run(ctx):
+                    await mute.__call__(ctx, args=f"{str(message.author.id)} 1h")
+                    await ctx.interaction.response.send_message("Command completed", ephemeral=True)
+
+                else:
+                    await ctx.interaction.response.send_message("You don't have the permission to use that command",
+                                                                ephemeral=True)
+            except commands.BotMissingPermissions:
+                await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                            ephemeral=True)
+
+        @self.user_command(name="1h text/voice mute", guild_ids=guilds)
+        async def context_user_mute(ctx, member: discord.Member):
+            mute = ctx.bot.get_command("mute")
+            ctx.message = ctx.channel.last_message
+
+            try:
+                if await mute.can_run(ctx):
+                    await mute.__call__(ctx, args=f"{str(member.id)} 1h")
+                    await ctx.interaction.response.send_message("Command completed", ephemeral=True)
+
+                else:
+                    await ctx.interaction.response.send_message("You don't have the permission to use that command",
+                                                                ephemeral=True)
+            except commands.BotMissingPermissions:
+                await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                            ephemeral=True)
+
+        """
+        @bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
+        async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
+            ban = ctx.bot.get_command("ban")
+            if await ban.can_run(ctx):
+                await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
+                await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
+            else:
+                await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
+        """
 
         self.database_backups.start()
 
@@ -341,77 +409,6 @@ class Rai(Bot):
 
 
 bot = Rai()
-guilds = [189571157446492161, 243838819743432704, 275146036178059265]
-# There will be a discord.errors.Forbidden error here if you do not have these guilds on your bot
-
-
-@bot.message_command(name="Delete message", guild_ids=guilds)
-async def delete_and_log(ctx, message: discord.Message):
-    delete = ctx.bot.get_command("delete")
-    try:
-        if await delete.can_run(ctx):
-            await delete.__call__(ctx, str(message.id))
-            await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
-        else:
-            await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                        ephemeral=True)
-    except commands.BotMissingPermissions:
-        await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                    ephemeral=True)
-
-
-@bot.message_command(name="1h text/voice mute", guild_ids=guilds)
-async def context_message_mute(ctx, message: discord.Message):
-    mute = ctx.bot.get_command("mute")
-    ctx.message = ctx.channel.last_message
-
-    try:
-        if await mute.can_run(ctx):
-            await mute.__call__(ctx, args=f"{str(message.author.id)} 1h")
-            await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-
-        else:
-            await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                        ephemeral=True)
-    except commands.BotMissingPermissions:
-        await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                    ephemeral=True)
-
-
-@bot.user_command(name="1h text/voice mute", guild_ids=guilds)
-async def context_user_mute(ctx, member: discord.Member):
-    mute = ctx.bot.get_command("mute")
-    ctx.message = ctx.channel.last_message
-
-    try:
-        if await mute.can_run(ctx):
-            await mute.__call__(ctx, args=f"{str(member.id)} 1h")
-            await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-
-        else:
-            await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                        ephemeral=True)
-    except commands.BotMissingPermissions:
-        await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                    ephemeral=True)
-
-
-"""
-@bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
-async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
-    ban = ctx.bot.get_command("ban")
-    if await ban.can_run(ctx):
-        await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
-        await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
-    else:
-        await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
-"""
-
-# Credentials
-load_dotenv('.env')
-
-if not os.getenv("BOT_TOKEN"):
-    raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
 
 # A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
 if "Rai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
