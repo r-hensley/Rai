@@ -49,7 +49,7 @@ def prefix(bot, msg):
 
 class Rai(Bot):
     def __init__(self):
-        super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix, owner_id=202995638860906496,
+        super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix,
                          help_command=None, intents=intents, max_messages=10000)
         self.language_detection = False
         print('starting loading of jsons')
@@ -115,6 +115,12 @@ class Rai(Bot):
     async def on_ready(self):
         await hf.load_language_dection_model()
         self.language_detection = True
+
+        try:
+            AppInfo = await self.application_info()
+            self.owner_id = AppInfo.owner.id
+        except discord.HTTPException:
+            pass
 
         test_channel = self.get_channel(BOT_TEST_CHANNEL)
 

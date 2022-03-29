@@ -20,19 +20,26 @@ import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
+RYRY_ID = 202995638860906496
+ABELIAN_ID = 414873201349361664  # Ryry alt
+MARIO_RYAN_ID = 528770932613971988  # Ryry alt
 RYRY_SPAM_CHAN = 275879535977955330
+RYRY_RAI_BOT_ID = 270366726737231884
 
 
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: discord.Bot = bot
         self._last_result = None
         self.sessions = set()
 
     async def cog_check(self, ctx):
-        return ctx.author.id in [202995638860906496, 414873201349361664, 528770932613971988]
+        if self.bot.user.id == RYRY_RAI_BOT_ID:  # If it's Ryry's Rai bot
+            return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID]
+        else:
+            return ctx.author.id == self.bot.owner_id
 
     def get_syntax_error(self, e):
         if e.text is None:
@@ -142,7 +149,7 @@ class Owner(commands.Cog):
                 await hf.safe_send(ctx, "Include reply message")
 
         async for msg in channel.history():
-            result_channel_id = re.search('^(\d{17,22}) <@202995638860906496>$', msg.content)
+            result_channel_id = re.search(f'^(\d{17,22}) <@{self.bot.owner_id}>$', msg.content)
             if not result_channel_id:
                 continue
             else:
@@ -542,7 +549,7 @@ class Owner(commands.Cog):
         config['users'] = {}
         print(len(self.bot.messages))
         for message in self.bot.messages:
-            if message.author.id == 270366726737231884:
+            if message.author.id == RYRY_RAI_BOT_ID:
                 if message.embeds:
                     try:
                         embed = message.embeds[0]
@@ -583,8 +590,8 @@ class Owner(commands.Cog):
         #         break
         #     except discord.HTTPException:
         #         pass
-        await self.bot.get_user(202995638860906496).send(msg)
-        await self.bot.get_user(202995638860906496).send("Channels: \n" +
+        await self.bot.get_user(self.bot.owner_id).send(msg)
+        await self.bot.get_user(self.bot.owner_id).send("Channels: \n" +
                                                          '\n'.join([channel.name for channel in guild.channels]))
 
         msg_text = "Thanks for inviting me!  See a first-time setup guide here: " \
