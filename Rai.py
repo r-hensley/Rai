@@ -42,9 +42,18 @@ except FileNotFoundError:
           "but if you don't you can leave that blank.")
     exit()
 
+# Credentials
+load_dotenv('.env')
+
+if not os.getenv("BOT_TOKEN"):
+    raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
+if not os.getenv("TRACEBACK_LOGGING_CHANNEL") or not os.getenv("BOT_TEST_CHANNEL"):
+    raise discord.LoginFailure("Add the IDs for a logging channel and a tracebacks channel into the .env file "
+                               "in your bot folder.")
+
 # Change these two values to channel IDs in your testing server if you are forking the bot
-TRACEBACK_LOGGING_CHANNEL = os.getenv("TRACEBACK_LOGGING_CHANNEL")
-BOT_TEST_CHANNEL = os.getenv("BOT_TEST_CHANNEL")
+TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
+BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 
 t_start = datetime.now()
 
@@ -414,8 +423,8 @@ bot = Rai()
 if "Rai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
     bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
 elif "ForkedRai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
-    bot.run(os.getenv("BOT_TOKEN") + '4')  # Rai
-elif "Local" in os.path.basename(dir_path) and "Ryry013" in dir_path:
-    bot.run(os.getenv("BOT_TOKEN") + '4')  # Rai Test
+    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai
+elif "local" in os.path.basename(dir_path) and "Ryry013" in dir_path:
+    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
 else:
     bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
