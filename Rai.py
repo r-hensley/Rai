@@ -236,7 +236,8 @@ class Rai(Bot):
                 await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
         """
 
-        self.database_backups.start()
+        if not self.database_backups.is_running():
+            self.database_backups.start()
 
     @tasks.loop(hours=24)
     async def database_backups(self):
