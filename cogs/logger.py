@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, Union
+from typing import Optional, Union, List, Tuple
 
 import os
 
@@ -818,8 +818,8 @@ class Logger(commands.Cog):
         await hf.safe_send(ctx, "```" + config['message'] + "```")
 
     @staticmethod
-    async def make_invites_dict(guild, invites_in: list[discord.Invite]):
-        invites_dict: dict[str: tuple[int, Optional[float]]] = {}
+    async def make_invites_dict(guild, invites_in: List[discord.Invite]):
+        invites_dict: dict[str: Tuple[int, Optional[float]]] = {}
         for invite in invites_in:
             if not invite:
                 continue
