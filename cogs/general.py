@@ -203,6 +203,16 @@ class General(commands.Cog):
         except KeyError:
             pass
 
+        """Owner self mute"""
+        try:
+            if self.bot.selfMute and msg.author.id == self.bot.owner_id:
+                try:
+                    await msg.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+        except AttributeError:
+            pass
+
         """check for servers of banned IDs"""
 
         async def check_guilds():
