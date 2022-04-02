@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import discord
 import asyncio
@@ -167,7 +167,14 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         raise
 
 
-def parse_time(time):
+def parse_time(time) -> (Optional[str], Optional[List[str, str]]):
+    """
+    Parses time from a string and returns a datetime formatted string plus a number of days and hours
+    :param time: a string like "2d3h" or "10h"
+    :return:
+    time_string: A string for the database corresponding to a datetime
+    length: a list with strings [days, hours]
+    """
     time_re = re.search('(\d+d\d+h)|(\d+d)|(\d+h)', time)
     if time_re:
         if time_re.group(1):  # format: #d#h

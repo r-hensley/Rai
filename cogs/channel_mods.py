@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 from datetime import datetime, timezone
 
 import discord
@@ -923,7 +923,10 @@ class ChannelMods(commands.Cog):
     async def mute(self, ctx, *, args):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
         args = args.split()
+        # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
 
+        # this function sets the permissions for the Rai_mute role in all the channels
+        # returns a list of channel name strings
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -989,42 +992,47 @@ class ChannelMods(commands.Cog):
         time: Optional[str] = None
         time_obj: Optional[datetime] = None
         length: Optional[str, str] = None
-        new_args = args.copy()
+        new_args = args.copy()  # temporarily create new_args list for modification, will set back to args later
+
+        # this iterates through the list of arguments searching for IDs and time strings
+        # if it finds any, it removes them from the list, leaving just the reason in the end
         for arg in args:
-            if not re_result:
-                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
+            if not re_result:  # starts as None, this might not be None later
+                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)  # pulls out IDs
                 if re_result:
                     user_id = int(re_result.group(1))
-                    target = ctx.guild.get_member(user_id)
+                    target: Optional[discord.Member] = ctx.guild.get_member(user_id)
                     new_args.remove(arg)
                     continue
 
-            if not time_string:
+            if not time_string:  # starts as None, this might not be None later
                 # time_string = "%Y/%m/%d %H:%M UTC"
                 # length = a list: [days: str, hours: str]
                 time_string, length = hf.parse_time(arg)  # time_string: str
                 if time_string:
                     time = arg
                     new_args.remove(arg)
+                    # get a datetime and add timezone info to it (necessary for d.py)
                     time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
 
+        # for channel helpers, limit time to three hours
         if not hf.submod_check(ctx):
-            if time_string:
+            if time_string:  # if the channel helper specified a time for the mute
                 days = int(length[0])
                 hours = int(length[1])
                 total_hours = hours + days * 24
                 if total_hours > 3:
-                    time_string = None
+                    time_string = None  # temporarily set to indefinite mute (triggers next line of code)
 
-            if not time_string:
+            if not time_string:  # if the channel helper did NOT specify a time for the mute
                 time = '3h'
                 time_string, length = hf.parse_time(time)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 3h.")
 
-        args = new_args
+        args: List[str] = new_args  # sets "args" list to the "new_args" list which has ID/time_str removed
 
         if not target:
             try:
@@ -1034,10 +1042,16 @@ class ChannelMods(commands.Cog):
                 pass
             return
 
+        # ####### Prevent multiple mutes/modlog entries for spamming #######
+
         try:
+            # get last item in user's modlog
             last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
+            # time of last item in user's modlog
             event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            # if last modlog was a mute and was less than 70 seconds ago
             if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                # and if that last modlog's reason started with "Antispam"
                 if last_modlog['reason'].startswith("Antispam"):
                     return  # Prevents multiple mute calls for spammed text
         except (KeyError, IndexError):
