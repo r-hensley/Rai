@@ -296,10 +296,10 @@ class Rai(Bot):
             command = ctx.command.qualified_name
             try:
                 await ctx.send(f"I couldn't execute the command.  I probably have a bug.  "
-                               f"This has been reported to Ryan.")
+                               f"This has been reported to the bot owner.")
             except discord.Forbidden:
                 await ctx.author.send(f"I tried doing something but I lack permissions to send messages.  "
-                                      f"I probably have a bug.  This has been reported to Ryan.")
+                                      f"I probably have a bug.  This has been reported to the bot owner.")
             pass
 
         elif isinstance(error, commands.CommandNotFound):
@@ -365,7 +365,7 @@ class Rai(Bot):
             return
 
         elif isinstance(error, commands.NotOwner):
-            await ctx.send(f"Only Ryan can do that.")
+            await ctx.send(f"Only the bot owner can do that.")
             return
 
         print(datetime.now())
