@@ -167,7 +167,7 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         raise
 
 
-def parse_time(time) -> (Optional[str], Optional[List[str, str]]):
+def parse_time(time) -> (Optional[str], Optional[List[str]]):
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
     :param time: a string like "2d3h" or "10h"
