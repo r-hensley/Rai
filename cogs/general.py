@@ -2333,10 +2333,10 @@ class General(commands.Cog):
     @hf.is_voicemod()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def voicemute(self, ctx, *, args):
-        """Mutes a user.  Syntax: `;voicemute <time> <member> [reason]`.
+        """Mutes a user.  Syntax: `;voicemute [time] <member> [reason]`.
         Example: `;voicemute 1d2h Abelian`"""
         # async def voicemute(self, ctx, time, member=None, *, reason=None):
-        args = args.split()
+        args_list = args.split()
 
         async def set_channel_overrides(role):
             failed_channels = []
@@ -2368,14 +2368,16 @@ class General(commands.Cog):
         target: Optional[discord.Member] = None
         time: Optional[str] = None
         length: Optional[str, str] = None
-        new_args = args.copy()
-        for arg in args:
+        new_args = args_list.copy()
+        for arg in args_list:
             if not re_result:
                 re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
                 if re_result:
                     user_id = int(re_result.group(1))
                     target = ctx.guild.get_member(user_id)
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
                     continue
 
             if not time_string:
@@ -2385,9 +2387,16 @@ class General(commands.Cog):
                 if time_string:
                     time = arg
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
                     continue
-        args = new_args
-        reason = ' '.join(args)
+
+        reason = args
+        counter = 0
+        while reason[0] == "\n" and counter < 10:
+            reason = reason[1:]
+            counter += 1
+
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
@@ -2424,7 +2433,7 @@ class General(commands.Cog):
         if not time_string:
             time = '0d1h'
             time_string, length = hf.parse_time(time)
-            await hf.safe_send(ctx, "Voicemute duration was not provided. Duration set to 1 hour.")
+            await hf.safe_send(ctx, "Voicemute duration was not provided. Voicemute duration set to 1 hour.")
 
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
