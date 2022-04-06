@@ -3,7 +3,7 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-from datetime import timedelta
+from datetime import timedelta, timezone
 from .utils import helper_functions as hf
 import re
 from Levenshtein import distance as LDist
@@ -2337,17 +2337,6 @@ class General(commands.Cog):
         Example: `;voicemute 1d2h Abelian`"""
         # async def voicemute(self, ctx, time, member=None, *, reason=None):
         args = args.split()
-        if len(args) < 2:
-            await hf.safe_send(ctx, "Please check your syntax, you're missing some arguments")
-            return
-        elif len(args) == 2:
-            time = args[0]
-            member = args[1]
-            reason = None
-        else:
-            time = args[0]
-            member = args[1]
-            reason = " ".join(args[2:])
 
         async def set_channel_overrides(role):
             failed_channels = []
@@ -2374,15 +2363,31 @@ class General(commands.Cog):
             role = ctx.guild.get_role(config['role'])
             await set_channel_overrides(role)
 
-        time_string, length = hf.parse_time(str(time))
-        if not time_string:  # indefinite mute
-            if not reason:
-                reason = ''
-            if member:
-                reason = f"{member} {reason}"
-            member = time
-            time = None
+        re_result = None
+        time_string: Optional[str] = None
+        target: Optional[discord.Member] = None
+        time: Optional[str] = None
+        length: Optional[str, str] = None
+        new_args = args.copy()
+        for arg in args:
+            if not re_result:
+                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
+                if re_result:
+                    user_id = int(re_result.group(1))
+                    target = ctx.guild.get_member(user_id)
+                    new_args.remove(arg)
+                    continue
 
+            if not time_string:
+                # time_string = "%Y/%m/%d %H:%M UTC"
+                # length = a list: [days: str, hours: str]
+                time_string, length = hf.parse_time(arg)  # time_string: str
+                if time_string:
+                    time = arg
+                    new_args.remove(arg)
+                    continue
+        args = new_args
+        reason = ' '.join(args)
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
@@ -2391,12 +2396,6 @@ class General(commands.Cog):
                 reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
                 silent = True
 
-        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)
-        if re_result:
-            id = int(re_result.group(1))
-            target = ctx.guild.get_member(id)
-        else:
-            target = None
         if not target:
             await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
                                     "a mention to the user (this is to prevent mistaking people).")
@@ -2422,18 +2421,19 @@ class General(commands.Cog):
                             break
                         except discord.Forbidden:
                             pass
+        if not time_string:
+            time = '0d1h'
+            time_string, length = hf.parse_time(time)
+            await hf.safe_send(ctx, "Voicemute duration was not provided. Duration set to 1 hour.")
 
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
-
         notif_text = f"**{target.name}#{target.discriminator}** has been **voice muted** from voice chat."
         if time_string:
-            notif_text = notif_text[:-1] + f" for {time}."
+            notif_text = notif_text[:-1] + f" for {length[0]}d{length[1]}h."
         if reason:
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)
-        if time_string:
-            emb.description = emb.description + f" for {length[0]}d{length[1]}h."
         if silent:
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)
