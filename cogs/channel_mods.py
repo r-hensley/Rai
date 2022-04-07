@@ -922,8 +922,8 @@ class ChannelMods(commands.Cog):
     @commands.max_concurrency(1, commands.BucketType.member)
     async def mute(self, ctx, *, args):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-        args = args.split()
         # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
+        args_list = args.split()
 
         # this function sets the permissions for the Rai_mute role in all the channels
         # returns a list of channel name strings
@@ -992,26 +992,27 @@ class ChannelMods(commands.Cog):
         time: Optional[str] = None
         time_obj: Optional[datetime] = None
         length: Optional[str, str] = None
-        new_args = args.copy()  # temporarily create new_args list for modification, will set back to args later
-
-        # this iterates through the list of arguments searching for IDs and time strings
-        # if it finds any, it removes them from the list, leaving just the reason in the end
-        for arg in args:
-            if not re_result:  # starts as None, this might not be None later
-                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)  # pulls out IDs
+        new_args = args_list.copy()
+        for arg in args_list:
+            if not re_result:
+                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
                 if re_result:
                     user_id = int(re_result.group(1))
-                    target: Optional[discord.Member] = ctx.guild.get_member(user_id)
+                    target = ctx.guild.get_member(user_id)
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
                     continue
 
-            if not time_string:  # starts as None, this might not be None later
+            if not time_string:
                 # time_string = "%Y/%m/%d %H:%M UTC"
                 # length = a list: [days: str, hours: str]
                 time_string, length = hf.parse_time(arg)  # time_string: str
                 if time_string:
                     time = arg
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
                     # get a datetime and add timezone info to it (necessary for d.py)
                     time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
@@ -1031,8 +1032,7 @@ class ChannelMods(commands.Cog):
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 3h.")
-
-        args: List[str] = new_args  # sets "args" list to the "new_args" list which has ID/time_str removed
+        args_list: List[str] = new_args  # sets "args" list to the "new_args" list which has ID/time_str removed
 
         if not target:
             try:
@@ -1057,7 +1057,12 @@ class ChannelMods(commands.Cog):
         except (KeyError, IndexError):
             pass
 
-        reason = ' '.join(args)
+        reason = args
+        counter = 0
+        while reason[0] == "\n" and counter < 10:
+            reason = reason[1:]
+            counter += 1
+
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
@@ -1109,9 +1114,9 @@ class ChannelMods(commands.Cog):
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
 
-        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat.\n"
+        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat."
         if time_string:
-            notif_text = f"{notif_text[:-2]} for {time}.\n"
+            notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h."
         if reason:
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)

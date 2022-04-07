@@ -3,7 +3,7 @@ from typing import Optional, List
 
 import discord
 from discord.ext import commands
-from datetime import timedelta
+from datetime import timedelta, timezone
 from .utils import helper_functions as hf
 import re
 from Levenshtein import distance as LDist
@@ -2333,25 +2333,9 @@ class General(commands.Cog):
     @hf.is_voicemod()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def voicemute(self, ctx, *, args):
-        """Mutes a user.  Syntax: `;voicemute <time> <member> [reason]`.
+        """Mutes a user.  Syntax: `;voicemute [time] <member> [reason]`.
         Example: `;voicemute 1d2h 12345678901234567`"""
-        args = args.split()
-        # args is a list of arguments
-        # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
-
-        if len(args) < 2:
-            await hf.safe_send(ctx, "Please check your syntax, you're missing either the user ID "
-                                    "or the time (like 1d2h)")
-            return
-        elif len(args) == 2:  # example: ;vm 1d2h 12345678901234567
-            # Optional[str] means the variable must be either a str or None
-            time: Optional[str] = args[0]  # a string like "1d2h"
-            member: Optional[str] = args[1]  # can be either a raw ID or a mention to the user
-            reason = None
-        else:  # there are more than two args, so there's a reason
-            time = args[0]
-            member = args[1]
-            reason = " ".join(args[2:])
+        args_list = args.split()
 
         # this function sets the permissions for the Rai_mute role in all the channels
         # returns a list of channel name strings
@@ -2384,16 +2368,39 @@ class General(commands.Cog):
             role = ctx.guild.get_role(config['role'])
             await set_channel_overrides(role)  # check to see if there's any new channels Rai can set permissions in
 
-        # time_string is like finish_time.strftime("%Y/%m/%d %H:%M UTC"), so for example 2022/04/01 08:00 UTC
-        # length is a list of [days, hours]
-        time_string, length = hf.parse_time(str(time))
-        if not time_string:  # indefinite mute
-            if not reason:
-                reason = ''
-            if member:
-                reason = f"{member} {reason}"
-            member = time
-            time = None
+        re_result = None
+        time_string: Optional[str] = None
+        target: Optional[discord.Member] = None
+        time: Optional[str] = None
+        length: Optional[str, str] = None
+        new_args = args_list.copy()
+        for arg in args_list:
+            if not re_result:
+                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
+                if re_result:
+                    user_id = int(re_result.group(1))
+                    target = ctx.guild.get_member(user_id)
+                    new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
+                    continue
+
+            if not time_string:
+                # time_string = "%Y/%m/%d %H:%M UTC"
+                # length = a list: [days: str, hours: str]
+                time_string, length = hf.parse_time(arg)  # time_string: str
+                if time_string:
+                    time = arg
+                    new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
+                    continue
+
+        reason = args
+        counter = 0
+        while reason[0] == "\n" and counter < 10:
+            reason = reason[1:]
+            counter += 1
 
         silent = False
         if reason:
@@ -2406,11 +2413,8 @@ class General(commands.Cog):
                 reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')  # remove flag from reason
                 silent = True  # a variable to be used later
 
-        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', member)  # pulls ID out of a mention
-        if re_result:
-            user_id: int = int(re_result.group(1))  # group 1 is the first parenthesis in the regex, so the ID
-            target: Optional[discord.Member] = ctx.guild.get_member(user_id)
-        else:
+
+        if not target:
             await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
                                     "a mention to the user (this is to prevent mistaking people).")
             return
@@ -2436,22 +2440,18 @@ class General(commands.Cog):
                             break
                         except discord.Forbidden:
                             pass
+        if not time_string:
+            time = '0d1h'
+            time_string, length = hf.parse_time(time)
+            await hf.safe_send(ctx, "Voicemute duration was not provided. Voicemute duration set to 1 hour.")
 
-        # ###### Send confirmation of mute to context of command ######
-
-        # notif_text is the text that will go in the embed sent to the context of the mute as a confirmation
         notif_text = f"**{target.name}#{target.discriminator}** has been **voice muted** from voice chat."
-
-        if time_string:  # is a timed mute, time_string is like "2022/04/01 08:00 UTC"
-            notif_text = notif_text[:-1] + f" for {time}."  # remove period at end of string, add "for time"
-
+        if time_string:
+            notif_text = notif_text[:-1] + f" for {length[0]}d{length[1]}h."
         if reason:
             notif_text += f"\nReason: {reason}"
-
         emb = hf.red_embed(notif_text)
 
-        if time_string:
-            emb.description = emb.description + f" for {length[0]}d{length[1]}h."
         if silent:
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)
