@@ -615,7 +615,6 @@ class ChannelMods(commands.Cog):
             # Check DB for voice mute entry
             voice_muted = False
             voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            print(1)
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
@@ -854,9 +853,12 @@ class ChannelMods(commands.Cog):
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
-    async def modlog_delete(self, ctx, user, index):
-        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
+    async def modlog_delete(self, ctx, user, *, index):
+        """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
+
+        indexes = index.split()
+
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
@@ -869,19 +871,71 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
+
+        # Performs the deletions:
         if index in ['-a', '-all']:
             del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
             await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
-        else:
+
+        elif len(indexes) == 1:  # If there is a single argument given, then:
             try:
                 del config[int(index) - 1]
-            except IndexError:
-                await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
+            except IndexError:  # Except if the index given is not found in config:
+                await hf.safe_send(ctx, f"I couldn't find the log **#{index}**, try doing `;modlog` on the user.")
                 return
-            except ValueError:
-                await hf.safe_send(ctx, "Sorry I couldn't  understand what you were trying to do")
+            except ValueError:  # Or if the index given is not an integer:
+                await hf.safe_send(ctx, f"The index **{index}** is invalid.\n"
+                                        f"Please write numeric indexes equal to or greater than 1 or "
+                                        f"`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
+
+        elif len(indexes) > 1:  # If there are more than one indexes given.
+            invalid_indexes: Optional[list] = []
+            try:  # Tries to sort it alphabetically.
+                indexes.sort(key=int)
+            except ValueError:  # But if there are non-numeric indexes:
+                indexes_copy = indexes.copy()
+                for index in indexes_copy:  # Searches for them.
+                    if index.isdigit() is True:
+                        pass
+                    if index.isdigit() is False:  # If found, it removes them from 'indexes' and adds them to...
+                        invalid_indexes.append(index)                                           # ...'invalid_indexes'.
+                        indexes.remove(index)
+            indexes.sort(key=int)  # Sorts it alphabetically again for if there was a ValueError before.
+            removed_indexes: Optional[list] = []
+            not_found_indexes: Optional[list] = []
+            n = 1
+            for index in indexes:
+                try:
+                    del config[int(index) - n]
+                    n += 1
+                    removed_indexes.append(index)  # For every successfully deleted log, appends the index to the list.
+                except IndexError:
+                    not_found_indexes.append(index)  # For every non-found log, appends the index to the list.
+
+            await ctx.message.add_reaction('✅')
+
+            # Prepares emb to send:
+            summary_text = f"Task completed."
+            if removed_indexes:
+                removed_indexes = ["**#" + i + "**," for i in removed_indexes]
+                rmv_indx_str = ' '.join(removed_indexes)
+                summary_text = summary_text + f"\n**-** Removed entries: {rmv_indx_str[:-1]}."
+            if not_found_indexes:
+                not_found_indexes = ["**#" + i + "**," for i in not_found_indexes]
+                n_fnd_indx_str = ' '.join(not_found_indexes)
+                summary_text = summary_text + f"\n**-** Not found entries: {n_fnd_indx_str[:-1]}."
+            if invalid_indexes:
+                invalid_indexes = ["**" + i + "**," for i in invalid_indexes]
+                inv_indx_str = ' '.join(invalid_indexes)
+                summary_text = summary_text + f"\n**-** Invalid indexes: {inv_indx_str[:-1]}."
+            emb = hf.green_embed(summary_text)
+            await hf.safe_send(ctx, embed=emb)
+
+        else:  # if no number is given:
+            await hf.safe_send(ctx, "Please write numeric indexes equal to or greater than 1 or "
+                                    "`-all` to clear the user's modlog.")
 
     @modlog.command(name="edit", aliases=['reason'])
     @hf.is_admin()
