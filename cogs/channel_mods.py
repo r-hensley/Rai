@@ -879,17 +879,17 @@ class ChannelMods(commands.Cog):
 
         # Performs the deletions:
         if '-a' in indexes or '-all' in indexes:  # If any of these flags is found in the list:
-            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clears the modlog...
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
             await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
 
         elif len(indexes) == 1:  # If there is a single argument given, then:
             try:
                 del config[int(index) - 1]  # delete it from modlog...
             except IndexError:  # except if the index given is not found in config...
-                await hf.safe_send(ctx, f"I couldn't find the log **#{index}**, try doing `;modlog` on the user.")
+                await hf.safe_send(ctx, f"I couldn't find the log #**{index}**, try doing `;modlog` on the user.")
                 return
             except ValueError:  # or if the index given is not an integer...
-                await hf.safe_send(ctx, f"The index **{index}** is invalid.\n"
+                await hf.safe_send(ctx, f"The given index is invalid.\n"
                                         f"Please write numeric indexes equal to or greater than 1 or "
                                         f"`-all` to clear the user's modlog.")
                 return
@@ -897,17 +897,17 @@ class ChannelMods(commands.Cog):
 
         elif len(indexes) > 1:  # If there are more than one indexes given:
             invalid_indexes: Optional[list] = []
-            try:  # Tries to sort it alphabetically...
+            try:  # Try to sort it alphabetically...
                 indexes.sort(key=int)
             except ValueError:  # but if there are non-numeric indexes...
-                indexes_copy = indexes.copy()  # (creates a copy of the list to avoid errors in the for loop.)
-                for index in indexes_copy:  # searches for the non-numeric indexes:
+                indexes_copy = indexes.copy()  # (create a copy of the list to avoid errors in the for loop.)
+                for index in indexes_copy:  # search for the non-numeric indexes:
                     if index.isdigit() is True:
                         pass
                     if index.isdigit() is False:  # if found...
                         invalid_indexes.append(index)  # add them to 'invalid_indexes'...
                         indexes.remove(index)  # remove them from 'indexes'.
-            indexes.sort(key=int)  # Sorts it alphabetically again for if there was a ValueError before.
+            indexes.sort(key=int)  # Sort it alphabetically again for if there was a ValueError before.
             removed_indexes: Optional[list] = []
             not_found_indexes: Optional[list] = []
             n = 1
@@ -917,16 +917,16 @@ class ChannelMods(commands.Cog):
                         del config[int(index) - n]  # delete them from the user's modlog.
                         n += 1  # (For every deleted log, the next ones will be shifted by -1. Therefore,
                                 # add 1 every time a log gets deleted to counter that.)
-                        removed_indexes.append(index)  # for every successfully deleted log, appends
+                        removed_indexes.append(index)  # for every successfully deleted log, append
                                                        # the index to the corresponding 'removed_indexes' list.
                     elif int(index) <= 0:  # If the index is equal to or smaller than zero (forbidden values)...
-                        invalid_indexes.append(index)  # appends it to the 'invalid_indexes' list.
+                        invalid_indexes.append(index)  # append it to the 'invalid_indexes' list.
                 except IndexError:  #  If the value is legal but the corresponding log wasn't found in config...
-                    not_found_indexes.append(index)  # appends the index to the 'not_found_indexes' list.
+                    not_found_indexes.append(index)  # append the index to the 'not_found_indexes' list.
 
             await ctx.message.add_reaction('✅')
 
-            # Prepares emb to send:
+            # Prepare emb to send:
             summary_text = f"Task completed."
 
             if removed_indexes:  # If it removed logs in config:
