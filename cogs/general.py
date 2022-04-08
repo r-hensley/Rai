@@ -2397,10 +2397,13 @@ class General(commands.Cog):
                     continue
 
         reason = args
-        counter = 0
-        while reason[0] == "\n" and counter < 10:
-            reason = reason[1:]
-            counter += 1
+        try:
+            counter = 0
+            while reason[0] == "\n" and counter < 10:
+                reason = reason[1:]
+                counter += 1
+        except IndexError:
+            pass
 
         silent = False
         if reason:
@@ -2451,7 +2454,6 @@ class General(commands.Cog):
         if reason:
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)
-
         if silent:
             emb.description += " (The user was not notified of this)"
         await hf.safe_send(ctx, embed=emb)

@@ -1112,10 +1112,13 @@ class ChannelMods(commands.Cog):
             pass
 
         reason = args
-        counter = 0
-        while reason[0] == "\n" and counter < 10:
-            reason = reason[1:]
-            counter += 1
+        try:
+            counter = 0
+            while reason[0] == "\n" and counter < 10:
+                reason = reason[1:]
+                counter += 1
+        except IndexError:
+            pass
 
         silent = False
         if reason:
