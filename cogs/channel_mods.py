@@ -908,9 +908,13 @@ class ChannelMods(commands.Cog):
             n = 1
             for index in indexes:
                 try:
-                    del config[int(index) - n]
-                    n += 1
-                    removed_indexes.append(index)  # For every successfully deleted log, appends the index to the list.
+                    if int(index) > 0:
+                        del config[int(index) - n]
+                        n += 1
+                        removed_indexes.append(index)  # For every successfully deleted log, appends
+                                                       # the index to the list.
+                    elif int(index) <= 0:
+                        invalid_indexes.append(index)
                 except IndexError:
                     not_found_indexes.append(index)  # For every non-found log, appends the index to the list.
 
