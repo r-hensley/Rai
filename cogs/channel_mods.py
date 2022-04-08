@@ -857,7 +857,12 @@ class ChannelMods(commands.Cog):
         """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
 
-        indexes = index.split()
+        indexes = index.split()  # Creates a list from the prompted argument of the command.
+        not_duplicated = indexes.copy()  # Removing duplicates from the list.
+        indexes = []
+        for i in not_duplicated:
+            if i not in indexes:
+                indexes.append(i)
 
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
@@ -873,71 +878,110 @@ class ChannelMods(commands.Cog):
         config = config[user_id]
 
         # Performs the deletions:
-        if index in ['-a', '-all']:
-            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
+        if '-a' in indexes or '-all' in indexes:  # If any of these flags is found in the list:
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clears the modlog...
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
 
         elif len(indexes) == 1:  # If there is a single argument given, then:
             try:
-                del config[int(index) - 1]
-            except IndexError:  # Except if the index given is not found in config:
+                del config[int(index) - 1]  # delete it from modlog...
+            except IndexError:  # except if the index given is not found in config...
                 await hf.safe_send(ctx, f"I couldn't find the log **#{index}**, try doing `;modlog` on the user.")
                 return
-            except ValueError:  # Or if the index given is not an integer:
+            except ValueError:  # or if the index given is not an integer...
                 await hf.safe_send(ctx, f"The index **{index}** is invalid.\n"
                                         f"Please write numeric indexes equal to or greater than 1 or "
                                         f"`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
 
-        elif len(indexes) > 1:  # If there are more than one indexes given.
+        elif len(indexes) > 1:  # If there are more than one indexes given:
             invalid_indexes: Optional[list] = []
-            try:  # Tries to sort it alphabetically.
+            try:  # Tries to sort it alphabetically...
                 indexes.sort(key=int)
-            except ValueError:  # But if there are non-numeric indexes:
-                indexes_copy = indexes.copy()
-                for index in indexes_copy:  # Searches for them.
+            except ValueError:  # but if there are non-numeric indexes...
+                indexes_copy = indexes.copy()  # (creates a copy of the list to avoid errors in the for loop.)
+                for index in indexes_copy:  # searches for the non-numeric indexes:
                     if index.isdigit() is True:
                         pass
-                    if index.isdigit() is False:  # If found, it removes them from 'indexes' and adds them to...
-                        invalid_indexes.append(index)                                           # ...'invalid_indexes'.
-                        indexes.remove(index)
+                    if index.isdigit() is False:  # if found...
+                        invalid_indexes.append(index)  # add them to 'invalid_indexes'...
+                        indexes.remove(index)  # remove them from 'indexes'.
             indexes.sort(key=int)  # Sorts it alphabetically again for if there was a ValueError before.
             removed_indexes: Optional[list] = []
             not_found_indexes: Optional[list] = []
             n = 1
-            for index in indexes:
+            for index in indexes:  # For every index in the list...
                 try:
-                    if int(index) > 0:
-                        del config[int(index) - n]
-                        n += 1
-                        removed_indexes.append(index)  # For every successfully deleted log, appends
-                                                       # the index to the list.
-                    elif int(index) <= 0:
-                        invalid_indexes.append(index)
-                except IndexError:
-                    not_found_indexes.append(index)  # For every non-found log, appends the index to the list.
+                    if int(index) > 0:  # and if they are larger than zero:
+                        del config[int(index) - n]  # delete them from the user's modlog.
+                        n += 1  # (For every deleted log, the next ones will be shifted by -1. Therefore,
+                                # add 1 every time a log gets deleted to counter that.)
+                        removed_indexes.append(index)  # for every successfully deleted log, appends
+                                                       # the index to the corresponding 'removed_indexes' list.
+                    elif int(index) <= 0:  # If the index is equal to or smaller than zero (forbidden values)...
+                        invalid_indexes.append(index)  # appends it to the 'invalid_indexes' list.
+                except IndexError:  #  If the value is legal but the corresponding log wasn't found in config...
+                    not_found_indexes.append(index)  # appends the index to the 'not_found_indexes' list.
 
             await ctx.message.add_reaction('✅')
 
             # Prepares emb to send:
             summary_text = f"Task completed."
-            if removed_indexes:
-                removed_indexes = ["**#" + i + "**," for i in removed_indexes]
-                rmv_indx_str = ' '.join(removed_indexes)
-                summary_text = summary_text + f"\n**-** Removed entries: {rmv_indx_str[:-1]}."
-            if not_found_indexes:
-                not_found_indexes = ["**#" + i + "**," for i in not_found_indexes]
-                n_fnd_indx_str = ' '.join(not_found_indexes)
-                summary_text = summary_text + f"\n**-** Not found entries: {n_fnd_indx_str[:-1]}."
-            if invalid_indexes:
-                invalid_indexes = ["**" + i + "**," for i in invalid_indexes]
-                inv_indx_str = ' '.join(invalid_indexes)
-                summary_text = summary_text + f"\n**-** Invalid indexes: {inv_indx_str[:-1]}."
-            emb = hf.green_embed(summary_text)
-            await hf.safe_send(ctx, embed=emb)
 
-        else:  # if no number is given:
+            if removed_indexes:  # If it removed logs in config:
+                removed_indexes = ["#**" + i + "**," for i in removed_indexes]  # format it...
+                rmv_indx_str = ' '.join(removed_indexes)  # change it to string...
+                summary_text = summary_text + f"\n**-** Removed entries: {rmv_indx_str[:-1]}."  # add it to the text.
+
+            if not_found_indexes:  # If there were indexes with no match in the config modlog:
+                if len(not_found_indexes) <= 10:  # If they are less than ten...
+                    not_found_indexes = ["#**" + i + "**," for i in not_found_indexes]  # format it...
+                    n_fnd_indx_str = ' '.join(not_found_indexes)  # change it to string...
+                    summary_text = summary_text + f"\n**-** Not found " \
+                                                  f"entries: {n_fnd_indx_str[:-1]}."  # add it to the text.
+                if len(not_found_indexes) > 10:  # If they are more than ten...
+                    n_fnd_indx_str: Optional[List] = []  # define an empty list...
+                    n = 1
+                    for index in not_found_indexes:  # for every not found index...
+                        index = "#**" + index + "**,"  # format it (it's a string)...
+                        n_fnd_indx_str.append(index)  # append it to the empty list...
+                        n += 1
+                        if n > 10:  # up to 10 times...
+                            break
+                    n_fnd_indx_str = ' '.join(n_fnd_indx_str) # change the list to a string...
+                    summary_text = summary_text + f"\n**-** Invalid indexes: {n_fnd_indx_str[:-1]} and " \
+                                                  f"{len(not_found_indexes) - 10} more..."  # add it to the text.
+
+            if invalid_indexes:  # If invalid indexes were found (TypeError or <= 0):
+                invalid_indexes = sorted(invalid_indexes, key=str)  # sort them alphabetically (aesthetics)...
+                for index in invalid_indexes:  # Make it so that every str in the list has a single character:
+                    if len(index) > 1:
+                        x = invalid_indexes[invalid_indexes.index(index)].replace(index, index[0])
+                            # set a str equals to the first character of the str of a given index of the list
+                        invalid_indexes[invalid_indexes.index(index)] = x.lower()
+                            # make it lowercase (aesthetics) and set the element of that given index equals to it
+                if len(invalid_indexes) <= 10:  # same process as for not_found_indexes if they are less than ten.
+                    invalid_indexes = ["**" + i + "**," for i in invalid_indexes]
+                    inv_indx_str = ' '.join(invalid_indexes)
+                    summary_text = summary_text + f"\n**-** Invalid indexes: {inv_indx_str[:-1]}."
+                if len(invalid_indexes) > 10:  # And same process as for not_found_indexes if they are more than ten.
+                    inv_indx_str: Optional[list] = []
+                    n = 1
+                    for index in invalid_indexes:
+                        index = "**" + index + "**,"
+                        inv_indx_str.append(index)
+                        n += 1
+                        if n > 10:
+                            break
+                    inv_indx_str = ' '.join(inv_indx_str)
+                    summary_text = summary_text + f"\n**-** Invalid indexes: {inv_indx_str[:-1]} and " \
+                                                  f"{len(invalid_indexes) - 10} more..."
+
+            emb = hf.green_embed(summary_text)  # Make the embed with the summary text previously built.
+            await hf.safe_send(ctx, embed=emb)  # Send the embed.
+
+        else:  # If no index is given:
             await hf.safe_send(ctx, "Please write numeric indexes equal to or greater than 1 or "
                                     "`-all` to clear the user's modlog.")
 
