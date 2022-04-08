@@ -615,7 +615,6 @@ class ChannelMods(commands.Cog):
             # Check DB for voice mute entry
             voice_muted = False
             voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            print(1)
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
@@ -854,9 +853,17 @@ class ChannelMods(commands.Cog):
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
-    async def modlog_delete(self, ctx, user, index):
-        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
+    async def modlog_delete(self, ctx, user, *, indices=""):
+        """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
+        if not indices:  # If no index is given:
+            await hf.safe_send(ctx, "Please write numeric indices equal to or greater than 1 or "
+                                    "`-all` to clear the user's modlog.")
+            return
+
+        indices = indices.split()  # Creates a list from the prompted argument of the command.
+        indices = list(set(indices))  # Removing duplicates from the list.
+
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
@@ -868,20 +875,94 @@ class ChannelMods(commands.Cog):
         if user_id not in config:
             await hf.safe_send(ctx, "That user was not found in the modlog")
             return
-        config = config[user_id]
-        if index in ['-a', '-all']:
-            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
-        else:
+
+        config: dict = config[user_id]
+
+        # Performs the deletions:
+        if '-a' in indices or '-all' in indices:  # If any of these flags is found in the list:
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
+
+        elif len(indices) == 1:  # If there is a single argument given, then:
             try:
-                del config[int(index) - 1]
-            except IndexError:
-                await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
+                del config[int(indices[0]) - 1]  # delete it from modlog...
+            except IndexError:  # except if the index given is not found in config...
+                await hf.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
                 return
-            except ValueError:
-                await hf.safe_send(ctx, "Sorry I couldn't  understand what you were trying to do")
+            except ValueError:  # or if the index given is not an integer...
+                await hf.safe_send(ctx, f"The given index is invalid.\n"
+                                        f"Please write numeric indices equal to or greater than 1 or "
+                                        f"`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
+
+        else:  # -all was not called, and so there are specific indices to delete:
+            def invalid_indices_check(check_index):
+                """For indices that are strings or not greater than 0"""
+                if not check_index.isdigit():  # is not a digit
+                    return True
+                else:  # now is a digit
+                    if int(check_index) < 1:  # if index is 0 or negative
+                        return True
+
+            def not_found_check(check_index, config):
+                """For indices not in config"""
+                if check_index.isdigit():
+                    if int(check_index) >= len(config):
+                        return True  # called index is out of range of list
+
+            def indices_check(check_index, not_found):
+                if check_index.isdigit() and check_index not in not_found:
+                    if int(check_index) >= 1:
+                        return True
+
+            invalid_indices: list = [i for i in indices
+                                     if invalid_indices_check(i)]  # list of non-digit arguments
+            not_found_indices: list = [i for i in indices
+                                       if not_found_check(i, config)]  # list of indices not found in modlog
+            indices: list = [i for i in indices
+                             if indices_check(i, not_found_indices)]  # list of valid arguments
+            removed_indices: list = []  # eventual list of modlog entries successfully removed
+            indices.sort(key=int)  # Sort it numerically
+
+            n = 1
+            for index in indices:  # For every index in the list...
+                del config[int(index) - n]  # delete them from the user's modlog.
+                n += 1  # For every deleted log, the next ones will be shifted by -1. Therefore,
+                # add 1 every time a log gets deleted to counter that.
+                removed_indices.append(index)  # for every successfully deleted log, append
+                # the index to the corresponding 'removed_indexes' list.
+            await ctx.message.add_reaction('✅')
+
+            # Prepare emb to send:
+            summary_text = f"Task completed."
+
+            if removed_indices:  # If it removed logs in config:
+                removed_indices = ["#**" + i + "**" for i in removed_indices]  # format it...
+                rmv_indx_str = f"\n**-** Removed entries: {', '.join(removed_indices)}."  # change it to string...
+                summary_text = summary_text + rmv_indx_str  # add it to the text.
+
+            if not_found_indices:  # If there were indices with no match in the config modlog:
+                not_found_indices = ["#**" + i + "**" for i in not_found_indices[:10]]  # format for first ten indices
+                n_fnd_indx_str = ', '.join(not_found_indices)  # change it to string...
+                summary_text = summary_text + f"\n**-** Not found entries: {n_fnd_indx_str}."  # add it to the text.
+                if len(not_found_indices) > 10:  # If there are more than ten...
+                    summary_text = summary_text[:-1] + f"and {len(not_found_indices) - 10} more..."  # add to the text.
+
+            if invalid_indices:  # If invalid indices were found (TypeError or <= 0):
+                invalid_indices = sorted(invalid_indices, key=str)  # sort them numerically (aesthetics)...
+                invalid_indices = [str(i)[0].lower() for i in invalid_indices[:10]]  # first 10 indices only
+                # set the index equal to the lowercase first character of the str
+
+                # same process as for not_found_indexes for if the length is greater than ten.
+                invalid_indices = ["**" + i + "**" for i in invalid_indices]
+                inv_indx_str = f"\n**-** Invalid indices: {', '.join(invalid_indices)}."
+                summary_text = summary_text + inv_indx_str
+                if len(invalid_indices) > 10:
+                    summary_text = summary_text[:-1] + f" and {len(invalid_indices) - 10} more..."
+
+            emb = hf.green_embed(summary_text)  # Make the embed with the summary text previously built.
+            await hf.safe_send(ctx, embed=emb)  # Send the embed.
 
     @modlog.command(name="edit", aliases=['reason'])
     @hf.is_admin()
@@ -1058,10 +1139,13 @@ class ChannelMods(commands.Cog):
             pass
 
         reason = args
-        counter = 0
-        while reason[0] == "\n" and counter < 10:
-            reason = reason[1:]
-            counter += 1
+        try:
+            counter = 0
+            while reason[0] == "\n" and counter < 10:
+                reason = reason[1:]
+                counter += 1
+        except IndexError:
+            pass
 
         silent = False
         if reason:
