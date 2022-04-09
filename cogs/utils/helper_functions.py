@@ -231,16 +231,29 @@ async def member_converter(ctx, user_in) -> Optional[discord.Member]:
 def _predump_json():
     db_copy = deepcopy(here.bot.db)
     stats_copy = deepcopy(here.bot.stats)
-    shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
-    shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
-    shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+    if not os.path.exists(f'{dir_path}/db_2.json'):
+        # if backup files don't exist yet, create them
+        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
+        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
+        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
+        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
+        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
+    else:
+        # make incremental backups of db.json
+        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
+        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
+        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+
+        # make incremental backups of stats.json
+        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
+        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
+        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
+
     with open(f'{dir_path}/db_temp.json', 'w') as write_file:
         json.dump(db_copy, write_file, indent=4)
     shutil.copy(f'{dir_path}/db_temp.json', f'{dir_path}/db.json')
 
-    shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
-    shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
-    shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
     with open(f'{dir_path}/stats_temp.json', 'w') as write_file:
         json.dump(stats_copy, write_file, indent=1)
     shutil.copy(f'{dir_path}/stats_temp.json', f'{dir_path}/stats.json')
