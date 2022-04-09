@@ -309,12 +309,16 @@ class Submod(commands.Cog):
                 reason += " -s"
                 try:
                     user = await self.bot.fetch_user(id)
+                    await hf.safe_send(ctx,
+                                       f"The user {user} is not a member of this server so I couldn't send the warning."
+                                       f" I've saved it as a log.")
                 except discord.NotFound:
                     user = None
         else:
+            id = None
             user = None
         if not user:
-            await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID or "
+            await hf.safe_send(ctx, "I could not find the user.  For warnings and mutes, please use either an ID or "
                                     "a mention to the user (this is to prevent mistaking people).")
             return
         emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
