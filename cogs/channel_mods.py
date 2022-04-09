@@ -598,9 +598,9 @@ class ChannelMods(commands.Cog):
             # Check DB for mute entry
             muted = False
             unmute_date_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            if unmute_date_str := self.bot.db['mutes']\
-                    .get(str(ctx.guild.id), {})\
-                    .get('timed_mutes', {})\
+            if unmute_date_str := self.bot.db['mutes'] \
+                    .get(str(ctx.guild.id), {}) \
+                    .get('timed_mutes', {}) \
                     .get(user_id, None):
                 muted = True
                 unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
@@ -622,7 +622,8 @@ class ChannelMods(commands.Cog):
                     .get(user_id, None):
                 print(voice_unmute_time_left_str)
                 voice_muted = True
-                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(
+                    tzinfo=timezone.utc)
                 time_left = unmute_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
@@ -905,7 +906,7 @@ class ChannelMods(commands.Cog):
         try:
             old_reason = config[index - 1]['reason']
         except IndexError:
-            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index -1}. Please check it "
+            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
                                     f"and try again.")
         config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
