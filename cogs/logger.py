@@ -575,11 +575,11 @@ class Logger(commands.Cog):
                 emb = hf.red_embed(text)
                 if uncached:
                     text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
-                           f"Those IDs are:\n"
+                           f"I am unable to see who sent messages. The message IDs are:\n"
                     if len(emb.description + text) < 2048:
                         emb.description += text
                     for msg_id in uncached:
-                        if len(emb.description + f"M{msg_id}, ") < 2048:
+                        if len(emb.description + f"{msg_id}, ") < 2048:
                             emb.description += f"M{msg_id}, "
 
         else:
