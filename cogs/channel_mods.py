@@ -240,15 +240,15 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
 
     @commands.command()
-    async def log(self, ctx, user, *, reason="None"):
+    async def log(self, ctx, *, args="None"):
         """Same as `;warn` but it adds `-s` into the reason which makes it just silently log the warning
         without sending a notification to the user."""
         warn = self.bot.get_command('warn')
-        if reason:
-            reason += ' -s'
+        if args:
+            args += ' -s'
         else:
-            reason = ' -s'
-        await ctx.invoke(warn, user, reason=reason)
+            args = ' -s'
+        await ctx.invoke(warn, args=args)
 
     @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     @hf.is_admin()
