@@ -44,72 +44,79 @@ class Submod(commands.Cog):
 
         Helpers on Sp-En server can ban users within an hour after they join the server.
         """
-        args = args.split()
         if not args:
             await hf.safe_send(ctx, ctx.command.help)
             return
 
-        time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
-        user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
-        user_ids: List[int] = []  # list of users to ban
-        timed_ban = None
+        args = hf.args_discriminator(ctx, args)
 
-        # Iterate through beginning arguments taking all IDs and times until you reach the reason
-        for arg in args.copy():
-            print(arg)
-            if user_id_match := re.search(user_regex, arg):
-                user_ids.append(int(user_id_match.group(1)))
-                args.remove(arg)
-            elif t := re.search(time_regex, arg):
-                timed_ban = t
-                args.remove(arg)
-            else:
-                break
-        reason = ' '.join(args)
+        user_ids = args.users
+        reason = args.reason
+        length = args.length
+        time_string = args.time_string
 
-        if not user_ids:
-            await hf.safe_send(ctx, "I could not find where you specified the user. Please check your syntax.")
-            return
-
-        if timed_ban:
-            if years := timed_ban.group(2):
-                years = int(years)
-            else:
-                years = 0
-
-            if days := timed_ban.group(4):
-                days = years * 365 + int(days)
-            else:
-                days = years * 365
-
-            if hours := timed_ban.group(6):
-                hours = int(hours)
-            else:
-                hours = 0
-
-            length = [days, hours]
-
-            try:
-                unban_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
-            except OverflowError:
-                await hf.safe_send(ctx, "Give smaller number please :(")
-                return
-
-            time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
-
-            # """
-            # if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
-            #     length = timed_ban[0][:-1].split('d')
-            #     length = [length[0], length[1]]
-            # elif re.findall('^\d+d$', args[0]):  # format: #d
-            #     length = [timed_ban[0][:-1], '0']
-            # else:  # format: #h
-            #     length = ['0', timed_ban[0][:-1]]
-            # """
-
-        else:
-            length = []
-            time_string = None
+        #
+        # time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
+        # user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
+        # user_ids: List[int] = []  # list of users to ban
+        # timed_ban = None
+        #
+        # # Iterate through beginning arguments taking all IDs and times until you reach the reason
+        # for arg in args.copy():
+        #     print(arg)
+        #     if user_id_match := re.search(user_regex, arg):
+        #         user_ids.append(int(user_id_match.group(1)))
+        #         args.remove(arg)
+        #     elif t := re.search(time_regex, arg):
+        #         timed_ban = t
+        #         args.remove(arg)
+        #     else:
+        #         break
+        # reason = ' '.join(args)
+        #
+        # if not user_ids:
+        #     await hf.safe_send(ctx, "I could not find where you specified the user. Please check your syntax.")
+        #     return
+        #
+        # if timed_ban:
+        #     if years := timed_ban.group(2):
+        #         years = int(years)
+        #     else:
+        #         years = 0
+        #
+        #     if days := timed_ban.group(4):
+        #         days = years * 365 + int(days)
+        #     else:
+        #         days = years * 365
+        #
+        #     if hours := timed_ban.group(6):
+        #         hours = int(hours)
+        #     else:
+        #         hours = 0
+        #
+        #     length = [days, hours]
+        #
+        #     try:
+        #         unban_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
+        #     except OverflowError:
+        #         await hf.safe_send(ctx, "Give smaller number please :(")
+        #         return
+        #
+        #     time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
+        #
+        #     # """
+        #     # if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
+        #     #     length = timed_ban[0][:-1].split('d')
+        #     #     length = [length[0], length[1]]
+        #     # elif re.findall('^\d+d$', args[0]):  # format: #d
+        #     #     length = [timed_ban[0][:-1], '0']
+        #     # else:  # format: #h
+        #     #     length = ['0', timed_ban[0][:-1]]
+        #     # """
+        #
+        # else:
+        #     length = []
+        #     time_string = None
 
         targets: List[discord.Member] = []
         for user_id in user_ids:
