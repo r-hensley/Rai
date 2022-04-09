@@ -632,14 +632,16 @@ def detect_language(text):
 class ModlogEntry:
     def __init__(self,
                  event: str,
-                 member: discord.Member,
+                 user: discord.User,
+                 guild: discord.Guild,
                  ctx: discord.Context = None,
                  length: str = None,
                  reason: str = None,
                  silent: bool = False,
                  ):
         self.event = event
-        self.member = member
+        self.user = user
+        self.guild = guild
         self.ctx = ctx
         self.length = length  # the length of time after which a ban or mute will expire
         self.reason = reason
@@ -654,7 +656,6 @@ class ModlogEntry:
             config = here.bot.db['modlog'].setdefault(str(self.ctx.guild.id),
                                                       {'channel': None})
         else:  # is potentially an automated event, for example a ban, from a discord event
-            guild = self.member.guild
             jump_url = None  # this would be the case for entries that come from the logger module
             if str(guild.id) in here.bot.db['modlog']:
                 config = here.bot.db['modlog'][str(guild.id)]
@@ -662,7 +663,7 @@ class ModlogEntry:
             else:
                 return  # this should only happen from on_member_ban events from logger module
 
-        member_modlog = config.setdefault(str(self.member.id), [])
+        member_modlog = config.setdefault(str(self.user.id), [])
         member_modlog.append({'type': type,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
                               'reason': self.reason,
                               'date': discord.utils.utcnow().strftime(
