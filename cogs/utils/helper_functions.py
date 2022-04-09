@@ -582,7 +582,7 @@ async def uhc_check(msg):
         pass
 
 
-def _pre_load_language_dection_model():
+def _pre_load_language_detection_model():
     english = []
     spanish = []
     if not os.path.exists(f'{dir_path}/cogs/utils/principiante.csv'):
@@ -641,8 +641,8 @@ def detect_language(text):
         return None
 
 
-async def load_language_dection_model():
-    await _loop.run_in_executor(None, _pre_load_language_dection_model)
+async def load_language_detection_model():
+    await _loop.run_in_executor(None, _pre_load_language_detection_model)
 
 
 @dataclass

@@ -138,7 +138,7 @@ class Rai(Bot):
                 continue
 
     async def on_ready(self):
-        await hf.load_language_dection_model()
+        await hf.load_language_detection_model()
         self.language_detection = True
 
         try:
