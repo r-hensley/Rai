@@ -1,4 +1,5 @@
-from typing import Optional, List
+from typing import Optional, List, Union
+from dataclasses import dataclass
 
 import discord
 import asyncio
@@ -22,6 +23,7 @@ here = sys.modules[__name__]
 here.bot = None
 
 BANS_CHANNEL_ID = 329576845949534208
+
 
 def setup(bot):
     if here.bot is None:
@@ -191,7 +193,7 @@ def parse_time(time) -> (Optional[str], Optional[List[str]]):
     return time_string, length
 
 
-async def member_converter(ctx, user_in):
+async def member_converter(ctx, user_in) -> Optional[discord.Member]:
     # check for an ID
     user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
@@ -404,6 +406,7 @@ def get_character_spread(text):
             english += 1
     return english, japanese, english + japanese
 
+
 def generous_is_emoji(char):
     EMOJI_MAPPING = (
         (0x0080, 0x02AF),
@@ -435,6 +438,7 @@ def generous_is_emoji(char):
         (0x1F980, 0x1F9E0),
     )
     return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
+
 
 def is_emoji(char):
     EMOJI_MAPPING = (
@@ -622,6 +626,48 @@ def detect_language(text):
         return 'es'
     else:
         return None
+
+
+@dataclass
+class ModlogEntry:
+    def __init__(self,
+                 event: str,
+                 user: Union[discord.User, discord.Member],
+                 guild: discord.Guild,
+                 ctx: commands.Context = None,
+                 length: str = None,
+                 reason: str = None,
+                 silent: bool = False,
+                 ):
+        self.event = event
+        self.user = user
+        self.guild = guild
+        self.ctx = ctx
+        self.length = length  # the length of time after which a ban or mute will expire
+        self.reason = reason
+        self.silent = silent
+
+    def add_to_modlog(self):
+        jump_url: Optional[str] = None
+        if self.ctx:  # someone called a Rai command like ;ban or ;mute
+            if self.ctx.message:
+                jump_url = self.ctx.message.jump_url
+
+        if config := here.bot.db['modlog'].get(str(self.guild.id), None):
+            pass
+        else:
+            return  # this should only happen from on_member_ban events from logger module
+            # don't log bans not with Rai from servers without modlog set up
+
+        member_modlog = config.setdefault(str(self.user.id), [])
+        member_modlog.append({'type': self.event,
+                              'reason': self.reason,
+                              'date': discord.utils.utcnow().strftime(
+                                  "%Y/%m/%d %H:%M UTC"),
+                              'silent': self.silent,
+                              'length': self.length,
+                              'jump_url': jump_url})
+        return config
 
 
 async def load_language_dection_model():

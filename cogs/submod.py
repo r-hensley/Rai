@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import discord
 from discord.ext import commands
@@ -51,7 +51,7 @@ class Submod(commands.Cog):
 
         time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
         user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
-        user_ids: list[int] = []  # list of users to ban
+        user_ids: List[int] = []  # list of users to ban
         timed_ban = None
 
         # Iterate through beginning arguments taking all IDs and times until you reach the reason
@@ -111,7 +111,7 @@ class Submod(commands.Cog):
             length = []
             time_string = None
 
-        targets: list[discord.Member] = []
+        targets: List[discord.Member] = []
         for user_id in user_ids:
             target = await hf.member_converter(ctx, user_id)
             if target:
@@ -180,7 +180,7 @@ class Submod(commands.Cog):
         if reason != '(no reason given)':
             if '-silent' in reason or '-s' in reason:
                 silent = True
-                reason = reason.replace('-silent ', '').replace('-s ', '')
+                reason = reason.replace('-silent ⁣', '').replace('-s ', '')
                 reason = '⁣' + reason  # no width space = silent
             if '-c' in reason:
                 reason = '⠀' + reason  # invisible space = crosspost
@@ -192,19 +192,21 @@ class Submod(commands.Cog):
                f"⠀・ `No` Cancel the ban\n" \
                f"⠀・ Add `delete` or `del` to delete last 24 hours of messages (example `send del`)\n"
 
-        if ctx.author in self.bot.get_guild(257984339025985546).members:
-            try:
-                if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
-                    if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
-                        if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            crosspost_check = 1  # to cancel crosspost
-                            msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
-                    if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
-                        if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            crosspost_check = 2  # to specially crosspost
-                            msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
-            except KeyError:
-                pass
+        are = self.bot.get_guild(257984339025985546)
+        if are:
+            if ctx.author in are.members:
+                try:
+                    if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
+                        if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
+                            if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                                crosspost_check = 1  # to cancel crosspost
+                                msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
+                        if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
+                            if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                                crosspost_check = 2  # to specially crosspost
+                                msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
+                except KeyError:
+                    pass
         msg2 = await hf.safe_send(ctx, msg2)
         try:
             msg = await self.bot.wait_for('message',
@@ -271,7 +273,11 @@ class Submod(commands.Cog):
                 length_str = None
             if reason.startswith("*by*"):
                 reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
-            hf.add_to_modlog(ctx, target, 'Ban', reason, silent, length_str)
+            modlog_entry = hf.ModlogEntry(event="Ban", user=target,
+                                          guild=ctx.guild, ctx=ctx,
+                                          length=length_str, reason=reason,
+                                          silent=silent)
+            modlog_entry.add_to_modlog()
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     @commands.command()
@@ -299,52 +305,70 @@ class Submod(commands.Cog):
 
     @commands.command(aliases=['w'])
     @hf.is_submod()
-    async def warn(self, ctx, user, *, reason="None"):
+    async def warn(self, ctx, user_id, *, reason="None"):
         """Log a mod incident"""
-        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', user)
+        user: Optional[discord.User] = None
+
+        re_result = re.search('^<?@?!?([0-9]{17,22})>?$', user_id)  # pull ID out of mention
         if re_result:
-            id = int(re_result.group(1))
-            user = ctx.guild.get_member(id)
-            if not user:
-                reason += " -s"
+            user_id = int(re_result.group(1))
+            user = ctx.guild.get_member(user_id)  # Try finding user in guild
+            if not user:  # Couldn't find user in guild
+                reason += " -s"  # Make warn silent since user not in guild
                 try:
-                    user = await self.bot.fetch_user(id)
-                    await hf.safe_send(ctx,
-                                       f"The user {user} is not a member of this server so I couldn't send the warning."
-                                       f" I've saved it as a log.")
+                    user = await self.bot.fetch_user(user_id)
                 except discord.NotFound:
                     user = None
-        else:
-            id = None
-            user = None
+                else:
+                    await hf.safe_send(ctx, f"The user {user} is not a member of this server so I couldn't "
+                                            f"send the warning. I've saved it as a log.")
+
         if not user:
             await hf.safe_send(ctx, "I could not find the user.  For warnings and mutes, please use either an ID or "
                                     "a mention to the user (this is to prevent mistaking people).")
             return
+
+        modlog_entry = hf.ModlogEntry(event="Warning",
+                                      user=user,
+                                      guild=ctx.guild,
+                                      ctx=ctx,
+                                      )
+
         emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
-        silent = False
+        emb.color = 0xffff00  # embed ff8800
+        emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
+
         if '-s' in reason:
-            silent = True
+            modlog_entry.silent = True
+            # If silent, remove -s from reason if it's there
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
             emb.description = "Log *(This incident was not sent to the user)*"
-        emb.color = discord.Color(int('ffff00', 16))  # embed ff8800
-        emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
+            footer_text = f"Logged by {ctx.author.name} ({ctx.author.id})"
+        else:
+            emb.description = "Warning"
+            footer_text = f"Warned by {ctx.author.name} ({ctx.author.id})"
+        emb.set_footer(text=footer_text)
+
+        # Add reason to embed
+        modlog_entry.reason = reason
         emb.add_field(name="Reason", value=reason, inline=False)
-        if not silent:
+
+        # Send notification to warned user if not a log
+        if not modlog_entry.silent:
             try:
                 await hf.safe_send(user, embed=emb)
             except discord.Forbidden:
                 await hf.safe_send(ctx, "I could not send the message, maybe the user has DMs disabled. Canceling "
                                         "warn (consider using the -s tag to not send a message).")
                 return
-        if not emb.description:
-            emb.description = "Warning"
+
+        # Add this field only after potentially sending warn notification to user
         emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        footer_text = f"Warned by {ctx.author.name} ({ctx.author.id})"
-        if silent:
-            footer_text = "Logged by" + footer_text[9:]
-        emb.set_footer(text=footer_text)
-        config = hf.add_to_modlog(ctx, user, 'Warning', reason, silent)
+
+        # Add to modlog
+        config = modlog_entry.add_to_modlog()
+
+        # Add field to confirmation showing how many incidents the user has if it's more than one
         modlog_channel = self.bot.get_channel(config['channel'])
         try:
             num_of_entries = len(self.bot.db['modlog'][str(ctx.guild.id)][str(user.id)])
@@ -352,9 +376,13 @@ class Submod(commands.Cog):
                 emb.add_field(name="Total number of modlog entries", value=num_of_entries)
         except KeyError:
             pass
+
+        # Send notification to modlog channel if the modlog channel isn't current channel
         if modlog_channel:
             if modlog_channel != ctx.channel:
                 await hf.safe_send(modlog_channel, embed=emb)
+
+        # Send notification (confirmation) to current channel
         await hf.safe_send(ctx, embed=emb)
 
     @commands.command(aliases=["cleanup", "bclr"])

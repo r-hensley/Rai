@@ -440,7 +440,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;delete_logging`.')
+                               f' logging by typing `;delete_logging`.')
 
     async def make_delete_embed(self, message):
         author = message.author
@@ -1151,7 +1151,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;leave_logging`.')
+                               f' logging by typing `;leave_logging`.')
 
     @staticmethod
     def make_leave_embed(member):
@@ -1266,7 +1266,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;nickname_logging`.')
+                               f' logging by typing `;nickname_logging`.')
 
     @staticmethod
     def make_nickname_embed(before, after):
@@ -1433,7 +1433,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;reaction_logging`.')
+                               f' logging by typing `;reaction_logging`.')
 
     @staticmethod
     def make_reaction_embed(emoji, member, message, message_id, channel):
@@ -1516,7 +1516,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                                    f'logging by typing `;ban_logging`.')
+                                    f' logging by typing `;ban_logging`.')
 
     async def make_ban_embed(self, guild, member):
         ban_entry = None
@@ -1786,7 +1786,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                                    f'logging by typing `;kick_logging`.')
+                                    f' logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
         # await asyncio.sleep(1)
