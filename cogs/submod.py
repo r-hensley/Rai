@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import discord
 from discord.ext import commands
@@ -51,7 +51,7 @@ class Submod(commands.Cog):
 
         time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
         user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
-        user_ids: list[int] = []  # list of users to ban
+        user_ids: List[int] = []  # list of users to ban
         timed_ban = None
 
         # Iterate through beginning arguments taking all IDs and times until you reach the reason
@@ -111,7 +111,7 @@ class Submod(commands.Cog):
             length = []
             time_string = None
 
-        targets: list[discord.Member] = []
+        targets: List[discord.Member] = []
         for user_id in user_ids:
             target = await hf.member_converter(ctx, user_id)
             if target:
@@ -180,7 +180,7 @@ class Submod(commands.Cog):
         if reason != '(no reason given)':
             if '-silent' in reason or '-s' in reason:
                 silent = True
-                reason = reason.replace('-silent ', '').replace('-s ', '')
+                reason = reason.replace('-silent ⁣', '').replace('-s ', '')
                 reason = '⁣' + reason  # no width space = silent
             if '-c' in reason:
                 reason = '⠀' + reason  # invisible space = crosspost
@@ -192,19 +192,21 @@ class Submod(commands.Cog):
                f"⠀・ `No` Cancel the ban\n" \
                f"⠀・ Add `delete` or `del` to delete last 24 hours of messages (example `send del`)\n"
 
-        if ctx.author in self.bot.get_guild(257984339025985546).members:
-            try:
-                if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
-                    if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
-                        if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            crosspost_check = 1  # to cancel crosspost
-                            msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
-                    if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
-                        if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                            crosspost_check = 2  # to specially crosspost
-                            msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
-            except KeyError:
-                pass
+        are = self.bot.get_guild(257984339025985546)
+        if are:
+            if ctx.author in are.members:
+                try:
+                    if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
+                        if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
+                            if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                                crosspost_check = 1  # to cancel crosspost
+                                msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
+                        if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
+                            if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
+                                crosspost_check = 2  # to specially crosspost
+                                msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
+                except KeyError:
+                    pass
         msg2 = await hf.safe_send(ctx, msg2)
         try:
             msg = await self.bot.wait_for('message',
@@ -271,7 +273,11 @@ class Submod(commands.Cog):
                 length_str = None
             if reason.startswith("*by*"):
                 reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
-            hf.add_to_modlog(ctx, target, 'Ban', reason, silent, length_str)
+            modlog_entry = hf.ModlogEntry(event="Ban", user=target,
+                                          guild=ctx.guild, ctx=ctx,
+                                          length=length_str, reason=reason,
+                                          silent=silent)
+            modlog_entry.add_to_modlog()
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     @commands.command()

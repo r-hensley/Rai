@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from dataclasses import dataclass
 
 import discord
@@ -632,7 +632,7 @@ def detect_language(text):
 class ModlogEntry:
     def __init__(self,
                  event: str,
-                 user: discord.User,
+                 user: Union[discord.User, discord.Member],
                  guild: discord.Guild,
                  ctx: commands.Context = None,
                  length: str = None,
