@@ -1,4 +1,5 @@
 from typing import Optional, List
+from dataclasses import dataclass
 
 import discord
 import asyncio
@@ -22,6 +23,7 @@ here = sys.modules[__name__]
 here.bot = None
 
 BANS_CHANNEL_ID = 329576845949534208
+
 
 def setup(bot):
     if here.bot is None:
@@ -404,6 +406,7 @@ def get_character_spread(text):
             english += 1
     return english, japanese, english + japanese
 
+
 def generous_is_emoji(char):
     EMOJI_MAPPING = (
         (0x0080, 0x02AF),
@@ -435,6 +438,7 @@ def generous_is_emoji(char):
         (0x1F980, 0x1F9E0),
     )
     return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
+
 
 def is_emoji(char):
     EMOJI_MAPPING = (
@@ -622,6 +626,51 @@ def detect_language(text):
         return 'es'
     else:
         return None
+
+
+@dataclass
+class ModlogEntry:
+    def __init__(self,
+                 event: str,
+                 member: discord.Member,
+                 ctx: discord.Context = None,
+                 length: str = None,
+                 reason: str = None,
+                 silent: bool = False,
+                 ):
+        self.event = event
+        self.member = member
+        self.ctx = ctx
+        self.length = length  # the length of time after which a ban or mute will expire
+        self.reason = reason
+        self.silent = silent
+
+    def add_to_modlog(self):
+        if self.ctx:  # someone called a Rai command like ;ban or ;mute
+            if self.ctx.message:
+                jump_url = self.ctx.message.jump_url
+            else:
+                jump_url = None
+            config = here.bot.db['modlog'].setdefault(str(self.ctx.guild.id),
+                                                      {'channel': None})
+        else:  # is potentially an automated event, for example a ban, from a discord event
+            guild = self.member.guild
+            jump_url = None  # this would be the case for entries that come from the logger module
+            if str(guild.id) in here.bot.db['modlog']:
+                config = here.bot.db['modlog'][str(guild.id)]
+
+            else:
+                return  # this should only happen from on_member_ban events from logger module
+
+        member_modlog = config.setdefault(str(self.member.id), [])
+        member_modlog.append({'type': type,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+                              'reason': self.reason,
+                              'date': discord.utils.utcnow().strftime(
+                                  "%Y/%m/%d %H:%M UTC"),
+                              'silent': self.silent,
+                              'length': self.length,
+                              'jump_url': jump_url})
+        return config
 
 
 async def load_language_dection_model():
