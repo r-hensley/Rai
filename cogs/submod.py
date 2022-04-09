@@ -310,7 +310,7 @@ class Submod(commands.Cog):
         self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
         await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
 
-    @commands.group(aliases=['w'])
+    @commands.group(invoke_without_command=True, aliases=['w'])
     @hf.is_submod()
     async def warn(self, ctx, *, args):
         """Log a mod incident"""
@@ -325,6 +325,10 @@ class Submod(commands.Cog):
         # If silent, remove -s from reason if it's there
         if silent := "-s" in reason:
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+
+        if not reason:
+            await hf.safe_send(ctx, "You must include a reason in your warning, please try again.")
+            return
 
         users: List[discord.User] = []
         for user_id in user_ids:
@@ -382,13 +386,13 @@ class Submod(commands.Cog):
                             .get("warn_notification_channel", None):
                         notif_channel = self.bot.get_channel(notif_channel_id)
                     else:
-                        await hf.safe_send("I was unable to send the warning to this user. In the future you can type "
-                                           "`;warns set` in a text channel in your server and I will offer to send "
-                                           "a public warning to the user in these cases.")
+                        await hf.safe_send(ctx, "I was unable to send the warning to this user. In the future you can"
+                                           " type `;warns set` in a text channel in your server and I will offer to "
+                                           "send a public warning to the user in these cases.")
                         continue
 
                     if notif_channel:
-                        question = await hf.safe_send(f"I could not send a message to {user.mention}. "
+                        question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
                                                       f"Would you like to send a pubic warning to "
                                                       f"{notif_channel.mention}?")
                         await question.add_reaction('✅')
@@ -462,11 +466,12 @@ class Submod(commands.Cog):
     @hf.is_submod()
     async def set_warn_notification_channel(self, ctx, channel_id=None):
         """
-        For the case where you wish to warn a user, but they have their DMs closed, you can choose to
-        send the notification of the ban to the channel set by this command.
+        For the case where you wish to warn a user, but they have their DMs closed,
+        you can choose to send the notification of the ban to the channel set
+        by this command.
 
         Either go to the channel and type `;warn set` or specify a channel like `;warn set #channel_name` (or an ID)
-"""
+        """
         if str(ctx.guild.id) not in self.bot.db['modlog']:
             return
         config: dict = self.bot.db['modlog'][str(ctx.guild.id)]
