@@ -641,6 +641,10 @@ def detect_language(text):
         return None
 
 
+async def load_language_dection_model():
+    await _loop.run_in_executor(None, _pre_load_language_dection_model)
+
+
 @dataclass
 class ModlogEntry:
     def __init__(self,
@@ -683,5 +687,3 @@ class ModlogEntry:
         return config
 
 
-async def load_language_dection_model():
-    await _loop.run_in_executor(None, _pre_load_language_dection_model)
