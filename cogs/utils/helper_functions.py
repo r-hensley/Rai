@@ -634,7 +634,7 @@ class ModlogEntry:
                  event: str,
                  user: discord.User,
                  guild: discord.Guild,
-                 ctx: discord.Context = None,
+                 ctx: commands.Context = None,
                  length: str = None,
                  reason: str = None,
                  silent: bool = False,
@@ -648,23 +648,19 @@ class ModlogEntry:
         self.silent = silent
 
     def add_to_modlog(self):
+        jump_url: Optional[str] = None
         if self.ctx:  # someone called a Rai command like ;ban or ;mute
             if self.ctx.message:
                 jump_url = self.ctx.message.jump_url
-            else:
-                jump_url = None
-            config = here.bot.db['modlog'].setdefault(str(self.ctx.guild.id),
-                                                      {'channel': None})
-        else:  # is potentially an automated event, for example a ban, from a discord event
-            jump_url = None  # this would be the case for entries that come from the logger module
-            if str(guild.id) in here.bot.db['modlog']:
-                config = here.bot.db['modlog'][str(guild.id)]
 
-            else:
-                return  # this should only happen from on_member_ban events from logger module
+        if config := here.bot.db['modlog'].get(str(self.guild.id), None):
+            pass
+        else:
+            return  # this should only happen from on_member_ban events from logger module
+            # don't log bans not with Rai from servers without modlog set up
 
         member_modlog = config.setdefault(str(self.user.id), [])
-        member_modlog.append({'type': type,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+        member_modlog.append({'type': self.event,
                               'reason': self.reason,
                               'date': discord.utils.utcnow().strftime(
                                   "%Y/%m/%d %H:%M UTC"),
