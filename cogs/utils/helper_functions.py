@@ -191,7 +191,7 @@ def parse_time(time) -> (Optional[str], Optional[List[str]]):
     return time_string, length
 
 
-async def member_converter(ctx, user_in):
+async def member_converter(ctx, user_in) -> Optional[discord.Member]:
     # check for an ID
     user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
