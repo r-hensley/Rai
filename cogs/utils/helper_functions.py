@@ -8,7 +8,7 @@ import re
 from discord.ext import commands
 import json, csv
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from copy import deepcopy
 import shutil
 import numpy as np
@@ -231,16 +231,29 @@ async def member_converter(ctx, user_in) -> Optional[discord.Member]:
 def _predump_json():
     db_copy = deepcopy(here.bot.db)
     stats_copy = deepcopy(here.bot.stats)
-    shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
-    shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
-    shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+    if not os.path.exists(f'{dir_path}/db_2.json'):
+        # if backup files don't exist yet, create them
+        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
+        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
+        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
+        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
+        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
+    else:
+        # make incremental backups of db.json
+        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
+        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
+        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
+
+        # make incremental backups of stats.json
+        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
+        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
+        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
+
     with open(f'{dir_path}/db_temp.json', 'w') as write_file:
         json.dump(db_copy, write_file, indent=4)
     shutil.copy(f'{dir_path}/db_temp.json', f'{dir_path}/db.json')
 
-    shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
-    shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
-    shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
     with open(f'{dir_path}/stats_temp.json', 'w') as write_file:
         json.dump(stats_copy, write_file, indent=1)
     shutil.copy(f'{dir_path}/stats_temp.json', f'{dir_path}/stats.json')
@@ -569,7 +582,7 @@ async def uhc_check(msg):
         pass
 
 
-def _pre_load_language_dection_model():
+def _pre_load_language_detection_model():
     english = []
     spanish = []
     if not os.path.exists(f'{dir_path}/cogs/utils/principiante.csv'):
@@ -628,6 +641,10 @@ def detect_language(text):
         return None
 
 
+async def load_language_detection_model():
+    await _loop.run_in_executor(None, _pre_load_language_detection_model)
+
+
 @dataclass
 class ModlogEntry:
     def __init__(self,
@@ -653,7 +670,7 @@ class ModlogEntry:
             if self.ctx.message:
                 jump_url = self.ctx.message.jump_url
 
-        if config := here.bot.db['modlog'].get(str(self.guild.id), None):
+        if config := here.bot.db['modlog'].setdefault(str(self.guild.id), {'channel': None}):
             pass
         else:
             return  # this should only happen from on_member_ban events from logger module
@@ -670,5 +687,68 @@ class ModlogEntry:
         return config
 
 
-async def load_language_dection_model():
-    await _loop.run_in_executor(None, _pre_load_language_dection_model)
+def args_discriminator(ctx, args: str):
+    """
+    Takes in a string of args and pulls out IDs and times then leaves the reason.
+    :param args:
+    :return: Class object with user_id, time, reason
+    """
+
+    @dataclass
+    class Args:
+        def __init__(self, users, time_string, length, time, time_obj, reason):
+            self.users: List[discord.Member] = users
+            self.time_string: str = time_string
+            self.length: List[str] = length
+            self.time: str = time
+            self.time_obj: datetime = time_obj
+            self.reason: str = reason
+
+    # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
+    args_list = args.split()
+
+    time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
+    user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
+    user_ids: List[int] = []  # list of user ids
+    time_regex_result: Optional[re.match] = None
+    time = time_obj = length = time_string = None
+
+    # Iterate through beginning arguments taking all IDs and times until you reach the reason
+    for arg in args_list.copy():
+        if user_id_match := re.search(user_regex, arg):
+            user_ids.append(int(user_id_match.group(1)))
+            args_list.remove(arg)
+            args = args.replace(f"{arg} ", "").replace(arg, "")
+        elif t := re.search(time_regex, arg):
+            time_regex_result = t
+            args_list.remove(arg)
+            args = args.replace(f"{arg} ", "").replace(arg, "")
+        else:
+            break  # Assuming all user_ids and times are before the reason
+    reason = args
+
+    if time_regex_result:
+        if years := time_regex_result.group(2):
+            years = int(years)
+        else:
+            years = 0
+
+        if days := time_regex_result.group(4):
+            days = years * 365 + int(days)
+        else:
+            days = years * 365
+
+        if hours := time_regex_result.group(6):
+            hours = int(hours)
+        else:
+            hours = 0
+
+        length = [days, hours]
+
+        try:
+            time_obj = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
+            time_string = time_obj.strftime("%Y/%m/%d %H:%M UTC")
+        except OverflowError:
+            time = time_obj = length = time_string = None
+
+    return Args(user_ids, time_string, length, time, time_obj, reason)
