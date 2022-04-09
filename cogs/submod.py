@@ -303,7 +303,7 @@ class Submod(commands.Cog):
         self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
         await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
 
-    @commands.command(aliases=['w'])
+    @commands.group(aliases=['w'])
     @hf.is_submod()
     async def warn(self, ctx, user_id, *, reason="None"):
         """Log a mod incident"""
@@ -384,6 +384,33 @@ class Submod(commands.Cog):
 
         # Send notification (confirmation) to current channel
         await hf.safe_send(ctx, embed=emb)
+
+    @warn.command(name="set")
+    @hf.is_submod()
+    async def set_warn_notification_channel(self, ctx, channel_id=None):
+        """
+        For the case where you wish to warn a user, but they have their DMs closed, you can choose to
+        send the notification of the ban to the channel set by this command.
+
+        Either go to the channel and type `;warn set` or specify a channel like `;warn set #channel_name` (or an ID)
+"""
+        if str(ctx.guild.id) not in self.bot.db['modlog']:
+            return
+        config: dict = self.bot.db['modlog'][str(ctx.guild.id)]
+
+        if channel_id:
+            if regex_result := re.search(r"^<?#?(\d{17,22})>?$", channel_id):
+                channel = self.bot.get_channel(int(regex_result.group(1)))
+            else:
+                channel = None
+
+            if not channel:
+                await hf.safe_send(ctx, "I failed to find the channel you mentioned. Please try again.")
+                return
+        else:
+            channel = ctx.channel
+
+        config['warn_notification_channel'] = channel.id
 
     @commands.command(aliases=["cleanup", "bclr"])
     @commands.bot_has_permissions(manage_messages=True)
