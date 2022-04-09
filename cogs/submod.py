@@ -329,7 +329,7 @@ class Submod(commands.Cog):
                                       )
 
         emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
-        emb.color = discord.Color(int('ffff00', 16))  # embed ff8800
+        emb.color = 0xffff00  # embed ff8800
         emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
 
         if '-s' in reason:
