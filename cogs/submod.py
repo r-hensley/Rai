@@ -326,6 +326,10 @@ class Submod(commands.Cog):
         if silent := "-s" in reason:
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
 
+        if not reason:
+            await hf.safe_send(ctx, "You must include a reason in your warning, please try again.")
+            return
+
         users: List[discord.User] = []
         for user_id in user_ids:
             user = ctx.guild.get_member(user_id)  # Try finding user in guild
@@ -461,8 +465,9 @@ class Submod(commands.Cog):
     @hf.is_submod()
     async def set_warn_notification_channel(self, ctx, channel_id: Optional[str] = None):
         """
-        For the case where you wish to warn a user, but they have their DMs closed, you can choose to
-        send the notification of the ban to the channel set by this command.
+        For the case where you wish to warn a user, but they have their DMs closed,
+        you can choose to send the notification of the ban to the channel set
+        by this command.
 
         Either go to the channel and type `;warn set` or specify a channel like `;warn set #channel_name` (or an ID)
         """
