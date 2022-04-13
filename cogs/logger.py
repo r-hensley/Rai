@@ -575,12 +575,15 @@ class Logger(commands.Cog):
                 emb = hf.red_embed(text)
                 if uncached:
                     text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
-                           f"Those IDs are:\n"
+                           f"I am unable to see who sent messages. The message IDs are:\n"
                     if len(emb.description + text) < 2048:
                         emb.description += text
                     for msg_id in uncached:
-                        if len(emb.description + f"M{msg_id}, ") < 2048:
-                            emb.description += f"M{msg_id}, "
+                        # 2048 characters is the character limit for an embed description so cut it off here
+                        # Ideally this would either tell the user that the message got cut-off, or even better
+                        # send a second embed with the remaining text, but that is a project for another day
+                        if len(emb.description + f"{msg_id}, ") < 2048:
+                            emb.description += f"{msg_id}, "
 
         else:
             file = None
