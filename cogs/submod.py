@@ -393,7 +393,6 @@ class Submod(commands.Cog):
                         continue
 
                     if notif_channel:
-                        print("Test 3")
                         question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
                                                       f"Would you like to send a pubic warning to "
                                                       f"{notif_channel.mention}?")
