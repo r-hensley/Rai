@@ -951,12 +951,10 @@ class ChannelMods(commands.Cog):
                     summary_text = summary_text[:-1] + f"and {len(not_found_indices) - 10} more..."  # add to the text.
 
             if invalid_indices:  # If invalid indices were found (TypeError or <= 0):
-                invalid_indices = sorted(invalid_indices, key=str)  # sort them numerically (aesthetics)...
                 invalid_indices = [str(i)[0].lower() for i in invalid_indices[:10]]  # first 10 indices only
-                # set the index equal to the lowercase first character of the str
-
-                # same process as for not_found_indexes for if the length is greater than ten.
                 invalid_indices = ["**" + i + "**" for i in invalid_indices]
+                invalid_indices = list(set(invalid_indices))  # remove duplicates...
+                invalid_indices = sorted(invalid_indices, key=str)  # sort them numerically (aesthetics)...
                 inv_indx_str = f"\n**-** Invalid indices: {', '.join(invalid_indices)}."
                 summary_text = summary_text + inv_indx_str
                 if len(invalid_indices) > 10:

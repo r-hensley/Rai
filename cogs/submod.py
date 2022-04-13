@@ -386,9 +386,10 @@ class Submod(commands.Cog):
                             .get("warn_notification_channel", None):
                         notif_channel = self.bot.get_channel(notif_channel_id)
                     else:
-                        await hf.safe_send(ctx, "I was unable to send the warning to this user. In the future you can"
-                                           " type `;warns set` in a text channel in your server and I will offer to "
-                                           "send a public warning to the user in these cases.")
+                        await hf.safe_send(ctx, "I was unable to send the warning to this user. "
+                                                "In the future you can type `;warn set` in a text channel in your "
+                                                "server and I will offer to send a public warning to the user in "
+                                                "these cases.")
                         continue
 
                     if notif_channel:
@@ -442,9 +443,6 @@ class Submod(commands.Cog):
             # Add to modlog
             config = modlog_entry.add_to_modlog()
 
-            print(self.bot)
-            print(config)
-
             # Add field to confirmation showing how many incidents the user has if it's more than one
             modlog_channel = self.bot.get_channel(config['channel'])
             try:
@@ -464,7 +462,7 @@ class Submod(commands.Cog):
 
     @warn.command(name="set")
     @hf.is_submod()
-    async def set_warn_notification_channel(self, ctx, channel_id=None):
+    async def set_warn_notification_channel(self, ctx, channel_id: Optional[str] = None):
         """
         For the case where you wish to warn a user, but they have their DMs closed,
         you can choose to send the notification of the ban to the channel set
