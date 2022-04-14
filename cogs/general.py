@@ -13,6 +13,10 @@ from urllib.error import HTTPError
 from collections import Counter
 from inspect import cleandoc
 from random import choice
+from discord.commands import slash_command  # slash commands import
+from discord.commands import permissions  # slash commands import
+from discord.commands import Option  # slash commands import
+from discord.ui import Button, View
 
 import os
 
@@ -2746,6 +2750,145 @@ class General(commands.Cog):
             await msg_countdown.clear_reactions()
         except (discord.Forbidden, discord.NotFound):
             return
+
+    @slash_command(guild_ids=[941155953682821201])
+    async def staffping(self, ctx,
+                        user: Option(str, "The user/s:"),
+                        reason: Option(str, "Specify the reason for your report:")):
+        """Notifies the staff team about a current and urgent issue."""
+
+        regex_result = re.findall(r'<?@?!?(\d{17,22})>?', user)
+
+        if not regex_result:
+            await ctx.respond("I couldn't find the specified user/s.\n"
+                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+            return
+
+        for result in regex_result:
+            if not ctx.guild.get_member(int(result)):
+                regex_result.remove(result)
+                await ctx.respond(f"I couldn't find the user {result} in this server", ephemeral=True)
+            else:
+                continue
+
+        if not regex_result:
+            await ctx.respond("I couldn't find any of the users that you specified, try again.\n"
+                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+            return
+
+        regex_result = list(set(regex_result))
+
+        if len(regex_result) > 9:
+            await ctx.respond("You're trying to report too many people at the same time. Max per command: 9.\n"
+                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+            return
+
+        user_id_list = ['\n   - <@' + i + '>' + ' ' + '(`' + i + '`)' for i in regex_result]
+        user_id_str = ''.join(user_id_list)
+        confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
+        if len(regex_result) > 1:
+            confirmation_text = confirmation_text.replace('user', 'users')
+        await ctx.respond(f"{confirmation_text}", ephemeral=True)
+
+        alarm_emb = discord.Embed(title=f"Staff Ping",
+                                  description=f"- **From**: {ctx.author.mention} ({ctx.author.name})"
+                                              f"\n- **In**: {ctx.channel.mention}"
+                                              f"\n\n- **Reason**: {reason}."
+                                              f"\n- **Reported Users**: {user_id_str}",
+                                  color=discord.Color(int('FFAA00', 16)),
+                                  timestamp=discord.utils.utcnow())
+
+        button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
+
+        button_1 = discord.ui.Button(label='1', style=discord.ButtonStyle.gray)
+        button_2 = discord.ui.Button(label='2', style=discord.ButtonStyle.gray)
+        button_3 = discord.ui.Button(label='3', style=discord.ButtonStyle.gray)
+        button_4 = discord.ui.Button(label='4', style=discord.ButtonStyle.gray)
+        button_5 = discord.ui.Button(label='5', style=discord.ButtonStyle.gray)
+        button_6 = discord.ui.Button(label='6', style=discord.ButtonStyle.gray)
+        button_7 = discord.ui.Button(label='7', style=discord.ButtonStyle.gray)
+        button_8 = discord.ui.Button(label='8', style=discord.ButtonStyle.gray)
+        button_9 = discord.ui.Button(label='9', style=discord.ButtonStyle.gray)
+
+        button_solved = discord.ui.Button(label='Mark as Solved', style=discord.ButtonStyle.green)
+
+        buttons = [button_author, button_1, button_2, button_3, button_4,
+                   button_5, button_6, button_7, button_8, button_9]
+
+        view = discord.ui.View()
+        for button in buttons[:len(regex_result) + 1]:
+            view.add_item(button)
+        view.add_item(button_solved)
+
+        async def button_callback_action(button_index):
+            if button_index == 0:
+                modlog_target = ctx.author.id
+            else:
+                modlog_target = regex_result[int(button_index) - 1]
+            await channel_mods.ChannelMods.modlog(ctx, modlog_target, delete_parameter=30)
+            await msg.edit(content=f"{modlog_target}", embed=alarm_emb, view=view)
+
+        async def author_button_callback(interaction):
+            await button_callback_action(0)
+
+        button_author.callback = author_button_callback
+
+        async def button_1_callback(interaction):
+            await button_callback_action(1)
+
+        button_1.callback = button_1_callback
+
+        async def button_2_callback(interaction):
+            await button_callback_action(2)
+
+        button_2.callback = button_2_callback
+
+        async def button_3_callback(interaction):
+            await button_callback_action(3)
+
+        button_3.callback = button_3_callback
+
+        async def button_4_callback(interaction):
+            await button_callback_action(4)
+
+        button_4.callback = button_4_callback
+
+        async def button_5_callback(interaction):
+            await button_callback_action(5)
+
+        button_5.callback = button_5_callback
+
+        async def button_6_callback(interaction):
+            await button_callback_action(6)
+
+        button_6.callback = button_6_callback
+
+        async def button_7_callback(interaction):
+            await button_callback_action(7)
+
+        button_7.callback = button_7_callback
+
+        async def button_8_callback(interaction):
+            await button_callback_action(8)
+
+        button_8.callback = button_8_callback
+
+        async def button_9_callback(interaction):
+            await button_callback_action(9)
+
+        button_9.callback = button_9_callback
+
+        async def solved_button_callback(interaction):
+            for button in buttons:
+                button.disabled = True
+            button_solved.disabled = True
+            await msg.edit(content=f":white_check_mark: - **Solved Issue**.",
+                           embed=alarm_emb,
+                           view=view)
+
+        button_solved.callback = solved_button_callback
+
+        msg = await hf.safe_send(ctx, embed=alarm_emb, view=view)
 
 
 def setup(bot):
