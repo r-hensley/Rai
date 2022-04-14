@@ -551,7 +551,7 @@ class ChannelMods(commands.Cog):
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def modlog(self, ctx, id_in):
+    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
@@ -844,10 +844,15 @@ class ChannelMods(commands.Cog):
         #
         #
 
+        if first_embed and delete_parameter:
+            await hf.safe_send(ctx, embed=first_embed, delete_after=delete_parameter)
         if first_embed:
             await hf.safe_send(ctx, embed=first_embed)
         try:
-            await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
+            if delete_parameter:
+                await hf.safe_send(ctx, embed=emb, delete_after=delete_parameter)
+            else:
+                await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
         except discord.Forbidden:
             await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
             return
