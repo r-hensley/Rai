@@ -43,7 +43,7 @@ except FileNotFoundError:
     exit()
 
 # Credentials
-load_dotenv('.env')
+load_dotenv(f'{dir_path}/.env')
 
 if not os.getenv("BOT_TOKEN"):
     raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
@@ -421,7 +421,7 @@ class Rai(Bot):
 bot = Rai()
 
 # A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
-if "Rai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
+if "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
     bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
 elif "ForkedRai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
     bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai
