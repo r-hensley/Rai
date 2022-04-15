@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, Union
+from typing import Optional, Union, List, Tuple
 
 import os
 
@@ -440,7 +440,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;delete_logging`.')
+                               f' logging by typing `;delete_logging`.')
 
     async def make_delete_embed(self, message):
         author = message.author
@@ -575,12 +575,15 @@ class Logger(commands.Cog):
                 emb = hf.red_embed(text)
                 if uncached:
                     text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
-                           f"Those IDs are:\n"
+                           f"I am unable to see who sent messages. The message IDs are:\n"
                     if len(emb.description + text) < 2048:
                         emb.description += text
                     for msg_id in uncached:
-                        if len(emb.description + f"M{msg_id}, ") < 2048:
-                            emb.description += f"M{msg_id}, "
+                        # 2048 characters is the character limit for an embed description so cut it off here
+                        # Ideally this would either tell the user that the message got cut-off, or even better
+                        # send a second embed with the remaining text, but that is a project for another day
+                        if len(emb.description + f"{msg_id}, ") < 2048:
+                            emb.description += f"{msg_id}, "
 
         else:
             file = None
@@ -818,8 +821,8 @@ class Logger(commands.Cog):
         await hf.safe_send(ctx, "```" + config['message'] + "```")
 
     @staticmethod
-    async def make_invites_dict(guild, invites_in: list[discord.Invite]):
-        invites_dict: dict[str: tuple[int, Optional[float]]] = {}
+    async def make_invites_dict(guild, invites_in: List[discord.Invite]):
+        invites_dict: dict[str: Tuple[int, Optional[float]]] = {}
         for invite in invites_in:
             if not invite:
                 continue
@@ -1151,7 +1154,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;leave_logging`.')
+                               f' logging by typing `;leave_logging`.')
 
     @staticmethod
     def make_leave_embed(member):
@@ -1266,7 +1269,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;nickname_logging`.')
+                               f' logging by typing `;nickname_logging`.')
 
     @staticmethod
     def make_nickname_embed(before, after):
@@ -1433,7 +1436,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await hf.safe_send(ctx,
                                f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                               f'logging by typing `;reaction_logging`.')
+                               f' logging by typing `;reaction_logging`.')
 
     @staticmethod
     def make_reaction_embed(emoji, member, message, message_id, channel):
@@ -1516,7 +1519,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                                    f'logging by typing `;ban_logging`.')
+                                    f' logging by typing `;ban_logging`.')
 
     async def make_ban_embed(self, guild, member):
         ban_entry = None
@@ -1786,7 +1789,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
             await hf.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
-                                    f'logging by typing `;kick_logging`.')
+                                    f' logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
         # await asyncio.sleep(1)
