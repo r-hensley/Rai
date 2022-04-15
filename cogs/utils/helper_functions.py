@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import CountVectorizer
+from discord.ui import Button, View
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -152,12 +153,12 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         if isinstance(destination, discord.User):
             if not destination.dm_channel:
                 await destination.create_dm()
-        return await destination.send(content, embed=embed, delete_after=delete_after, file=file)
+            return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
-            msg_content = f"Rai tried to a message to #{ctx.channel.name} but lacked permissions to do so (either " \
-                          f"messages or embeds)."
+            msg_content = f"Rai tried to send a message to #{ctx.channel.name} but lacked permissions to do so " \
+                          f"(either messages or embeds)."
             # if ctx.guild:
             # if str(ctx.guild.id) in ctx.bot.db['mod_channel']:
             #     await safe_send(ctx.bot.get_channel(int(ctx.bot.db['mod_channel'][str(ctx.guild.id)])), msg_content)
