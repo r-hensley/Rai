@@ -2830,52 +2830,42 @@ class General(commands.Cog):
 
         async def author_button_callback(interaction):
             await button_callback_action(0)
-
         button_author.callback = author_button_callback
 
         async def button_1_callback(interaction):
             await button_callback_action(1)
-
         button_1.callback = button_1_callback
 
         async def button_2_callback(interaction):
             await button_callback_action(2)
-
         button_2.callback = button_2_callback
 
         async def button_3_callback(interaction):
             await button_callback_action(3)
-
         button_3.callback = button_3_callback
 
         async def button_4_callback(interaction):
             await button_callback_action(4)
-
         button_4.callback = button_4_callback
 
         async def button_5_callback(interaction):
             await button_callback_action(5)
-
         button_5.callback = button_5_callback
 
         async def button_6_callback(interaction):
             await button_callback_action(6)
-
         button_6.callback = button_6_callback
 
         async def button_7_callback(interaction):
             await button_callback_action(7)
-
         button_7.callback = button_7_callback
 
         async def button_8_callback(interaction):
             await button_callback_action(8)
-
         button_8.callback = button_8_callback
 
         async def button_9_callback(interaction):
             await button_callback_action(9)
-
         button_9.callback = button_9_callback
 
         async def solved_button_callback(interaction):
