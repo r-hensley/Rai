@@ -129,10 +129,16 @@ def grey_embed(text):
     return discord.Embed(description=text, color=0x848A84)
 
 
-async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
+async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None, view=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
-        raise SyntaxError("You maybe didn't state a destination, or you tried to send a None")
+        if type(destination) == str:
+            raise SyntaxError("You maybe forgot to state a destination in the safe_send() function")
+        elif type(destination) == commands.Context:
+            raise SyntaxError("The content you tried to send in the safe_send() function was None")
+        else:
+            raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
+
     perms_set = perms = False
     if isinstance(destination, commands.Context):
         if destination.guild:
@@ -153,7 +159,7 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         if isinstance(destination, discord.User):
             if not destination.dm_channel:
                 await destination.create_dm()
-            return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
+        return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
