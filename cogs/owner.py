@@ -79,7 +79,7 @@ class Owner(commands.Cog):
                     del(config[guild_id]['commands'][day])
                 else:
                     command_count += config[guild_id]['commands'][day]
-                    
+
             guild = id_to_guild[guild_id]
             bot_num = len([m for m in guild.members if m.bot])
             human_num = len([m for m in guild.members if not m.bot])
@@ -533,9 +533,9 @@ class Owner(commands.Cog):
 
     @commands.command()
     async def selfMute(self, ctx, hour: float, minute: float):
-        """Irreversably mutes ryry for x amount of minutes"""
+        """Irreversibly mutes the bot owner for x amount of minutes"""
         self.bot.selfMute = True
-        await hf.safe_send(ctx, f'Muting Ryry for {hour} hours and {minute} minutes (he chose to do this).')
+        await hf.safe_send(ctx, f'Muting {ctx.author} for {hour} hours and {minute} minutes (he chose to do this).')
         self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
 
     @commands.command(aliases=['fd'])

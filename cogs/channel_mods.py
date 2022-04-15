@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 from datetime import datetime, timezone
 
 import discord
@@ -240,15 +240,15 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
 
     @commands.command()
-    async def log(self, ctx, user, *, reason="None"):
+    async def log(self, ctx, *, args="None"):
         """Same as `;warn` but it adds `-s` into the reason which makes it just silently log the warning
         without sending a notification to the user."""
         warn = self.bot.get_command('warn')
-        if reason:
-            reason += ' -s'
+        if args:
+            args += ' -s'
         else:
-            reason = ' -s'
-        await ctx.invoke(warn, user, reason=reason)
+            args = ' -s'
+        await ctx.invoke(warn, args=args)
 
     @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     @hf.is_admin()
@@ -598,9 +598,9 @@ class ChannelMods(commands.Cog):
             # Check DB for mute entry
             muted = False
             unmute_date_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            if unmute_date_str := self.bot.db['mutes']\
-                    .get(str(ctx.guild.id), {})\
-                    .get('timed_mutes', {})\
+            if unmute_date_str := self.bot.db['mutes'] \
+                    .get(str(ctx.guild.id), {}) \
+                    .get('timed_mutes', {}) \
                     .get(user_id, None):
                 muted = True
                 unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
@@ -615,14 +615,14 @@ class ChannelMods(commands.Cog):
             # Check DB for voice mute entry
             voice_muted = False
             voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            print(1)
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 print(voice_unmute_time_left_str)
                 voice_muted = True
-                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(
+                    tzinfo=timezone.utc)
                 time_left = unmute_date - discord.utils.utcnow()
                 days_left = time_left.days
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
@@ -854,9 +854,17 @@ class ChannelMods(commands.Cog):
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
-    async def modlog_delete(self, ctx, user, index):
-        """Delete a modlog entry.  Do `;modlog delete user -all` to clear all warnings from a user.
+    async def modlog_delete(self, ctx, user, *, indices=""):
+        """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
+        if not indices:  # If no index is given:
+            await hf.safe_send(ctx, "Please write numeric indices equal to or greater than 1 or "
+                                    "`-all` to clear the user's modlog.")
+            return
+
+        indices = indices.split()  # Creates a list from the prompted argument of the command.
+        indices = list(set(indices))  # Removing duplicates from the list.
+
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
@@ -868,20 +876,92 @@ class ChannelMods(commands.Cog):
         if user_id not in config:
             await hf.safe_send(ctx, "That user was not found in the modlog")
             return
-        config = config[user_id]
-        if index in ['-a', '-all']:
-            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
-        else:
+
+        config: dict = config[user_id]
+
+        # Performs the deletions:
+        if '-a' in indices or '-all' in indices:  # If any of these flags is found in the list:
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
+            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
+
+        elif len(indices) == 1:  # If there is a single argument given, then:
             try:
-                del config[int(index) - 1]
-            except IndexError:
-                await hf.safe_send(ctx, "I couldn't find that log ID, try doing `;modlog` on the user.")
+                del config[int(indices[0]) - 1]  # delete it from modlog...
+            except IndexError:  # except if the index given is not found in config...
+                await hf.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
                 return
-            except ValueError:
-                await hf.safe_send(ctx, "Sorry I couldn't  understand what you were trying to do")
+            except ValueError:  # or if the index given is not an integer...
+                await hf.safe_send(ctx, f"The given index is invalid.\n"
+                                        f"Please write numeric indices equal to or greater than 1 or "
+                                        f"`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
+
+        else:  # -all was not called, and so there are specific indices to delete:
+            def invalid_indices_check(check_index):
+                """For indices that are strings or not greater than 0"""
+                if not check_index.isdigit():  # is not a digit
+                    return True
+                else:  # now is a digit
+                    if int(check_index) < 1:  # if index is 0 or negative
+                        return True
+
+            def not_found_check(check_index, config):
+                """For indices not in config"""
+                if check_index.isdigit():
+                    if int(check_index) >= len(config):
+                        return True  # called index is out of range of list
+
+            def indices_check(check_index, not_found):
+                if check_index.isdigit() and check_index not in not_found:
+                    if int(check_index) >= 1:
+                        return True
+
+            invalid_indices: list = [i for i in indices
+                                     if invalid_indices_check(i)]  # list of non-digit arguments
+            not_found_indices: list = [i for i in indices
+                                       if not_found_check(i, config)]  # list of indices not found in modlog
+            indices: list = [i for i in indices
+                             if indices_check(i, not_found_indices)]  # list of valid arguments
+            removed_indices: list = []  # eventual list of modlog entries successfully removed
+            indices.sort(key=int)  # Sort it numerically
+
+            n = 1
+            for index in indices:  # For every index in the list...
+                del config[int(index) - n]  # delete them from the user's modlog.
+                n += 1  # For every deleted log, the next ones will be shifted by -1. Therefore,
+                # add 1 every time a log gets deleted to counter that.
+                removed_indices.append(index)  # for every successfully deleted log, append
+                # the index to the corresponding 'removed_indexes' list.
+            await ctx.message.add_reaction('✅')
+
+            # Prepare emb to send:
+            summary_text = f"Task completed."
+
+            if removed_indices:  # If it removed logs in config:
+                removed_indices = ["#**" + i + "**" for i in removed_indices]  # format it...
+                rmv_indx_str = f"\n**-** Removed entries: {', '.join(removed_indices)}."  # change it to string...
+                summary_text = summary_text + rmv_indx_str  # add it to the text.
+
+            if not_found_indices:  # If there were indices with no match in the config modlog:
+                not_found_indices = ["#**" + i + "**" for i in not_found_indices[:10]]  # format for first ten indices
+                n_fnd_indx_str = ', '.join(not_found_indices)  # change it to string...
+                summary_text = summary_text + f"\n**-** Not found entries: {n_fnd_indx_str}."  # add it to the text.
+                if len(not_found_indices) > 10:  # If there are more than ten...
+                    summary_text = summary_text[:-1] + f"and {len(not_found_indices) - 10} more..."  # add to the text.
+
+            if invalid_indices:  # If invalid indices were found (TypeError or <= 0):
+                invalid_indices = [str(i)[0].lower() for i in invalid_indices[:10]]  # first 10 indices only
+                invalid_indices = ["**" + i + "**" for i in invalid_indices]
+                invalid_indices = list(set(invalid_indices))  # remove duplicates...
+                invalid_indices = sorted(invalid_indices, key=str)  # sort them numerically (aesthetics)...
+                inv_indx_str = f"\n**-** Invalid indices: {', '.join(invalid_indices)}."
+                summary_text = summary_text + inv_indx_str
+                if len(invalid_indices) > 10:
+                    summary_text = summary_text[:-1] + f" and {len(invalid_indices) - 10} more..."
+
+            emb = hf.green_embed(summary_text)  # Make the embed with the summary text previously built.
+            await hf.safe_send(ctx, embed=emb)  # Send the embed.
 
     @modlog.command(name="edit", aliases=['reason'])
     @hf.is_admin()
@@ -905,7 +985,7 @@ class ChannelMods(commands.Cog):
         try:
             old_reason = config[index - 1]['reason']
         except IndexError:
-            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index -1}. Please check it "
+            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
                                     f"and try again.")
         config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
@@ -922,8 +1002,11 @@ class ChannelMods(commands.Cog):
     @commands.max_concurrency(1, commands.BucketType.member)
     async def mute(self, ctx, *, args):
         """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-        args = args.split()
+        # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
+        args_list = args.split()
 
+        # this function sets the permissions for the Rai_mute role in all the channels
+        # returns a list of channel name strings
         async def set_channel_overrides(role):
             failed_channels = []
             for channel in ctx.guild.voice_channels:
@@ -989,14 +1072,16 @@ class ChannelMods(commands.Cog):
         time: Optional[str] = None
         time_obj: Optional[datetime] = None
         length: Optional[str, str] = None
-        new_args = args.copy()
-        for arg in args:
+        new_args = args_list.copy()
+        for arg in args_list:
             if not re_result:
                 re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
                 if re_result:
                     user_id = int(re_result.group(1))
                     target = ctx.guild.get_member(user_id)
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
                     continue
 
             if not time_string:
@@ -1006,25 +1091,28 @@ class ChannelMods(commands.Cog):
                 if time_string:
                     time = arg
                     new_args.remove(arg)
+                    args = args.replace(str(arg) + " ", "")
+                    args = args.replace(str(arg), "")
+                    # get a datetime and add timezone info to it (necessary for d.py)
                     time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     continue
 
+        # for channel helpers, limit time to three hours
         if not hf.submod_check(ctx):
-            if time_string:
+            if time_string:  # if the channel helper specified a time for the mute
                 days = int(length[0])
                 hours = int(length[1])
                 total_hours = hours + days * 24
                 if total_hours > 3:
-                    time_string = None
+                    time_string = None  # temporarily set to indefinite mute (triggers next line of code)
 
-            if not time_string:
+            if not time_string:  # if the channel helper did NOT specify a time for the mute
                 time = '3h'
                 time_string, length = hf.parse_time(time)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 3h.")
-
-        args = new_args
+        args_list: List[str] = new_args  # sets "args" list to the "new_args" list which has ID/time_str removed
 
         if not target:
             try:
@@ -1034,16 +1122,30 @@ class ChannelMods(commands.Cog):
                 pass
             return
 
+        # ####### Prevent multiple mutes/modlog entries for spamming #######
+
         try:
+            # get last item in user's modlog
             last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
+            # time of last item in user's modlog
             event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            # if last modlog was a mute and was less than 70 seconds ago
             if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+                # and if that last modlog's reason started with "Antispam"
                 if last_modlog['reason'].startswith("Antispam"):
                     return  # Prevents multiple mute calls for spammed text
         except (KeyError, IndexError):
             pass
 
-        reason = ' '.join(args)
+        reason = args
+        try:
+            counter = 0
+            while reason[0] == "\n" and counter < 10:
+                reason = reason[1:]
+                counter += 1
+        except IndexError:
+            pass
+
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
@@ -1095,9 +1197,9 @@ class ChannelMods(commands.Cog):
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
 
-        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat.\n"
+        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat."
         if time_string:
-            notif_text = f"{notif_text[:-2]} for {time}.\n"
+            notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h."
         if reason:
             notif_text += f"\nReason: {reason}"
         emb = hf.red_embed(notif_text)
