@@ -38,7 +38,7 @@ class Owner(commands.Cog):
 
     async def cog_check(self, ctx):
         if self.bot.user.id == RYRY_RAI_BOT_ID:  # If it's Ryry's Rai bot
-            return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID]
+            return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID, UNITARITY_ID]
         else:
             return ctx.author.id == self.bot.owner_id
 
