@@ -23,7 +23,8 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 RYRY_ID = 202995638860906496
 ABELIAN_ID = 414873201349361664  # Ryry alt
 MARIO_RYAN_ID = 528770932613971988  # Ryry alt
-RYRY_SPAM_CHAN = 275879535977955330
+UNITARITY_ID = 528770932613971988  # Ryry alt
+
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
@@ -138,7 +139,7 @@ class Owner(commands.Cog):
     @commands.command(aliases=['repl'])
     async def reply(self, ctx, index, *, reply=''):
         """Reply to a message to the bot"""
-        channel = self.bot.get_channel(RYRY_SPAM_CHAN)
+        channel = self.bot.get_channel(int(os.getenv("BOT_TEST_CHANNEL")))
         index_re = re.search("^(;repl|;reply) (\d) ", ctx.message.content)
         if not index_re:
             reply = f"{index} {reply}"

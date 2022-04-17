@@ -33,7 +33,7 @@ try:
     with open(f"{dir_path}/.env", 'r') as f:
         pass
 except FileNotFoundError:
-    txt = """BOT_TOKEN=\nGCSE_API=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL="""
+    txt = """BOT_TOKEN=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL=\nOWNER_ID=\nGCSE_API="""
     with open(f'{dir_path}/.env', 'w') as f:
         f.write(txt)
     print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
@@ -421,12 +421,12 @@ class Rai(Bot):
 
 bot = Rai()
 
-# A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
-if "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-    bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
-elif "ForkedRai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
-    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai
-elif "local" in os.path.basename(dir_path):
+# A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
+if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
     bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
+elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+    bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
+
+# For forked copies of Rai by other people, just run the bot normally:
 else:
     bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
