@@ -26,6 +26,7 @@ MARIO_RYAN_ID = 528770932613971988  # Ryry alt
 UNITARITY_ID = 528770932613971988  # Ryry alt
 
 RYRY_RAI_BOT_ID = 270366726737231884
+RAI_TEST_BOT_ID = 536170400871219222
 
 
 class Owner(commands.Cog):
@@ -37,7 +38,7 @@ class Owner(commands.Cog):
         self.sessions = set()
 
     async def cog_check(self, ctx):
-        if self.bot.user.id == RYRY_RAI_BOT_ID:  # If it's Ryry's Rai bot
+        if self.bot.user.id in [RYRY_RAI_BOT_ID, RAI_TEST_BOT_ID]:  # If it's Ryry's Rai bot
             return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID, UNITARITY_ID]
         else:
             return ctx.author.id == self.bot.owner_id
