@@ -367,13 +367,16 @@ class ChannelMods(commands.Cog):
     @staffping.command(name="set")
     async def staffping_set(self, ctx, input_id=None):
         """Does one of two things:
-        1) Sets notification channel for pings to this channel (`;staffping set <channel_mention>)
-           (if no channel is specified, sets to current channel)
-        2) Sets the watched role for staff pings (specify an ID or role: `;staffping set <ID/role mention>`)
+        1) Sets notification channel for pings to a selected channel
+        ⠀(`;staffping set <channel_mention>`)
+        ⠀(if no channel is specified, sets to current channel)
+        2) Sets the watched role for staff pings
+        ⠀(specify an ID or role: `;staffping set <ID/role mention>`)
         If neither are set, it will watch for the mod role (`;set_mod_role`) and notify to the
         submod channel (`;set_submod_channel`)."""
         if str(ctx.guild.id) not in self.bot.db['staff_ping']:
             await ctx.invoke(self.staffping)
+
 
         config = self.bot.db['staff_ping'][str(ctx.guild.id)]
 
