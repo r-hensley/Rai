@@ -371,50 +371,35 @@ class ChannelMods(commands.Cog):
         ⠀(`;staffping set <channel_mention>`)
         ⠀(if no channel is specified, sets to current channel)
         2) Sets the watched role for staff pings
-        ⠀(specify an ID or role: `;staffping set <ID/role mention>`)
+        ⠀(specify an ID or role: `;staffping set <role mention/ID>`)
         If neither are set, it will watch for the mod role (`;set_mod_role`) and notify to the
         submod channel (`;set_submod_channel`)."""
         if str(ctx.guild.id) not in self.bot.db['staff_ping']:
             await ctx.invoke(self.staffping)
-
 
         config = self.bot.db['staff_ping'][str(ctx.guild.id)]
 
         if not input_id:  # nothing, assume setting channel to current channel
             config['channel'] = ctx.channel.id
             await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
+            return
 
-        else:
-            if re.search(r"^<#\d{17,22}>$", ctx.message.content):  # a channel mention
-                config['channel'] = int(input_id.replace("<#", "").replace(">", ""))
-                await hf.safe_send(ctx, f"I've set the notification channel for staff pings as <#{input_id}>.")
-            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a channel id
-                channel = ctx.guild.get_channel_or_thread(int(input_id))
-                if channel:
-                    config['channel'] = int(input_id)
+        channel = role = None
+        if regex := re.search(r"^<?#?@?&?(\d{17,22})>$", input_id):  # a channel or role mention/ID
+            object_id = int(regex.group(1))
+            channel = self.bot.get_channel(object_id)
+            role = ctx.guild.get_role(object_id)
+            if channel:
+                config['channel'] = channel.id
+                await hf.safe_send(ctx, f"I've set the notification channel for staff pings to {channel.mention}.")
+            elif role:
+                config['role'] = role.id
+                await hf.safe_send(ctx, f"I've set the watched staff role to **{role.name}** (`{role.mention}`)")
 
-            elif re.search(r"^<@&\d{17,22}>$", ctx.message.content):  # a role mention
-                input_id = input_id.replace("<@&", "").replace(">", "")
-                role = ctx.guild.get_role(int(input_id))
-                if role:
-                    config['role'] = int(input_id)
-                else:
-                    await hf.safe_send(ctx,
-                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
-                                       "go to that channel and type just `;staffping set` instead.")
-                    return
-            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a role id
-                role = ctx.guild.get_role(int(input_id))
-                if role:
-                    config['role'] = int(input_id)
-                else:
-                    await hf.safe_send(ctx,
-                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
-                                       "go to that channel and type just `;staffping set` instead.")
-                    return
-            else:
-                await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
-                return
+        if not channel and not role:
+            await hf.safe_send(ctx, f"I couldn't figure out what you wanted to do.")
+            await hf.safe_send(ctx, ctx.command.help)
+
 
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
