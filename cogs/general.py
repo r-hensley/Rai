@@ -614,9 +614,8 @@ class General(commands.Cog):
 
             config = self.bot.db['staff_ping'][str(msg.guild.id)]
             staff_role_id = config.get("role")  # try to get role id from staff_ping db
-            if not staff_role_id:
+            if not staff_role_id:  # no entry in staff_ping db
                 staff_role_id = self.bot.db['mod_role'].get(str(msg.guild.id), {}).get("id")
-                staff_role_id = staff_role_id
             if not staff_role_id:
                 return  # This guild doesn't have a mod role or staff ping role set
             staff_role = msg.guild.get_role(staff_role_id)
@@ -2939,7 +2938,17 @@ class General(commands.Cog):
             return  # this guild does not have any kind of mod channel configured
 
         # Send notification to a mod channel
-        msg = await hf.safe_send(mod_channel, embed=alarm_emb, view=view)
+        content = None
+        staff_role_id = ""
+        if slash:
+            config = self.bot.db['staff_ping'].get(guild_id)
+            if config:
+                staff_role_id = config.get("role")  # try to get role id from staff_ping db
+                if not staff_role_id:  # no entry in staff_ping db
+                    staff_role_id = self.bot.db['mod_role'].get(guild_id, {}).get("id")
+        if staff_role_id:
+            content = f"<@&{staff_role_id}>"
+        msg = await hf.safe_send(mod_channel, content, embed=alarm_emb, view=view)
 
         # Send notification to users who subscribe to mod pings
         for user_id in self.bot.db['staff_ping'].get(guild_id, {}).get('users', []):
