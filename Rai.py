@@ -1,16 +1,19 @@
 # -*- coding: utf8 -*-
-import discord
+import logging
 import asyncio
-from discord.ext.commands import Bot
-from discord.ext import commands, tasks
-import sys, traceback
+import sys
+import traceback
 import json
-from cogs.utils import helper_functions as hf
-from datetime import datetime
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
-import logging
+import discord
+from discord.ext.commands import Bot
+from discord.ext import commands, tasks
+
+from cogs.utils import helper_functions as hf
+
 logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
@@ -59,6 +62,10 @@ t_start = datetime.now()
 
 # Don't change this even on forked copies of Rai
 RYRY_RAI_COPY = 270366726737231884
+JP_SERV_ID = 189571157446492161
+SP_SERV_ID = 243838819743432704
+RY_TEST_SERV_ID = 275146036178059265
+FEDE_TEST_SERV_ID = 941155953682821201
 
 
 def prefix(bot, msg):
@@ -171,7 +178,7 @@ class Rai(Bot):
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
-        guilds = [189571157446492161, 243838819743432704, 275146036178059265]
+        guilds = [RY_TEST_SERV_ID, FEDE_TEST_SERV_ID, JP_SERV_ID, SP_SERV_ID]
         for guild in guilds:
             if guild not in [g.id for g in self.guilds]:
                 guilds.remove(guild)

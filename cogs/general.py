@@ -1,5 +1,6 @@
 import urllib
 from typing import Optional, List, Union
+import os
 
 import discord
 from discord.ext import commands
@@ -13,12 +14,7 @@ from urllib.error import HTTPError
 from collections import Counter
 from inspect import cleandoc
 from random import choice
-from discord.commands import slash_command  # slash commands import
-from discord.commands import permissions  # slash commands import
-from discord.commands import Option  # slash commands import
-from discord.ui import Button, View
 
-import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 COLOR_CHANNEL_ID = 577382927596257280
@@ -33,11 +29,13 @@ SP_SERVER_ID = 243838819743432704
 CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
+FEDE_TESTER_SERVER_ID = 941155953682821201
 
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
+RYRY_RAI_BOT_ID = 270366726737231884
 
 
 def blacklist_check():
@@ -2728,10 +2726,11 @@ class General(commands.Cog):
         except (discord.Forbidden, discord.NotFound):
             return
 
-    @slash_command(guild_ids=[941155953682821201])
-    async def staffping(self, ctx: discord.ApplicationContext,
-                        users: Option(str, "The user/s:"),
-                        reason: Option(str, "Specify the reason for your report:")):
+    @commands.slash_command(guild_ids=[JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID, FEDE_TESTER_SERVER_ID])
+    async def staffping(self,
+                        ctx: discord.ApplicationContext,
+                        users: discord.Option(str, "The user/s:"),
+                        reason: discord.Option(str, "Specify the reason for your report:")):
         """Notifies the staff team about a current and urgent issue."""
         await self.staffping_code(ctx, users, reason)
 
@@ -2763,7 +2762,8 @@ class General(commands.Cog):
         if not regex_result:
             if slash:
                 await ctx.respond("I couldn't find the specified user/s.\n"
-                                  "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+                                  "Please, mention the user/s or write their ID/s in the user prompt.",
+                                  ephemeral=True)
                 return
             else:
                 pass
@@ -2784,13 +2784,14 @@ class General(commands.Cog):
         if len(member_list) > 9:
             if slash:
                 await ctx.respond("You're trying to report too many people at the same time. Max per command: 9.\n"
-                                  "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+                                  "Please, mention the user/s or write their ID/s in the user prompt.",
+                                  ephemeral=True)
                 return
             else:
                 member_list = []
 
         invis = "⠀"  # an invisible character that's not a space to avoid stripping of whitespace
-        user_id_list = [f'\n{invis*1}- <@{i}> (`{i}`)' for i in member_list]
+        user_id_list = [f'\n{invis * 1}- <@{i}> (`{i}`)' for i in member_list]
         user_id_str = ''.join(user_id_list)
         if slash:
             confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
@@ -2848,10 +2849,12 @@ class General(commands.Cog):
 
         async def button_1_callback(interaction):
             await button_callback_action(1)
+
         button_1.callback = button_1_callback
 
         async def button_2_callback(interaction):
             await button_callback_action(2)
+
         button_2.callback = button_2_callback
 
         async def button_3_callback(interaction):
