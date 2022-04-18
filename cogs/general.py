@@ -1,5 +1,5 @@
 import urllib
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import discord
 from discord.ext import commands
@@ -74,6 +74,8 @@ class General(commands.Cog):
         if not self.bot.is_ready:
             return
 
+        ctx = await self.bot.get_context(msg)
+
         ##########################################
 
         if not msg.guild:  # all code after this has msg.guild requirement
@@ -89,7 +91,6 @@ class General(commands.Cog):
                 return
             if not msg.attachments:
                 return
-            ctx = await self.bot.get_context(msg)
             if "AOTW recording" in msg.content:
                 await ctx.invoke(self.bot.get_command("question"), args=msg.content)
 
@@ -99,8 +100,7 @@ class General(commands.Cog):
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
-                    new_ctx = await self.bot.get_context(msg)
-                    await new_ctx.invoke(self.serverinfo)
+                    await ctx.invoke(self.serverinfo)
 
         await replace_tatsumaki_posts()
 
@@ -405,7 +405,6 @@ class General(commands.Cog):
                         await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
                                                                   f"potential  spam link:\n```{cont}```"))
                     elif messages:  # mute
-                        ctx = await self.bot.get_context(msg)
                         ctx.author = ctx.guild.me
                         await ctx.invoke(self.bot.get_command('mute'),
                                          args=f"1h {str(msg.author.id)} "
@@ -609,58 +608,40 @@ class General(commands.Cog):
 
         async def mods_ping():
             """mods ping on spanish server"""
-            em = discord.Embed(title=f"Staff Ping",
-                               description=f"From {msg.author.mention} ({msg.author.name}) "
-                                           f"in {msg.channel.mention}\n[Jump URL]({msg.jump_url})",
-                               color=discord.Color(int('FFAA00', 16)),
-                               timestamp=discord.utils.utcnow())
-            if msg.guild.id in [SP_SERVER_ID, JP_SERVER_ID]:
-                if '<@&642782671109488641>' in msg.content or '<@&240647591770062848>' in msg.content:
-                    content = msg.content.replace('<@&642782671109488641>', '').replace('<@&240647591770062848>', '')
+            if str(msg.guild.id) not in self.bot.db['staff_ping']:
+                return
 
-                    if content:
-                        em.add_field(name="Content", value=content[:1024])
-                    for user in self.bot.db['staff_ping'][str(msg.guild.id)]['users']:
-                        try:
-                            await hf.safe_send(self.bot.get_user(user), embed=em)
-                        except discord.Forbidden:
-                            pass
+            if 'channel' not in self.bot.db['staff_ping'][str(msg.guild.id)]:
+                return
 
-                    if 'channel' in self.bot.db['staff_ping'][str(msg.guild.id)]:
-                        notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
-                    elif str(msg.guild.id) in self.bot.db['submod_channel']:
-                        notif_channel = self.bot.get_channel(self.bot.db['submod_channel'][str(msg.guild.id)])
-                    else:
-                        return
-                    notif = await hf.safe_send(notif_channel, embed=em)
+            config = self.bot.db['staff_ping'][str(msg.guild.id)]
+            staff_role_id = config.get("role")  # try to get role id from staff_ping db
+            if not staff_role_id:
+                staff_role_id = self.bot.db['mod_role'].get(str(msg.guild.id), {}).get("id")
+                staff_role_id = staff_role_id
+            if not staff_role_id:
+                return  # This guild doesn't have a mod role or staff ping role set
+            staff_role = msg.guild.get_role(staff_role_id)
+            if not staff_role:
+                return
 
-                    # Add message to list of synchronized reaction messages
-                    if hasattr(self.bot, 'synced_reactions'):
-                        self.bot.synced_reactions[notif] = msg
-                        self.bot.synced_reactions[msg] = notif
-                    else:
-                        self.bot.synced_reactions = {notif: msg, msg: notif}
-
-                """ mods ping on other servers"""
+            if f"<@&{staff_role_id}>" in msg.content:
+                edited_msg = re.sub(rf'<?@?&?{str(staff_role_id)}>? ?', '', msg.content)
             else:
-                if str(msg.guild.id) not in self.bot.db['staff_ping']:
-                    return
+                return
+            user_id_regex = r"<?@?!?(\d{17,22})>? ?"
+            users = re.findall(user_id_regex, edited_msg)
+            users = ' '.join(users)
+            edited_msg = re.sub(user_id_regex, "", edited_msg)
+            notif = await self.staffping_code(ctx=ctx, users=users, reason=edited_msg)
 
-                if 'channel' not in self.bot.db['staff_ping'][str(msg.guild.id)]:
-                    return
+            if hasattr(self.bot, 'synced_reactions'):
+                self.bot.synced_reactions[notif] = msg
+                self.bot.synced_reactions[msg] = notif
+            else:
+                self.bot.synced_reactions = {notif: msg, msg: notif}
 
-                if str(msg.guild.id) in self.bot.db['mod_role']:
-                    mod_role = msg.guild.get_role(self.bot.db['mod_role'][str(msg.guild.id)]['id'])
-                else:
-                    return
-
-                if not mod_role:
-                    return
-
-                if mod_role in msg.role_mentions:
-                    notif_channel = self.bot.get_channel(self.bot.db['staff_ping'][str(msg.guild.id)]['channel'])
-                    await hf.safe_send(notif_channel, embed=em)
-
+            return
         await mods_ping()
 
         # ### super_watch
@@ -1018,7 +999,6 @@ class General(commands.Cog):
 
                 try:
                     # execute the 1h mute command
-                    ctx = await self.bot.get_context(msg)
                     ctx.author = msg.guild.me
                     await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
 
@@ -1462,9 +1442,8 @@ class General(commands.Cog):
 
         count_emojis_for_stats()
 
-        "Remove reactions for if you're self muted"
-
         async def remove_selfmute_reactions():
+            """Remove reactions for if you're self muted"""
             if not reaction.message.guild:
                 return
             try:
@@ -1475,12 +1454,10 @@ class General(commands.Cog):
                         pass
             except KeyError:
                 pass
-
         await remove_selfmute_reactions()
 
-        "Synchronize reactions on specified messages (staff pings)"
-
         async def synchronize_reactions():
+            """Synchronize reactions on specified messages (staff pings)"""
             if hasattr(self.bot, 'synced_reactions'):
                 if reaction.message in self.bot.synced_reactions and not user.bot:
                     target_msg = self.bot.synced_reactions[reaction.message]
@@ -2752,51 +2729,86 @@ class General(commands.Cog):
             return
 
     @slash_command(guild_ids=[941155953682821201])
-    async def staffping(self, ctx,
-                        user: Option(str, "The user/s:"),
+    async def staffping(self, ctx: discord.ApplicationContext,
+                        users: Option(str, "The user/s:"),
                         reason: Option(str, "Specify the reason for your report:")):
         """Notifies the staff team about a current and urgent issue."""
+        await self.staffping_code(ctx, users, reason)
 
-        regex_result = re.findall(r'<?@?!?(\d{17,22})>?', user)
+    async def staffping_code(self,
+                             ctx: Union[discord.ApplicationContext, commands.Context],
+                             users: str,
+                             reason: str):
+        """The main code for the staffping command. This will be referenced by the above slash
+        command, but also by the mods_ping() function in on_message()"""
+        regex_result = re.findall(r'<?@?!?(\d{17,22})>?', users)
+
+        jump_url = None
+        if isinstance(ctx, discord.ApplicationContext):
+            slash = True  # This was called from a slash command
+            channel = ctx.interaction.channel
+            last_message: discord.Message = ctx.interaction.channel.last_message
+            if last_message:
+                jump_url = last_message.jump_url
+        else:
+            slash = False  # This was called from on_message
+            channel = ctx.channel
+            jump_url = ctx.message.jump_url
+
+        if not jump_url:
+            messages = await channel.history(limit=1).flatten()
+            if messages:
+                jump_url = messages[0].jump_url
 
         if not regex_result:
-            await ctx.respond("I couldn't find the specified user/s.\n"
-                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
-            return
+            if slash:
+                await ctx.respond("I couldn't find the specified user/s.\n"
+                                  "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+                return
+            else:
+                pass
 
         for result in regex_result:
             if not ctx.guild.get_member(int(result)):
                 regex_result.remove(result)
-                await ctx.respond(f"I couldn't find the user {result} in this server", ephemeral=True)
-            else:
-                continue
+                if slash:
+                    await ctx.respond(f"I couldn't find the user {result} in this server", ephemeral=True)
 
-        if not regex_result:
+        if not regex_result and slash:
             await ctx.respond("I couldn't find any of the users that you specified, try again.\n"
                               "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
             return
 
-        regex_result = list(set(regex_result))
+        member_list: List[discord.Member] = list(set(regex_result))  # unique list of users
 
-        if len(regex_result) > 9:
-            await ctx.respond("You're trying to report too many people at the same time. Max per command: 9.\n"
-                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
-            return
+        if len(member_list) > 9:
+            if slash:
+                await ctx.respond("You're trying to report too many people at the same time. Max per command: 9.\n"
+                                  "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+                return
+            else:
+                member_list = []
 
-        user_id_list = ['\n   - <@' + i + '>' + ' ' + '(`' + i + '`)' for i in regex_result]
+        invis = "⠀"  # an invisible character that's not a space to avoid stripping of whitespace
+        user_id_list = [f'\n{invis*1}- <@{i}> (`{i}`)' for i in member_list]
         user_id_str = ''.join(user_id_list)
-        confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
-        if len(regex_result) > 1:
-            confirmation_text = confirmation_text.replace('user', 'users')
-        await ctx.respond(f"{confirmation_text}", ephemeral=True)
+        if slash:
+            confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
+            if len(member_list) > 1:
+                confirmation_text = confirmation_text.replace('user', 'users')
+            await ctx.respond(f"{confirmation_text}", ephemeral=True)
 
         alarm_emb = discord.Embed(title=f"Staff Ping",
                                   description=f"- **From**: {ctx.author.mention} ({ctx.author.name})"
-                                              f"\n- **In**: {ctx.channel.mention}"
-                                              f"\n\n- **Reason**: {reason}."
-                                              f"\n- **Reported Users**: {user_id_str}",
+                                              f"\n- **In**: {ctx.channel.mention}",
                                   color=discord.Color(int('FFAA00', 16)),
                                   timestamp=discord.utils.utcnow())
+        if jump_url:
+            alarm_emb.description += f"\n[**`JUMP URL`**]({jump_url})"
+        if reason:
+            alarm_emb.description += f"\n\n- **Reason**: {reason}."
+        if user_id_str:
+            alarm_emb.description += f"\n- **Reported Users**: {user_id_str}"
 
         button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
 
@@ -2816,7 +2828,7 @@ class General(commands.Cog):
                    button_5, button_6, button_7, button_8, button_9]
 
         view = discord.ui.View()
-        for button in buttons[:len(regex_result) + 1]:
+        for button in buttons[:len(member_list) + 1]:
             view.add_item(button)
         view.add_item(button_solved)
 
@@ -2824,12 +2836,14 @@ class General(commands.Cog):
             if button_index == 0:
                 modlog_target = ctx.author.id
             else:
-                modlog_target = regex_result[int(button_index) - 1]
-            await channel_mods.ChannelMods.modlog(ctx, modlog_target, delete_parameter=30)
+                modlog_target = member_list[int(button_index) - 1]
+            channel_mods = self.bot.get_cog("ChannelMods")
+            await channel_mods.modlog(ctx, modlog_target, delete_parameter=30)
             await msg.edit(content=f"{modlog_target}", embed=alarm_emb, view=view)
 
         async def author_button_callback(interaction):
             await button_callback_action(0)
+
         button_author.callback = author_button_callback
 
         async def button_1_callback(interaction):
@@ -2842,30 +2856,37 @@ class General(commands.Cog):
 
         async def button_3_callback(interaction):
             await button_callback_action(3)
+
         button_3.callback = button_3_callback
 
         async def button_4_callback(interaction):
             await button_callback_action(4)
+
         button_4.callback = button_4_callback
 
         async def button_5_callback(interaction):
             await button_callback_action(5)
+
         button_5.callback = button_5_callback
 
         async def button_6_callback(interaction):
             await button_callback_action(6)
+
         button_6.callback = button_6_callback
 
         async def button_7_callback(interaction):
             await button_callback_action(7)
+
         button_7.callback = button_7_callback
 
         async def button_8_callback(interaction):
             await button_callback_action(8)
+
         button_8.callback = button_8_callback
 
         async def button_9_callback(interaction):
             await button_callback_action(9)
+
         button_9.callback = button_9_callback
 
         async def solved_button_callback(interaction):
@@ -2878,7 +2899,55 @@ class General(commands.Cog):
 
         button_solved.callback = solved_button_callback
 
-        msg = await hf.safe_send(ctx, embed=alarm_emb, view=view)
+        if slash:
+            guild_id = str(ctx.interaction.guild.id)
+        else:
+            guild_id = str(ctx.guild.id)
+
+        # Try to find the channel set by the staffping command first
+        mod_channel = None
+        mod_channel_id = self.bot.db['staff_ping'].get(guild_id, {}).get("channel")
+        if mod_channel_id:
+            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
+            if not mod_channel:
+                del self.bot.db['staff_ping'][guild_id]['channel']
+                mod_channel_id = None
+                # guild had a staff ping channel once but it seems it has been deleted
+
+        # Failed to find a staffping channel, search for a submod channel next
+        mod_channel_id = self.bot.db['submod_channel'].get(guild_id)
+        if not mod_channel and mod_channel_id:
+            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
+            if not mod_channel:
+                del self.bot.db['submod_channel'][guild_id]
+                mod_channel_id = None
+                # guild had a submod channel once but it seems it has been deleted
+
+        # Failed to find a submod channel, search for mod channel
+        if not mod_channel and mod_channel_id:
+            mod_channel_id = self.bot.db['mod_channel'].get(guild_id)
+            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
+            if not mod_channel:
+                del self.bot.db['mod_channel'][guild_id]
+                mod_channel_id = None
+                # guild had a mod channel once but it seems it has been deleted
+
+        if not mod_channel:
+            return  # this guild does not have any kind of mod channel configured
+
+        # Send notification to a mod channel
+        msg = await hf.safe_send(mod_channel, embed=alarm_emb, view=view)
+
+        # Send notification to users who subscribe to mod pings
+        for user_id in self.bot.db['staff_ping'].get(guild_id, {}).get('users', []):
+            try:
+                user = self.bot.get_user(user_id)
+                if user:
+                    await hf.safe_send(user, embed=alarm_emb)
+            except discord.Forbidden:
+                pass
+
+        return msg
 
 
 def setup(bot):
