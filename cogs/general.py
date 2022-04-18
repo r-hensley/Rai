@@ -60,7 +60,7 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
-        hf.setup(bot)
+        hf.setup(bot)  # this is to define here.bot in the hf file
 
     @commands.Cog.listener()
     async def on_message(self, msg):

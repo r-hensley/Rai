@@ -27,6 +27,7 @@ BANS_CHANNEL_ID = 329576845949534208
 
 
 def setup(bot):
+    """This command is run in __init__() function of general.py"""
     if here.bot is None:
         here.bot = bot
     else:
