@@ -415,5 +415,5 @@ class Reports(commands.Cog):
         await report_room.send(report_text[5])  # full instructions text in report room
 
 
-def setup(bot):
-    bot.add_cog(Reports(bot))
+async def setup(bot):
+    await bot.add_cog(Reports(bot))

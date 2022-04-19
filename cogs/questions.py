@@ -1451,5 +1451,5 @@ class Questions(commands.Cog):
         await wait_for_delete(msg)
 
 
-def setup(bot):
-    bot.add_cog(Questions(bot))
+async def setup(bot):
+    await bot.add_cog(Questions(bot))

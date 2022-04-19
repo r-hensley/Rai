@@ -732,5 +732,5 @@ class Owner(commands.Cog):
             await ctx.send("Result was over 2000 characters", file=f)
 
 
-def setup(bot):
-    bot.add_cog(Owner(bot))
+async def setup(bot):
+    await bot.add_cog(Owner(bot))

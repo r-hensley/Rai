@@ -185,5 +185,5 @@ class Jpserv(commands.Cog):
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
 
-def setup(bot):
-    bot.add_cog(Jpserv(bot))
+async def setup(bot):
+    await bot.add_cog(Jpserv(bot))
