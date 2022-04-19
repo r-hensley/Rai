@@ -725,7 +725,6 @@ class Owner(commands.Cog):
 
         await hf.safe_send(ctx, result)
 
-        print(long)
         if long:
             buffer = io.BytesIO(bytes(result, "utf-8"))
             f = discord.File(buffer, filename="text.txt")
