@@ -2475,5 +2475,5 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, msg)
 
 
-def setup(bot):
-    bot.add_cog(Admin(bot))
+async def setup(bot):
+    await bot.add_cog(Admin(bot))

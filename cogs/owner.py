@@ -717,5 +717,5 @@ class Owner(commands.Cog):
             index += 1
 
 
-def setup(bot):
-    bot.add_cog(Owner(bot))
+async def setup(bot):
+    await bot.add_cog(Owner(bot))
