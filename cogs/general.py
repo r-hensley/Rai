@@ -1,20 +1,21 @@
 import urllib
-from typing import Optional, List, Union
 import os
-
-import discord
-from discord.ext import commands
-from datetime import timedelta, timezone
-from .utils import helper_functions as hf
-import re
-from Levenshtein import distance as LDist
 import string
 import asyncio
-from urllib.error import HTTPError
-from collections import Counter
+import re
+from typing import Optional, List, Union
 from inspect import cleandoc
 from random import choice
+from collections import Counter
+from datetime import timedelta
+from urllib.error import HTTPError
 
+import discord
+from discord import app_commands
+from discord.ext import commands
+from Levenshtein import distance as LDist
+
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 COLOR_CHANNEL_ID = 577382927596257280
@@ -58,7 +59,6 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
-        hf.setup(bot)  # this is to define here.bot in the hf file
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -2725,16 +2725,29 @@ class General(commands.Cog):
         except (discord.Forbidden, discord.NotFound):
             return
 
-    @commands.slash_command(guild_ids=[JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID, FEDE_TESTER_SERVER_ID])
-    async def staffping(self,
-                        ctx: discord.ApplicationContext,
-                        users: discord.Option(str, "The user/s:"),
-                        reason: discord.Option(str, "Specify the reason for your report:")):
-        """Notifies the staff team about a current and urgent issue."""
-        await self.staffping_code(ctx, users, reason)
+    # @app_commands.command()
+    # @app_commands.guilds(RY_SERVER_ID)
+    # async def slash(self, interaction: discord.Interaction):
+    #     await interaction.response.send_message("test", ephemeral=True)
+
+    # @app_commands.command()
+    # # @app_commands.describe("Notifies the staff team about a current and urgent issue.")
+    # @app_commands.guilds(JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID, FEDE_TESTER_SERVER_ID)
+    # # @app_commands.choices(users, reason)
+    # async def staffping(self,
+    #                     # ctx: discord.ApplicationContext,
+    #                     interaction: discord.Interaction,
+    #                     # users: discord.Option(str, "The user/s:"),
+    #                     # reason: discord.Option(str, "Specify the reason for your report:")):
+    #                     # users: discord.ui.TextInput(label="The user/s:"),
+    #                     # reason: discord.ui.TextInput(label="Specify the reason for your report:")):
+    #                     users,
+    #                     reason):
+    #     """Notifies the staff team about a current and urgent issue."""
+    #     await self.staffping_code(interaction, users, reason)
 
     async def staffping_code(self,
-                             ctx: Union[discord.ApplicationContext, commands.Context],
+                             ctx: Union[discord.Interaction, commands.Context],
                              users: str,
                              reason: str):
         """The main code for the staffping command. This will be referenced by the above slash
@@ -2742,10 +2755,10 @@ class General(commands.Cog):
         regex_result = re.findall(r'<?@?!?(\d{17,22})>?', users)
 
         jump_url = None
-        if isinstance(ctx, discord.ApplicationContext):
+        if isinstance(ctx, discord.Interaction):
             slash = True  # This was called from a slash command
-            channel = ctx.interaction.channel
-            last_message: discord.Message = ctx.interaction.channel.last_message
+            channel = ctx.channel
+            last_message: discord.Message = ctx.channel.last_message
             if last_message:
                 jump_url = last_message.jump_url
         else:
@@ -2754,15 +2767,15 @@ class General(commands.Cog):
             jump_url = ctx.message.jump_url
 
         if not jump_url:
-            messages = await channel.history(limit=1).flatten()
+            messages = [message async for message in channel.history(limit=1)]
             if messages:
                 jump_url = messages[0].jump_url
 
         if not regex_result:
             if slash:
-                await ctx.respond("I couldn't find the specified user/s.\n"
-                                  "Please, mention the user/s or write their ID/s in the user prompt.",
-                                  ephemeral=True)
+                await ctx.response.send_message("I couldn't find the specified user/s.\n"
+                                                "Please, mention the user/s or write their ID/s in the user prompt.",
+                                                ephemeral=True)
                 return
             else:
                 pass
@@ -2771,20 +2784,22 @@ class General(commands.Cog):
             if not ctx.guild.get_member(int(result)):
                 regex_result.remove(result)
                 if slash:
-                    await ctx.respond(f"I couldn't find the user {result} in this server", ephemeral=True)
+                    await ctx.response.send_message(f"I couldn't find the user {result} in this server", ephemeral=True)
 
         if not regex_result and slash:
-            await ctx.respond("I couldn't find any of the users that you specified, try again.\n"
-                              "Please, mention the user/s or write their ID/s in the user prompt.", ephemeral=True)
+            await ctx.response.send_message("I couldn't find any of the users that you specified, try again.\n"
+                                            "Please, mention the user/s or write their ID/s in the user prompt.",
+                                            ephemeral=True)
             return
 
         member_list: List[discord.Member] = list(set(regex_result))  # unique list of users
 
         if len(member_list) > 9:
             if slash:
-                await ctx.respond("You're trying to report too many people at the same time. Max per command: 9.\n"
-                                  "Please, mention the user/s or write their ID/s in the user prompt.",
-                                  ephemeral=True)
+                await ctx.response.send_message("You're trying to report too many people at the same time. "
+                                                "Max per command: 9.\n"
+                                                "Please, mention the user/s or write their ID/s in the user prompt.",
+                                                ephemeral=True)
                 return
             else:
                 member_list = []
@@ -2796,7 +2811,7 @@ class General(commands.Cog):
             confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
             if len(member_list) > 1:
                 confirmation_text = confirmation_text.replace('user', 'users')
-            await ctx.respond(f"{confirmation_text}", ephemeral=True)
+            await ctx.response.send_message(f"{confirmation_text}", ephemeral=True)
 
         alarm_emb = discord.Embed(title=f"Staff Ping",
                                   description=f"- **From**: {ctx.author.mention} ({ctx.author.name})"
@@ -2962,5 +2977,5 @@ class General(commands.Cog):
         return msg
 
 
-def setup(bot):
-    bot.add_cog(General(bot))
+async def setup(bot):
+    await bot.add_cog(General(bot))

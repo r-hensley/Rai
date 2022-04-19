@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext.commands import Bot
 from discord.ext import commands, tasks
+from discord import app_commands
 
 from cogs.utils import helper_functions as hf
 
@@ -132,18 +133,6 @@ class Rai(Bot):
             else:
                 raise
 
-        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
-
-        for extension in initial_extensions:
-            try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-                self.load_extension(extension)
-                print(f'Loaded {extension}')
-            except Exception as e:
-                print(f'Failed to load extension {extension}.', file=sys.stderr)
-                traceback.print_exc()
-                continue
-
     async def on_ready(self):
         await hf.load_language_detection_model()
         self.language_detection = True
@@ -161,13 +150,6 @@ class Rai(Bot):
             self.ctx = await self.get_context(ctxmsg)
         else:
             ctxmsg = self.ctx = None
-
-        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-            self.load_extension('cogs.background')
-            print(f'Loaded cogs.background')
-        except Exception as e:
-            print(f'Failed to load extension cogs.background.', file=sys.stderr)
-            traceback.print_exc()
 
         print("Bot loaded")
 
@@ -246,6 +228,26 @@ class Rai(Bot):
 
         if not self.database_backups.is_running():
             self.database_backups.start()
+
+    async def setup_hook(self):
+        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+
+        for extension in initial_extensions:
+            try:
+                await self.load_extension(extension)
+            except Exception as e:
+                print(f'Failed to load {extension}', file=sys.stderr)
+                traceback.print_exc()
+                raise
+
+        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
+            await self.load_extension('cogs.background')
+            print(f'Loaded cogs.background')
+            await hf.setup(self)  # this is to define here.bot in the hf file
+        except Exception as e:
+            print(f'Failed to load extension cogs.background.', file=sys.stderr)
+            traceback.print_exc()
 
     @tasks.loop(hours=24)
     async def database_backups(self):
@@ -426,14 +428,23 @@ class Rai(Bot):
         traceback.print_exc()
 
 
-bot = Rai()
+def run_bot():
+    bot = Rai()
 
-# A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
-if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
-elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-    bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
+    # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
+    if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+        bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
+    elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+        bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
 
-# For forked copies of Rai by other people, just run the bot normally:
-else:
-    bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
+    # For forked copies of Rai by other people, just run the bot normally:
+    else:
+        bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
+
+
+def main():
+    run_bot()
+
+
+if __name__ == '__main__':
+    main()
