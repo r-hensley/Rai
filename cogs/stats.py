@@ -608,5 +608,5 @@ class Stats(commands.Cog):
                     await hf.safe_send(ctx,
                                        f"Hid {channel.mention}. When someone calls their stats page, it will not be shown.")
 
-def setup(bot):
-    bot.add_cog(Stats(bot))
+async def setup(bot):
+    await bot.add_cog(Stats(bot))

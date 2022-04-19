@@ -306,5 +306,5 @@ class Math(commands.Cog):
                                 f"({de_percentage}%) (average {de_average} surviving troops)")
 
 
-def setup(bot):
-    bot.add_cog(Math(bot))
+async def setup(bot):
+    await bot.add_cog(Math(bot))
