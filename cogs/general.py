@@ -1036,14 +1036,25 @@ class General(commands.Cog):
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True)
     async def help(self, ctx, *, arg=''):
+        # If both a and b return True for a command, then it can run
         async def check_command(command):
             try:
+                # Check permissions of command
                 a = await command.can_run(ctx)
             except commands.BotMissingPermissions:
+                # Bot lacks some permission required to do a command
                 a = False
             except commands.CheckFailure:
+                # A check attached to the command failed
                 a = False
-            b = not command.hidden
+            if hasattr(command, "hidden"):
+                # Hidden commands do not appear in help dialog
+                b = not command.hidden
+            else:
+                # Slash commands don't have the attribute "hidden"
+                # I've decided they shouldn't appear in the help dialog
+                # since they're not a prefix command
+                b = False
             return a and b
 
         if arg:  # user wants help on a specific command/cog
