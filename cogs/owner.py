@@ -48,17 +48,6 @@ class Owner(commands.Cog):
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
-    @commands.Cog.listener()
-    async def on_command(self, ctx):
-        if not ctx.guild:
-            return
-        if str(ctx.guild.id) not in self.bot.db['guildstats']:
-            self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
-        config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
-
-        date_str = discord.utils.utcnow().strftime("%Y%m%d")
-        config[date_str] = config.setdefault(date_str, 0) + 1
-
     @commands.command()
     async def guildstats(self, ctx):
         """Checks stats on various guilds that the bot is on"""
