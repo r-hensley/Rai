@@ -5,10 +5,9 @@ from typing import Union, List
 import discord
 import discord.ext.commands as commands
 import typing
-from discord import app_commands
+from discord import app_commands, ui
 
 from .utils import helper_functions as hf
-
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BANS_CHANNEL_ID = 329576845949534208
@@ -25,9 +24,22 @@ RY_GUILD = discord.Object(id=RY_SERVER_ID)
 FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
 
 
+# @app_commands.describe(): add a description to a parameter when the user is inputting it
+# @app_commands.rename():  rename a parameter after it's been defined by the function
+# app_commands.context_menu() doesn't work in cogs!
+
+
 class Point(typing.NamedTuple):
     x: int
     y: int
+
+
+class Questionnaire(ui.Modal, title='Questionnaire Response'):
+    name = ui.TextInput(label='User(s) to report')
+    answer = ui.TextInput(label='Description of incident', style=discord.TextStyle.paragraph)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f'Your report has been sent to the mod team!', ephemeral=True)
 
 
 class PointTransformer(app_commands.Transformer):
@@ -43,13 +55,74 @@ class Interactions(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.context_menu()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    async def react(interaction: discord.Interaction, message: discord.Message):
-        await interaction.response.send_message('Very cool message!', ephemeral=True)
+    @commands.command()
+    async def sync(self, ctx):
+        """Syncs app commands"""
+        await self.bot.tree.sync(guild=FEDE_GUILD)
+        await ctx.message.add_reaction("♻")
+        print("App commands synced")
 
     @app_commands.command()
-    @app_commands.guilds(RY_GUILD)
+    @app_commands.guilds(FEDE_GUILD)
+    async def modal(self, interaction: discord.Interaction):
+        """Sends a modal (hopefully)"""
+        await interaction.response.send_modal(Questionnaire())
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_GUILD)
+    async def buttons(self, interaction: discord.Interaction):
+        """Adds buttons to a message"""
+        button_1 = ui.Button(style=discord.ButtonStyle.primary,
+                             label="Primary button",
+                             row=0)
+        button_2 = ui.Button(style=discord.ButtonStyle.secondary,
+                             label="Secondary button",
+                             row=0)
+        dropdown = ui.Select(placeholder="Default placeholder text",
+                             options=[
+                                 discord.SelectOption(label="Choice 1",
+                                                      value="Choice 1 value",
+                                                      description="Choice 1 description",
+                                                      emoji="🍏",
+                                                      default=True),
+                                 discord.SelectOption(label="Choice 2",
+                                                      value="Choice 2 value",
+                                                      description="Choice 2 description",
+                                                      emoji="🍎")
+                             ],
+                             row=1,
+                             min_values=1,
+                             max_values=25)
+        short = ui.TextInput(label="Short Text Input label",
+                             placeholder="TI placeholder",
+                             default="TI default",
+                             required=False,
+                             style=discord.TextStyle.short,
+                             row=2)
+        paragraph = ui.TextInput(label="paragraph Text Input label",
+                                 placeholder="TI placeholder",
+                                 default="TI default",
+                                 required=False,
+                                 style=discord.TextStyle.paragraph,
+                                 row=3)
+        long = ui.TextInput(label="long Text Input label",
+                            placeholder="TI placeholder",
+                            default="TI default",
+                            required=False,
+                            style=discord.TextStyle.long,
+                            row=4)
+        response = await interaction.response.send_message("UI elements will be attached to this")
+        message = await interaction.original_message()
+        view = ui.View().from_message(message)
+        view.add_item(button_1)
+        view.add_item(button_2)
+        # view.add_item(dropdown)
+        # view.add_item(short)
+        # view.add_item(paragraph)
+        # view.add_item(long)
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_GUILD)
     async def fruits_app_command(self, interaction: discord.Interaction, fruits: str):
         await interaction.response.send_message(f'Your favourite fruit seems to be {fruits}')
 
@@ -74,7 +147,7 @@ class Interactions(commands.Cog):
 
     @app_commands.command()
     @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    @app_commands.rename(the_member_to_ban='member')
+    @app_commands.rename(the_member_to_ban='memberrrr')
     async def ban_rename(self, interaction: discord.Interaction, the_member_to_ban: discord.Member):
         """Renames the given parameters by their name using the key of the keyword argument as the name."""
         await interaction.response.send_message(f'Banned {the_member_to_ban}')
