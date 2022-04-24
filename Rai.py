@@ -160,16 +160,17 @@ class Rai(Bot):
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
-
         if not self.database_backups.is_running():
             self.database_backups.start()
 
     async def setup_hook(self):
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
+                              'cogs.events', 'cogs.interactions']
 
         for extension in initial_extensions:
             try:
+                print(f"Loaded {extension}")
                 await self.load_extension(extension)
             except Exception as e:
                 print(f'Failed to load {extension}', file=sys.stderr)
@@ -179,10 +180,11 @@ class Rai(Bot):
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             await self.load_extension('cogs.background')
             print(f'Loaded cogs.background')
-            await hf.setup(self)  # this is to define here.bot in the hf file
         except Exception as e:
             print(f'Failed to load extension cogs.background.', file=sys.stderr)
             traceback.print_exc()
+
+        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 
     @tasks.loop(hours=24)
     async def database_backups(self):
