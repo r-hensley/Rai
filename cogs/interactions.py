@@ -4,12 +4,13 @@ from typing import Union, List
 
 import discord
 import discord.ext.commands as commands
+import typing
+from discord import app_commands
 
 from .utils import helper_functions as hf
 
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-BLACKLIST_CHANNEL_ID = 533863928263082014
 BANS_CHANNEL_ID = 329576845949534208
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
@@ -20,9 +21,103 @@ CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
 
+RY_GUILD = discord.Object(id=RY_SERVER_ID)
+FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
+
+
+class Point(typing.NamedTuple):
+    x: int
+    y: int
+
+
+class PointTransformer(app_commands.Transformer):
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: str) -> Point:
+        (x, _, y) = value.partition(',')
+        return Point(x=int(x.strip()), y=int(y.strip()))
+
 
 class Interactions(commands.Cog):
     """A module for Discord interactions such as slash commands and context commands"""
+
+    def __init__(self, bot: commands.Bot) -> None:
+        self.bot = bot
+
+    @app_commands.context_menu()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    async def react(interaction: discord.Interaction, message: discord.Message):
+        await interaction.response.send_message('Very cool message!', ephemeral=True)
+
+    @app_commands.command()
+    @app_commands.guilds(RY_GUILD)
+    async def fruits_app_command(self, interaction: discord.Interaction, fruits: str):
+        await interaction.response.send_message(f'Your favourite fruit seems to be {fruits}')
+
+    @fruits_app_command.autocomplete('fruits')
+    async def fruits_autocomplete(
+            self,
+            interaction: discord.Interaction,
+            current: str,
+    ) -> List[app_commands.Choice[str]]:
+        fruits = ['Banana', 'Pineapple', 'Apple', 'Watermelon', 'Melon', 'Cherry']
+        return [
+            app_commands.Choice(name=fruit, value=fruit)
+            for fruit in fruits if current.lower() in fruit.lower()
+        ]
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    @app_commands.describe(member='the member to ban')
+    async def ban_describe(self, interaction: discord.Interaction, member: discord.Member):
+        """Describes the given parameters by their name using the key of the keyword argument as the name."""
+        await interaction.response.send_message(f'Banned {member}')
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    @app_commands.rename(the_member_to_ban='member')
+    async def ban_rename(self, interaction: discord.Interaction, the_member_to_ban: discord.Member):
+        """Renames the given parameters by their name using the key of the keyword argument as the name."""
+        await interaction.response.send_message(f'Banned {the_member_to_ban}')
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    @app_commands.describe(fruits='fruits to choose from')
+    @app_commands.choices(fruits=[
+        app_commands.Choice(name='apple', value=1),
+        app_commands.Choice(name='banana', value=2),
+        app_commands.Choice(name='cherry', value=3),
+    ])
+    async def fruit_choice(self, interaction: discord.Interaction, fruits: app_commands.Choice[int]):
+        """Instructs the given parameters by their name to use the given choices for their choices."""
+        await interaction.response.send_message(f'Your favourite fruit is {fruits.name}.')
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    async def graph(
+            self,
+            interaction: discord.Interaction,
+            point: app_commands.Transform[Point, PointTransformer],
+    ):
+        """The base class that allows a type annotation in an application command parameter to map
+        into a AppCommandOptionType and transform the raw value into one from this type.
+
+        This class is customisable through the overriding of classmethod() in the class and by using
+        it as the second type parameter of the Transform class. For example, to convert
+        a string into a custom pair type:
+
+        A type annotation that can be applied to a parameter to customise the behaviour of an option type
+        by transforming with the given Transformer. This requires the usage of two generic parameters,
+        the first one is the type you’re converting to and the second one is the type of the
+        Transformer actually doing the transformation.
+
+        During type checking time this is equivalent to typing.Annotated so type checkers
+        understand the intent of the code."""
+        await interaction.response.send_message(str(point))
+
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    async def range(self, interaction: discord.Interaction, value: app_commands.Range[int, 10, 12]):
+        await interaction.response.send_message(f'Your value is {value}', ephemeral=True)
 
     # @commands.slash_command(guild_ids=[JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID, FEDE_TESTER_SERVER_ID])
     # async def staffping(self,
