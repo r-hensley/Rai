@@ -219,7 +219,7 @@ class Submod(commands.Cog):
             msg = await self.bot.wait_for('message',
                                           timeout=40.0,
                                           check=lambda x: x.author == ctx.author and
-                                                          x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
+                                          x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
         except asyncio.TimeoutError:
             try:
                 await msg2.delete()
@@ -294,7 +294,7 @@ class Submod(commands.Cog):
         config = hf.database_toggle(ctx, self.bot.db['submod_role'])
         if 'enable' in config:
             del (config['enable'])
-        submod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        submod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not submod_role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -314,9 +314,6 @@ class Submod(commands.Cog):
     @hf.is_submod()
     async def warn(self, ctx, *, args):
         """Log a mod incident"""
-        user_ids: List[int] = []
-        user_regex = re.compile('^<?@?!?([0-9]{17,22})>?$')  # pull ID out of mention
-
         args = hf.args_discriminator(ctx, args)
 
         user_ids = args.users
@@ -394,8 +391,8 @@ class Submod(commands.Cog):
 
                     if notif_channel:
                         question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
-                                                      f"Would you like to send a pubic warning to "
-                                                      f"{notif_channel.mention}?")
+                                                           f"Would you like to send a pubic warning to "
+                                                           f"{notif_channel.mention}?")
                         await question.add_reaction('✅')
                         await question.add_reaction('❌')
 
