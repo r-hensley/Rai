@@ -1328,7 +1328,7 @@ class Logger(commands.Cog):
             if not (config := self.bot.db['modlog'].get(str(before.guild.id), None)):
                 return  # guild has not setup modlog
 
-            if not (not before.timed_out and after.timed_out):
+            if not (not before.is_timed_out() and after.is_timed_out()):
                 return  # event is not a timeout event
 
             guild = before.guild
@@ -1344,7 +1344,7 @@ class Logger(commands.Cog):
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
                     if entry.target == before:
                         author = entry.user
-                        time_left = (after.communication_disabled_until - discord.utils.utcnow()).total_seconds()
+                        time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         reason = entry.reason
 
                         if time_left < 70:  # 60 SEC
