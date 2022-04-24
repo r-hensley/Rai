@@ -1,22 +1,23 @@
-from discord.ext import commands
+import textwrap
 import asyncio
 import traceback
-import discord
-import textwrap
-from contextlib import redirect_stdout
 import io
 import sys
 import codecs
 import json
-from .utils import helper_functions as hf
 import re
-from ast import literal_eval
+import os
 import importlib
-
 import datetime
 from datetime import datetime, timedelta, timezone
+from subprocess import PIPE, run
+from contextlib import redirect_stdout
+from ast import literal_eval
 
-import os
+import discord
+from discord.ext import commands
+
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -704,6 +705,31 @@ class Owner(commands.Cog):
             with open(f"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
                 await emoji.url.save(im)
             index += 1
+
+    @commands.command()
+    async def os(self, ctx, *command):
+        """
+        Calls an os command using subprocess.run()
+        This version will directly return the results of the command as text
+        Command: The command you wish to input into your system
+        """
+        result = run(command,
+                     stdout=PIPE,
+                     stderr=PIPE,
+                     universal_newlines=True,
+                     shell=True)
+        result = f"{result.stdout}\n{result.stderr}"
+        long = len(result) > 1994
+        result = result[:1994]
+        result = f"```{result}```"
+
+        await hf.safe_send(ctx, result)
+
+        print(long)
+        if long:
+            buffer = io.BytesIO(bytes(result, "utf-8"))
+            f = discord.File(buffer, filename="text.txt")
+            await ctx.send("Result was over 2000 characters", file=f)
 
 
 async def setup(bot):
