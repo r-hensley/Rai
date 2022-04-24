@@ -22,14 +22,21 @@ dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fi
 
 here = sys.modules[__name__]
 here.bot = None
+here._loop = None
+
 
 BANS_CHANNEL_ID = 329576845949534208
 
 
-def setup(bot):
+def setup(bot, loop):
     """This command is run in __init__() function of general.py"""
     if here.bot is None:
         here.bot = bot
+    else:
+        pass
+
+    if here._loop is None:
+        here._loop = loop
     else:
         pass
 
@@ -73,8 +80,6 @@ _url = re.compile("""
 _emoji = re.compile(r'<a?(:[A-Za-z0-9\_]+:|#|@|@&)!?[0-9]{17,20}>')
 
 _lock = asyncio.Lock()
-_loop = asyncio.get_event_loop()
-
 
 def count_messages(member, guild=None):
     """Returns an integer of number of messages sent in the last month"""
@@ -270,10 +275,10 @@ def _predump_json():
 async def dump_json():
     async with _lock:
         try:
-            await _loop.run_in_executor(None, _predump_json)
+            await here._loop.run_in_executor(None, _predump_json)
         except RuntimeError:
             print("Restarting dump_json on a RuntimeError")
-            await _loop.run_in_executor(None, _predump_json)
+            await here._loop.run_in_executor(None, _predump_json)
 
 
 def submod_check(ctx):
@@ -650,7 +655,7 @@ def detect_language(text):
 
 
 async def load_language_detection_model():
-    await _loop.run_in_executor(None, _pre_load_language_detection_model)
+    await here._loop.run_in_executor(None, _pre_load_language_detection_model)
 
 
 @dataclass

@@ -1,17 +1,12 @@
-import urllib
 import os
-import string
 import asyncio
 import re
 from typing import Optional, List, Union
 from inspect import cleandoc
 from random import choice
 from collections import Counter
-from datetime import timedelta
-from urllib.error import HTTPError
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 from Levenshtein import distance as LDist
 
@@ -146,6 +141,7 @@ class General(commands.Cog):
 
             await hf.safe_send(ctx, help_msg)
 
+    @staticmethod
     def fe_check(ctx):
         if not ctx.guild:
             return
@@ -216,7 +212,7 @@ class General(commands.Cog):
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role."""
         role_name = role_name.casefold()
-        role = discord.utils.find(lambda i: i.name.casefold() == role_name, ctx.guild.roles)
+        role: Optional[discord.Role] = discord.utils.find(lambda i: i.name.casefold() == role_name, ctx.guild.roles)
         if not role:
             for i in ctx.guild.roles:
                 if i.name.casefold().startswith(role_name):
@@ -936,7 +932,7 @@ class General(commands.Cog):
     @staticmethod
     def iam_find_role(ctx, r_name):
         r_name = r_name.casefold()
-        found_role = discord.utils.find(lambda r: r.name.casefold() == r_name, ctx.guild.roles)
+        found_role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == r_name, ctx.guild.roles)
         if not found_role:
             if 3 <= len(r_name):
                 found_role = discord.utils.find(lambda r: r.name.casefold().startswith(r_name), ctx.guild.roles)

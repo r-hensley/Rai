@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union, List, Tuple, Dict
 
 import os
 
@@ -49,7 +49,6 @@ class Logger(commands.Cog):
         emb_value = "**ENABLED MODULES**\nThe following are the currently enabled modules and the respective " \
                     "log channels they're associated with."
 
-
         disabled_modules = []
         guild_id = str(ctx.guild.id)
         for module in modules:
@@ -73,15 +72,6 @@ class Logger(commands.Cog):
             if module.name == 'bans' and ctx.author in self.bot.get_guild(257984339025985546).members:
                 emb_value += f"\n[Ban crossposting](https://discordapp.com/channels/257984339025985546/" \
                              f"329576845949534208/603019430536151041): {config.get('crosspost', False)}"
-
-
-
-
-
-
-
-
-
 
         emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
 
@@ -822,7 +812,7 @@ class Logger(commands.Cog):
 
     @staticmethod
     async def make_invites_dict(guild, invites_in: List[discord.Invite]):
-        invites_dict: dict[str: Tuple[int, Optional[float]]] = {}
+        invites_dict: Dict[str: Tuple[int, Optional[float]]] = {}
         for invite in invites_in:
             if not invite:
                 continue
@@ -841,10 +831,10 @@ class Logger(commands.Cog):
         if 'invites' not in config:
             config['invites'] = {}
 
-        old_invites: dict[str, list[Optional[str]]] = self.bot.db['joins'][guild_id]['invites']
+        old_invites: Dict[str, List[Optional[str]]] = self.bot.db['joins'][guild_id]['invites']
 
         try:
-            invites: list[discord.Invite] = await guild.invites()
+            invites: List[discord.Invite] = await guild.invites()
             for i in invites:
                 if not i:  # in case there are some NoneType returned in the list
                     invites.remove(i)
@@ -873,11 +863,11 @@ class Logger(commands.Cog):
 
         """welcome message"""
         guild = str(member.guild.id)
-        welcome_channel = None
+        welcome_channel: Optional[discord.TextChannel] = None
         if guild in self.bot.db['welcome_message']:
             config = self.bot.db['welcome_message'][guild]
             if 'channel' in self.bot.db['welcome_message'][guild]:
-                welcome_channel: discord.TextChannel = self.bot.get_channel(config['channel'])
+                welcome_channel = self.bot.get_channel(config['channel'])
             if self.bot.db['welcome_message'][guild]['enable']:
                 message = config['message']
                 message = message. \
@@ -916,13 +906,13 @@ class Logger(commands.Cog):
                 server_config['enable'] = False
                 return
 
-            old_invites: Optional[dict[str, list[Optional[float]]]]
-            invites: Optional[list[discord.Invite]]
+            old_invites: Optional[Dict[str, List[Optional[float]]]]
+            invites: Optional[List[discord.Invite]]
             old_invites, invites = await self.get_invites(guild)
-            used_invite: list[discord.Invite] = []
-            maybe_used_invite: list[discord.Invite] = []
+            used_invite: List[discord.Invite] = []
+            maybe_used_invite: List[discord.Invite] = []
             if invites:
-                invites_dict: dict[str, discord.Invite] = {}
+                invites_dict: Dict[str, discord.Invite] = {}
                 for i in invites:
                     if i:
                         invites_dict[i.code] = i  # same form as old_invites
@@ -948,7 +938,7 @@ class Logger(commands.Cog):
             if maybe_used_invite and not used_invite:
                 used_invite = maybe_used_invite
 
-            def get_list_of_roles() -> (dict, list[discord.Role]):
+            def get_list_of_roles() -> (dict, List[discord.Role]):
                 try:
                     config: dict = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
@@ -956,8 +946,8 @@ class Logger(commands.Cog):
                 if not config['enable'] or str(member.id) not in config['users']:
                     return None, None
 
-                list_of_roles: list[discord.Role] = []
-                roles_dict: dict[int: discord.Role] = {role.id: role for role in member.guild.roles}
+                list_of_roles: List[discord.Role] = []
+                roles_dict: Dict[int: discord.Role] = {role.id: role for role in member.guild.roles}
                 for role_code in config['users'][str(member.id)][1].split(','):
                     try:
                         list_of_roles.append(roles_dict[config['roles'][role_code]])
@@ -966,7 +956,7 @@ class Logger(commands.Cog):
                 return config, list_of_roles
 
             readd_config: dict
-            list_of_readd_roles: list[discord.Role]
+            list_of_readd_roles: List[discord.Role]
             readd_config, list_of_readd_roles = get_list_of_roles()
             if list_of_readd_roles:
                 try:
@@ -1098,9 +1088,9 @@ class Logger(commands.Cog):
 
 
             pings = ""
-            if guild in self.bot.db['bansub']['guild_to_role']:  # type: dict[str: int]
+            if guild in self.bot.db['bansub']['guild_to_role']:  # type: Dict[str: int]
                 role_id: int = self.bot.db['bansub']['guild_to_role'][guild]
-                for user_id in self.bot.db['bansub']['user_to_role']:  # type: dict[str: list[int]]
+                for user_id in self.bot.db['bansub']['user_to_role']:  # type: Dict[str: List[int]]
                     if role_id in self.bot.db['bansub']['user_to_role'][user_id]:
                         pings += f" <@{user_id}> "
 
@@ -1591,14 +1581,14 @@ class Logger(commands.Cog):
                     colour = 0xDD2E44
             reason = reason.replace('%20', ' ')
 
-        author = re.search('^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
-                           '(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
+        author = re.search(r'^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
+                           r'(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
         if author:
             if author.group('ID'):
                 admin = self.bot.get_user(int(author.group("ID")))
             elif author.group('name'):
                 m_server = self.bot.get_guild(M_SERVER)
-                admin = discord.utils.get(m_server.members, name=author.group('name'))
+                admin: Optional[discord.Member] = discord.utils.get(m_server.members, name=author.group('name'))
             else:
                 admin = None
             if author.group('reason'):
@@ -1795,6 +1785,7 @@ class Logger(commands.Cog):
         # await asyncio.sleep(1)
         log_channel = self.bot.get_channel(self.bot.db['kicks'][str(member.guild.id)]['channel'])
         reason = "(could not find audit log entry)"
+        kick_entry = None
         try:
             emb = None  # action=discord.AuditLogAction.kick
             async for entry in member.guild.audit_logs(limit=1, oldest_first=False, action=discord.AuditLogAction.kick,
