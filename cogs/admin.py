@@ -23,7 +23,7 @@ class Admin(commands.Cog):
     Administrator permission."""
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.modlog = bot.get_command('modlog')
 
     async def cog_check(self, ctx):
@@ -1037,7 +1037,8 @@ class Admin(commands.Cog):
                     await hf.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
-                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == choice, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == choice,
+                                                                  ctx.guild.roles)
                 if not role:
                     await hf.safe_send(ctx, "I was not able to find that role. Please start the process over.")
                     return
@@ -1063,7 +1064,8 @@ class Admin(commands.Cog):
                     channel_id = None
                 else:
                     choice = msg.content.casefold()
-                    channel: Optional[discord.Role] = discord.utils.find(lambda c: c.name.casefold() == choice, ctx.guild.voice_channels)
+                    channel: Optional[discord.Role] = discord.utils.find(lambda c: c.name.casefold() == choice,
+                                                                         ctx.guild.voice_channels)
                     if not channel:
                         await hf.safe_send(ctx, "I was not able to find that channel. Please start the process over.")
                         return
@@ -1086,7 +1088,6 @@ class Admin(commands.Cog):
                                                               'role': role.id}
         await hf.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
                                 f"You can run this command again at any time to change the settings or disable it.")
-
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
@@ -2169,7 +2170,7 @@ class Admin(commands.Cog):
             channel_id = int(re_result.group(1))
         else:
             await hf.safe_send(ctx, "I couldn't find that channel. Please mention the channel with #")
-            await ctx.invoke(self.antispam, menu)
+            await ctx.invoke(self.antispam.invoke, menu)
             return
 
         if not channel_id or not self.bot.get_channel(channel_id):
@@ -2188,7 +2189,7 @@ class Admin(commands.Cog):
             config['ignored'].append(channel_id)
             await hf.safe_send(ctx, "That channel will be ignored in the future.")
 
-        await ctx.invoke(self.antispam, menu)
+        await ctx.invoke(self.antispam.invoke, menu)
 
     @antispam.command(name='list')
     async def antispam_list(self, ctx: commands.Context, menu: discord.Message,):
@@ -2207,7 +2208,7 @@ class Admin(commands.Cog):
             channels += f"{channel.mention}\n"
 
         await hf.safe_send(ctx, channels)
-        await ctx.invoke(self.antispam, menu)
+        await ctx.invoke(self.antispam.invoke, menu)
 
     async def antispam_ban_override(self, ctx: commands.Context, menu: discord.Message, config: dict):
         await menu.edit(embed=hf.green_embed("I should override my other selected settings and ban users that "
@@ -2258,7 +2259,7 @@ class Admin(commands.Cog):
             except discord.Forbidden:
                 pass
 
-            await ctx.invoke(self.antispam)
+            await ctx.invoke(self.antispam.invoke)
 
     @commands.command()
     async def vcc(self, ctx):
