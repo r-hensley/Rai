@@ -4,13 +4,15 @@ import re
 import asyncio
 import os
 from urllib.error import HTTPError
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 
 import discord
 from discord.ext import commands
 from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
+from .general import General
+from .interactions import Interactions
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -37,7 +39,6 @@ class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
-        hf.setup(bot)  # this is to define here.bot in the hf file
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -77,7 +78,7 @@ class Events(commands.Cog):
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
-                    await ctx.invoke(self.serverinfo)
+                    await ctx.invoke(General.serverinfo)
 
         await replace_tatsumaki_posts()
 
@@ -609,7 +610,7 @@ class Events(commands.Cog):
             users = re.findall(user_id_regex, edited_msg)
             users = ' '.join(users)
             edited_msg = re.sub(user_id_regex, "", edited_msg)
-            notif = await self.staffping_code(ctx=ctx, users=users, reason=edited_msg)
+            notif = await Interactions.staffping_code(ctx=ctx, users=users, reason=edited_msg)
 
             if hasattr(self.bot, 'synced_reactions'):
                 self.bot.synced_reactions[notif] = msg
@@ -1142,7 +1143,7 @@ class Events(commands.Cog):
                     voting_guild_id = config['residency'][str(payload.user_id)]
                     if voting_guild_id not in config['votes2'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
-                            await ctx.invoke(self.blacklist_add, args=user_id)
+                            await ctx.invoke(General.blacklist_add, args=user_id)
                 else:
                     try:
                         await hf.safe_send(ctx.author, "Please claim residency on a server first with "
@@ -1168,7 +1169,7 @@ class Events(commands.Cog):
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
-                        await ctx.invoke(self.blacklist_add,
+                        await ctx.invoke(General.blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
                     await hf.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
@@ -1191,6 +1192,7 @@ class Events(commands.Cog):
                                 'on_raw_reaction_add: Lacking `Manage Roles` permission'
                                 f' <#{payload.guild_id}>')
 
+        roles = None
         if payload.guild_id == CH_SERVER_ID:  # chinese
             if payload.emoji.name in '🔥📝🖋🗣🎙📖':
                 roles = {'🔥': 496659040177487872,
@@ -1265,6 +1267,8 @@ class Events(commands.Cog):
     async def on_raw_reaction_remove(self, payload):
         if not payload.guild_id:
             return
+
+        roles = None
         if payload.guild_id == CH_SERVER_ID:  # chinese
             if not payload.emoji.name:
                 return
@@ -1335,6 +1339,57 @@ class Events(commands.Cog):
                     f'<#{payload.guild_id}>')
             except AttributeError:
                 return
+
+    @commands.command(hidden=True)
+    async def command_into_voice(self, ctx, member, after):
+        if not ctx.author == self.bot.user:  # only Rai can use this
+            return
+        await self.into_voice(member, after)
+
+    async def into_voice(self, member, after):
+        if member.bot:
+            return
+        if after.afk or after.deaf or after.self_deaf or len(after.channel.members) <= 1:
+            return
+        guild = str(member.guild.id)
+        member_id = str(member.id)
+        config = self.bot.stats[guild]['voice']
+        if member_id not in config['in_voice']:
+            config['in_voice'][member_id] = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+
+    @commands.command(hidden=True)
+    async def command_out_of_voice(self, ctx, member):
+        if not ctx.author == self.bot.user:
+            return
+        await self.out_of_voice(member, date_str=None)
+
+    async def out_of_voice(self, member, date_str=None):
+        guild = str(member.guild.id)
+        member_id = str(member.id)
+        config = self.bot.stats[guild]['voice']
+        if member_id not in config['in_voice']:
+            return
+
+        # calculate how long they've been in voice
+        join_time = datetime.strptime(
+            config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+        total_length = (discord.utils.utcnow() - join_time).seconds
+        hours = total_length // 3600
+        minutes = total_length % 3600 // 60
+        del config['in_voice'][member_id]
+
+        # add to their total
+        if not date_str:
+            date_str = discord.utils.utcnow().strftime("%Y%m%d")
+        if date_str not in config['total_time']:
+            config['total_time'][date_str] = {}
+        today = config['total_time'][date_str]
+        if member_id not in today:
+            today[member_id] = hours * 60 + minutes
+        else:
+            if isinstance(today[member_id], list):
+                today[member_id] = today[member_id][0] * 60 + today[member_id][1]
+            today[member_id] += hours * 60 + minutes
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -1462,5 +1517,5 @@ class Events(commands.Cog):
         config[date_str] = config.setdefault(date_str, 0) + 1
 
 
-def setup(bot):
-    bot.add_cog(Events(bot))
+async def setup(bot):
+    await bot.add_cog(Events(bot))

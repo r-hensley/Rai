@@ -1393,7 +1393,7 @@ class Questions(commands.Cog):
                 url = "https://itazuraneko.neocities.org/grammar/" + url
             grammar = "".join([str(x) for x in i.contents])
             if "<rt>" in grammar:
-                grammar = re.compile("(<rt>.*?<\/rt>|<\/?ruby>)").sub("", grammar)
+                grammar = re.compile(r"(<rt>.*?<\/rt>|<\/?ruby>)").sub("", grammar)
             search_field = parse_search(grammar)
             entries.append((grammar, dictionary, url, search_field))
 

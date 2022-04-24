@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime, timezone
 from sre_constants import error as sre_constants_error
-from typing import Optional
+from typing import Optional, List
 
 import aiohttp
 import discord
@@ -119,7 +119,7 @@ class Admin(commands.Cog):
             if role_id:
                 role_id = int(role_id[0])
             else:  # gives the name of the role in text
-                role = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
                 if not role:
                     await hf.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
                     return
@@ -287,7 +287,7 @@ class Admin(commands.Cog):
     @commands.bot_has_permissions(embed_links=True)
     async def activeincidents(self, ctx):
         """Lists the current active incidents (timed mutes and bans)"""
-        mutes: list[dict] = []
+        mutes: List[dict] = []
         author: Optional[discord.User] = None
         try:
             mute_config = self.bot.db['mutes'][str(ctx.guild.id)]['timed_mutes']
@@ -628,7 +628,7 @@ class Admin(commands.Cog):
         if guild not in self.bot.db['captcha']:
             await self.toggle
         guild_config = self.bot.db['captcha'][guild]
-        role = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
+        role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
                                     '`;captcha set_role New User`')
@@ -753,7 +753,7 @@ class Admin(commands.Cog):
             del self.bot.db['mod_role'][str(ctx.guild.id)]
             await hf.safe_send(ctx, "Removed mod role setting for this server")
             return
-        mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        mod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not mod_role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -941,57 +941,6 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, string[2000:])
 
     @commands.command(hidden=True)
-    async def command_into_voice(self, ctx, member, after):
-        if not ctx.author == self.bot.user:  # only Rai can use this
-            return
-        await self.into_voice(member, after)
-
-    async def into_voice(self, member, after):
-        if member.bot:
-            return
-        if after.afk or after.deaf or after.self_deaf or len(after.channel.members) <= 1:
-            return
-        guild = str(member.guild.id)
-        member_id = str(member.id)
-        config = self.bot.stats[guild]['voice']
-        if member_id not in config['in_voice']:
-            config['in_voice'][member_id] = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
-
-    @commands.command(hidden=True)
-    async def command_out_of_voice(self, ctx, member):
-        if not ctx.author == self.bot.user:
-            return
-        await self.out_of_voice(member, date_str=None)
-
-    async def out_of_voice(self, member, date_str=None):
-        guild = str(member.guild.id)
-        member_id = str(member.id)
-        config = self.bot.stats[guild]['voice']
-        if member_id not in config['in_voice']:
-            return
-
-        # calculate how long they've been in voice
-        join_time = datetime.strptime(
-            config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-        total_length = (discord.utils.utcnow() - join_time).seconds
-        hours = total_length // 3600
-        minutes = total_length % 3600 // 60
-        del config['in_voice'][member_id]
-
-        # add to their total
-        if not date_str:
-            date_str = discord.utils.utcnow().strftime("%Y%m%d")
-        if date_str not in config['total_time']:
-            config['total_time'][date_str] = {}
-        today = config['total_time'][date_str]
-        if member_id not in today:
-            today[member_id] = hours * 60 + minutes
-        else:
-            if isinstance(today[member_id], list):
-                today[member_id] = today[member_id][0] * 60 + today[member_id][1]
-            today[member_id] += hours * 60 + minutes
-
-    @commands.command(hidden=True)
     @commands.guild_only()
     async def timed_voice_role(self, ctx):
         """A command for setting up a role to be added when a user is in voice for a certain amount of time"""
@@ -1088,7 +1037,7 @@ class Admin(commands.Cog):
                     await hf.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
-                role = discord.utils.find(lambda r: r.name.casefold() == choice, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == choice, ctx.guild.roles)
                 if not role:
                     await hf.safe_send(ctx, "I was not able to find that role. Please start the process over.")
                     return
@@ -1114,7 +1063,7 @@ class Admin(commands.Cog):
                     channel_id = None
                 else:
                     choice = msg.content.casefold()
-                    channel = discord.utils.find(lambda c: c.name.casefold() == choice, ctx.guild.voice_channels)
+                    channel: Optional[discord.Role] = discord.utils.find(lambda c: c.name.casefold() == choice, ctx.guild.voice_channels)
                     if not channel:
                         await hf.safe_send(ctx, "I was not able to find that channel. Please start the process over.")
                         return
@@ -1894,7 +1843,7 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -1917,7 +1866,7 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "Role not found")
             return

@@ -318,7 +318,7 @@ class Owner(commands.Cog):
                     def BMP(s):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
 
-                    file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
+                    file.write(f'    ({msg.created_at}) {BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(hidden=True)
     async def restart(self, ctx):
@@ -551,7 +551,8 @@ class Owner(commands.Cog):
                         try:
                             role_name_list = embed.fields[0].value.split(', ')
                         except IndexError:
-                            pass
+                            await hf.safe_send(ctx, "Index error failure")
+                            return
                         role_id_list = [name_to_id[role] for role in role_name_list]
                         try:
                             role_id_list.remove(309913956061806592)  # in voice role
