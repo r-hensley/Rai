@@ -30,6 +30,19 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
+def fe_check(ctx):
+    """Checks if a user has the correct combination of roles for the fe() command"""
+    if not ctx.guild:
+        return
+    if ctx.guild.id != JP_SERVER_ID:
+        return
+    role_ids = [role.id for role in ctx.author.roles]
+    lower_fluent_english = 241997079168155649
+    native_japanese = 196765998706196480
+    if native_japanese in role_ids and lower_fluent_english in role_ids:
+        return True
+
+
 def blacklist_check():
     async def pred(ctx):
         if not ctx.guild:
@@ -59,6 +72,9 @@ class General(commands.Cog):
             try:
                 # Check permissions of command
                 a = await command.can_run(ctx)
+            except TypeError:
+                print(command)
+                raise
             except commands.BotMissingPermissions:
                 # Bot lacks some permission required to do a command
                 a = False
@@ -140,18 +156,6 @@ class General(commands.Cog):
                     help_msg = to_add
 
             await hf.safe_send(ctx, help_msg)
-
-    @staticmethod
-    def fe_check(ctx):
-        if not ctx.guild:
-            return
-        if ctx.guild.id != JP_SERVER_ID:
-            return
-        role_ids = [role.id for role in ctx.author.roles]
-        lower_fluent_english = 241997079168155649
-        native_japanese = 196765998706196480
-        if native_japanese in role_ids and lower_fluent_english in role_ids:
-            return True
 
     @commands.command()
     @commands.check(fe_check)
