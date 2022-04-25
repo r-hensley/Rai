@@ -34,7 +34,7 @@ class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
     def __init__(self, bot):
-        self.bot: discord.Bot = bot
+        self.bot: commands.Bot = bot
         self._last_result = None
         self.sessions = set()
 
@@ -319,7 +319,7 @@ class Owner(commands.Cog):
                     def BMP(s):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
 
-                    file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
+                    file.write(f'    ({msg.created_at}) {BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(hidden=True)
     async def restart(self, ctx):
@@ -347,7 +347,7 @@ class Owner(commands.Cog):
         """Command which loads a module."""
 
         try:
-            self.bot.load_extension(f'cogs.{cog}')
+            await self.bot.load_extension(f'cogs.{cog}')
         except Exception as e:
             await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
@@ -355,9 +355,8 @@ class Owner(commands.Cog):
 
     @commands.command(hidden=True)
     async def unload(self, ctx, *, cog: str):
-
         try:
-            self.bot.unload_extension(f'cogs.{cog}')
+            await self.bot.unload_extension(f'cogs.{cog}')
         except Exception as e:
             await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
@@ -374,7 +373,7 @@ class Owner(commands.Cog):
             try:
                 old_module = sys.modules['cogs.utils.helper_functions']
                 importlib.reload(sys.modules['cogs.utils.helper_functions'])
-                self.bot.reload_extension("cogs.general")  #
+                await self.bot.reload_extension("cogs.general")  #
             except Exception as e:
                 await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:
@@ -382,7 +381,7 @@ class Owner(commands.Cog):
 
         else:
             try:
-                self.bot.reload_extension(f'cogs.{cog}')
+                await self.bot.reload_extension(f'cogs.{cog}')
             except Exception as e:
                 await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:
@@ -552,7 +551,8 @@ class Owner(commands.Cog):
                         try:
                             role_name_list = embed.fields[0].value.split(', ')
                         except IndexError:
-                            pass
+                            await hf.safe_send(ctx, "Index error failure")
+                            return
                         role_id_list = [name_to_id[role] for role in role_name_list]
                         try:
                             role_id_list.remove(309913956061806592)  # in voice role

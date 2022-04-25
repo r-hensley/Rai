@@ -78,9 +78,10 @@ class ChannelMods(commands.Cog):
         except (discord.NotFound, AttributeError):
             pass
 
-        msgs = []
-        failed_ids = []
-        invalid_ids = []
+        msg: Optional[discord.Message] = None
+        msgs: List[discord.Message] = []
+        failed_ids: List[int] = []
+        invalid_ids: List[int] = []
 
         if len(ids) == 1:
             if not 17 < len(ids[0]) < 22:
@@ -201,13 +202,13 @@ class ChannelMods(commands.Cog):
                     continue
                 to_be_pinned_msg = message
         elif len(args) == 1:
-            if re.search('^\d{17,22}$', args[0]):
+            if re.search(r'^\d{17,22}$', args[0]):
                 try:
                     to_be_pinned_msg = await ctx.channel.fetch_message(args[0])
                 except discord.NotFound:
                     await hf.safe_send(ctx, "I couldn't find the message you were looking for.")
                     return
-            elif re.search('^\d{17,22}-\d{17,22}$', args[0]):
+            elif re.search(r'^\d{17,22}-\d{17,22}$', args[0]):
                 channel_id = int(args[0].split('-')[0])
                 channel = ctx.guild.get_channel_or_thread(channel_id)
                 if not channel:
@@ -399,7 +400,6 @@ class ChannelMods(commands.Cog):
         if not channel and not role:
             await hf.safe_send(ctx, f"I couldn't figure out what you wanted to do.")
             await hf.safe_send(ctx, ctx.command.help)
-
 
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
@@ -602,7 +602,7 @@ class ChannelMods(commands.Cog):
 
             # Check DB for voice mute entry
             voice_muted = False
-            voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
+            voice_unmute_time_left_str: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
@@ -769,7 +769,8 @@ class ChannelMods(commands.Cog):
         if join_history:
             invite: Optional[str]
             if invite := join_history['invite']:
-                invite_obj = discord.utils.find(lambda i: i.code == invite, await ctx.guild.invites())
+                invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
+                                                                          await ctx.guild.invites())
                 if invite_obj:
                     emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                        f"{invite} by {invite_obj.inviter.name}"
@@ -980,6 +981,7 @@ class ChannelMods(commands.Cog):
         except IndexError:
             await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
                                     f"and try again.")
+            return
         config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
                                                      f"```{old_reason}```to```{reason}```"))
