@@ -539,7 +539,7 @@ class ChannelMods(commands.Cog):
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None):
+    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None, post_embed=True):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
@@ -634,9 +634,9 @@ class ChannelMods(commands.Cog):
             timeout: bool = False
             timeout_time_left_str: Optional[str] = None
             if member:
-                if member.communication_disabled_until:
+                if member.is_timed_out():
                     timeout = True
-                    time_left = member.communication_disabled_until - discord.utils.utcnow()
+                    time_left = member.timed_out_until - discord.utils.utcnow()
                     days_left = time_left.days
                     hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                     minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
@@ -833,18 +833,22 @@ class ChannelMods(commands.Cog):
         #
         #
 
-        if first_embed and delete_parameter:
-            await hf.safe_send(ctx, embed=first_embed, delete_after=delete_parameter)
+        if post_embed:
+            if first_embed:  # will only be True if there are two embeds to send
+                await hf.safe_send(ctx, user_id, embed=first_embed, delete_after=delete_parameter)
+
+            try:
+                # if there's a first embed, this will be the second embed
+                await hf.safe_send(ctx, user_id, embed=emb, delete_after=delete_parameter)
+
+            except discord.Forbidden:
+                await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+                return
+
         if first_embed:
-            await hf.safe_send(ctx, embed=first_embed)
-        try:
-            if delete_parameter:
-                await hf.safe_send(ctx, embed=emb, delete_after=delete_parameter)
-            else:
-                await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
-        except discord.Forbidden:
-            await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
-            return
+            return first_embed
+        else:
+            return emb
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()

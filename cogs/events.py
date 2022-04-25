@@ -610,7 +610,7 @@ class Events(commands.Cog):
             users = re.findall(user_id_regex, edited_msg)
             users = ' '.join(users)
             edited_msg = re.sub(user_id_regex, "", edited_msg)
-            notif = await Interactions.staffping_code(ctx=ctx, users=users, reason=edited_msg)
+            notif = await Interactions(self.bot).staffping_code(ctx=ctx, users=users, reason=edited_msg)
 
             if hasattr(self.bot, 'synced_reactions'):
                 self.bot.synced_reactions[notif] = msg
