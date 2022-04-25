@@ -34,6 +34,19 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
+def fe_check(ctx):
+    """Checks if a user has the correct combination of roles for the fe() command"""
+    if not ctx.guild:
+        return
+    if ctx.guild.id != JP_SERVER_ID:
+        return
+    role_ids = [role.id for role in ctx.author.roles]
+    lower_fluent_english = 241997079168155649
+    native_japanese = 196765998706196480
+    if native_japanese in role_ids and lower_fluent_english in role_ids:
+        return True
+
+
 def blacklist_check():
     async def pred(ctx):
         if not ctx.guild:
@@ -145,17 +158,6 @@ class General(commands.Cog):
 
             await hf.safe_send(ctx, help_msg)
 
-    def fe_check(ctx):
-        if not ctx.guild:
-            return
-        if ctx.guild.id != JP_SERVER_ID:
-            return
-        role_ids = [role.id for role in ctx.author.roles]
-        lower_fluent_english = 241997079168155649
-        native_japanese = 196765998706196480
-        if native_japanese in role_ids and lower_fluent_english in role_ids:
-            return True
-
     @commands.command()
     @commands.check(fe_check)
     async def fe(self, ctx):
@@ -215,7 +217,7 @@ class General(commands.Cog):
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role."""
         role_name = role_name.casefold()
-        role = discord.utils.find(lambda i: i.name.casefold() == role_name, ctx.guild.roles)
+        role: Optional[discord.Role] = discord.utils.find(lambda i: i.name.casefold() == role_name, ctx.guild.roles)
         if not role:
             for i in ctx.guild.roles:
                 if i.name.casefold().startswith(role_name):
@@ -935,7 +937,7 @@ class General(commands.Cog):
     @staticmethod
     def iam_find_role(ctx, r_name):
         r_name = r_name.casefold()
-        found_role = discord.utils.find(lambda r: r.name.casefold() == r_name, ctx.guild.roles)
+        found_role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == r_name, ctx.guild.roles)
         if not found_role:
             if 3 <= len(r_name):
                 found_role = discord.utils.find(lambda r: r.name.casefold().startswith(r_name), ctx.guild.roles)
@@ -1433,257 +1435,6 @@ class General(commands.Cog):
             await msg_countdown.clear_reactions()
         except (discord.Forbidden, discord.NotFound):
             return
-
-    # @app_commands.command()
-    # @app_commands.guilds(RY_SERVER_ID)
-    # async def slash(self, interaction: discord.Interaction):
-    #     await interaction.response.send_message("test", ephemeral=True)
-
-    # @app_commands.command()
-    # # @app_commands.describe("Notifies the staff team about a current and urgent issue.")
-    # @app_commands.guilds(JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID, FEDE_TESTER_SERVER_ID)
-    # # @app_commands.choices(users, reason)
-    # async def staffping(self,
-    #                     # ctx: discord.ApplicationContext,
-    #                     interaction: discord.Interaction,
-    #                     # users: discord.Option(str, "The user/s:"),
-    #                     # reason: discord.Option(str, "Specify the reason for your report:")):
-    #                     # users: discord.ui.TextInput(label="The user/s:"),
-    #                     # reason: discord.ui.TextInput(label="Specify the reason for your report:")):
-    #                     users,
-    #                     reason):
-    #     """Notifies the staff team about a current and urgent issue."""
-    #     await self.staffping_code(interaction, users, reason)
-
-    async def staffping_code(self,
-                             ctx: Union[discord.Interaction, commands.Context],
-                             users: str,
-                             reason: str):
-        """The main code for the staffping command. This will be referenced by the above slash
-        command, but also by the mods_ping() function in on_message()"""
-        regex_result = re.findall(r'<?@?!?(\d{17,22})>?', users)
-
-        jump_url = None
-        if isinstance(ctx, discord.Interaction):
-            slash = True  # This was called from a slash command
-            channel = ctx.channel
-            last_message: discord.Message = ctx.channel.last_message
-            if last_message:
-                jump_url = last_message.jump_url
-        else:
-            slash = False  # This was called from on_message
-            channel = ctx.channel
-            jump_url = ctx.message.jump_url
-
-        if not jump_url:
-            messages = [message async for message in channel.history(limit=1)]
-            if messages:
-                jump_url = messages[0].jump_url
-
-        if not regex_result:
-            if slash:
-                await ctx.response.send_message("I couldn't find the specified user/s.\n"
-                                                "Please, mention the user/s or write their ID/s in the user prompt.",
-                                                ephemeral=True)
-                return
-            else:
-                pass
-
-        for result in regex_result:
-            if not ctx.guild.get_member(int(result)):
-                regex_result.remove(result)
-                if slash:
-                    await ctx.response.send_message(f"I couldn't find the user {result} in this server", ephemeral=True)
-
-        if not regex_result and slash:
-            await ctx.response.send_message("I couldn't find any of the users that you specified, try again.\n"
-                                            "Please, mention the user/s or write their ID/s in the user prompt.",
-                                            ephemeral=True)
-            return
-
-        member_list: List[discord.Member] = list(set(regex_result))  # unique list of users
-
-        if len(member_list) > 9:
-            if slash:
-                await ctx.response.send_message("You're trying to report too many people at the same time. "
-                                                "Max per command: 9.\n"
-                                                "Please, mention the user/s or write their ID/s in the user prompt.",
-                                                ephemeral=True)
-                return
-            else:
-                member_list = []
-
-        invis = "⠀"  # an invisible character that's not a space to avoid stripping of whitespace
-        user_id_list = [f'\n{invis * 1}- <@{i}> (`{i}`)' for i in member_list]
-        user_id_str = ''.join(user_id_list)
-        if slash:
-            confirmation_text = f"You've reported the user: {user_id_str} \nReason: {reason}."
-            if len(member_list) > 1:
-                confirmation_text = confirmation_text.replace('user', 'users')
-            await ctx.response.send_message(f"{confirmation_text}", ephemeral=True)
-
-        alarm_emb = discord.Embed(title=f"Staff Ping",
-                                  description=f"- **From**: {ctx.author.mention} ({ctx.author.name})"
-                                              f"\n- **In**: {ctx.channel.mention}",
-                                  color=discord.Color(int('FFAA00', 16)),
-                                  timestamp=discord.utils.utcnow())
-        if jump_url:
-            alarm_emb.description += f"\n[**`JUMP URL`**]({jump_url})"
-        if reason:
-            alarm_emb.description += f"\n\n- **Reason**: {reason}."
-        if user_id_str:
-            alarm_emb.description += f"\n- **Reported Users**: {user_id_str}"
-
-        button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
-
-        button_1 = discord.ui.Button(label='1', style=discord.ButtonStyle.gray)
-        button_2 = discord.ui.Button(label='2', style=discord.ButtonStyle.gray)
-        button_3 = discord.ui.Button(label='3', style=discord.ButtonStyle.gray)
-        button_4 = discord.ui.Button(label='4', style=discord.ButtonStyle.gray)
-        button_5 = discord.ui.Button(label='5', style=discord.ButtonStyle.gray)
-        button_6 = discord.ui.Button(label='6', style=discord.ButtonStyle.gray)
-        button_7 = discord.ui.Button(label='7', style=discord.ButtonStyle.gray)
-        button_8 = discord.ui.Button(label='8', style=discord.ButtonStyle.gray)
-        button_9 = discord.ui.Button(label='9', style=discord.ButtonStyle.gray)
-
-        button_solved = discord.ui.Button(label='Mark as Solved', style=discord.ButtonStyle.green)
-
-        buttons = [button_author, button_1, button_2, button_3, button_4,
-                   button_5, button_6, button_7, button_8, button_9]
-
-        view = discord.ui.View()
-        for button in buttons[:len(member_list) + 1]:
-            view.add_item(button)
-        view.add_item(button_solved)
-
-        async def button_callback_action(button_index):
-            if button_index == 0:
-                modlog_target = ctx.author.id
-            else:
-                modlog_target = member_list[int(button_index) - 1]
-            channel_mods = self.bot.get_cog("ChannelMods")
-            await channel_mods.modlog(ctx, modlog_target, delete_parameter=30)
-            await msg.edit(content=f"{modlog_target}", embed=alarm_emb, view=view)
-
-        async def author_button_callback(interaction):
-            await button_callback_action(0)
-
-        button_author.callback = author_button_callback
-
-        async def button_1_callback(interaction):
-            await button_callback_action(1)
-
-        button_1.callback = button_1_callback
-
-        async def button_2_callback(interaction):
-            await button_callback_action(2)
-
-        button_2.callback = button_2_callback
-
-        async def button_3_callback(interaction):
-            await button_callback_action(3)
-
-        button_3.callback = button_3_callback
-
-        async def button_4_callback(interaction):
-            await button_callback_action(4)
-
-        button_4.callback = button_4_callback
-
-        async def button_5_callback(interaction):
-            await button_callback_action(5)
-
-        button_5.callback = button_5_callback
-
-        async def button_6_callback(interaction):
-            await button_callback_action(6)
-
-        button_6.callback = button_6_callback
-
-        async def button_7_callback(interaction):
-            await button_callback_action(7)
-
-        button_7.callback = button_7_callback
-
-        async def button_8_callback(interaction):
-            await button_callback_action(8)
-
-        button_8.callback = button_8_callback
-
-        async def button_9_callback(interaction):
-            await button_callback_action(9)
-
-        button_9.callback = button_9_callback
-
-        async def solved_button_callback(interaction):
-            for button in buttons:
-                button.disabled = True
-            button_solved.disabled = True
-            await msg.edit(content=f":white_check_mark: - **Solved Issue**.",
-                           embed=alarm_emb,
-                           view=view)
-
-        button_solved.callback = solved_button_callback
-
-        if slash:
-            guild_id = str(ctx.interaction.guild.id)
-        else:
-            guild_id = str(ctx.guild.id)
-
-        # Try to find the channel set by the staffping command first
-        mod_channel = None
-        mod_channel_id = self.bot.db['staff_ping'].get(guild_id, {}).get("channel")
-        if mod_channel_id:
-            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
-            if not mod_channel:
-                del self.bot.db['staff_ping'][guild_id]['channel']
-                mod_channel_id = None
-                # guild had a staff ping channel once but it seems it has been deleted
-
-        # Failed to find a staffping channel, search for a submod channel next
-        mod_channel_id = self.bot.db['submod_channel'].get(guild_id)
-        if not mod_channel and mod_channel_id:
-            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
-            if not mod_channel:
-                del self.bot.db['submod_channel'][guild_id]
-                mod_channel_id = None
-                # guild had a submod channel once but it seems it has been deleted
-
-        # Failed to find a submod channel, search for mod channel
-        if not mod_channel and mod_channel_id:
-            mod_channel_id = self.bot.db['mod_channel'].get(guild_id)
-            mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
-            if not mod_channel:
-                del self.bot.db['mod_channel'][guild_id]
-                mod_channel_id = None
-                # guild had a mod channel once but it seems it has been deleted
-
-        if not mod_channel:
-            return  # this guild does not have any kind of mod channel configured
-
-        # Send notification to a mod channel
-        content = None
-        staff_role_id = ""
-        if slash:
-            config = self.bot.db['staff_ping'].get(guild_id)
-            if config:
-                staff_role_id = config.get("role")  # try to get role id from staff_ping db
-                if not staff_role_id:  # no entry in staff_ping db
-                    staff_role_id = self.bot.db['mod_role'].get(guild_id, {}).get("id")
-        if staff_role_id:
-            content = f"<@&{staff_role_id}>"
-        msg = await hf.safe_send(mod_channel, content, embed=alarm_emb, view=view)
-
-        # Send notification to users who subscribe to mod pings
-        for user_id in self.bot.db['staff_ping'].get(guild_id, {}).get('users', []):
-            try:
-                user = self.bot.get_user(user_id)
-                if user:
-                    await hf.safe_send(user, embed=alarm_emb)
-            except discord.Forbidden:
-                pass
-
-        return msg
 
 
 async def setup(bot):

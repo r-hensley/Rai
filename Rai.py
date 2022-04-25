@@ -68,6 +68,8 @@ SP_SERV_ID = 243838819743432704
 RY_TEST_SERV_ID = 275146036178059265
 FEDE_TEST_SERV_ID = 941155953682821201
 
+FEDE_GUILD = discord.Object(FEDE_TEST_SERV_ID)
+
 
 def prefix(bot, msg):
     if bot.user.name == "Rai":
@@ -160,16 +162,25 @@ class Rai(Bot):
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
-
         if not self.database_backups.is_running():
             self.database_backups.start()
 
+        @app_commands.context_menu()
+        @app_commands.guilds(FEDE_GUILD)
+        async def react(interaction: discord.Interaction, message: discord.Message):
+            await interaction.response.send_message('Very cool message!', ephemeral=True)
+
+        self.tree.add_command(react, guild=FEDE_GUILD, override=True)
+        await self.tree.sync(guild=FEDE_GUILD)
+
     async def setup_hook(self):
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
+                              'cogs.events', 'cogs.interactions']
 
         for extension in initial_extensions:
             try:
+                print(f"Loaded {extension}")
                 await self.load_extension(extension)
             except Exception as e:
                 print(f'Failed to load {extension}', file=sys.stderr)
@@ -179,10 +190,11 @@ class Rai(Bot):
         try:  # in on_ready because if not I get tons of errors from on_message before bot loads
             await self.load_extension('cogs.background')
             print(f'Loaded cogs.background')
-            await hf.setup(self)  # this is to define here.bot in the hf file
         except Exception as e:
             print(f'Failed to load extension cogs.background.', file=sys.stderr)
             traceback.print_exc()
+
+        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 
     @tasks.loop(hours=24)
     async def database_backups(self):
@@ -366,15 +378,20 @@ class Rai(Bot):
 def run_bot():
     bot = Rai()
 
-    # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
-    if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-        bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
-    elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-        bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
+    key = os.getenv("BOT_TOKEN")
 
-    # For forked copies of Rai by other people, just run the bot normally:
+    if len(key) == 58:
+        # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
+        if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'M')  # Rai Test
+        elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'k')  # Rai
+        else:
+            bot.run(key)
+
     else:
-        bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
+        # For forked copies of Rai by other people, just run the bot normally:
+        bot.run(key)  # For other people forking Rai bot
 
 
 def main():
