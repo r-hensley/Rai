@@ -35,8 +35,8 @@ class Point(typing.NamedTuple):
 
 
 class Questionnaire(ui.Modal, title='Questionnaire Response'):
-    name = ui.TextInput(label='User(s) to report')
-    answer = ui.TextInput(label='Description of incident', style=discord.TextStyle.paragraph)
+    name = ui.TextInput(label='User(s) to report (short field)', style=discord.TextStyle.short)
+    answer = ui.TextInput(label='Description of incident (paragraph field)', style=discord.TextStyle.paragraph)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.send_message(f'Your report has been sent to the mod team!', ephemeral=True)
@@ -78,13 +78,13 @@ class Interactions(commands.Cog):
         button_2 = ui.Button(style=discord.ButtonStyle.secondary,
                              label="Secondary button",
                              row=0)
-        dropdown = ui.Select(placeholder="Default placeholder text",
+        dropdown = ui.Select(placeholder="Default placeholder text",  # shows if no options are selected
                              options=[
                                  discord.SelectOption(label="Choice 1",
                                                       value="Choice 1 value",
                                                       description="Choice 1 description",
                                                       emoji="🍏",
-                                                      default=True),
+                                                      default=False),
                                  discord.SelectOption(label="Choice 2",
                                                       value="Choice 2 value",
                                                       description="Choice 2 description",
@@ -92,34 +92,14 @@ class Interactions(commands.Cog):
                              ],
                              row=1,
                              min_values=1,
-                             max_values=25)
-        short = ui.TextInput(label="Short Text Input label",
-                             placeholder="TI placeholder",
-                             default="TI default",
-                             required=False,
-                             style=discord.TextStyle.short,
-                             row=2)
-        paragraph = ui.TextInput(label="paragraph Text Input label",
-                                 placeholder="TI placeholder",
-                                 default="TI default",
-                                 required=False,
-                                 style=discord.TextStyle.paragraph,
-                                 row=3)
-        long = ui.TextInput(label="long Text Input label",
-                            placeholder="TI placeholder",
-                            default="TI default",
-                            required=False,
-                            style=discord.TextStyle.long,
-                            row=4)
-        response = await interaction.response.send_message("UI elements will be attached to this")
-        message = await interaction.original_message()
-        view = ui.View().from_message(message)
+                             max_values=2)
+
+        view = ui.View()
         view.add_item(button_1)
         view.add_item(button_2)
-        # view.add_item(dropdown)
-        # view.add_item(short)
-        # view.add_item(paragraph)
-        # view.add_item(long)
+        view.add_item(dropdown)
+
+        await interaction.response.send_message("UI elements will be attached to this", view=view)
 
     @app_commands.command()
     @app_commands.guilds(FEDE_GUILD)

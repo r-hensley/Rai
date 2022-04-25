@@ -378,15 +378,20 @@ class Rai(Bot):
 def run_bot():
     bot = Rai()
 
-    # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
-    if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-        bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
-    elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-        bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
+    key = os.getenv("BOT_TOKEN")
+    
+    if len(key) == 58:
+        # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
+        if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'M')  # Rai Test
+        elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'k')  # Rai
+        else:
+            bot.run(key)
 
-    # For forked copies of Rai by other people, just run the bot normally:
     else:
-        bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
+        # For forked copies of Rai by other people, just run the bot normally:
+        bot.run(key)  # For other people forking Rai bot
 
 
 def main():
