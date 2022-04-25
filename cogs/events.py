@@ -613,10 +613,9 @@ class Events(commands.Cog):
             notif = await Interactions(self.bot).staffping_code(ctx=ctx, users=users, reason=edited_msg)
 
             if hasattr(self.bot, 'synced_reactions'):
-                self.bot.synced_reactions[notif] = msg
-                self.bot.synced_reactions[msg] = notif
+                self.bot.synced_reactions.append((notif, msg))
             else:
-                self.bot.synced_reactions = {notif: msg, msg: notif}
+                self.bot.synced_reactions = [(notif, msg)]
 
             return
         await mods_ping()
@@ -1092,14 +1091,29 @@ class Events(commands.Cog):
         async def synchronize_reactions():
             """Synchronize reactions on specified messages (staff pings)"""
             if hasattr(self.bot, 'synced_reactions'):
-                if reaction.message in self.bot.synced_reactions and not user.bot:
-                    target_msg = self.bot.synced_reactions[reaction.message]
-                    try:
-                        await target_msg.add_reaction(reaction)
-                    except (discord.Forbidden, discord.HTTPException) as e:
-                        return
-            else:
-                return
+                # synced_reactions is a list of tuples of paired messages like
+                # [ (message_1, message_2), (message_3, message_4), ... ]
+                # it's possible to have one message linked to multiple others
+                if user.bot and reaction.emoji == "📨":
+                    # let the bot copy its own reactions except for the envelope
+                    # ignore reactions by the bot except for the checkmark
+                    # the checkmark is for the staff ping command, when a user marks it as done,
+                    # the bot will attach a checkmark to the embed signifying it
+                    return
+
+                for pair in self.bot.synced_reactions:
+                    target = None
+
+                    if reaction.message == pair[0]:
+                        target = pair[1]
+                    elif reaction.message == pair[1]:
+                        target = pair[0]
+
+                    if target:
+                        try:
+                            await target.add_reaction(reaction)
+                        except (discord.Forbidden, discord.HTTPException) as e:
+                            return
 
         await synchronize_reactions()
 

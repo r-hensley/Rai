@@ -188,7 +188,7 @@ class Interactions(commands.Cog):
                              reason: str):
         """The main code for the staffping command. This will be referenced by the above slash
         command, but also by the mods_ping() function in on_message()"""
-        regex_result = re.findall(r'<?@?!?(\d{17,22})>?', users)
+        regex_result: list[str] = re.findall(r'<?@?!?(\d{17,22})>?', users)
 
         slash = isinstance(ctx, discord.Interaction)
 
@@ -197,6 +197,13 @@ class Interactions(commands.Cog):
         if not last_message:
             last_message = [message async for message in channel.history(limit=1)][0]
         jump_url = getattr(last_message, "jump_url", None)
+
+        # If it's a message with a staff ping, try to find if the user responded to a message in the report
+        ref_msg = None
+        if not slash:
+            if reference := ctx.message.reference:
+                if ref_msg := reference.cached_message:
+                    regex_result.append(str(ref_msg.author.id))
 
         if not regex_result:
             if slash:
@@ -256,6 +263,8 @@ class Interactions(commands.Cog):
             alarm_emb.description += f"\n\n- **Reason**: {reason}."
         if user_id_str:
             alarm_emb.description += f"\n- **Reported Users**: {user_id_str}"
+        if ref_msg:
+            alarm_emb.add_field(name="Reported message content", value=ref_msg.content)
 
         button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
 
@@ -431,7 +440,12 @@ class Interactions(commands.Cog):
             try:
                 user = self.bot.get_user(user_id)
                 if user:
-                    await hf.safe_send(user, embed=alarm_emb)
+                    notif = await hf.safe_send(user, embed=alarm_emb)
+                    if hasattr(self.bot, 'synced_reactions'):
+                        self.bot.synced_reactions.append((notif, msg))
+
+                    else:
+                        self.bot.synced_reactions = [(notif, msg)]
             except discord.Forbidden:
                 pass
 
