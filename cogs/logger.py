@@ -1384,7 +1384,7 @@ class Logger(commands.Cog):
             emb = hf.red_embed("Timeout")
             emb.color = 0xff8800  # orange
             emb.add_field(name="User", value=f"{after.name} ({after.id})", inline=False)
-            timestamp = int(after.communication_disabled_until.timestamp())
+            timestamp = int(after.timed_out_until.timestamp())
             emb.add_field(name="Length",
                           value=f"{timeout_length_str} (unmute time: <t:{timestamp}> - <t:{timestamp}:R>)",
                           inline=False)
