@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime, timezone
 from sre_constants import error as sre_constants_error
-from typing import Optional
+from typing import Optional, List
 
 import aiohttp
 import discord
@@ -23,7 +23,7 @@ class Admin(commands.Cog):
     Administrator permission."""
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.modlog = bot.get_command('modlog')
 
     async def cog_check(self, ctx):
@@ -119,7 +119,7 @@ class Admin(commands.Cog):
             if role_id:
                 role_id = int(role_id[0])
             else:  # gives the name of the role in text
-                role = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
                 if not role:
                     await hf.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
                     return
@@ -287,7 +287,7 @@ class Admin(commands.Cog):
     @commands.bot_has_permissions(embed_links=True)
     async def activeincidents(self, ctx):
         """Lists the current active incidents (timed mutes and bans)"""
-        mutes: list[dict] = []
+        mutes: List[dict] = []
         author: Optional[discord.User] = None
         try:
             mute_config = self.bot.db['mutes'][str(ctx.guild.id)]['timed_mutes']
@@ -628,7 +628,7 @@ class Admin(commands.Cog):
         if guild not in self.bot.db['captcha']:
             await self.toggle
         guild_config = self.bot.db['captcha'][guild]
-        role = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
+        role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
                                     '`;captcha set_role New User`')
@@ -753,7 +753,7 @@ class Admin(commands.Cog):
             del self.bot.db['mod_role'][str(ctx.guild.id)]
             await hf.safe_send(ctx, "Removed mod role setting for this server")
             return
-        mod_role = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        mod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not mod_role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -941,57 +941,6 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, string[2000:])
 
     @commands.command(hidden=True)
-    async def command_into_voice(self, ctx, member, after):
-        if not ctx.author == self.bot.user:  # only Rai can use this
-            return
-        await self.into_voice(member, after)
-
-    async def into_voice(self, member, after):
-        if member.bot:
-            return
-        if after.afk or after.deaf or after.self_deaf or len(after.channel.members) <= 1:
-            return
-        guild = str(member.guild.id)
-        member_id = str(member.id)
-        config = self.bot.stats[guild]['voice']
-        if member_id not in config['in_voice']:
-            config['in_voice'][member_id] = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
-
-    @commands.command(hidden=True)
-    async def command_out_of_voice(self, ctx, member):
-        if not ctx.author == self.bot.user:
-            return
-        await self.out_of_voice(member, date_str=None)
-
-    async def out_of_voice(self, member, date_str=None):
-        guild = str(member.guild.id)
-        member_id = str(member.id)
-        config = self.bot.stats[guild]['voice']
-        if member_id not in config['in_voice']:
-            return
-
-        # calculate how long they've been in voice
-        join_time = datetime.strptime(
-            config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-        total_length = (discord.utils.utcnow() - join_time).seconds
-        hours = total_length // 3600
-        minutes = total_length % 3600 // 60
-        del config['in_voice'][member_id]
-
-        # add to their total
-        if not date_str:
-            date_str = discord.utils.utcnow().strftime("%Y%m%d")
-        if date_str not in config['total_time']:
-            config['total_time'][date_str] = {}
-        today = config['total_time'][date_str]
-        if member_id not in today:
-            today[member_id] = hours * 60 + minutes
-        else:
-            if isinstance(today[member_id], list):
-                today[member_id] = today[member_id][0] * 60 + today[member_id][1]
-            today[member_id] += hours * 60 + minutes
-
-    @commands.command(hidden=True)
     @commands.guild_only()
     async def timed_voice_role(self, ctx):
         """A command for setting up a role to be added when a user is in voice for a certain amount of time"""
@@ -1088,7 +1037,8 @@ class Admin(commands.Cog):
                     await hf.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
-                role = discord.utils.find(lambda r: r.name.casefold() == choice, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == choice,
+                                                                  ctx.guild.roles)
                 if not role:
                     await hf.safe_send(ctx, "I was not able to find that role. Please start the process over.")
                     return
@@ -1114,7 +1064,8 @@ class Admin(commands.Cog):
                     channel_id = None
                 else:
                     choice = msg.content.casefold()
-                    channel = discord.utils.find(lambda c: c.name.casefold() == choice, ctx.guild.voice_channels)
+                    channel: Optional[discord.Role] = discord.utils.find(lambda c: c.name.casefold() == choice,
+                                                                         ctx.guild.voice_channels)
                     if not channel:
                         await hf.safe_send(ctx, "I was not able to find that channel. Please start the process over.")
                         return
@@ -1137,120 +1088,6 @@ class Admin(commands.Cog):
                                                               'role': role.id}
         await hf.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
                                 f"You can run this command again at any time to change the settings or disable it.")
-
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
-        """voice stats"""
-
-        # voice
-        # 	in_voice:
-        # 		user1:
-        # 			enter_utc
-        # 	total_time:
-        # 		user1: hours
-        async def voice_update():
-            guild = str(member.guild.id)
-            if guild not in self.bot.stats:
-                return
-            if not self.bot.stats[guild]['enable']:
-                return
-            if str(member.id) not in self.bot.stats[guild]['voice']['in_voice']:  # not in DB
-                if after.self_deaf or after.deaf or after.afk or not after.channel:
-                    await self.out_of_voice(member)
-                    return
-                # joins voice, undeafens, or leaves afk channel
-                if not before.channel and after.channel:
-                    if len(after.channel.members) == 2:
-                        for user in after.channel.members:
-                            await self.into_voice(user, after)
-                        return
-                    else:
-                        await self.into_voice(member, after)
-                        return
-                if (before.self_deaf or before.afk or before.deaf) and not (after.self_deaf or after.afk or after.deaf):
-                    await self.into_voice(member, after)
-                    return
-            else:  # in the database
-                if after.self_deaf or after.deaf or after.afk or not after.channel:
-                    await self.out_of_voice(member)
-                    return
-
-        await voice_update()
-
-        async def turkish_server_30_mins_role():
-            if before.channel != after.channel:
-                if str(member.guild.id) not in self.bot.db['timed_voice_role']:
-                    return
-                config = self.bot.db['timed_voice_role'][str(member.guild.id)]
-                role = member.guild.get_role(config['role'])
-                if not before.channel and after.channel and config['remove_when_leave']:
-                    await member.remove_roles(role)  # in case there was some bug and the user has the role already
-                if not role:
-                    await asyncio.sleep(20)  # in case there's some weird temporary discord outage
-                    role = member.guild.get_role(config['role'])
-                    if not role:
-                        del self.bot.db['timed_voice_role'][str(member.guild.id)]
-                        return
-                if config['channel']:
-                    channel = self.bot.get_channel(config['channel'])
-                    if after.channel != channel:
-                        return
-                else:
-                    channel = None
-                start = discord.utils.utcnow().timestamp()
-                while True:
-                    try:
-                        _, _, aft = await self.bot.wait_for('voice_state_update', timeout=30.0,
-                                                            check=lambda m, b, a:
-                                                            b.channel != a.channel and m == member)
-                        try:
-                            if not aft.channel:  # leaving voice
-                                if config['remove_when_leave']:
-                                    await member.remove_roles(role)
-                                return
-                            if channel:
-                                if aft.channel != channel:
-                                    await member.remove_roles(role)
-                                    return
-                            if aft.afk and config['remove_when_afk']:  # going to afk channel
-                                await member.remove_roles(role)
-                                return
-                        except (discord.HTTPException, discord.Forbidden):
-                            await hf.safe_send(member, "I tried to give you a role for being in a voice channel for "
-                                                       "over 30 minutes, but either there was some kind of HTML "
-                                                       "error or I lacked permission to assign/remove roles. Please "
-                                                       "tell the admins of your server, or use the command "
-                                                       "`;timed_voice_role` to disable the module.")
-                            return
-
-                    except asyncio.TimeoutError:
-                        now = discord.utils.utcnow().timestamp()
-                        if now - start > 60 * config['wait_time']:
-                            try:
-                                await member.add_roles(role)
-                            except (discord.HTTPException, discord.Forbidden):
-                                await hf.safe_send(member,
-                                                   "I tried to give you a role for being in a voice channel for "
-                                                   "over 30 minutes, but either there was some kind of HTML "
-                                                   "error or I lacked permission to assign/remove roles. Please "
-                                                   "tell the admins of your server, or use the command "
-                                                   "`;timed_voice_role` to disable the module.")
-                                return
-                        if not member.voice:
-                            try:
-                                if config['remove_when_leave']:
-                                    await member.remove_roles(role)
-                            except (discord.HTTPException, discord.Forbidden):
-                                await hf.safe_send(member,
-                                                   "I tried to give you a role for being in a voice channel for "
-                                                   "over 30 minutes, but either there was some kind of HTML "
-                                                   "error or I lacked permission to assign/remove roles. Please "
-                                                   "tell the admins of your server, or use the command "
-                                                   "`;timed_voice_role` to disable the module.")
-                                return
-                            return
-
-        await turkish_server_30_mins_role()
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
@@ -2007,7 +1844,7 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "The role with that name was not found")
             return None
@@ -2030,7 +1867,7 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await hf.safe_send(ctx, "Role not found")
             return
@@ -2333,7 +2170,7 @@ class Admin(commands.Cog):
             channel_id = int(re_result.group(1))
         else:
             await hf.safe_send(ctx, "I couldn't find that channel. Please mention the channel with #")
-            await ctx.invoke(self.antispam, menu)
+            await ctx.invoke(self.antispam.invoke, menu)
             return
 
         if not channel_id or not self.bot.get_channel(channel_id):
@@ -2352,7 +2189,7 @@ class Admin(commands.Cog):
             config['ignored'].append(channel_id)
             await hf.safe_send(ctx, "That channel will be ignored in the future.")
 
-        await ctx.invoke(self.antispam, menu)
+        await ctx.invoke(self.antispam.invoke, menu)
 
     @antispam.command(name='list')
     async def antispam_list(self, ctx: commands.Context, menu: discord.Message,):
@@ -2371,7 +2208,7 @@ class Admin(commands.Cog):
             channels += f"{channel.mention}\n"
 
         await hf.safe_send(ctx, channels)
-        await ctx.invoke(self.antispam, menu)
+        await ctx.invoke(self.antispam.invoke, menu)
 
     async def antispam_ban_override(self, ctx: commands.Context, menu: discord.Message, config: dict):
         await menu.edit(embed=hf.green_embed("I should override my other selected settings and ban users that "
@@ -2422,7 +2259,7 @@ class Admin(commands.Cog):
             except discord.Forbidden:
                 pass
 
-            await ctx.invoke(self.antispam)
+            await ctx.invoke(self.antispam.invoke)
 
     @commands.command()
     async def vcc(self, ctx):
@@ -2475,5 +2312,5 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, msg)
 
 
-def setup(bot):
-    bot.add_cog(Admin(bot))
+async def setup(bot):
+    await bot.add_cog(Admin(bot))

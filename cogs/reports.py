@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
-import datetime
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -215,7 +214,7 @@ class Reports(commands.Cog):
     @report.command()
     @hf.is_admin()
     async def check_waiting_list(self, ctx):
-        """Checks who is on the waiting list for the report room"""
+        """This function checks who is on the waiting list for the report room"""
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
             return
@@ -415,5 +414,5 @@ class Reports(commands.Cog):
         await report_room.send(report_text[5])  # full instructions text in report room
 
 
-def setup(bot):
-    bot.add_cog(Reports(bot))
+async def setup(bot):
+    await bot.add_cog(Reports(bot))

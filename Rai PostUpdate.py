@@ -189,8 +189,8 @@ async def on_ready():
             listMob[i] = listMob[i].replace('**', '* **', 1)
         if listMob[i][0:4] == '**__':
             listMob[i] = listMob[i].replace('**__', '\n>##', 1).replace('__**', '')
-        if listMob[i][0] == '.':
-            listMob[i] = listMob[i].replace('.', ' ')
+        if not listMob[i]:
+            pass
         if listMob[i][0:3] == '539':
             continue
         print(listMob[i])

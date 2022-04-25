@@ -1,43 +1,46 @@
-from discord.ext import commands
+import textwrap
 import asyncio
 import traceback
-import discord
-import textwrap
-from contextlib import redirect_stdout
 import io
 import sys
 import codecs
 import json
-from .utils import helper_functions as hf
 import re
-from ast import literal_eval
+import os
 import importlib
-
 import datetime
 from datetime import datetime, timedelta, timezone
+from subprocess import PIPE, run
+from contextlib import redirect_stdout
+from ast import literal_eval
 
-import os
+import discord
+from discord.ext import commands
+
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 RYRY_ID = 202995638860906496
 ABELIAN_ID = 414873201349361664  # Ryry alt
 MARIO_RYAN_ID = 528770932613971988  # Ryry alt
-RYRY_SPAM_CHAN = 275879535977955330
+UNITARITY_ID = 528770932613971988  # Ryry alt
+
 RYRY_RAI_BOT_ID = 270366726737231884
+RAI_TEST_BOT_ID = 536170400871219222
 
 
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
     def __init__(self, bot):
-        self.bot: discord.Bot = bot
+        self.bot: commands.Bot = bot
         self._last_result = None
         self.sessions = set()
 
     async def cog_check(self, ctx):
-        if self.bot.user.id == RYRY_RAI_BOT_ID:  # If it's Ryry's Rai bot
-            return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID]
+        if self.bot.user.id in [RYRY_RAI_BOT_ID, RAI_TEST_BOT_ID]:  # If it's Ryry's Rai bot
+            return ctx.author.id in [RYRY_ID, ABELIAN_ID, MARIO_RYAN_ID, UNITARITY_ID]
         else:
             return ctx.author.id == self.bot.owner_id
 
@@ -45,17 +48,6 @@ class Owner(commands.Cog):
         if e.text is None:
             return f'```py\n{e.__class__.__name__}: {e}\n```'
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
-
-    @commands.Cog.listener()
-    async def on_command(self, ctx):
-        if not ctx.guild:
-            return
-        if str(ctx.guild.id) not in self.bot.db['guildstats']:
-            self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
-        config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
-
-        date_str = discord.utils.utcnow().strftime("%Y%m%d")
-        config[date_str] = config.setdefault(date_str, 0) + 1
 
     @commands.command()
     async def guildstats(self, ctx):
@@ -138,7 +130,7 @@ class Owner(commands.Cog):
     @commands.command(aliases=['repl'])
     async def reply(self, ctx, index, *, reply=''):
         """Reply to a message to the bot"""
-        channel = self.bot.get_channel(RYRY_SPAM_CHAN)
+        channel = self.bot.get_channel(int(os.getenv("BOT_TEST_CHANNEL")))
         index_re = re.search("^(;repl|;reply) (\d) ", ctx.message.content)
         if not index_re:
             reply = f"{index} {reply}"
@@ -327,7 +319,7 @@ class Owner(commands.Cog):
                     def BMP(s):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
 
-                    file.write(f'    ({msg.created_at}) {self.BMP(msg.author.name)} - {BMP(msg.content)}\n')
+                    file.write(f'    ({msg.created_at}) {BMP(msg.author.name)} - {BMP(msg.content)}\n')
 
     @commands.command(hidden=True)
     async def restart(self, ctx):
@@ -355,7 +347,7 @@ class Owner(commands.Cog):
         """Command which loads a module."""
 
         try:
-            self.bot.load_extension(f'cogs.{cog}')
+            await self.bot.load_extension(f'cogs.{cog}')
         except Exception as e:
             await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
@@ -363,9 +355,8 @@ class Owner(commands.Cog):
 
     @commands.command(hidden=True)
     async def unload(self, ctx, *, cog: str):
-
         try:
-            self.bot.unload_extension(f'cogs.{cog}')
+            await self.bot.unload_extension(f'cogs.{cog}')
         except Exception as e:
             await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
@@ -382,7 +373,7 @@ class Owner(commands.Cog):
             try:
                 old_module = sys.modules['cogs.utils.helper_functions']
                 importlib.reload(sys.modules['cogs.utils.helper_functions'])
-                self.bot.reload_extension("cogs.general")  #
+                await self.bot.reload_extension("cogs.general")  #
             except Exception as e:
                 await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:
@@ -390,7 +381,7 @@ class Owner(commands.Cog):
 
         else:
             try:
-                self.bot.reload_extension(f'cogs.{cog}')
+                await self.bot.reload_extension(f'cogs.{cog}')
             except Exception as e:
                 await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:
@@ -560,7 +551,8 @@ class Owner(commands.Cog):
                         try:
                             role_name_list = embed.fields[0].value.split(', ')
                         except IndexError:
-                            pass
+                            await hf.safe_send(ctx, "Index error failure")
+                            return
                         role_id_list = [name_to_id[role] for role in role_name_list]
                         try:
                             role_id_list.remove(309913956061806592)  # in voice role
@@ -714,6 +706,30 @@ class Owner(commands.Cog):
                 await emoji.url.save(im)
             index += 1
 
+    @commands.command()
+    async def os(self, ctx, *command):
+        """
+        Calls an os command using subprocess.run()
+        This version will directly return the results of the command as text
+        Command: The command you wish to input into your system
+        """
+        result = run(command,
+                     stdout=PIPE,
+                     stderr=PIPE,
+                     universal_newlines=True,
+                     shell=True)
+        result = f"{result.stdout}\n{result.stderr}"
+        long = len(result) > 1994
+        result = result[:1994]
+        result = f"```{result}```"
 
-def setup(bot):
-    bot.add_cog(Owner(bot))
+        await hf.safe_send(ctx, result)
+
+        if long:
+            buffer = io.BytesIO(bytes(result, "utf-8"))
+            f = discord.File(buffer, filename="text.txt")
+            await ctx.send("Result was over 2000 characters", file=f)
+
+
+async def setup(bot):
+    await bot.add_cog(Owner(bot))

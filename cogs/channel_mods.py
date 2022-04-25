@@ -78,9 +78,10 @@ class ChannelMods(commands.Cog):
         except (discord.NotFound, AttributeError):
             pass
 
-        msgs = []
-        failed_ids = []
-        invalid_ids = []
+        msg: Optional[discord.Message] = None
+        msgs: List[discord.Message] = []
+        failed_ids: List[int] = []
+        invalid_ids: List[int] = []
 
         if len(ids) == 1:
             if not 17 < len(ids[0]) < 22:
@@ -201,13 +202,13 @@ class ChannelMods(commands.Cog):
                     continue
                 to_be_pinned_msg = message
         elif len(args) == 1:
-            if re.search('^\d{17,22}$', args[0]):
+            if re.search(r'^\d{17,22}$', args[0]):
                 try:
                     to_be_pinned_msg = await ctx.channel.fetch_message(args[0])
                 except discord.NotFound:
                     await hf.safe_send(ctx, "I couldn't find the message you were looking for.")
                     return
-            elif re.search('^\d{17,22}-\d{17,22}$', args[0]):
+            elif re.search(r'^\d{17,22}-\d{17,22}$', args[0]):
                 channel_id = int(args[0].split('-')[0])
                 channel = ctx.guild.get_channel_or_thread(channel_id)
                 if not channel:
@@ -367,9 +368,11 @@ class ChannelMods(commands.Cog):
     @staffping.command(name="set")
     async def staffping_set(self, ctx, input_id=None):
         """Does one of two things:
-        1) Sets notification channel for pings to this channel (`;staffping set <channel_mention>)
-           (if no channel is specified, sets to current channel)
-        2) Sets the watched role for staff pings (specify an ID or role: `;staffping set <ID/role mention>`)
+        1) Sets notification channel for pings to a selected channel
+        ⠀(`;staffping set <channel_mention>`)
+        ⠀(if no channel is specified, sets to current channel)
+        2) Sets the watched role for staff pings
+        ⠀(specify an ID or role: `;staffping set <role mention/ID>`)
         If neither are set, it will watch for the mod role (`;set_mod_role`) and notify to the
         submod channel (`;set_submod_channel`)."""
         if str(ctx.guild.id) not in self.bot.db['staff_ping']:
@@ -380,38 +383,23 @@ class ChannelMods(commands.Cog):
         if not input_id:  # nothing, assume setting channel to current channel
             config['channel'] = ctx.channel.id
             await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
+            return
 
-        else:
-            if re.search(r"^<#\d{17,22}>$", ctx.message.content):  # a channel mention
-                config['channel'] = int(input_id.replace("<#", "").replace(">", ""))
-                await hf.safe_send(ctx, f"I've set the notification channel for staff pings as <#{input_id}>.")
-            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a channel id
-                channel = ctx.guild.get_channel_or_thread(int(input_id))
-                if channel:
-                    config['channel'] = int(input_id)
+        channel = role = None
+        if regex := re.search(r"^<?#?@?&?(\d{17,22})>$", input_id):  # a channel or role mention/ID
+            object_id = int(regex.group(1))
+            channel = self.bot.get_channel(object_id)
+            role = ctx.guild.get_role(object_id)
+            if channel:
+                config['channel'] = channel.id
+                await hf.safe_send(ctx, f"I've set the notification channel for staff pings to {channel.mention}.")
+            elif role:
+                config['role'] = role.id
+                await hf.safe_send(ctx, f"I've set the watched staff role to **{role.name}** (`{role.mention}`)")
 
-            elif re.search(r"^<@&\d{17,22}>$", ctx.message.content):  # a role mention
-                input_id = input_id.replace("<@&", "").replace(">", "")
-                role = ctx.guild.get_role(int(input_id))
-                if role:
-                    config['role'] = int(input_id)
-                else:
-                    await hf.safe_send(ctx,
-                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
-                                       "go to that channel and type just `;staffping set` instead.")
-                    return
-            elif re.search(r"^\d{17,22}$", ctx.message.content):  # a role id
-                role = ctx.guild.get_role(int(input_id))
-                if role:
-                    config['role'] = int(input_id)
-                else:
-                    await hf.safe_send(ctx,
-                                       "I couldn't find the role you mentioned. If you tried to link a channel ID, "
-                                       "go to that channel and type just `;staffping set` instead.")
-                    return
-            else:
-                await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
-                return
+        if not channel and not role:
+            await hf.safe_send(ctx, f"I couldn't figure out what you wanted to do.")
+            await hf.safe_send(ctx, ctx.command.help)
 
     @commands.command(aliases=['r', 't', 'tag'])
     @commands.check(any_channel_mod_check)
@@ -551,7 +539,7 @@ class ChannelMods(commands.Cog):
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None):
+    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None, post_embed=True):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
@@ -614,7 +602,7 @@ class ChannelMods(commands.Cog):
 
             # Check DB for voice mute entry
             voice_muted = False
-            voice_unmute_time_left_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
+            voice_unmute_time_left_str: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
@@ -646,9 +634,9 @@ class ChannelMods(commands.Cog):
             timeout: bool = False
             timeout_time_left_str: Optional[str] = None
             if member:
-                if member.communication_disabled_until:
+                if member.is_timed_out():
                     timeout = True
-                    time_left = member.communication_disabled_until - discord.utils.utcnow()
+                    time_left = member.timed_out_until - discord.utils.utcnow()
                     days_left = time_left.days
                     hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                     minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
@@ -781,7 +769,8 @@ class ChannelMods(commands.Cog):
         if join_history:
             invite: Optional[str]
             if invite := join_history['invite']:
-                invite_obj = discord.utils.find(lambda i: i.code == invite, await ctx.guild.invites())
+                invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
+                                                                          await ctx.guild.invites())
                 if invite_obj:
                     emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                        f"{invite} by {invite_obj.inviter.name}"
@@ -844,18 +833,22 @@ class ChannelMods(commands.Cog):
         #
         #
 
-        if first_embed and delete_parameter:
-            await hf.safe_send(ctx, embed=first_embed, delete_after=delete_parameter)
+        if post_embed:
+            if first_embed:  # will only be True if there are two embeds to send
+                await hf.safe_send(ctx, user_id, embed=first_embed, delete_after=delete_parameter)
+
+            try:
+                # if there's a first embed, this will be the second embed
+                await hf.safe_send(ctx, user_id, embed=emb, delete_after=delete_parameter)
+
+            except discord.Forbidden:
+                await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+                return
+
         if first_embed:
-            await hf.safe_send(ctx, embed=first_embed)
-        try:
-            if delete_parameter:
-                await hf.safe_send(ctx, embed=emb, delete_after=delete_parameter)
-            else:
-                await hf.safe_send(ctx, embed=emb)  # if there's a first embed, this will be the second embed
-        except discord.Forbidden:
-            await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
-            return
+            return first_embed
+        else:
+            return emb
 
     @modlog.command(name='delete', aliases=['del'])
     @hf.is_admin()
@@ -992,6 +985,7 @@ class ChannelMods(commands.Cog):
         except IndexError:
             await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
                                     f"and try again.")
+            return
         config[index - 1]['reason'] = reason
         await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
                                                      f"```{old_reason}```to```{reason}```"))
@@ -1305,5 +1299,5 @@ class ChannelMods(commands.Cog):
             return True
 
 
-def setup(bot):
-    bot.add_cog(ChannelMods(bot))
+async def setup(bot):
+    await bot.add_cog(ChannelMods(bot))

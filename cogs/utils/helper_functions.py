@@ -22,13 +22,21 @@ dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fi
 
 here = sys.modules[__name__]
 here.bot = None
+here._loop = None
+
 
 BANS_CHANNEL_ID = 329576845949534208
 
 
-def setup(bot):
+def setup(bot, loop):
+    """This command is run in __init__() function of general.py"""
     if here.bot is None:
         here.bot = bot
+    else:
+        pass
+
+    if here._loop is None:
+        here._loop = loop
     else:
         pass
 
@@ -72,8 +80,6 @@ _url = re.compile("""
 _emoji = re.compile(r'<a?(:[A-Za-z0-9\_]+:|#|@|@&)!?[0-9]{17,20}>')
 
 _lock = asyncio.Lock()
-_loop = asyncio.get_event_loop()
-
 
 def count_messages(member, guild=None):
     """Returns an integer of number of messages sent in the last month"""
@@ -129,10 +135,16 @@ def grey_embed(text):
     return discord.Embed(description=text, color=0x848A84)
 
 
-async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None):
+async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None, view=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
-        raise SyntaxError("You maybe didn't state a destination, or you tried to send a None")
+        if type(destination) == str:
+            raise SyntaxError("You maybe forgot to state a destination in the safe_send() function")
+        elif type(destination) == commands.Context:
+            raise SyntaxError("The content you tried to send in the safe_send() function was None")
+        else:
+            raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
+
     perms_set = perms = False
     if isinstance(destination, commands.Context):
         if destination.guild:
@@ -153,7 +165,7 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         if isinstance(destination, discord.User):
             if not destination.dm_channel:
                 await destination.create_dm()
-            return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
+        return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
@@ -263,10 +275,10 @@ def _predump_json():
 async def dump_json():
     async with _lock:
         try:
-            await _loop.run_in_executor(None, _predump_json)
+            await here._loop.run_in_executor(None, _predump_json)
         except RuntimeError:
             print("Restarting dump_json on a RuntimeError")
-            await _loop.run_in_executor(None, _predump_json)
+            await here._loop.run_in_executor(None, _predump_json)
 
 
 def submod_check(ctx):
@@ -643,7 +655,7 @@ def detect_language(text):
 
 
 async def load_language_detection_model():
-    await _loop.run_in_executor(None, _pre_load_language_detection_model)
+    await here._loop.run_in_executor(None, _pre_load_language_detection_model)
 
 
 @dataclass

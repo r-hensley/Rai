@@ -23,7 +23,7 @@ class Jpserv(commands.Cog):
 
     @commands.command()
     @hf.is_admin()
-    async def swap(self, ctx):
+    async def swap(self, _):  # second parameter is unused but required ctx
         """Swaps JHO/JHO2's names and positions in the lists, for if we temporarily want welcome messages to go to
         JHO2"""
         jpJHO = self.bot.get_channel(189571157446492161)
@@ -185,5 +185,6 @@ class Jpserv(commands.Cog):
             config['ignore'] = [ctx.channel.id]
             await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
 
-def setup(bot):
-    bot.add_cog(Jpserv(bot))
+
+async def setup(bot):
+    await bot.add_cog(Jpserv(bot))

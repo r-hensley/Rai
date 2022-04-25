@@ -1,32 +1,48 @@
 log/
-__pycache__/
 gitignore/
-cogs/__pycache__
 database_backups/
+old_stuff/
+
+# Test Rai
 local/
-.vs
+Rai Test/
+
+# python directories
+src/
+lib/
+bin/
+extern/
+include/
+share/
+*/__pycache__/
+
+# scratch files
+scratch*
+
+# API key files
 API*
+
+# Ignore files starting with a dot
+.*
+
+# all text files except those specified below
 *.txt
 !cogs/utils/conversation_topics.txt
+!requirements.txt
+
+# other file extensions
 *.json
 *.png
 *.sh
 *.bat
-README.md
 *.lnk
-scratch*
+*.vs
 *.csv
-old_stuff/*
-!requirements.txt
-.*
-bin/*
-lib/*
 *.cfg
+*.toml
+*.db
+
+# Levenshtein module files
 COPYING
 HISTORY.md
-extern/*
-include/*
-*.toml
 setup.py
-share/*
-src/*

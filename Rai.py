@@ -1,16 +1,20 @@
 # -*- coding: utf8 -*-
-import discord
+import logging
 import asyncio
-from discord.ext.commands import Bot
-from discord.ext import commands, tasks
-import sys, traceback
+import sys
+import traceback
 import json
-from cogs.utils import helper_functions as hf
-from datetime import datetime
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
-import logging
+import discord
+from discord.ext.commands import Bot
+from discord.ext import commands, tasks
+from discord import app_commands
+
+from cogs.utils import helper_functions as hf
+
 logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
 # logger.setLevel(logging.INFO)
@@ -33,7 +37,7 @@ try:
     with open(f"{dir_path}/.env", 'r') as f:
         pass
 except FileNotFoundError:
-    txt = """BOT_TOKEN=\nGCSE_API=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL="""
+    txt = """BOT_TOKEN=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL=\nOWNER_ID=\nGCSE_API="""
     with open(f'{dir_path}/.env', 'w') as f:
         f.write(txt)
     print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
@@ -43,7 +47,7 @@ except FileNotFoundError:
     exit()
 
 # Credentials
-load_dotenv('.env')
+load_dotenv(f'{dir_path}/.env')
 
 if not os.getenv("BOT_TOKEN"):
     raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
@@ -59,6 +63,12 @@ t_start = datetime.now()
 
 # Don't change this even on forked copies of Rai
 RYRY_RAI_COPY = 270366726737231884
+JP_SERV_ID = 189571157446492161
+SP_SERV_ID = 243838819743432704
+RY_TEST_SERV_ID = 275146036178059265
+FEDE_TEST_SERV_ID = 941155953682821201
+
+FEDE_GUILD = discord.Object(FEDE_TEST_SERV_ID)
 
 
 def prefix(bot, msg):
@@ -125,18 +135,6 @@ class Rai(Bot):
             else:
                 raise
 
-        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod']
-
-        for extension in initial_extensions:
-            try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-                self.load_extension(extension)
-                print(f'Loaded {extension}')
-            except Exception as e:
-                print(f'Failed to load extension {extension}.', file=sys.stderr)
-                traceback.print_exc()
-                continue
-
     async def on_ready(self):
         await hf.load_language_detection_model()
         self.language_detection = True
@@ -155,13 +153,6 @@ class Rai(Bot):
         else:
             ctxmsg = self.ctx = None
 
-        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-            self.load_extension('cogs.background')
-            print(f'Loaded cogs.background')
-        except Exception as e:
-            print(f'Failed to load extension cogs.background.', file=sys.stderr)
-            traceback.print_exc()
-
         print("Bot loaded")
 
         t_finish = datetime.now()
@@ -171,74 +162,39 @@ class Rai(Bot):
 
         await self.change_presence(activity=discord.Game(';help for help'))
 
-        guilds = [189571157446492161, 243838819743432704, 275146036178059265]
-        for guild in guilds:
-            if guild not in [g.id for g in self.guilds]:
-                guilds.remove(guild)
-
-        if guilds:
-            @self.message_command(name="Delete message", guild_ids=guilds)
-            async def delete_and_log(ctx, message: discord.Message):
-                delete = ctx.bot.get_command("delete")
-                try:
-                    if await delete.can_run(ctx):
-                        await delete.__call__(ctx, str(message.id))
-                        await ctx.interaction.response.send_message("The message has been successfully deleted",
-                                                                    ephemeral=True)
-                    else:
-                        await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                                    ephemeral=True)
-                except commands.BotMissingPermissions:
-                    await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                                ephemeral=True)
-
-            @self.message_command(name="1h text/voice mute", guild_ids=guilds)
-            async def context_message_mute(ctx, message: discord.Message):
-                mute = ctx.bot.get_command("mute")
-                ctx.message = ctx.channel.last_message
-
-                try:
-                    if await mute.can_run(ctx):
-                        await mute.__call__(ctx, args=f"{str(message.author.id)} 1h")
-                        await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-
-                    else:
-                        await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                                    ephemeral=True)
-                except commands.BotMissingPermissions:
-                    await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                                ephemeral=True)
-
-            @self.user_command(name="1h text/voice mute", guild_ids=guilds)
-            async def context_user_mute(ctx, member: discord.Member):
-                mute = ctx.bot.get_command("mute")
-                ctx.message = ctx.channel.last_message
-
-                try:
-                    if await mute.can_run(ctx):
-                        await mute.__call__(ctx, args=f"{str(member.id)} 1h")
-                        await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-
-                    else:
-                        await ctx.interaction.response.send_message("You don't have the permission to use that command",
-                                                                    ephemeral=True)
-                except commands.BotMissingPermissions:
-                    await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-                                                                ephemeral=True)
-
-            """
-            @bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
-            async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
-                ban = ctx.bot.get_command("ban")
-                if await ban.can_run(ctx):
-                    await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
-                    await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
-                else:
-                    await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
-            """
-
         if not self.database_backups.is_running():
             self.database_backups.start()
+
+        @app_commands.context_menu()
+        @app_commands.guilds(FEDE_GUILD)
+        async def react(interaction: discord.Interaction, message: discord.Message):
+            await interaction.response.send_message('Very cool message!', ephemeral=True)
+
+        self.tree.add_command(react, guild=FEDE_GUILD, override=True)
+        await self.tree.sync(guild=FEDE_GUILD)
+
+    async def setup_hook(self):
+        initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
+                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
+                              'cogs.events', 'cogs.interactions']
+
+        for extension in initial_extensions:
+            try:
+                print(f"Loaded {extension}")
+                await self.load_extension(extension)
+            except Exception as e:
+                print(f'Failed to load {extension}', file=sys.stderr)
+                traceback.print_exc()
+                raise
+
+        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
+            await self.load_extension('cogs.background')
+            print(f'Loaded cogs.background')
+        except Exception as e:
+            print(f'Failed to load extension cogs.background.', file=sys.stderr)
+            traceback.print_exc()
+
+        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 
     @tasks.loop(hours=24)
     async def database_backups(self):
@@ -419,14 +375,28 @@ class Rai(Bot):
         traceback.print_exc()
 
 
-bot = Rai()
+def run_bot():
+    bot = Rai()
 
-# A little bit of a detterent from my token instantly being used if the .env file gets leaked somehow
-if "Rai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
-    bot.run(os.getenv("BOT_TOKEN") + 'k')  # Rai
-elif "ForkedRai" == os.path.basename(dir_path) and "Ryry013" in dir_path:
-    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai
-elif "local" in os.path.basename(dir_path):
-    bot.run(os.getenv("BOT_TOKEN") + 'M')  # Rai Test
-else:
-    bot.run(os.getenv("BOT_TOKEN"))  # For other people forking Rai bot
+    key = os.getenv("BOT_TOKEN")
+
+    if len(key) == 58:
+        # A little bit of a deterrent from my token instantly being used if the .env file gets leaked somehow
+        if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'M')  # Rai Test
+        elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
+            bot.run(key + 'k')  # Rai
+        else:
+            bot.run(key)
+
+    else:
+        # For forked copies of Rai by other people, just run the bot normally:
+        bot.run(key)  # For other people forking Rai bot
+
+
+def main():
+    run_bot()
+
+
+if __name__ == '__main__':
+    main()

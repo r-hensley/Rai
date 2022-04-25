@@ -178,7 +178,7 @@ class Math(commands.Cog):
         if n > 1000:
             try:
                 await ctx.message.add_reaction('\u2705')
-            except NotFound:
+            except discord.NotFound:
                 pass
         for i in range(n):
             rand = round(random.random(), 3)
@@ -306,5 +306,5 @@ class Math(commands.Cog):
                                 f"({de_percentage}%) (average {de_average} surviving troops)")
 
 
-def setup(bot):
-    bot.add_cog(Math(bot))
+async def setup(bot):
+    await bot.add_cog(Math(bot))
