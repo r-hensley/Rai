@@ -1314,10 +1314,9 @@ class General(commands.Cog):
             pass
 
         if hasattr(self.bot, 'synced_reactions'):
-            self.bot.synced_reactions[notif] = ctx.message
-            self.bot.synced_reactions[ctx.message] = notif
+            self.bot.synced_reactions.append((notif, ctx.message))
         else:
-            self.bot.synced_reactions = {notif: ctx.message, ctx.message: notif}
+            self.bot.synced_reactions = [(notif, ctx.message)]
 
     @commands.max_concurrency(1, commands.BucketType.channel)
     @commands.max_concurrency(1, commands.BucketType.user)
