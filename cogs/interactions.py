@@ -188,7 +188,7 @@ class Interactions(commands.Cog):
                              reason: str):
         """The main code for the staffping command. This will be referenced by the above slash
         command, but also by the mods_ping() function in on_message()"""
-        regex_result: list[str] = re.findall(r'<?@?!?(\d{17,22})>?', users)
+        regex_result: List[str] = re.findall(r'<?@?!?(\d{17,22})>?', users)
 
         slash = isinstance(ctx, discord.Interaction)
 
@@ -226,7 +226,7 @@ class Interactions(commands.Cog):
                                             ephemeral=True)
             return
 
-        member_list: List[discord.Member] = list(set(regex_result))  # unique list of users
+        member_list: List[str] = list(set(regex_result))  # unique list of users
 
         if len(member_list) > 9:
             if slash:
@@ -308,14 +308,14 @@ class Interactions(commands.Cog):
                 modlog_target = member_list[int(button_index) - 1]
 
             if slash:
-                embed = await interaction_ctx.invoke(ChannelMods.modlog,
+                embed = await interaction_ctx.invoke(ChannelMods.modlog.invoke,
                                                      interaction_ctx,
                                                      id_in=modlog_target,
                                                      delete_parameter=30,
                                                      post_embed=False)
                 # await ctx.followup.send(f"{modlog_target}", ephemeral=True)
             else:
-                embed = await ctx.invoke(ChannelMods.modlog,
+                embed = await ctx.invoke(ChannelMods.modlog.invoke,
                                          ctx,
                                          id_in=modlog_target,
                                          delete_parameter=30,
