@@ -373,7 +373,7 @@ class Owner(commands.Cog):
             try:
                 old_module = sys.modules['cogs.utils.helper_functions']
                 importlib.reload(sys.modules['cogs.utils.helper_functions'])
-                await self.bot.reload_extension("cogs.general")  #
+                hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
             except Exception as e:
                 await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:

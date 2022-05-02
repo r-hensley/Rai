@@ -32,6 +32,22 @@ def any_channel_mod_check(ctx):
                 return True
 
 
+async def make_mute_role(ctx, dest, voice_mute):
+    """For use in mute command"""
+    if voice_mute:
+        name = 'rai-voice-mute'
+    else:
+        name = 'rai-mute'
+    _role = discord.utils.find(lambda r: r.name.casefold() == name, ctx.guild.roles)
+    if _role:
+        first = False
+        await hf.safe_send(dest, "Reusing previously existing Rai mute role")
+    else:
+        first = True
+        _role = await ctx.guild.create_role(name=name, reason="For use with bot mute command")
+    return _role, first
+
+
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
     mods, see `;help channel_mod`. Submods and admins can also use these commands."""
@@ -44,7 +60,6 @@ class ChannelMods(commands.Cog):
             return
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             if not ctx.message.content.endswith("help"):  # ignore if it's the help command
-                print("channel mods", ctx.message.content)
                 await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         if not hf.submod_check(ctx):
@@ -607,7 +622,6 @@ class ChannelMods(commands.Cog):
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
-                print(voice_unmute_time_left_str)
                 voice_muted = True
                 unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(
                     tzinfo=timezone.utc)
@@ -616,7 +630,6 @@ class ChannelMods(commands.Cog):
                 hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
                 minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
                 voice_unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
-                print(voice_unmute_time_left_str)
 
             else:
                 voice_unmute_time_left_str = None
@@ -996,130 +1009,169 @@ class ChannelMods(commands.Cog):
         """Shortcut for `;modlog reason`"""
         await ctx.invoke(self.modlog_edit, user, index, reason=reason)
 
-    @commands.command()
-    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
-    @commands.max_concurrency(1, commands.BucketType.member)
-    async def mute(self, ctx, *, args):
-        """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
-        # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
-        args_list = args.split()
+    async def apply_mute_role(self, ctx: commands.Context, target, voice_mute):
+        """For mutes longer than 28 days, apply a mute role"""
 
         # this function sets the permissions for the Rai_mute role in all the channels
         # returns a list of channel name strings
         async def set_channel_overrides(role):
             failed_channels = []
-            for channel in ctx.guild.voice_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, speak=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.mention)
-            for channel in ctx.guild.text_channels:
-                if role not in channel.overwrites:
-                    try:
-                        await channel.set_permissions(role, send_messages=False, add_reactions=False,
-                                                      attach_files=False, send_messages_in_threads=False)
-                    except discord.Forbidden:
-                        failed_channels.append(channel.mention)
-            return failed_channels
+            for channel in ctx.guild.channels:
+                if channel.permissions_synced:
+                    continue  # don't break the channel sync, edit the category permission
 
-        async def make_role():
-            role = await ctx.guild.create_role(name='rai-mute', reason="For use with ;mute command")
-            return role
+                # Rai can't edit permissions of these channels
+                rai_perms = channel.permissions_for(ctx.guild.me)
+                if not rai_perms.manage_permissions:
+                    failed_channels.append((channel.name, "manage_permissions"))
+                    continue
+
+                role_overwrites = channel.overwrites_for(role)  # if the role already has some perms set, keep those
+
+                # only recheck permissions once per running of Rai
+                if voice_mute:
+                    if hasattr(self.bot, "checked_voice_mute_role"):
+                        if ctx.guild.id in self.bot.checked_voice_mute_role:
+                            if role in channel.overwrites:
+                                continue
+                else:
+                    if hasattr(self.bot, "checked_mute_role"):
+                        if ctx.guild.id in self.bot.checked_mute_role:
+                            if role in channel.overwrites:
+                                continue
+
+                if channel.category:
+                    # For some reason, if a permission is denied on a category, even if the channel doesn't have
+                    # permissions synced, trying to deny the permission in the channel fails, so we need to check
+                    category_perms = channel.category.permissions_for(ctx.guild.me)
+                else:
+                    category_perms = discord.Permissions().all()  # if there's no category then there will be no limits
+
+                send_messages = None
+                send_messages_in_threads = None
+                attach_files = None
+                create_public_threads = None
+                add_reactions = None
+                connect = None
+
+                # For anything other than a voice channel, set the following text permissions
+                if not isinstance(channel, discord.VoiceChannel) and not voice_mute:
+                    # if Rai is able to apply the permission
+                    # and if the permission isn't already applied
+                    if rai_perms.send_messages and category_perms.send_messages \
+                            and role_overwrites.send_messages is not False:
+                        send_messages = False
+                    else:
+                        failed_channels.append((channel, 'send_messages'))
+
+                    if rai_perms.add_reactions and category_perms.add_reactions \
+                            and role_overwrites.add_reactions is not False:
+                        add_reactions = False
+                    else:
+                        failed_channels.append((channel, 'add_reactions'))
+
+                    if rai_perms.attach_files and category_perms.attach_files \
+                            and role_overwrites.attach_files is not False:
+                        attach_files = False
+                    else:
+                        failed_channels.append((channel, 'attach_files'))
+
+                    if rai_perms.send_messages_in_threads and category_perms.send_messages_in_threads \
+                            and role_overwrites.send_messages_in_threads is not False:
+                        send_messages_in_threads = False
+                    else:
+                        failed_channels.append((channel, 'send_messages_in_threads'))
+
+                    if rai_perms.create_public_threads and category_perms.create_public_threads \
+                            and role_overwrites.create_public_threads is not False:
+                        create_public_threads = False
+                    else:
+                        failed_channels.append((channel, 'create_public_threads'))
+
+                # For voice channels and categories as well, set speaking perms
+                if isinstance(channel, discord.VoiceChannel) or isinstance(channel, discord.CategoryChannel):
+                    if rai_perms.connect and category_perms.connect \
+                            and role_overwrites.connect is not False:
+                        connect = False
+                    else:
+                        failed_channels.append((channel, 'connect'))
+
+                # Once all permissions are set, apply to the channel
+                role_overwrites.update(send_messages=send_messages,
+                                       send_messages_in_threads=send_messages_in_threads,
+                                       attach_files=attach_files,
+                                       create_public_threads=create_public_threads,
+                                       add_reactions=add_reactions,
+                                       connect=connect)
+                try:
+                    await channel.set_permissions(role, overwrite=role_overwrites)
+                except (discord.HTTPException, discord.Forbidden):
+                    failed_channels.append((channel, "unknown"))
+
+            # used above, this makes sure this function only fully runs once per server per running of Rai
+            if voice_mute:
+                if hasattr(self.bot, "checked_voice_mute_role"):
+                    if ctx.guild.id not in self.bot.checked_voice_mute_role:
+                        self.bot.checked_voice_mute_role.append(ctx.guild.id)
+                else:
+                    self.bot.checked_voice_mute_role = [ctx.guild.id]
+            else:
+                if hasattr(self.bot, "checked_mute_role"):
+                    if ctx.guild.id not in self.bot.checked_mute_role:
+                        self.bot.checked_mute_role.append(ctx.guild.id)
+                else:
+                    self.bot.checked_mute_role = [ctx.guild.id]
+
+            return failed_channels
 
         async def first_time_setup():
             if ctx.author == self.bot.user:
                 dest = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
             else:
                 dest = ctx.channel
-            await hf.safe_send(dest, "Doing first-time setup of mute module.  I will create a `rai-mute` role, "
-                                     "add then a permission override for it to every channel to prevent communication")
-            role = await make_role()
 
-            failed_channels = await set_channel_overrides(role)
-            if failed_channels:
-                msg = f"Couldn't add the role permission to {', '.join(failed_channels)}.  If a muted " \
-                      f"member joins this (these) channel(s), they'll be able to type/speak. If you " \
-                      f"want to edit the permissions and have Rai reapply all the permissions, please " \
-                      f"delete the `rai-mute` role and then try to mute someone again."
-                try:
-                    if len(msg) <= 2000:
-                        await hf.safe_send(ctx.author, msg)
-                    else:
-                        await hf.safe_send(ctx.author, msg[:2000])
-                        await hf.safe_send(ctx.author, msg[1980:])
-                except discord.HTTPException:
-                    pass
+            role, first = await make_mute_role(ctx, dest, voice_mute)
+            if first:  # if the role was newly made
+                await hf.safe_send(dest, f"Doing first-time setup of mute module.  I have a `{role.name}` role, "
+                                         "add I will add a permission override for it to every channel to prevent "
+                                         "communication")
+
+                failed_channels = await set_channel_overrides(role)
+                if failed_channels:
+                    msg = f"Couldn't add the role permission to the following channels for missing the " \
+                          f"listed permissions.  If a muted " \
+                          f"member joins this (these) channel(s), they'll be able to type/speak. If you " \
+                          f"want to edit the permissions and have Rai reapply all the permissions, please " \
+                          f"delete the `rai-mute` role and then try to mute someone again."
+                    for channel in failed_channels:
+                        msg += f"\n{channel[0]}: {channel[1]}"
+                    try:
+                        if len(msg) <= 2000:
+                            await hf.safe_send(ctx.author, msg)
+                        else:
+                            await hf.safe_send(ctx.author, msg[:2000])
+                            await hf.safe_send(ctx.author, msg[1980:])
+                    except discord.HTTPException:
+                        pass
 
             return role
 
-        if str(ctx.guild.id) not in self.bot.db['mutes']:
+        # Create role, add permissions to channels, and get/create config in database
+        if voice_mute:
+            db_name = 'voice_mutes'
+        else:
+            db_name = 'mutes'
+        if str(ctx.guild.id) not in self.bot.db[db_name]:
             role = await first_time_setup()
-            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
+            config = self.bot.db[db_name][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
 
         else:
-            config = self.bot.db['mutes'][str(ctx.guild.id)]
+            config = self.bot.db[db_name][str(ctx.guild.id)]
             role = ctx.guild.get_role(config['role'])
             if not role:  # rai mute role got deleted
                 role = await first_time_setup()
                 config['role'] = role.id
             await set_channel_overrides(role)
-
-        re_result = None
-        time_string: Optional[str] = None
-        target: Optional[discord.Member] = None
-        time: Optional[str] = None
-        time_obj: Optional[datetime] = None
-        length: Optional[str, str] = None
-        new_args = args_list.copy()
-        for arg in args_list:
-            if not re_result:
-                re_result = re.search('<?@?!?([0-9]{17,22})>?', arg)
-                if re_result:
-                    user_id = int(re_result.group(1))
-                    target = ctx.guild.get_member(user_id)
-                    new_args.remove(arg)
-                    args = args.replace(str(arg) + " ", "")
-                    args = args.replace(str(arg), "")
-                    continue
-
-            if not time_string:
-                # time_string = "%Y/%m/%d %H:%M UTC"
-                # length = a list: [days: str, hours: str]
-                time_string, length = hf.parse_time(arg)  # time_string: str
-                if time_string:
-                    time = arg
-                    new_args.remove(arg)
-                    args = args.replace(str(arg) + " ", "")
-                    args = args.replace(str(arg), "")
-                    # get a datetime and add timezone info to it (necessary for d.py)
-                    time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                    continue
-
-        # for channel helpers, limit time to three hours
-        if not hf.submod_check(ctx):
-            if time_string:  # if the channel helper specified a time for the mute
-                days = int(length[0])
-                hours = int(length[1])
-                total_hours = hours + days * 24
-                if total_hours > 3:
-                    time_string = None  # temporarily set to indefinite mute (triggers next line of code)
-
-            if not time_string:  # if the channel helper did NOT specify a time for the mute
-                time = '3h'
-                time_string, length = hf.parse_time(time)  # time_string: str
-                time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
-                                               "hours, so I set the duration of the mute to 3h.")
-        args_list: List[str] = new_args  # sets "args" list to the "new_args" list which has ID/time_str removed
-
-        if not target:
-            try:
-                await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
-                                        "or a mention to the user (this is to prevent mistaking people).")
-            except discord.HTTPException:  # Possibly if Rai is trying to send a message to itself for automatic mutes
-                pass
-            return
 
         # ####### Prevent multiple mutes/modlog entries for spamming #######
 
@@ -1129,29 +1181,13 @@ class ChannelMods(commands.Cog):
             # time of last item in user's modlog
             event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
             # if last modlog was a mute and was less than 70 seconds ago
-            if (discord.utils.utcnow() - event_time).total_seconds() < 70 and last_modlog['type'] == "Mute":
+            if (discord.utils.utcnow() - event_time).total_seconds() < 70 \
+                    and last_modlog['type'] in ["Mute", "Voice Mute"]:
                 # and if that last modlog's reason started with "Antispam"
                 if last_modlog['reason'].startswith("Antispam"):
                     return  # Prevents multiple mute calls for spammed text
         except (KeyError, IndexError):
             pass
-
-        reason = args
-        try:
-            counter = 0
-            while reason[0] == "\n" and counter < 10:
-                reason = reason[1:]
-                counter += 1
-        except IndexError:
-            pass
-
-        silent = False
-        if reason:
-            if '-s' in reason or '-n' in reason:
-                if ctx.guild.id == JP_SERV:
-                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
-                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
-                silent = True
 
         if role in target.roles:
             await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
@@ -1159,8 +1195,9 @@ class ChannelMods(commands.Cog):
         try:
             await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
         except discord.Forbidden:
-            await hf.safe_send(ctx, "I lack the ability to attach the mute role. Please make sure I have the ability "
-                                    "to manage roles, and that the mute role isn't above my highest user role.")
+            await hf.safe_send(ctx,
+                               "I lack the ability to attach the mute role. Please make sure I have the ability "
+                               "to manage roles, and that the mute role isn't above my highest user role.")
             return
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
@@ -1174,86 +1211,171 @@ class ChannelMods(commands.Cog):
                                         "new voice channel.")
                 pass
 
-            # old_channel = target.voice.channel
-            #
-            # success = False
-            # if ctx.guild.afk_channel:
-            #     try:
-            #         await target.move_to(ctx.guild.afk_channel)
-            #         await target.move_to(old_channel)
-            #         success = True
-            #     except (discord.HTTPException, discord.Forbidden):
-            #         pass
-            # else:
-            #     for channel in ctx.guild.voice_channels:
-            #         if not channel.members:
-            #             try:
-            #                 await target.move_to(channel)
-            #                 await target.move_to(old_channel)
-            #                 success = True
-            #                 break
-            #             except (discord.HTTPException, discord.Forbidden):
-            #                 pass
-            #
-            # if not success:
-            #     await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
-            #                             "give Rai this permission, then it'll move the user to the AFK channel and "
-            #                             "back to force the mute into effect. Otherwise, Discord's implementation of "
-            #                             "the mute won't take effect until the next time the user connects to a "
-            #                             "new voice channel.")
-            #     pass
+        return config
 
-        if time_string:
-            config['timed_mutes'][str(target.id)] = time_string
+    async def timeout_user(self, ctx: commands.Context, target, reason, time_arg, time_obj, silent):
+        """For mutes shorter than 28 days, use the Discord timeout feature"""
+        if str(ctx.guild.id) not in self.bot.db['mutes']:
+            role, first = await make_mute_role(ctx, ctx.channel, False)
+            config = self.bot.db['mutes'][str(ctx.guild.id)] = {'role': role.id, 'timed_mutes': {}}
 
-        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat."
-        if time_string:
-            notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h."
-        if reason:
-            notif_text += f"\nReason: {reason}"
-        emb = hf.red_embed(notif_text)
-        if silent:
-            emb.description += " (The user was not notified of this)"
-        if ctx.author == ctx.guild.me:
-            additonal_text = str(target.id)
         else:
-            additonal_text = ""
-        if ctx.author != self.bot.user and "Nitro" not in reason:
-            await hf.safe_send(ctx, additonal_text, embed=emb)
+            config = self.bot.db['mutes'][str(ctx.guild.id)]
 
-        modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time)
-        modlog_channel = self.bot.get_channel(modlog_config['channel'])
-
-        emb = hf.red_embed(f"You have been muted on {ctx.guild.name} server")
-        emb.color = discord.Color(int('ff8800', 16))  # embed
-        if time_string:
-            timestamp = int(time_obj.timestamp())
-            emb.add_field(name="Length",
-                          value=f"{time} (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R> )",
-                          inline=False)
-        else:
-            emb.add_field(name="Length", value="Indefinite", inline=False)
-        if reason:
-            emb.add_field(name="Reason", value=reason)
-        if not silent:
-            try:
-                await hf.safe_send(target, embed=emb)
-            except discord.Forbidden:
-                await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
-                                        "keep them muted but they won't receive the notification for it.")
-                pass
-
-        emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
-        emb.description = "Mute"
-        if ctx.message:
-            emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-        emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
         try:
-            if modlog_channel:
-                if modlog_channel != ctx.channel:
-                    await hf.safe_send(modlog_channel, embed=emb)
-        except AttributeError:
-            await hf.safe_send(ctx, embed=emb)
+            await target.timeout(time_obj, reason=reason)
+        except discord.Forbidden:
+            await hf.safe_send(ctx, f"I failed to timeout {str(target.user)} ({target.id}). "
+                                    f"Please check my permissions")
+            return
+        except discord.HTTPException:
+            await hf.safe_send(ctx, f"There was some kind of HTTP error that prevented me from timing out {target.id}"
+                                    " user. Please try again.")
+            return
+
+        return config
+
+    @commands.command()
+    @commands.bot_has_permissions(manage_roles=True, embed_links=True)
+    @commands.max_concurrency(1, commands.BucketType.member)
+    async def mute(self, ctx: commands.Context, *, args):
+        """Mutes a user.  Syntax: `;mute <time> <member> [reason]`.  Example: `;mute 1d2h Abelian`."""
+        # Check for tag from voice mute command
+        # if it is there, the code should proceed as if it were a voice mute
+        invisible_character = "⠀"
+        voice_mute_tag = f"{invisible_character}voice_mute_tag{invisible_character}"
+        if args.startswith(voice_mute_tag):
+            voice_mute = True
+            args = args.replace(voice_mute_tag, '')  # remove tag from args after it's taken
+        else:
+            voice_mute = False
+
+        # Pull all args out of args variable using hf function
+        args = hf.args_discriminator(args=args)
+        time_string = args.time_string
+        time_obj = args.time_obj
+        time_arg = args.time_arg
+        length = args.length
+        reason = args.reason
+        target_ids = args.user_ids
+
+        # for channel helpers, limit mute time to three hours
+        if not hf.submod_check(ctx):
+            if time_string:  # if the channel helper specified a time for the mute
+                days = int(length[0])
+                hours = int(length[1])
+                minutes = int(length[2])
+                total_hours = minutes / 60 + hours + days * 24
+                if total_hours > 3:
+                    time_string = None  # temporarily set to indefinite mute (triggers next line of code)
+
+            if not time_string:  # if the channel helper did NOT specify a time for the mute
+                time = '3h'
+                time_string, length = hf.parse_time(time)  # time_string: str
+                time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
+                                               "hours, so I set the duration of the mute to 3h.")
+
+        silent = False
+        if reason:
+            if '-s' in reason or '-n' in reason:
+                if ctx.guild.id == JP_SERV:
+                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
+                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+                silent = True
+
+        for target in target_ids:
+            target = ctx.guild.get_member(target)
+
+            # Stop function if user not found
+            if not target:
+                try:
+                    await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
+                                            "or a mention to the user (this is to prevent mistaking people).")
+                except discord.HTTPException:  # Possible if Rai is trying to send a message to itself for automatic mutes
+                    pass
+                continue
+
+            # If length is 28 days or less, timeout the user using Discord timeout feature
+            timeout = False
+            if time_obj and not voice_mute:
+                if (time_obj - discord.utils.utcnow()).total_seconds() < 28 * 24 * 60 * 60:
+                    timeout = True
+
+            if timeout:
+                config = await self.timeout_user(ctx, target, reason, time_arg, time_obj, silent)
+            else:
+                config = await self.apply_mute_role(ctx, target, voice_mute)
+
+            if not config:
+                return  # Errors should have been already sent in apply_mute_role() function
+
+            if voice_mute:
+                description = f"You have been voice muted on {ctx.guild.name} server"
+            else:
+                description = f"You have been muted on {ctx.guild.name} server"
+            emb = hf.red_embed(description)
+            emb.color = discord.Color(int('ff8800', 16))  # embed
+            if time_arg:
+                timestamp = int(time_obj.timestamp())
+                emb.add_field(name="Length",
+                              value=f"{time_arg} (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R> )",
+                              inline=False)
+            else:
+                emb.add_field(name="Length", value="Indefinite", inline=False)
+            if reason:
+                emb.add_field(name="Reason", value=reason)
+            if not silent:
+                try:
+                    await hf.safe_send(target, embed=emb)
+                except discord.Forbidden:
+                    await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
+                                            "keep them muted but they won't receive the notification for it.")
+                    pass
+
+            # Add info about timed mute to database so user can be unmuted later
+            if time_string:
+                config['timed_mutes'][str(target.id)] = time_string
+
+            # Prepare confirmation message to be sent to ctx channel of mute command
+            notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat."
+            if time_string:
+                if length[2]:
+                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h{length[2]}m."
+                else:
+                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h."
+            if reason:
+                notif_text += f"\nReason: {reason}"
+            emb = hf.red_embed(notif_text)
+            if silent:
+                emb.description += " (The user was not notified of this)"
+            if ctx.author == ctx.guild.me:
+                additonal_text = str(target.id)
+            else:
+                additonal_text = ""
+            if ctx.author != self.bot.user and "Nitro" not in reason:
+                await hf.safe_send(ctx, additonal_text, embed=emb)
+
+            # Add mute info to modlog
+            if voice_mute:
+                modlog_config = hf.add_to_modlog(ctx, target, 'Voice Mute', reason, silent, time_arg)
+                emb.description = "Voice Mute"
+            else:
+                modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time_arg)
+                emb.description = "Mute"
+
+            # Add info about mute to modlog channel
+            modlog_channel = self.bot.get_channel(modlog_config['channel'])
+            emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
+            if ctx.message:
+                emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+            emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+            try:
+                if modlog_channel:
+                    if modlog_channel != ctx.channel:
+                        await hf.safe_send(modlog_channel, embed=emb)
+            except AttributeError:
+                await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
@@ -1299,6 +1421,12 @@ class ChannelMods(commands.Cog):
 
         if str(target_id) in config['timed_mutes']:
             del config['timed_mutes'][str(target_id)]
+
+        if target.is_timed_out():
+            try:
+                await target.edit(timed_out_until=None)
+            except (discord.Forbidden, discord.HTTPException):
+                await hf.safe_send(ctx, "I failed to remove the timeout from the user.")
 
         if ctx.author != ctx.bot.user:
             emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
