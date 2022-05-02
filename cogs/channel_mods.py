@@ -1164,34 +1164,44 @@ class ChannelMods(commands.Cog):
             return
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            old_channel = target.voice.channel
-
-            success = False
-            if ctx.guild.afk_channel:
-                try:
-                    await target.move_to(ctx.guild.afk_channel)
-                    await target.move_to(old_channel)
-                    success = True
-                except (discord.HTTPException, discord.Forbidden):
-                    pass
-            else:
-                for channel in ctx.guild.voice_channels:
-                    if not channel.members:
-                        try:
-                            await target.move_to(channel)
-                            await target.move_to(old_channel)
-                            success = True
-                            break
-                        except (discord.HTTPException, discord.Forbidden):
-                            pass
-
-            if not success:
+            try:
+                await target.move_to(None, reason="Remove from voice due to Rai mute")
+            except (discord.Forbidden, discord.HTTPException):
                 await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
                                         "give Rai this permission, then it'll move the user to the AFK channel and "
                                         "back to force the mute into effect. Otherwise, Discord's implementation of "
                                         "the mute won't take effect until the next time the user connects to a "
                                         "new voice channel.")
                 pass
+
+            # old_channel = target.voice.channel
+            #
+            # success = False
+            # if ctx.guild.afk_channel:
+            #     try:
+            #         await target.move_to(ctx.guild.afk_channel)
+            #         await target.move_to(old_channel)
+            #         success = True
+            #     except (discord.HTTPException, discord.Forbidden):
+            #         pass
+            # else:
+            #     for channel in ctx.guild.voice_channels:
+            #         if not channel.members:
+            #             try:
+            #                 await target.move_to(channel)
+            #                 await target.move_to(old_channel)
+            #                 success = True
+            #                 break
+            #             except (discord.HTTPException, discord.Forbidden):
+            #                 pass
+            #
+            # if not success:
+            #     await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
+            #                             "give Rai this permission, then it'll move the user to the AFK channel and "
+            #                             "back to force the mute into effect. Otherwise, Discord's implementation of "
+            #                             "the mute won't take effect until the next time the user connects to a "
+            #                             "new voice channel.")
+            #     pass
 
         if time_string:
             config['timed_mutes'][str(target.id)] = time_string
