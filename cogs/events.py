@@ -790,7 +790,7 @@ class Events(commands.Cog):
 
         """Chinese server hardcore mode"""
         async def cn_lang_check(check_hardcore_role=True):
-            content = re.sub("(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
+            content = re.sub("^(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
             if len(content) > 3:
                 if check_hardcore_role:
                     try:
