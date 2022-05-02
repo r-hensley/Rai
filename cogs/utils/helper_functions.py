@@ -29,7 +29,7 @@ BANS_CHANNEL_ID = 329576845949534208
 
 
 def setup(bot, loop):
-    """This command is run in __init__() function of general.py"""
+    """This command is run in the setup_hook function in Rai.py"""
     if here.bot is None:
         here.bot = bot
     else:
@@ -700,45 +700,52 @@ class ModlogEntry:
         return config
 
 
-def args_discriminator(ctx, args: str):
+def args_discriminator(args: str):
     """
     Takes in a string of args and pulls out IDs and times then leaves the reason.
-    :param args:
-    :return: Class object with user_id, time, reason
+    :param args: A string containing all the args
+    :return: Class object with list 'users', time, reason
     """
 
     @dataclass
     class Args:
-        def __init__(self, users, time_string, length, time, time_obj, reason):
-            self.users: List[discord.Member] = users
-            self.time_string: str = time_string
-            self.length: List[str] = length
-            self.time: str = time
-            self.time_obj: datetime = time_obj
-            self.reason: str = reason
+        def __init__(self,
+                     user_ids: List[int],
+                     time_string: str,
+                     length: List[int],
+                     time_arg: str,
+                     time_obj: datetime,
+                     reason: str):
+            self.user_ids = user_ids  # list of users
+            self.time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
+            self.length = length  # list of [days, hours, minutes]
+            self.time_arg = time_arg
+            self.time_obj = time_obj
+            self.reason = reason
 
     # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
     args_list = args.split()
 
-    time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
+    time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$')  # group 2, 4, 6, 8: years, days, hours, minutes
     user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
-    user_ids: List[int] = []  # list of user ids
+    _user_ids: List[int] = []  # list of user ids
     time_regex_result: Optional[re.match] = None
-    time = time_obj = length = time_string = None
+    _time_arg = _time_obj = _length = _time_string = None
 
     # Iterate through beginning arguments taking all IDs and times until you reach the reason
     for arg in args_list.copy():
         if user_id_match := re.search(user_regex, arg):
-            user_ids.append(int(user_id_match.group(1)))
+            _user_ids.append(int(user_id_match.group(1)))
             args_list.remove(arg)
             args = args.replace(f"{arg} ", "").replace(arg, "")
         elif t := re.search(time_regex, arg):
             time_regex_result = t
+            _time_arg = time_regex_result.string
             args_list.remove(arg)
             args = args.replace(f"{arg} ", "").replace(arg, "")
         else:
             break  # Assuming all user_ids and times are before the reason
-    reason = args
+    _reason = args
 
     if time_regex_result:
         if years := time_regex_result.group(2):
@@ -756,12 +763,17 @@ def args_discriminator(ctx, args: str):
         else:
             hours = 0
 
-        length = [days, hours]
+        if minutes := time_regex_result.group(8):
+            minutes = int(minutes)
+        else:
+            minutes = 0
+
+        _length = [days, hours, minutes]
 
         try:
-            time_obj = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
-            time_string = time_obj.strftime("%Y/%m/%d %H:%M UTC")
+            _time_obj = discord.utils.utcnow() + timedelta(days=_length[0], hours=_length[1], minutes=_length[2])
+            _time_string = _time_obj.strftime("%Y/%m/%d %H:%M UTC")
         except OverflowError:
-            time = time_obj = length = time_string = None
+            _time_arg = _time_obj = _length = _time_string = None
 
-    return Args(user_ids, time_string, length, time, time_obj, reason)
+    return Args(_user_ids, _time_string, _length, _time_arg, _time_obj, _reason)

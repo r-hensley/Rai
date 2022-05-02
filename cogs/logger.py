@@ -1344,6 +1344,8 @@ class Logger(commands.Cog):
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
                     if entry.target == before:
                         author = entry.user
+                        if author == guild.me:
+                            return  # A timeout by Rai, probably in the mute command. Let that command handle the modlog
                         time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         reason = entry.reason
 

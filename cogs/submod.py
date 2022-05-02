@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 import re
 
 import os
@@ -48,9 +48,9 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, ctx.command.help)
             return
 
-        args = hf.args_discriminator(ctx, args)
+        args = hf.args_discriminator(args)
 
-        user_ids = args.users
+        user_ids = args.user_ids
         reason = args.reason
         length = args.length
         time_string = args.time_string
@@ -314,9 +314,9 @@ class Submod(commands.Cog):
     @hf.is_submod()
     async def warn(self, ctx, *, args):
         """Log a mod incident"""
-        args = hf.args_discriminator(ctx, args)
+        args = hf.args_discriminator(args)
 
-        user_ids = args.users
+        user_ids = args.user_ids
         reason = args.reason
 
         # If silent, remove -s from reason if it's there
