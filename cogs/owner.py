@@ -721,7 +721,7 @@ class Owner(commands.Cog):
         result = f"{result.stdout}\n{result.stderr}"
         long = len(result) > 1994
         short_result = result[:1994]
-        result = f"```{short_result}```"
+        short_result = f"```{short_result}```"
 
         await hf.safe_send(ctx, short_result)
 
