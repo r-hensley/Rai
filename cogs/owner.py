@@ -707,7 +707,7 @@ class Owner(commands.Cog):
             index += 1
 
     @commands.command()
-    async def os(self, ctx, *command):
+    async def os(self, ctx, *, command):
         """
         Calls an os command using subprocess.run()
         This version will directly return the results of the command as text
