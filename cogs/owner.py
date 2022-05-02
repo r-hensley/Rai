@@ -720,10 +720,10 @@ class Owner(commands.Cog):
                      shell=True)
         result = f"{result.stdout}\n{result.stderr}"
         long = len(result) > 1994
-        result = result[:1994]
-        result = f"```{result}```"
+        short_result = result[:1994]
+        result = f"```{short_result}```"
 
-        await hf.safe_send(ctx, result)
+        await hf.safe_send(ctx, short_result)
 
         if long:
             buffer = io.BytesIO(bytes(result, "utf-8"))
