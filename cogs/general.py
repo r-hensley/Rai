@@ -1117,21 +1117,32 @@ class General(commands.Cog):
         await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
-            old_channel = target.voice.channel
+            try:
+                await target.move_to(None, reason="Remove from voice due to Rai mute")
+            except (discord.Forbidden, discord.HTTPException):
+                await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
+                                        "give Rai this permission, then it'll move the user to the AFK channel and "
+                                        "back to force the mute into effect. Otherwise, Discord's implementation of "
+                                        "the mute won't take effect until the next time the user connects to a "
+                                        "new voice channel.")
+                pass
 
-            if ctx.guild.afk_channel:
-                await target.move_to(ctx.guild.afk_channel)
-                await target.move_to(old_channel)
+            # old_channel = target.voice.channel
+            #
+            # if ctx.guild.afk_channel:
+            #     await target.move_to(ctx.guild.afk_channel)
+            #     await target.move_to(old_channel)
+            #
+            # else:  # no afk channel set in this guild
+            #     for channel in ctx.guild.voice_channels:
+            #         if not channel.members:  # find the first voice channel with no people in it
+            #             try:
+            #                 await target.move_to(channel)
+            #                 await target.move_to(old_channel)
+            #                 break
+            #             except discord.Forbidden:
+            #                 pass
 
-            else:  # no afk channel set in this guild
-                for channel in ctx.guild.voice_channels:
-                    if not channel.members:  # find the first voice channel with no people in it
-                        try:
-                            await target.move_to(channel)
-                            await target.move_to(old_channel)
-                            break
-                        except discord.Forbidden:
-                            pass
         if not time_string:
             time = '0d1h'
             time_string, length = hf.parse_time(time)
