@@ -1,22 +1,22 @@
-from typing import Optional, List, Union
-from dataclasses import dataclass
-
-import discord
 import asyncio
+import csv
+import json
 import os
 import re
-from discord.ext import commands
-import json, csv
-import sys
-from datetime import datetime, timedelta, timezone
-from copy import deepcopy
 import shutil
+import sys
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Optional, List, Union, Tuple
+
+import discord
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.naive_bayes import MultinomialNB
+from discord.ext import commands
 from sklearn.feature_extraction.text import CountVectorizer
-from discord.ui import Button, View
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -42,9 +42,10 @@ def setup(bot, loop):
 
 
 # credit: https://gist.github.com/dperini/729294
-_url = re.compile("""
+_url = re.compile(
+    r"""
             # protocol identifier
-            (?:(?:https?|ftp)://)
+            (?:https?|ftp)://
             # user:pass authentication
             (?:\S+(?::\S*)?@)?
             (?:
@@ -60,14 +61,14 @@ _url = re.compile("""
               # (first & last IP address of each class)
               (?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])
               (?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}
-              (?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))
+              \.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4])
             |
               # host name
-              (?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
+              (?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+
               # domain name
               (?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*
               # TLD identifier
-              (?:\.(?:[a-z\u00a1-\uffff]{2,}))
+              \.[a-z\u00a1-\uffff]{2,}
               # TLD may end with dot
               \.?
             )
@@ -77,9 +78,10 @@ _url = re.compile("""
             (?:[/?#]\S*)?
         """, re.VERBOSE | re.I)
 
-_emoji = re.compile(r'<a?(:[A-Za-z0-9\_]+:|#|@|@&)!?[0-9]{17,20}>')
+_emoji = re.compile(r'<a?(:[A-Za-z0-9_]+:|#|@|@&)!?[0-9]{17,20}>')
 
 _lock = asyncio.Lock()
+
 
 def count_messages(member, guild=None):
     """Returns an integer of number of messages sent in the last month"""
@@ -97,7 +99,7 @@ def count_messages(member, guild=None):
         return 0
 
 
-def add_to_modlog(ctx, user, type, reason, silent, length=None):
+def add_to_modlog(ctx, user, modlog_type, reason, silent, length=None):
     if ctx:
         if ctx.message:
             jump_url = ctx.message.jump_url
@@ -107,14 +109,14 @@ def add_to_modlog(ctx, user, type, reason, silent, length=None):
     else:  # "user" is actually a list of [member, guild] here, forgive me for how shitty that is lol
         guild = user[1]
         user = user[0]
-        jump_url = None  # this would be the case for entries that come from the the logger module
+        jump_url = None  # this would be the case for entries that come from the logger module
         if str(guild.id) in here.bot.db['modlog']:
             config = here.bot.db['modlog'][str(guild.id)]
 
         else:
             return  # this should only happen from on_member_ban events from logger module
 
-    config.setdefault(str(user.id), []).append({'type': type,
+    config.setdefault(str(user.id), []).append({'type': modlog_type,
                                                 'reason': reason,
                                                 'date': discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
                                                 'silent': silent,
@@ -182,33 +184,47 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         raise
 
 
-def parse_time(time) -> (Optional[str], Optional[List[str]]):
+def parse_time(time: str) -> Tuple[str, list[int]]:
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
     :param time: a string like "2d3h" or "10h"
-    :return:
-    time_string: A string for the database corresponding to a datetime
-    length: a list with strings [days, hours]
+    :return: *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
+    *length*: a list with ints [days, hours, minutes]
     """
-    time_re = re.search('(\d+d\d+h)|(\d+d)|(\d+h)', time)
+    time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$', time)  # group 2, 4, 6, 8: years, days, hours, minutes
     if time_re:
-        if time_re.group(1):  # format: #d#h
-            length: Optional[str, str] = time_re.group(1)[:-1].split('d')
-            length = [length[0], length[1]]
-        elif time_re.group(2):  # format: #d
-            length = [time_re.group(2)[:-1], '0']
-        else:  # format: #h
-            length = ['0', time_re.group(3)[:-1]]
+        if years := time_re.group(2):
+            years: int = int(years)
+        else:
+            years = 0
+
+        if days := time_re.group(4):
+            days: int = years * 365 + int(days)
+        else:
+            days = years * 365
+
+        if hours := time_re.group(6):
+            hours: int = int(hours)
+        else:
+            hours = 0
+
+        if minutes := time_re.group(8):
+            minutes: int = int(minutes)
+        else:
+            minutes = 0
+
+        length: List[int] = [days, hours, minutes]
+
     else:
-        return False, False
-    finish_time = discord.utils.utcnow() + timedelta(days=int(length[0]), hours=int(length[1]))
+        return '', []
+    finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
     time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     return time_string, length
 
 
 async def member_converter(ctx, user_in) -> Optional[discord.Member]:
     # check for an ID
-    user_id = re.findall("(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
+    user_id = re.findall(r"(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
         user_id = user_id[0].replace('<@', '').replace('>', '').replace('!', '')
         member = ctx.guild.get_member(int(user_id))
@@ -726,53 +742,34 @@ def args_discriminator(args: str):
     # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
     args_list = args.split()
 
-    time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$')  # group 2, 4, 6, 8: years, days, hours, minutes
     user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
     _user_ids: List[int] = []  # list of user ids
-    time_regex_result: Optional[re.match] = None
-    _time_arg = _time_obj = _length = _time_string = None
+    _time_arg: Optional[str] = None
+    _time_obj: Optional[datetime] = None
+    _length: Optional[list[int]] = None
+    _time_string: Optional[str] = None
 
     # Iterate through beginning arguments taking all IDs and times until you reach the reason
     for arg in args_list.copy():
+        print(arg, parse_time(arg), _length)
         if user_id_match := re.search(user_regex, arg):
             _user_ids.append(int(user_id_match.group(1)))
             args_list.remove(arg)
             args = args.replace(f"{arg} ", "").replace(arg, "")
-        elif t := re.search(time_regex, arg):
-            time_regex_result = t
-            _time_arg = time_regex_result.string
+        elif (t := parse_time(arg))[0]:
+            print("got in to parse time part", t)
+            _time_string = t[0]
+            _length = t[1]
+            _time_arg = arg
             args_list.remove(arg)
             args = args.replace(f"{arg} ", "").replace(arg, "")
         else:
             break  # Assuming all user_ids and times are before the reason
     _reason = args
 
-    if time_regex_result:
-        if years := time_regex_result.group(2):
-            years = int(years)
-        else:
-            years = 0
-
-        if days := time_regex_result.group(4):
-            days = years * 365 + int(days)
-        else:
-            days = years * 365
-
-        if hours := time_regex_result.group(6):
-            hours = int(hours)
-        else:
-            hours = 0
-
-        if minutes := time_regex_result.group(8):
-            minutes = int(minutes)
-        else:
-            minutes = 0
-
-        _length = [days, hours, minutes]
-
+    if _length:
         try:
             _time_obj = discord.utils.utcnow() + timedelta(days=_length[0], hours=_length[1], minutes=_length[2])
-            _time_string = _time_obj.strftime("%Y/%m/%d %H:%M UTC")
         except OverflowError:
             _time_arg = _time_obj = _length = _time_string = None
 
