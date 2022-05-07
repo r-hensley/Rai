@@ -433,6 +433,8 @@ class Owner(commands.Cog):
     async def _eval(self, ctx, *, body: str):
         """Evaluates a code"""
 
+        body = body.replace('self.bot', 'bot')
+
         env = {
             'bot': self.bot,
             'ctx': ctx,
