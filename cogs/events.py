@@ -1157,8 +1157,10 @@ class Events(commands.Cog):
                     voting_guild_id = config['residency'][str(payload.user_id)]
                     if voting_guild_id not in config['votes2'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
-                            await ctx.invoke(General.blacklist_add, args=user_id)
+                            blacklist_add = self.bot.get_command("global_blacklist add")
+                            await ctx.invoke(blacklist_add, args=user_id)
                 else:
+                    print('not in residency')
                     try:
                         await hf.safe_send(ctx.author, "Please claim residency on a server first with "
                                                        "`;global_blacklist residency`")
