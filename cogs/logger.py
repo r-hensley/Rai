@@ -645,14 +645,16 @@ class Logger(commands.Cog):
                 server_config['invites_enable'] = False
 
     @joins.command(name='invites')
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_guild=True)
     async def invites_enable(self, ctx):
         """Enables/disables the identification of used invite links when people join"""
         guild = str(ctx.guild.id)
         if guild in self.bot.db['joins']:
             server_config = self.bot.db['joins'][guild]
+            print(0, server_config['invites_enable'])
             try:
                 server_config['invites_enable'] = not server_config['invites_enable']
+                print(1, server_config['invites_enable'], not server_config['invites_enable'])
                 await hf.safe_send(ctx, f"Set invite tracking to `{server_config['invites_enable']}`")
             except KeyError:
                 server_config['invites_enable'] = True
@@ -663,7 +665,8 @@ class Logger(commands.Cog):
                 await self.get_invites(ctx.guild)
 
     @staticmethod
-    async def make_join_embed(member: discord.Member, used_invites, channel, config, list_of_roles=None):
+    async def make_join_embed(member: discord.Member, used_invites, channel, config,
+                              list_of_roles=None, failed_roles=None):
         minutes_ago_created = int(((discord.utils.utcnow() - member.created_at).total_seconds()) // 60)
         if 60 < minutes_ago_created < 3600:
             time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
@@ -722,8 +725,11 @@ class Logger(commands.Cog):
                 emb.add_field(name="Invite link used", value="Unable to be determined")
 
         if list_of_roles:
-            emb.add_field(name='Readded roles:', value=', '.join(reversed([role.name for role in list_of_roles])))
-
+            emb.add_field(name='Readded roles:',
+                          value=', '.join(reversed([role.name for role in list_of_roles])))
+        if failed_roles:
+            emb.add_field(name='Failed to add these roles:',
+                          value=', '.join(reversed([role.name for role in failed_roles])))
         footer_text = f'User Join ({member.guild.member_count}) - {member.id}'
         emb.set_footer(text=footer_text, icon_url=member.display_avatar.replace(static_format="png").url)
 
@@ -904,17 +910,16 @@ class Logger(commands.Cog):
                 except discord.Forbidden:
                     del server_config
                 return
-            if server_config['enable'] and not member.guild.me.guild_permissions.manage_guild:
+            if server_config['invites_enable'] and not member.guild.me.guild_permissions.manage_guild:
                 disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
                                   "permission to view invite links. Please give Rai this persmission then type " \
                                   "`;joins invites` to reenable the tracking of invite links."
                 await hf.safe_send(log_channel, disable_message)
-                server_config['enable'] = False
-                return
+                server_config['invites_enable'] = False
 
             old_invites: Optional[Dict[str, List[Optional[float]]]]
             invites: Optional[List[discord.Invite]]
-            old_invites, invites = await self.get_invites(guild)
+            old_invites, invites = await self.get_invites(guild)  # returns None, None if invites_enable=False in config
             used_invite: List[discord.Invite] = []
             maybe_used_invite: List[discord.Invite] = []
             if invites:
@@ -964,6 +969,7 @@ class Logger(commands.Cog):
             readd_config: dict
             list_of_readd_roles: List[discord.Role]
             readd_config, list_of_readd_roles = get_list_of_roles()
+            failed_roles = []  # roles higher than the bot's highest role
             if list_of_readd_roles:
                 try:
                     stage_visitor = member.guild.get_role(645021058184773643)
@@ -975,19 +981,31 @@ class Logger(commands.Cog):
                         list_of_readd_roles.append(member.guild.get_role(802657919400804412))
                         list_of_readd_roles.append(member.guild.get_role(831574815718506507))
                     try:
-                        await member.add_roles(*list_of_readd_roles)
+                        for role in list_of_readd_roles:
+                            print(member.name, "<--", role.name)
+                            try:
+                                await member.add_roles(role)
+                            except discord.Forbidden:
+                                list_of_readd_roles.remove(role)
+                                failed_roles.append(role)
                     except discord.NotFound:
                         pass
                     try:
-                        await member.send(f"Welcome back {member.name}! I've given your previous roles back to you: "
-                                          f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`")
+                        readded_roles_str = f"`{'`, `'.join(reversed([r.name for r in list_of_readd_roles]))}`"
+                        notif_msg = f"Welcome back {member.name}! I've given your previous roles back to you: " \
+                                    f"{readded_roles_str}"
+                        if failed_roles:
+                            failed_roles_str = f"`{'`, `'.join(reversed([r.name for r in failed_roles]))}`"
+                            notif_msg += f"\nI failed to add the following roles to you: {failed_roles_str}."
+                        await member.send(notif_msg)
                     except discord.HTTPException:
                         pass
                 except discord.Forbidden:
                     pass
                 del readd_config['users'][str(member.id)]
-
-            x = await self.make_join_embed(member, used_invite, welcome_channel, server_config, list_of_readd_roles)
+            print(1, "before make_join_embed")
+            x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
+                                           list_of_readd_roles, failed_roles)
             log_message = await hf.safe_send(log_channel, embed=x)
 
             # Logging join info for modlog pulls
