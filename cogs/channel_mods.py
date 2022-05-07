@@ -1285,8 +1285,8 @@ class ChannelMods(commands.Cog):
 
             # do NOT change this to else, it may have been set to False in the above lines of code
             if not time_string:  # if the channel helper did NOT specify a time for the mute
-                time = '3h'
-                time_string, length = hf.parse_time(time)  # time_string: str
+                time_arg = '3h'
+                time_string, length = hf.parse_time(time_arg)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 3h.")
