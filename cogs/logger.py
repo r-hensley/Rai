@@ -857,24 +857,30 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """auto role"""
-        if member.guild.id == 780188673575485463:
-            role = member.guild.get_role(834936351778144316)
-            await member.add_roles(role)
+        async def auto_role():
+            if member.guild.id == 780188673575485463:
+                role = member.guild.get_role(834936351778144316)
+                await member.add_roles(role)
+        await auto_role()
 
         """welcome message"""
-        guild = str(member.guild.id)
-        welcome_channel: Optional[discord.TextChannel] = None
-        if guild in self.bot.db['welcome_message']:
-            config = self.bot.db['welcome_message'][guild]
-            if 'channel' in self.bot.db['welcome_message'][guild]:
-                welcome_channel = self.bot.get_channel(config['channel'])
-            if self.bot.db['welcome_message'][guild]['enable']:
-                message = config['message']
-                message = message. \
-                    replace('$NAME$', member.name). \
-                    replace('$USERMENTION$', member.mention). \
-                    replace('$SERVER$', member.guild.name)
-                await hf.safe_send(welcome_channel, message)
+        async def welcome_message():
+            guild = str(member.guild.id)
+            _welcome_channel: Optional[discord.TextChannel] = None
+            if guild in self.bot.db['welcome_message']:
+                config = self.bot.db['welcome_message'][guild]
+                if 'channel' in self.bot.db['welcome_message'][guild]:
+                    _welcome_channel = self.bot.get_channel(config['channel'])
+                if self.bot.db['welcome_message'][guild]['enable']:
+                    message = config['message']
+                    message = message. \
+                        replace('$NAME$', member.name). \
+                        replace('$USERMENTION$', member.mention). \
+                        replace('$SERVER$', member.guild.name)
+                    await hf.safe_send(_welcome_channel, message)
+            return welcome_channel
+
+        welcome_channel = await welcome_message()
 
         """Join logging"""
         async def join_logging():
@@ -1033,7 +1039,7 @@ class Logger(commands.Cog):
 
         """ban invite link names"""
         try:
-            if self.bot.db['auto_bans'][guild]['enable']:
+            if self.bot.db['auto_bans'][str(member.guild.id)]['enable']:
                 pat = re.compile(r'.*(discord|discordapp).(gg|com/invite)/[A-Z0-9]{1,7}.*', re.I)
                 if re.match(pat, member.name):
                     guild = str(member.guild.id)
