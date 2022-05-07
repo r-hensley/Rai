@@ -1005,11 +1005,15 @@ class ChannelMods(commands.Cog):
 
     @commands.command()
     @hf.is_admin()
-    async def reason(self, ctx, user, index: int, *, reason):
+    async def reason(self, ctx: commands.Context,
+                     user, index: int, *, reason):
         """Shortcut for `;modlog reason`"""
-        await ctx.invoke(self.modlog_edit, user, index, reason=reason)
+        await ctx.invoke(self.modlog_edit.invoke, user, index, reason=reason)
 
-    async def apply_mute_role(self, ctx: commands.Context, target, voice_mute):
+    async def apply_mute_role(self,
+                              ctx: commands.Context,
+                              target: discord.Member,
+                              voice_mute: bool) -> dict:
         """For mutes longer than 28 days, apply a mute role"""
 
         # this function sets the permissions for the Rai_mute role in all the channels
@@ -1185,20 +1189,20 @@ class ChannelMods(commands.Cog):
                     and last_modlog['type'] in ["Mute", "Voice Mute"]:
                 # and if that last modlog's reason started with "Antispam"
                 if last_modlog['reason'].startswith("Antispam"):
-                    return  # Prevents multiple mute calls for spammed text
+                    return {}  # Prevents multiple mute calls for spammed text
         except (KeyError, IndexError):
             pass
 
         if role in target.roles:
             await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
-            return
+            return {}
         try:
             await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
         except discord.Forbidden:
             await hf.safe_send(ctx,
                                "I lack the ability to attach the mute role. Please make sure I have the ability "
                                "to manage roles, and that the mute role isn't above my highest user role.")
-            return
+            return {}
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
             try:
@@ -1213,7 +1217,11 @@ class ChannelMods(commands.Cog):
 
         return config
 
-    async def timeout_user(self, ctx: commands.Context, target, reason, time_arg, time_obj, silent):
+    async def timeout_user(self,
+                           ctx: commands.Context,
+                           target: discord.Member,
+                           reason: str,
+                           time_obj: datetime) -> dict:
         """For mutes shorter than 28 days, use the Discord timeout feature"""
         if str(ctx.guild.id) not in self.bot.db['mutes']:
             role, first = await make_mute_role(ctx, ctx.channel, False)
@@ -1225,13 +1233,14 @@ class ChannelMods(commands.Cog):
         try:
             await target.timeout(time_obj, reason=reason)
         except discord.Forbidden:
-            await hf.safe_send(ctx, f"I failed to timeout {str(target.user)} ({target.id}). "
-                                    f"Please check my permissions")
-            return
+            await hf.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
+                                    f"Please check my permissions "
+                                    f"(I can't timeout people higher than me on the rolelist)")
+            return {}
         except discord.HTTPException:
             await hf.safe_send(ctx, f"There was some kind of HTTP error that prevented me from timing out {target.id}"
                                     " user. Please try again.")
-            return
+            return {}
 
         return config
 
@@ -1269,7 +1278,7 @@ class ChannelMods(commands.Cog):
                 if total_hours > 3:
                     time_string = None  # temporarily set to indefinite mute (triggers next line of code)
 
-            if not time_string:  # if the channel helper did NOT specify a time for the mute
+            else:  # if the channel helper did NOT specify a time for the mute
                 time = '3h'
                 time_string, length = hf.parse_time(time)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
@@ -1284,8 +1293,8 @@ class ChannelMods(commands.Cog):
                 reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
                 silent = True
 
-        for target in target_ids:
-            target = ctx.guild.get_member(target)
+        for target_id in target_ids:
+            target = ctx.guild.get_member(target_id)
 
             # Stop function if user not found
             if not target:
@@ -1303,7 +1312,9 @@ class ChannelMods(commands.Cog):
                     timeout = True
 
             if timeout:
-                config = await self.timeout_user(ctx, target, reason, time_arg, time_obj, silent)
+                config = await self.timeout_user(ctx, target, reason, time_obj)
+                if not config:
+                    config = await self.apply_mute_role(ctx, target, voice_mute)
             else:
                 config = await self.apply_mute_role(ctx, target, voice_mute)
 
@@ -1338,7 +1349,9 @@ class ChannelMods(commands.Cog):
                 config['timed_mutes'][str(target.id)] = time_string
 
             # Prepare confirmation message to be sent to ctx channel of mute command
-            notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chat."
+            notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chats."
+            if voice_mute:
+                notif_text = notif_text.replace("muted", "voice muted").replace("text and voice", "voice")
             if time_string:
                 if length[2]:
                     notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h{length[2]}m."
@@ -1359,10 +1372,8 @@ class ChannelMods(commands.Cog):
             # Add mute info to modlog
             if voice_mute:
                 modlog_config = hf.add_to_modlog(ctx, target, 'Voice Mute', reason, silent, time_arg)
-                emb.description = "Voice Mute"
             else:
                 modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time_arg)
-                emb.description = "Mute"
 
             # Add info about mute to modlog channel
             modlog_channel = self.bot.get_channel(modlog_config['channel'])
