@@ -307,20 +307,17 @@ class Interactions(commands.Cog):
             else:
                 modlog_target = member_list[int(button_index) - 1]
 
+            modlog_command: commands.Command = self.bot.get_command("modlog")
             if slash:
-                embed = await interaction_ctx.invoke(ChannelMods.modlog.invoke,
-                                                     interaction_ctx,
+                embed = await interaction_ctx.invoke(modlog_command,
                                                      id_in=modlog_target,
                                                      delete_parameter=30,
                                                      post_embed=False)
-                # await ctx.followup.send(f"{modlog_target}", ephemeral=True)
             else:
-                embed = await ctx.invoke(ChannelMods.modlog.invoke,
-                                         ctx,
+                embed = await ctx.invoke(modlog_command,
                                          id_in=modlog_target,
                                          delete_parameter=30,
                                          post_embed=False)
-                # await hf.safe_send(ctx, f"{modlog_target}", delete_after=30)
             return embed, modlog_target
 
         async def author_button_callback(button_interaction: discord.Interaction):
@@ -383,8 +380,12 @@ class Interactions(commands.Cog):
 
         button_9.callback = button_9_callback
 
-        async def solved_button_callback(_):
-            await msg.edit(view=None)
+        async def solved_button_callback(button_interaction: discord.Interaction):
+            new_embed = msg.embeds[0]
+            new_embed.color = 0x77B255  # green background color of the checkmark ✅
+            new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
+            new_embed.set_footer(text=f"Resolved by {str(button_interaction.user)}")
+            await msg.edit(view=None, embed=new_embed)
             await msg.add_reaction("✅")
 
         button_solved.callback = solved_button_callback
