@@ -878,7 +878,7 @@ class Logger(commands.Cog):
                         replace('$USERMENTION$', member.mention). \
                         replace('$SERVER$', member.guild.name)
                     await hf.safe_send(_welcome_channel, message)
-            return welcome_channel
+            return _welcome_channel
 
         welcome_channel = await welcome_message()
 
