@@ -1790,7 +1790,6 @@ class Logger(commands.Cog):
                                     f' logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
-        # await asyncio.sleep(1)
         log_channel = self.bot.get_channel(self.bot.db['kicks'][str(member.guild.id)]['channel'])
         reason = "(could not find audit log entry)"
         kick_entry = None
@@ -1803,7 +1802,8 @@ class Logger(commands.Cog):
                     reason = kick_entry.reason
                     emb = True
         except discord.Forbidden:
-            await log_channel.send('Failed to post kick log due to lacking audit logs or embed permissions')
+            await log_channel.send('I tried to check the audit log to see if a user who just left the server was '
+                                   'kicked, but I lack the permission to view the audit log. ')
             return
         if not reason:
             reason = "(no reason given)"
