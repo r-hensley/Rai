@@ -1268,6 +1268,11 @@ class ChannelMods(commands.Cog):
         reason = args.reason
         target_ids = args.user_ids
 
+        if not target_ids:
+            await hf.safe_send(ctx, "I couldn't understand your command properly. Please mention a user to mute, "
+                               "and if you write a time, format it like `2d`, `3h`, `5d6h`, etc.")
+            return
+
         # for channel helpers, limit mute time to three hours
         if not hf.submod_check(ctx):
             if time_string:  # if the channel helper specified a time for the mute
@@ -1278,7 +1283,8 @@ class ChannelMods(commands.Cog):
                 if total_hours > 3:
                     time_string = None  # temporarily set to indefinite mute (triggers next line of code)
 
-            else:  # if the channel helper did NOT specify a time for the mute
+            # do NOT change this to else, it may have been set to False in the above lines of code
+            if not time_string:  # if the channel helper did NOT specify a time for the mute
                 time = '3h'
                 time_string, length = hf.parse_time(time)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
@@ -1354,9 +1360,10 @@ class ChannelMods(commands.Cog):
                 notif_text = notif_text.replace("muted", "voice muted").replace("text and voice", "voice")
             if time_string:
                 if length[2]:
-                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h{length[2]}m."
+                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h{length[2]}m"
                 else:
-                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h."
+                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h"
+                notif_text += f" (until <t:{int(time_obj.timestamp())}:f>)."
             if reason:
                 notif_text += f"\nReason: {reason}"
             emb = hf.red_embed(notif_text)
