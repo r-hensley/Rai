@@ -1396,6 +1396,7 @@ class ChannelMods(commands.Cog):
                 await hf.safe_send(ctx, embed=emb)
 
     @commands.command()
+    @hf.is_admin()
     @commands.bot_has_permissions(manage_roles=True, embed_links=True)
     async def unmute(self, ctx, target_in, guild=None):
         """Unmutes a user
