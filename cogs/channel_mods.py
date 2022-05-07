@@ -1433,11 +1433,12 @@ class ChannelMods(commands.Cog):
         if str(target_id) in config['timed_mutes']:
             del config['timed_mutes'][str(target_id)]
 
-        if target.is_timed_out():
-            try:
-                await target.edit(timed_out_until=None)
-            except (discord.Forbidden, discord.HTTPException):
-                await hf.safe_send(ctx, "I failed to remove the timeout from the user.")
+        if target:
+            if target.is_timed_out():
+                try:
+                    await target.edit(timed_out_until=None)
+                except (discord.Forbidden, discord.HTTPException):
+                    await hf.safe_send(ctx, "I failed to remove the timeout from the user.")
 
         if ctx.author != ctx.bot.user:
             emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
