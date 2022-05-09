@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, Union, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict
 
 import os
 
@@ -651,10 +651,8 @@ class Logger(commands.Cog):
         guild = str(ctx.guild.id)
         if guild in self.bot.db['joins']:
             server_config = self.bot.db['joins'][guild]
-            print(0, server_config['invites_enable'])
             try:
                 server_config['invites_enable'] = not server_config['invites_enable']
-                print(1, server_config['invites_enable'], not server_config['invites_enable'])
                 await hf.safe_send(ctx, f"Set invite tracking to `{server_config['invites_enable']}`")
             except KeyError:
                 server_config['invites_enable'] = True
@@ -982,7 +980,6 @@ class Logger(commands.Cog):
                         list_of_readd_roles.append(member.guild.get_role(831574815718506507))
                     try:
                         for role in list_of_readd_roles:
-                            print(member.name, "<--", role.name)
                             try:
                                 await member.add_roles(role)
                             except discord.Forbidden:
@@ -1003,7 +1000,6 @@ class Logger(commands.Cog):
                 except discord.Forbidden:
                     pass
                 del readd_config['users'][str(member.id)]
-            print(1, "before make_join_embed")
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
             log_message = await hf.safe_send(log_channel, embed=x)
@@ -1112,8 +1108,8 @@ class Logger(commands.Cog):
 
 
             pings = ""
-            if guild in self.bot.db['bansub']['guild_to_role']:  # type: Dict[str: int]
-                role_id: int = self.bot.db['bansub']['guild_to_role'][guild]
+            if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:  # type: Dict[str: int]
+                role_id: int = self.bot.db['bansub']['guild_to_role'][str(member.guild.id)]
                 for user_id in self.bot.db['bansub']['user_to_role']:  # type: Dict[str: List[int]]
                     if role_id in self.bot.db['bansub']['user_to_role'][user_id]:
                         pings += f" <@{user_id}> "
@@ -1121,8 +1117,8 @@ class Logger(commands.Cog):
                 sent_to_mod_channel = False  # default to False unless it sends it below
                 # The point of this is: if you can send to mod_channel, ping the mods there.
                 # Otherwise, ping them in the mod server
-                if guild in self.bot.db['mod_channel']:
-                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild])
+                if str(member.guild.id) in self.bot.db['mod_channel']:
+                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
                     if mod_channel:
                         try:
                             await hf.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
