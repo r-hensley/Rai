@@ -1,22 +1,16 @@
-import urllib
 import os
-import string
 import asyncio
 import re
-from typing import Optional, List, Union
+from typing import Optional
 from inspect import cleandoc
 from random import choice
 from collections import Counter
-from datetime import timedelta
-from urllib.error import HTTPError
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
-from .channel_mods import ChannelMods
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -27,6 +21,7 @@ CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
+FRENCH_SERVER_ID = 254463427949494292
 
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
@@ -203,13 +198,41 @@ class General(commands.Cog):
         """Provides a random conversation topic.
         Hint: make sure you also answer "why". Challenge your friends on their answers.
         If you disagree with their answer, talk it out."""
-        topics = [line.rstrip('\n') for line in open(f"{dir_path}/cogs/utils/conversation_topics.txt", 'r',
-                                                     encoding='utf8')]
+        if ctx.guild.id == FRENCH_SERVER_ID:
+            path = f"{dir_path}/cogs/utils/french_conversation_topics.txt"
+        else:
+            path = f"{dir_path}/cogs/utils/conversation_topics.txt"
+
+        topics = [line.rstrip('\n') for line in open(path, 'r', encoding='utf8')]
         topic = choice(topics)
         while topic.startswith('#'):
             topic = choice(topics)
+
+        color = discord.Color.random()  # random color
+        idx = str(topics.index(topic))  # number in the list of topics
+
+        if 'topics' not in self.bot.db:
+            self.bot.db['topics'] = {}
+        config: dict = self.bot.db['topics'].setdefault(str(ctx.guild.id), {})
+
+        last_occurence: str = config.get(idx, {}).get('jump_url', '')
+        number_of_times: int = config.get(idx, {}).get('number', 0)
+
+        description = f"__Topic {idx}/{len(topics)}__\n" \
+                      f"**{topic}**"
+
+        if last_occurence:
+            if number_of_times > 1:
+                s = 's'
+            else:
+                s = ''
+
+            description += f"\n[`(chosen {number_of_times} time{s}, last time here)`]({last_occurence})"
+
         try:
-            await hf.safe_send(ctx, topic)
+            sent_msg = await hf.safe_send(ctx, embed=discord.Embed(description=description, color=color))
+            config[idx] = {'number': config.get('number', 0) + 1,
+                           'jump_url': sent_msg.jump_url}
         except discord.Forbidden:
             pass
 
