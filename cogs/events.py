@@ -1127,7 +1127,7 @@ class Events(commands.Cog):
                             return
 
                         # Resolve staff ping embed and turn it green etc
-                        if target.embeds:
+                        if target.embeds and str(reaction.emoji) in '✅👍':
                             if target.embeds[0].title.startswith("Staff Ping"):
                                 new_embed = target.embeds[0]
                                 new_embed.colour = 0x77B255  # green background color of the checkmark ✅
