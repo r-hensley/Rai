@@ -774,3 +774,17 @@ def args_discriminator(args: str):
             _time_arg = _time_obj = _length = _time_string = None
 
     return Args(_user_ids, _time_string, _length, _time_arg, _time_obj, _reason)
+
+
+async def send_to_test_channel(*content):
+    content = ' '.join(content)
+    print(f"send_to_test_channel(): {content}")
+    test_chan_id = os.getenv("BOT_TEST_CHANNEL")
+
+    if test_chan_id:
+        channel = here.bot.get_channel(int(test_chan_id))
+        if channel:
+            try:
+                await safe_send(channel, content)
+            except discord.Forbidden:
+                print("Failed to send content to test_channel in send_to_test_channel()")
