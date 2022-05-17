@@ -3,6 +3,7 @@ import string
 import re
 import asyncio
 import os
+from typing import Optional
 from urllib.error import HTTPError
 from datetime import timedelta, datetime, timezone
 
@@ -1015,7 +1016,7 @@ class Events(commands.Cog):
             del (self.bot.db[i[0]][i[1]])
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user: discord.Member):
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
 
         async def remove_from_waiting_list():
@@ -1104,7 +1105,7 @@ class Events(commands.Cog):
                     return
 
                 for pair in self.bot.synced_reactions:
-                    target = None
+                    target: Optional[discord.Message] = None
 
                     if reaction.message == pair[0]:
                         target = pair[1]
@@ -1112,10 +1113,28 @@ class Events(commands.Cog):
                         target = pair[0]
 
                     if target:
+
+                        # don't react to a message that already has the emoji on it
+                        # this is to prevent bouncing of the reactions
+                        reactions = [r.emoji for r in target.reactions]
+                        if reaction.emoji in reactions:
+                            return
+
+                        # attach reaction to all linked messages
                         try:
                             await target.add_reaction(reaction)
                         except (discord.Forbidden, discord.HTTPException) as e:
                             return
+
+                        # Resolve staff ping embed and turn it green etc
+                        if target.embeds:
+                            if target.embeds[0].title.startswith("Staff Ping"):
+                                new_embed = target.embeds[0]
+                                new_embed.colour = 0x77B255  # green background color of the checkmark ✅
+                                new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
+                                if not user.bot:
+                                    new_embed.set_footer(text=f"Resolved by {str(user)}")
+                                await target.edit(view=None, embed=new_embed)
 
         await synchronize_reactions()
 
