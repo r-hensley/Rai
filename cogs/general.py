@@ -531,7 +531,8 @@ class General(commands.Cog):
                            timestamp=guild.created_at,
                            colour=discord.Colour(0x877AD6))
         em.set_thumbnail(url=guild.icon.replace(static_format='png').url)
-        em.add_field(name="Region", value=guild.region)
+        if hasattr(guild, "region"):
+            em.add_field(name="Region", value=guild.region)
         em.add_field(name="Channels", value=f"{len(guild.text_channels)} text / {len(guild.voice_channels)} voice")
         em.add_field(name="Verification Level", value=guild.verification_level)
         em.add_field(name="Guild created on (UTC)", value=guild.created_at.strftime("%Y/%m/%d %H:%M:%S"))
