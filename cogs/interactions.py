@@ -1,14 +1,13 @@
 import os
 import re
-from typing import Union, List
+from typing import Union, List, NamedTuple
 
 import discord
 import discord.ext.commands as commands
-import typing
+from typing import Optional
 from discord import app_commands, ui
 
 from .utils import helper_functions as hf
-from .channel_mods import ChannelMods
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BANS_CHANNEL_ID = 329576845949534208
@@ -30,7 +29,7 @@ FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
 # app_commands.context_menu() doesn't work in cogs!
 
 
-class Point(typing.NamedTuple):
+class Point(NamedTuple):
     x: int
     y: int
 
@@ -452,71 +451,161 @@ class Interactions(commands.Cog):
 
         return msg
 
-    # guilds = [RY_TEST_SERV_ID, FEDE_TEST_SERV_ID, JP_SERV_ID, SP_SERV_ID]
-    # for guild in guilds:
-    #     if guild not in [g.id for g in self.guilds]:
-    #         guilds.remove(guild)
-    #
-    # if guilds:
-    #     @self.message_command(name="Delete message", guild_ids=guilds)
-    #     async def delete_and_log(ctx, message: discord.Message):
-    #         delete = ctx.bot.get_command("delete")
-    #         try:
-    #             if await delete.can_run(ctx):
-    #                 await delete.__call__(ctx, str(message.id))
-    #                 await ctx.interaction.response.send_message("The message has been successfully deleted",
-    #                                                             ephemeral=True)
-    #             else:
-    #                 await ctx.interaction.response.send_message("You don't have the permission to use that command",
-    #                                                             ephemeral=True)
-    #         except commands.BotMissingPermissions:
-    #             await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-    #                                                         ephemeral=True)
-    #
-    #     @self.message_command(name="1h text/voice mute", guild_ids=guilds)
-    #     async def context_message_mute(ctx, message: discord.Message):
-    #         mute = ctx.bot.get_command("mute")
-    #         ctx.message = ctx.channel.last_message
-    #
-    #         try:
-    #             if await mute.can_run(ctx):
-    #                 await mute.__call__(ctx, args=f"{str(message.author.id)} 1h")
-    #                 await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-    #
-    #             else:
-    #                 await ctx.interaction.response.send_message("You don't have the permission to use that command",
-    #                                                             ephemeral=True)
-    #         except commands.BotMissingPermissions:
-    #             await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-    #                                                         ephemeral=True)
-    #
-    #     @self.user_command(name="1h text/voice mute", guild_ids=guilds)
-    #     async def context_user_mute(ctx, member: discord.Member):
-    #         mute = ctx.bot.get_command("mute")
-    #         ctx.message = ctx.channel.last_message
-    #
-    #         try:
-    #             if await mute.can_run(ctx):
-    #                 await mute.__call__(ctx, args=f"{str(member.id)} 1h")
-    #                 await ctx.interaction.response.send_message("Command completed", ephemeral=True)
-    #
-    #             else:
-    #                 await ctx.interaction.response.send_message("You don't have the permission to use that command",
-    #                                                             ephemeral=True)
-    #         except commands.BotMissingPermissions:
-    #             await ctx.interaction.response.send_message("The bot is missing permissions here to use that command.",
-    #                                                         ephemeral=True)
-    #
-    #     """
-    #     @bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
-    #     async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
-    #         ban = ctx.bot.get_command("ban")
-    #         if await ban.can_run(ctx):
-    #             await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
-    #             await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
-    #         else:
-    #             await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
-    #     """
+    @app_commands.command()
+    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
+    async def embeds(self, interaction: discord.Interaction):
+        """Notifies the staff team about a current and urgent issue."""
+        await self.main_embed_setup_menu(interaction)
+
+    async def main_embed_setup_menu(self, interaction: discord.Interaction):
+        # Define the embed and three buttons
+        embed = discord.Embed(description="Use the buttons in this embed to setup or edit dynamic embeds"
+                                          "in this server")
+
+        create_embed_button = ui.Button(style=discord.ButtonStyle.primary,
+                                        label="Create new embed",
+                                        row=0)
+        edit_embed_button = ui.Button(style=discord.ButtonStyle.secondary,
+                                      label="Edit existing embed",
+                                      row=1)
+        exit_menu_button = ui.Button(style=discord.ButtonStyle.red,
+                                     label="Exit this menu",
+                                     row=2)
+
+        # Setup the view with the three buttons
+        view = ui.View()
+        view.add_item(create_embed_button)
+        view.add_item(edit_embed_button)
+        view.add_item(exit_menu_button)
+
+        # Send the initial setup menu
+        try:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        except discord.Forbidden:
+            return
+
+        async def create_embed_button_callback(button_interaction: discord.Interaction):
+            """
+            Create embed callback should send a blank template embed and then launch the edit_embed code on it
+            """
+            template_embed = discord.Embed(title="Title", description="Description")
+            template_embed.set_footer(text="Footer")
+
+            try:
+                # Template embed to edit
+                working_embed_msg = await interaction.channel.send(embed=template_embed)
+            except discord.Forbidden:
+                return
+
+            await interaction.delete_original_message()
+            await self.edit_embed(button_interaction, working_embed_msg)
+
+        async def edit_embed_button_callback(button_interaction: discord.Interaction):
+            """
+            Launch edit_embed()
+            """
+            await self.edit_embed(button_interaction, msg=None)
+
+        async def exit_menu_button_callback(button_interaction: discord.Interaction):
+            """
+            Delete config menu
+            """
+            try:
+                await interaction.delete_original_message()
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+        # Add callbacks to the buttons
+        create_embed_button.callback = create_embed_button_callback
+        edit_embed_button.callback = edit_embed_button_callback
+        exit_menu_button.callback = exit_menu_button_callback
+
+    async def edit_embed(self, interaction: discord.Interaction, msg: Optional[discord.Message]):
+        """
+        A module for editing an embed
+        """
+        if not msg:
+            # Try to find a message then once it's found, call edit_embed again
+            msg = await self.get_embed_msg_to_edit(interaction)
+            await self.edit_embed(interaction=interaction, msg=msg)
+            return
+
+        embed = discord.Embed(description="Click the following buttons to edit the above embed")
+
+        add_button_button = ui.Button(style=discord.ButtonStyle.primary,
+                                      label="Add a button",
+                                      row=0)
+        add_dropdown_menu_button = ui.Button(style=discord.ButtonStyle.primary,
+                                             label="Add a dropdown menu",
+                                             row=0)
+        remove_element_button = ui.Button(style=discord.ButtonStyle.primary,
+                                          label="Add a dropdown menu",
+                                          row=1)
+        edit_embed_text_button = ui.Button(style=discord.ButtonStyle.primary,
+                                           label="Edit embed text",
+                                           row=2)
+
+        # Setup the view with the three buttons
+        view = ui.View()
+        view.add_item(add_button_button)
+        view.add_item(add_dropdown_menu_button)
+        view.add_item(remove_element_button)
+        view.add_item(edit_embed_text_button)
+
+        # Send the embed edit menu
+        try:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        except discord.Forbidden:
+            return
+
+    async def get_embed_msg_to_edit(self, interaction: discord.Interaction):
+        msg_find_embed = discord.Embed(description="Please copy a Jump URL to the message with the embed you "
+                                                   "want to edit. Once you have that, click the below button.")
+        input_jump_url_button = ui.Button(style=discord.ButtonStyle.primary,
+                                          label="Input Jump URL",
+                                          row=0)
+
+        class JumpURLModal(ui.Modal, title='Input Jump URL'):
+            name = ui.Select(placeholder="Default placeholder text",  # shows if no options are selected
+                             options=[
+                                 discord.SelectOption(label="Choice 1",
+                                                      value="Choice 1 value",
+                                                      description="Choice 1 description",
+                                                      emoji="🍏",
+                                                      default=False),
+                                 discord.SelectOption(label="Choice 2",
+                                                      value="Choice 2 value",
+                                                      description="Choice 2 description",
+                                                      emoji="🍎")
+                             ],
+                             row=1,
+                             min_values=1,
+                             max_values=2)
+            answer = ui.TextInput(label='Please paste the Jump URL here',
+                                  style=discord.TextStyle.paragraph,
+                                  required=True,
+                                  placeholder="https://discord.com/channels/123/456/789")
+
+            async def on_submit(submit_self, modal_interaction: discord.Interaction):
+                try:
+                    guild_id = submit_self.answer.value.split('/')[-3]
+                    channel_id = submit_self.answer.value.split('/')[-2]
+                    message_id = submit_self.answer.value.split('/')[-1]
+                    channel = self.bot.get_channel(int(channel_id))
+                    msg = await channel.fetch_message(int(message_id))
+                    if not msg:
+                        raise ValueError
+                    await self.edit_embed(interaction, msg=msg)
+                except (IndexError, ValueError):
+                    await modal_interaction.response.send_message("Please input a Jump URL like "
+                                                                  "https://discord.com/channels/123/456/789.")
+                    await interaction.delete_original_message()
+                    await self.edit_embed(interaction, msg=None)
+
+        # To-do: add below send_modal call as callback when above button is pushed
+        # Return from this function the message gotten out of jump url in modal in on_submit() function
+
+        await interaction.response.send_modal(JumpURLModal())
 
 
 async def setup(bot):
