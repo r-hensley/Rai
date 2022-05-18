@@ -12,8 +12,6 @@ from discord.ext import commands
 from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
-from .general import General
-from .interactions import Interactions
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -79,7 +77,8 @@ class Events(commands.Cog):
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
-                    await ctx.invoke(General.serverinfo)
+                    serverinfo = self.bot.get_command("serverinfo")
+                    await ctx.invoke(serverinfo)
 
         await replace_tatsumaki_posts()
 
@@ -1206,7 +1205,8 @@ class Events(commands.Cog):
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
-                        await ctx.invoke(General.blacklist_add,
+                        blacklist_add = self.bot.get_command("global_blacklist add")
+                        await ctx.invoke(blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
                     await hf.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
