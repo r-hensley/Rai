@@ -137,7 +137,14 @@ def grey_embed(text):
     return discord.Embed(description=text, color=0x848A84)
 
 
-async def safe_send(destination, content=None, *, wait=False, embed=None, delete_after=None, file=None, view=None):
+async def safe_send(destination,
+                    content=None, *,
+                    wait=False,
+                    embed=None,
+                    delete_after=None,
+                    file=None,
+                    view=None,
+                    ephemeral=False):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
         if type(destination) == str:
@@ -167,20 +174,23 @@ async def safe_send(destination, content=None, *, wait=False, embed=None, delete
         if isinstance(destination, discord.User):
             if not destination.dm_channel:
                 await destination.create_dm()
-        return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
+        return await destination.send(content,
+                                      embed=embed,
+                                      delete_after=delete_after,
+                                      file=file,
+                                      view=view,
+                                      ephemeral=ephemeral)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
             msg_content = f"Rai tried to send a message to #{ctx.channel.name} but lacked permissions to do so " \
                           f"(either messages or embeds)."
-            # if ctx.guild:
-            # if str(ctx.guild.id) in ctx.bot.db['mod_channel']:
-            #     await safe_send(ctx.bot.get_channel(int(ctx.bot.db['mod_channel'][str(ctx.guild.id)])), msg_content)
-            # else:
-            await safe_send(ctx.author, msg_content)
-            # else:
-            #     if isinstance(ctx.channel, discord.DMChannel):
-            #         pass
+
+            try:
+                await safe_send(ctx.author, msg_content)
+            except discord.Forbidden:
+                pass
+
         raise
 
 
