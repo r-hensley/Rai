@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from typing import Union, List, NamedTuple
@@ -174,6 +175,16 @@ class Interactions(commands.Cog):
     @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
     async def range(self, interaction: discord.Interaction, value: app_commands.Range[int, 10, 12]):
         await interaction.response.send_message(f'Your value is {value}', ephemeral=True)
+
+    #
+    #
+    # ########################################
+    #
+    # Staff ping slash command module
+    #
+    # ########################################
+    #
+    #
 
     @app_commands.command()
     @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
@@ -451,10 +462,20 @@ class Interactions(commands.Cog):
 
         return msg
 
+    #
+    #
+    # #########################################
+    #
+    # Dynamic embeds editing module
+    #
+    # #########################################
+    #
+    #
+
     @app_commands.command()
     @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
     async def embeds(self, interaction: discord.Interaction):
-        """Notifies the staff team about a current and urgent issue."""
+        """A configuration menu for setting up dynamic reaction embeds"""
         await self.main_embed_setup_menu(interaction)
 
     async def main_embed_setup_menu(self, interaction: discord.Interaction):
@@ -467,12 +488,12 @@ class Interactions(commands.Cog):
                                         row=0)
         edit_embed_button = ui.Button(style=discord.ButtonStyle.secondary,
                                       label="Edit existing embed",
-                                      row=1)
+                                      row=0)
         exit_menu_button = ui.Button(style=discord.ButtonStyle.red,
                                      label="Exit this menu",
-                                     row=2)
+                                     row=1)
 
-        # Setup the view with the three buttons
+        # Set up the view with the three buttons
         view = ui.View()
         view.add_item(create_embed_button)
         view.add_item(edit_embed_button)
@@ -480,7 +501,7 @@ class Interactions(commands.Cog):
 
         # Send the initial setup menu
         try:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
         except discord.Forbidden:
             return
 
@@ -539,7 +560,7 @@ class Interactions(commands.Cog):
                                              label="Add a dropdown menu",
                                              row=0)
         remove_element_button = ui.Button(style=discord.ButtonStyle.primary,
-                                          label="Add a dropdown menu",
+                                          label="Remove a button/menu",
                                           row=1)
         edit_embed_text_button = ui.Button(style=discord.ButtonStyle.primary,
                                            label="Edit embed text",
@@ -554,7 +575,7 @@ class Interactions(commands.Cog):
 
         # Send the embed edit menu
         try:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
         except discord.Forbidden:
             return
 
@@ -602,10 +623,18 @@ class Interactions(commands.Cog):
                     await interaction.delete_original_message()
                     await self.edit_embed(interaction, msg=None)
 
-        # To-do: add below send_modal call as callback when above button is pushed
-        # Return from this function the message gotten out of jump url in modal in on_submit() function
+        view = ui.View()
+        view.add_item(input_jump_url_button)
 
-        await interaction.response.send_modal(JumpURLModal())
+        async def button_callback(button_interaction: discord.Interaction):
+            modal = JumpURLModal()
+            await button_interaction.response.send_modal(modal)  # This should make a call to edit_embed()
+
+        input_jump_url_button.callback = button_callback
+
+        await interaction.response.send_message(embed=msg_find_embed, view=view)
+
+
 
 
 async def setup(bot):
