@@ -53,7 +53,7 @@ Quels sont les trois mots qui te décrivent parfaitement ?
 Quels sont quelques-uns de tes réflexes Pavlovien ?
 Qui t'inspire à être mieux ?
 Sur quel sujet pourrais-tu faire une présentation de 40 minutes sans aucune préparation ?
-Tu es allé(e) où le week-end dernier ? Tu as fait quoi le week-end dernier ? 
+Tu es allé·e où le week-end dernier ? Tu as fait quoi le week-end dernier ? 
 Tu ferras quoi ce week-end ?
 Préférerais-tu être marié à un 10 avec une mauvaise personalité, ou à un 6 avec une personalité incroyable ?
 Préférerais-tu pouvoir parler aux animals terrestres, aux animals volent, ou aux animals aquatiques ?
@@ -354,7 +354,7 @@ Aimes-tu les documentaires ? Pourquoi ou pourquoi pas ?
 Quel est le pire film que tu aies vu récemment ?
 Quel est le film le plus étrange que tu aies jamais vu ?
 Aimes-tu les films d'horreur ? Pourquoi ou pourquoi pas ?
-C'est quand la dernière fois que tu es allé au cinéma ?
+C'est quand la dernière fois que tu es allé·e au cinéma ?
 Quel est le dernier film que tu as regardé ? Comment était-il ?
 Les films ont-ils le même pouvoir que les livres pour changer le monde ?
 Préfères-tu regarder des films au cinéma ou chez toi ?
