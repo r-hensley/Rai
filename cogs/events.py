@@ -1127,13 +1127,15 @@ class Events(commands.Cog):
 
                         # Resolve staff ping embed and turn it green etc
                         if target.embeds and str(reaction.emoji) in '✅👍':
-                            if target.embeds[0].title.startswith("Staff Ping"):
-                                new_embed = target.embeds[0]
-                                new_embed.colour = 0x77B255  # green background color of the checkmark ✅
-                                new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
-                                if not user.bot:
-                                    new_embed.set_footer(text=f"Resolved by {str(user)}")
-                                await target.edit(view=None, embed=new_embed)
+                            embed = target.embeds[0]
+                            if title := embed.title:
+                                if title.startswith("Staff Ping"):
+                                    new_embed = target.embeds[0]
+                                    new_embed.colour = 0x77B255  # green background color of the checkmark ✅
+                                    new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
+                                    if not user.bot:
+                                        new_embed.set_footer(text=f"Resolved by {str(user)}")
+                                    await target.edit(view=None, embed=new_embed)
 
         await synchronize_reactions()
 
