@@ -12,11 +12,14 @@ from typing import Optional, List, Union, Tuple
 
 import discord
 import numpy as np
+from discord import app_commands, ui
 from discord.ext import commands
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
+
+from cogs.interactions import Interactions
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -766,13 +769,11 @@ def args_discriminator(args: str):
 
     # Iterate through beginning arguments taking all IDs and times until you reach the reason
     for arg in args_list.copy():
-        print(arg, parse_time(arg), _length)
         if user_id_match := re.search(user_regex, arg):
             _user_ids.append(int(user_id_match.group(1)))
             args_list.remove(arg)
             args = args.replace(f"{arg} ", "").replace(arg, "")
         elif (t := parse_time(arg))[0]:
-            print("got in to parse time part", t)
             _time_string = t[0]
             _length = t[1]
             _time_arg = arg
@@ -802,3 +803,34 @@ async def send_to_test_channel(*content):
                 await safe_send(channel, content)
             except discord.Forbidden:
                 print("Failed to send content to test_channel in send_to_test_channel()")
+
+
+SP_SERV_ID = 243838819743432704
+SP_SERV_GUILD = discord.Object(SP_SERV_ID)
+
+
+@app_commands.context_menu(name="Delete and log")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions(manage_messages=True)
+async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
+    await Interactions.delete_and_log(interaction, message)
+
+
+@app_commands.context_menu(name="Mute user (1h)")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
+    await Interactions.context_message_mute(interaction, message)
+
+
+@app_commands.context_menu(name="Mute user (1h)")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
+    await Interactions.context_member_mute(interaction, member)
+
+
+async def hf_sync():
+    for command in [delete_and_log, context_message_mute, context_member_mute]:
+        here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
+    await here.bot.tree.sync(guild=SP_SERV_GUILD)
