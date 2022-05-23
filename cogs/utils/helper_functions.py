@@ -830,7 +830,40 @@ async def context_member_mute(interaction: discord.Interaction, member: discord.
     await Interactions.context_member_mute(interaction, member)
 
 
+@app_commands.context_menu(name="View modlog")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def context_view_modlog(interaction: discord.Interaction, member: discord.Member):
+    modlog = here.bot.get_command("modlog")
+    ctx = await commands.Context.from_interaction(interaction)
+    embed = await ctx.invoke(modlog, str(member.id), post_embed=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@app_commands.context_menu(name="View user stats")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def context_view_user_stats(interaction: discord.Interaction, member: discord.Member):
+    user = here.bot.get_command("user")
+    ctx = await commands.Context.from_interaction(interaction)
+    embed = await ctx.invoke(user, post_embed=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@app_commands.context_menu(name="Get ID from message")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def get_id_from_message(interaction: discord.Interaction, message: discord.Message):
+    ids = re.findall(r"\d{17,22}", message.content)
+    if ids:
+        await interaction.response.send_message(ids[-1], ephemeral=True)
+        await interaction.followup.send(f"<@{ids[-1]}>", ephemeral=True)
+    else:
+        await interaction.response.send_message("No IDs found in the message", ephemeral=True)
+
+
 async def hf_sync():
-    for command in [delete_and_log, context_message_mute, context_member_mute]:
+    for command in [delete_and_log, context_message_mute, context_member_mute,
+                    context_view_modlog, context_view_user_stats, get_id_from_message]:
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
     await here.bot.tree.sync(guild=SP_SERV_GUILD)

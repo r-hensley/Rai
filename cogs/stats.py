@@ -93,7 +93,7 @@ class Stats(commands.Cog):
     @commands.command(aliases=['u'])
     @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def user(self, ctx, *, member: str = None):
+    async def user(self, ctx, *, member: str = None, post_embed=True):
         """Gives info about a user.  Leave the member field blank to get info about yourself."""
         if not member:
             member = ctx.author
@@ -278,14 +278,16 @@ class Stats(commands.Cog):
                 emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
 
         # ### Send ###
-        try:
-            await hf.safe_send(ctx, embed=emb)
-        except discord.Forbidden:
+        if post_embed:
             try:
-                await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
-                await hf.safe_send(ctx.author, embed=emb)
+                await hf.safe_send(ctx, embed=emb)
             except discord.Forbidden:
-                await hf.safe_send(ctx.author, "I lack the permission to send messages in that channel")
+                try:
+                    await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
+                    await hf.safe_send(ctx.author, embed=emb)
+                except discord.Forbidden:
+                    await hf.safe_send(ctx.author, "I lack the permission to send messages in that channel")
+        return emb
 
     @staticmethod
     def make_leaderboard_embed(ctx, channel_in, dict_in, title):
