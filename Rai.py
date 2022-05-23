@@ -317,8 +317,13 @@ class Rai(Bot):
             await ctx.send(f"I tried to do something I'm not allowed to do, so I couldn't complete your command :(")
 
         elif isinstance(error, commands.MissingPermissions):
-            await ctx.send(f"To do that command, you are missing the following permissions: "
-                           f"`{'`, `'.join(error.missing_permissions)}`")
+            error_str = f"To do that command, you are missing the following permissions: " \
+                        f"`{'`, `'.join(error.missing_permissions)}`"
+            if 'send_messages' in error_str and isinstance(ctx.channel, discord.Thread):
+                error_str += f"\n\nThis may be an error due to me lacking the permission to send messages in the " \
+                             f"parent channel to this thread. Try granting me the missing permissions in the parent " \
+                             f"channel as well."
+            await ctx.send()
             return
 
         elif isinstance(error, commands.NotOwner):
