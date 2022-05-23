@@ -255,18 +255,18 @@ class Submod(commands.Cog):
 
         successes = []
         for target in targets:
+            if 'send' in content:
+                try:
+                    await hf.safe_send(target, embed=em)
+                except discord.Forbidden:
+                    await hf.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
+
             try:
                 await ctx.guild.ban(target, reason=text, delete_message_days=delete)
                 successes.append(target)
             except discord.Forbidden:
                 await hf.safe_send(ctx, f"I couldn't ban {target.mention}. They're probably above me in the role list.")
                 continue
-
-            if 'send' in content:
-                try:
-                    await hf.safe_send(target, embed=em)
-                except discord.Forbidden:
-                    await hf.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
 
             if length:
                 config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
