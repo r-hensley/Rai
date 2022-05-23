@@ -29,6 +29,9 @@ here._loop = None
 
 
 BANS_CHANNEL_ID = 329576845949534208
+SP_SERV_ID = 243838819743432704
+SP_SERV_GUILD = discord.Object(SP_SERV_ID)
+RY_SERV = discord.Object(275146036178059265)
 
 
 def setup(bot, loop):
@@ -805,10 +808,6 @@ async def send_to_test_channel(*content):
                 print("Failed to send content to test_channel in send_to_test_channel()")
 
 
-SP_SERV_ID = 243838819743432704
-SP_SERV_GUILD = discord.Object(SP_SERV_ID)
-
-
 @app_commands.context_menu(name="Delete and log")
 @app_commands.guilds(SP_SERV_GUILD)
 @app_commands.default_permissions(manage_messages=True)
@@ -828,6 +827,22 @@ async def context_message_mute(interaction: discord.Interaction, message: discor
 @app_commands.default_permissions()
 async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
     await Interactions.context_member_mute(interaction, member)
+
+
+@app_commands.context_menu(name="Ban user")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def ban_and_clear_message(interaction: discord.Interaction,
+                        message: discord.Message):  # message commands return the message
+    await Interactions.ban_and_clear_main(interaction, message)
+
+
+@app_commands.context_menu(name="Ban user")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def ban_and_clear_member(interaction: discord.Interaction,
+                        member: discord.Member):  # message commands return the message
+    await Interactions.ban_and_clear_main(interaction, member)
 
 
 @app_commands.context_menu(name="View modlog")
@@ -863,7 +878,23 @@ async def get_id_from_message(interaction: discord.Interaction, message: discord
 
 
 async def hf_sync():
+    # Sp serv
     for command in [delete_and_log, context_message_mute, context_member_mute,
-                    context_view_modlog, context_view_user_stats, get_id_from_message]:
+                    context_view_modlog, context_view_user_stats, get_id_from_message,
+                    ban_and_clear_member, ban_and_clear_message]:
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
-    await here.bot.tree.sync(guild=SP_SERV_GUILD)
+
+    # Ry serv
+    for command in []:
+        here.bot.tree.add_command(command, guild=RY_SERV, override=True)
+
+    # Try to sync
+    try:
+        await here.bot.tree.sync(guild=SP_SERV_GUILD)
+    except discord.Forbidden:
+        print("Failed to sync commands to SP_SERV_GUILD")
+
+    try:
+        await here.bot.tree.sync(guild=RY_SERV)
+    except discord.Forbidden:
+        print("Failed to sync commands to RY_SERV")
