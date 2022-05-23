@@ -44,6 +44,19 @@ class Questionnaire(ui.Modal, title='Questionnaire Response'):
         await interaction.response.send_message(f'Your report has been sent to the mod team!', ephemeral=True)
 
 
+class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
+    default_reason = "Muted with command shortcut"
+    reason = ui.TextInput(label='(Optional) Input a reason for the mute',
+                          style=discord.TextStyle.paragraph,
+                          required=False,
+                          default=default_reason,
+                          placeholder=default_reason)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"I will attempt to mute the user with the reason you gave.",
+                                                ephemeral=True)
+
+
 class PointTransformer(app_commands.Transformer):
     @classmethod
     async def transform(cls, interaction: discord.Interaction, value: str) -> Point:
@@ -651,7 +664,7 @@ class Interactions(commands.Cog):
 
     @app_commands.command()
     @app_commands.guilds(SP_SERVER_ID)
-    @app_commands.default_permissions(administrator=True)
+    @app_commands.default_permissions()
     async def voicelock(self, interaction: discord.Interaction):
         """Enable or disable the voice locking in the Spanish server for new users"""
         # See sp_serv_new_user_voice_lock() in events.py
@@ -671,6 +684,90 @@ class Interactions(commands.Cog):
             self.bot.db['voice_lock'][str(SP_SERVER_ID)] = not previous_state
             await interaction.response.send_message(f"Voice locking for new users is now {new_state}.",
                                                     ephemeral=True)
+
+    @staticmethod
+    async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
+        ctx = await commands.Context.from_interaction(interaction)
+        delete = ctx.bot.get_command("delete")
+        try:
+            if await delete.can_run(ctx):
+                await ctx.invoke(delete, str(message.id))
+                await interaction.response.send_message("The message has been successfully deleted",
+                                                        ephemeral=True)
+            else:
+                await interaction.response.send_message("You don't have the permission to use that command",
+                                                        ephemeral=True)
+        except commands.BotMissingPermissions:
+            await interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                    ephemeral=True)
+
+    @staticmethod
+    async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
+        ctx = await commands.Context.from_interaction(interaction)
+        mute = ctx.bot.get_command("mute")
+        # ctx.message = ctx.channel.last_message
+
+        try:
+            if hf.submod_check(ctx):
+                modal = ModlogReasonModal()
+                await interaction.response.send_modal(modal)
+
+                def check(i):
+                    return i.type == discord.InteractionType.modal_submit and \
+                           i.application_id == interaction.application_id
+
+                try:
+                    await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
+                    reason = modal.reason
+                    await ctx.invoke(mute, args=f"{str(message.author.id)} 1h {reason}")
+                except asyncio.TimeoutError:
+                    return
+
+            else:
+                await interaction.response.send_message("You don't have the permission to use that command",
+                                                        ephemeral=True)
+        except commands.BotMissingPermissions:
+            await interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                    ephemeral=True)
+
+    @staticmethod
+    async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
+        ctx = await commands.Context.from_interaction(interaction)
+        mute = ctx.bot.get_command("mute")
+
+        try:
+            if hf.submod_check(ctx):
+                modal = ModlogReasonModal()
+                await interaction.response.send_modal(modal)
+
+                def check(i):
+                    return i.type == discord.InteractionType.modal_submit and \
+                           i.application_id == interaction.application_id
+
+                try:
+                    await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
+                    reason = modal.reason
+                    await ctx.invoke(mute, args=f"{str(member.id)} 1h {reason}")
+                except asyncio.TimeoutError:
+                    await ctx.invoke(mute, args=f"{str(member.id)} 1h")
+
+            else:
+                await interaction.response.send_message("You don't have the permission to use that command",
+                                                        ephemeral=True)
+        except commands.BotMissingPermissions:
+            await interaction.response.send_message("The bot is missing permissions here to use that command.",
+                                                    ephemeral=True)
+
+    """
+    @bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
+    async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
+        ban = ctx.bot.get_command("ban")
+        if await ban.can_run(ctx):
+            await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
+            await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
+        else:
+            await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
+    """
 
 
 async def setup(bot):
