@@ -363,29 +363,29 @@ class Owner(commands.Cog):
             await hf.safe_send(ctx, '**`SUCCESS`**')
 
     @commands.command(hidden=True)
-    async def reload(self, ctx, *, cog: str):
+    async def reload(self, ctx, *, cogs: str):
         try:
             await ctx.message.delete()
         except discord.Forbidden:
             pass
+        for cog in cogs.split():
+            if cog in ['hf', 'helper_function']:
+                try:
+                    old_module = sys.modules['cogs.utils.helper_functions']
+                    importlib.reload(sys.modules['cogs.utils.helper_functions'])
+                    hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+                except Exception as e:
+                    await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                else:
+                    await hf.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
 
-        if cog in ['hf', 'helper_function']:
-            try:
-                old_module = sys.modules['cogs.utils.helper_functions']
-                importlib.reload(sys.modules['cogs.utils.helper_functions'])
-                hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
-            except Exception as e:
-                await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
             else:
-                await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
-
-        else:
-            try:
-                await self.bot.reload_extension(f'cogs.{cog}')
-            except Exception as e:
-                await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
-            else:
-                await hf.safe_send(ctx, '**`SUCCESS`**', delete_after=5.0)
+                try:
+                    await self.bot.reload_extension(f'cogs.{cog}')
+                except Exception as e:
+                    await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                else:
+                    await hf.safe_send(ctx, f' **`{cog}: SUCCESS`**', delete_after=5.0)
 
     def cleanup_code(self, content):  # credit Danny
         """Automatically removes code blocks from the code."""
