@@ -8,7 +8,13 @@ import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 # Here you can modify the bot's prefix and description and whether it sends help in direct messages or not.
-client = Bot(description="Basic Bot by Ryry013#9234", command_prefix="r!", pm_help=False, owner_id=202995638860906496)
+intents = discord.Intents.default()
+intents.message_content = True
+client = Bot(description="Basic Bot by Ryry013#9234",
+             command_prefix="r!",
+             pm_help=False,
+             owner_id=202995638860906496,
+             intents=intents)
 
 
 @client.event
