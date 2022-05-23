@@ -488,7 +488,7 @@ class General(commands.Cog):
     @commands.command(aliases=['cl', 'checklanguage'])
     @commands.bot_has_permissions(send_messages=True)
     @commands.cooldown(1, 15, type=commands.BucketType.user)
-    @commands.check(lambda x: x.guild.id in [SP_SERVER_ID, 759132637414817822])
+    @commands.check(lambda x: getattr(x.guild, "id", None) in [SP_SERVER_ID, 759132637414817822])
     async def check_language(self, ctx, *, msg: str):
         """Shows what's happening behind the scenes for hardcore mode.  Will try to detect the language that your\
         message was typed in, and display the results.  Note that this is non-deterministic code, which means\
