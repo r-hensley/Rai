@@ -240,6 +240,10 @@ class Rai(Bot):
         elif isinstance(error, commands.BotMissingPermissions):
             msg = f"To do that command, Rai is missing the following permissions: " \
                   f"`{'`, `'.join(error.missing_permissions)}`"
+            if 'send_messages' in msg and isinstance(ctx.channel, discord.Thread):
+                msg += f"\n\nThis may be an error due to me lacking the permission to send messages in the " \
+                       f"parent channel to this thread. Try granting me the missing permissions in the parent " \
+                       f"channel as well."
             try:
                 await ctx.send(msg)
             except discord.Forbidden:
@@ -319,11 +323,7 @@ class Rai(Bot):
         elif isinstance(error, commands.MissingPermissions):
             error_str = f"To do that command, you are missing the following permissions: " \
                         f"`{'`, `'.join(error.missing_permissions)}`"
-            if 'send_messages' in error_str and isinstance(ctx.channel, discord.Thread):
-                error_str += f"\n\nThis may be an error due to me lacking the permission to send messages in the " \
-                             f"parent channel to this thread. Try granting me the missing permissions in the parent " \
-                             f"channel as well."
-            await ctx.send()
+            await ctx.send(error_str)
             return
 
         elif isinstance(error, commands.NotOwner):
