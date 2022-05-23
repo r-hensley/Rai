@@ -34,7 +34,7 @@ class Submod(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
     @hf.is_submod()
-    async def ban(self, ctx, *, args):
+    async def ban(self, ctx, *, args: str):
         """Bans a user.  Usage: `;ban <list of users> [time #y#d#h] [reason]`
         Examples:
         - `;ban @Ryry013 being mean`
@@ -48,75 +48,28 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, ctx.command.help)
             return
 
+        # Here is the shortcut setter for the context menu ban command.
+        # If this is triggered, the ban command should skip all printed confirmations and questions and just
+        # skip straight to the banning
+        # The arg will either be ⁣⁣delete or ⁣⁣keep__ with underscores to keep them the same length
+        if '⁣⁣delete' in args:
+            slash = True
+            delete = 1
+            args = re.sub(r'⁣⁣delete ?', '', args)
+        elif '⁣⁣keep__' in args:
+            slash = True
+            delete = 0
+            args = re.sub(r'⁣⁣keep__ ?', '', args)
+        else:
+            slash = False
+            delete = 0
+
         args = hf.args_discriminator(args)
 
         user_ids = args.user_ids
         reason = args.reason
         length = args.length
         time_string = args.time_string
-
-        #
-        # time_regex = re.compile(r'^((\d+)y)?((\d+)d)?((\d+)h)?$')  # group 2, 4, 6: years, days, hours
-        # user_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')  # group 1: ID
-        # user_ids: List[int] = []  # list of users to ban
-        # timed_ban = None
-        #
-        # # Iterate through beginning arguments taking all IDs and times until you reach the reason
-        # for arg in args.copy():
-        #     print(arg)
-        #     if user_id_match := re.search(user_regex, arg):
-        #         user_ids.append(int(user_id_match.group(1)))
-        #         args.remove(arg)
-        #     elif t := re.search(time_regex, arg):
-        #         timed_ban = t
-        #         args.remove(arg)
-        #     else:
-        #         break
-        # reason = ' '.join(args)
-        #
-        # if not user_ids:
-        #     await hf.safe_send(ctx, "I could not find where you specified the user. Please check your syntax.")
-        #     return
-        #
-        # if timed_ban:
-        #     if years := timed_ban.group(2):
-        #         years = int(years)
-        #     else:
-        #         years = 0
-        #
-        #     if days := timed_ban.group(4):
-        #         days = years * 365 + int(days)
-        #     else:
-        #         days = years * 365
-        #
-        #     if hours := timed_ban.group(6):
-        #         hours = int(hours)
-        #     else:
-        #         hours = 0
-        #
-        #     length = [days, hours]
-        #
-        #     try:
-        #         unban_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1])
-        #     except OverflowError:
-        #         await hf.safe_send(ctx, "Give smaller number please :(")
-        #         return
-        #
-        #     time_string = unban_time.strftime("%Y/%m/%d %H:%M UTC")
-        #
-        #     # """
-        #     # if re.findall('^\d+d\d+h$', args[0]):  # format: #d#h
-        #     #     length = timed_ban[0][:-1].split('d')
-        #     #     length = [length[0], length[1]]
-        #     # elif re.findall('^\d+d$', args[0]):  # format: #d
-        #     #     length = [timed_ban[0][:-1], '0']
-        #     # else:  # format: #h
-        #     #     length = ['0', timed_ban[0][:-1]]
-        #     # """
-        #
-        # else:
-        #     length = []
-        #     time_string = None
 
         targets: List[discord.Member] = []
         for user_id in user_ids:
@@ -154,14 +107,6 @@ class Submod(commands.Cog):
         if not reason:
             reason = '(no reason given)'
 
-        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** XX"
-        new_text = text.replace("XX", reason)
-        if len(new_text) > 512:
-            await hf.safe_send(ctx, "Discord only allows bans with a length of 512 characters. With my included "
-                                    f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
-                                    f"length of your ban message. ")
-            return
-
         # this memorial exists to forever remember the robot head, may you rest in peace ['_']
         # this comment exists to wonder what the hell the robot head was...
         for target in targets:
@@ -177,6 +122,7 @@ class Submod(commands.Cog):
                     hf.admin_check(ctx):
                 raise commands.MissingPermissions(['ban_members'])
 
+        # Start constructing embed to send to user
         em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
         if length:
             em.description = f"You will be unbanned automatically at {time_string} " \
@@ -188,11 +134,12 @@ class Submod(commands.Cog):
             if '-silent' in reason or '-s' in reason:
                 silent = True
                 reason = reason.replace('-silent ⁣', '').replace('-s ', '')
-                reason = '⁣' + reason  # no width space = silent
+                reason = '⁣' + reason  # a reason starting with a no width space signifies a silent ban
             if '-c' in reason:
                 reason = '⠀' + reason  # invisible space = crosspost
             em.add_field(name="Reason:", value=reason)
-        await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
+        if not slash:
+            await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
         msg2 = f"Do you wish to continue?  Options:\n" \
                f"⠀・ `Yes` Silently ban the user\n" \
                f"⠀・ `Send` Ban the user and send them the above notification\n" \
@@ -206,52 +153,62 @@ class Submod(commands.Cog):
                     if 'crosspost' in self.bot.db['bans'][str(ctx.guild.id)]:
                         if not reason.startswith('⁣') and str(ctx.guild.id) in self.bot.db['bans']:  # no width space
                             if self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                                crosspost_check = 1  # to cancel crosspost
+                                # crosspost_check = 1  # to cancel crosspost
                                 msg2 += "⠀・ `Yes/Send -s` Do not crosspost this ban"
                         if not reason.startswith('⠀') and str(ctx.guild.id) in self.bot.db['bans']:  # invisible space
                             if not self.bot.db['bans'][str(ctx.guild.id)]['crosspost']:
-                                crosspost_check = 2  # to specially crosspost
+                                # crosspost_check = 2  # to specially crosspost
                                 msg2 += "⠀・ `Yes/Send -c` Specially crosspost this ban"
                 except KeyError:
                     pass
-        msg2 = await hf.safe_send(ctx, msg2)
-        try:
-            msg = await self.bot.wait_for('message',
-                                          timeout=40.0,
-                                          check=lambda x: x.author == ctx.author and
-                                          x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
-        except asyncio.TimeoutError:
+
+        if not slash:
+            msg2 = await hf.safe_send(ctx, msg2)
+
+            try:
+                msg = await self.bot.wait_for('message',
+                                              timeout=40.0,
+                                              check=lambda x: x.author == ctx.author and
+                                              x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
+            except asyncio.TimeoutError:
+                try:
+                    await msg2.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                await hf.safe_send(ctx, f"Timed out.  Canceling ban.")
+                return
+            content = msg.content.casefold()
+            if content == 'no':
+                try:
+                    await msg2.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                await hf.safe_send(ctx, f"Canceling ban")
+                return
+
             try:
                 await msg2.delete()
             except (discord.Forbidden, discord.NotFound):
                 pass
-            await hf.safe_send(ctx, f"Timed out.  Canceling ban.")
-            return
-        content = msg.content.casefold()
-        if content == 'no':
-            try:
-                await msg2.delete()
-            except (discord.Forbidden, discord.NotFound):
-                pass
-            await hf.safe_send(ctx, f"Canceling ban")
-            return
 
-        try:
-            await msg2.delete()
-        except (discord.Forbidden, discord.NotFound):
-            pass
+            if 'delete' in content or 'del' in content:
+                delete = 1
+            else:
+                delete = 0
+        else:  # if slash command
+            content = 'send'
 
-        text = text.replace("XX", reason)
+        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
+        if len(text) > 512:
+            await hf.safe_send(ctx, "Discord only allows bans with a length of 512 characters. With my included "
+                                    f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
+                                    f"length of your ban message. ")
+            return
 
         if content.endswith('-s'):  # these will be parsed in the on_member_ban event in logger.py
             text = '⁣' + text
         if content.endswith('-c'):
             text = '⠀' + text
-
-        if 'delete' in content or 'del' in content:
-            delete = 1
-        else:
-            delete = 0
 
         successes = []
         for target in targets:

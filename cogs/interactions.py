@@ -57,6 +57,20 @@ class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
                                                 ephemeral=True)
 
 
+class BanModal(ui.Modal, title='Ban Menu'):
+    default_reason = "Banned with command shortcut"
+    reason = ui.TextInput(label='(Optional) Input a reason for the ban',
+                          style=discord.TextStyle.paragraph,
+                          required=True,
+                          default=default_reason,
+                          placeholder=default_reason,
+                          max_length=512 - len("*by* <@202995638860906496> \n**Reason:** ") - 32)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"I've edited the ban reason.",
+                                                ephemeral=True)
+
+
 class PointTransformer(app_commands.Transformer):
     @classmethod
     async def transform(cls, interaction: discord.Interaction, value: str) -> Point:
@@ -73,11 +87,15 @@ class Interactions(commands.Cog):
     @commands.command()
     async def sync(self, ctx):
         """Syncs app commands"""
+        # Sync interactions here in this file
         bot_guilds = [g.id for g in self.bot.guilds]
         for guild_id in [FEDE_TESTER_SERVER_ID, RY_SERVER_ID, SP_SERVER_ID]:
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)
+
+        # Sync context commands in helper_functions()
+        await hf.hf_sync()
 
         try:
             await ctx.message.add_reaction("♻")
@@ -688,6 +706,7 @@ class Interactions(commands.Cog):
     @staticmethod
     async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
         ctx = await commands.Context.from_interaction(interaction)
+        ctx.author = interaction.user
         delete = ctx.bot.get_command("delete")
         try:
             if await delete.can_run(ctx):
@@ -708,7 +727,7 @@ class Interactions(commands.Cog):
         # ctx.message = ctx.channel.last_message
 
         try:
-            if hf.submod_check(ctx):
+            if await mute.can_run(ctx):
                 modal = ModlogReasonModal()
                 await interaction.response.send_modal(modal)
 
@@ -733,19 +752,20 @@ class Interactions(commands.Cog):
     @staticmethod
     async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
         ctx = await commands.Context.from_interaction(interaction)
+        ctx.author = interaction.user
         mute = ctx.bot.get_command("mute")
 
         try:
-            if hf.submod_check(ctx):
+            if await mute.can_run(ctx):
                 modal = ModlogReasonModal()
                 await interaction.response.send_modal(modal)
 
-                def check(i):
+                def modal_return_check(i):
                     return i.type == discord.InteractionType.modal_submit and \
                            i.application_id == interaction.application_id
 
                 try:
-                    await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
+                    await ctx.bot.wait_for('interaction', timeout=20.0, check=modal_return_check)
                     reason = modal.reason
                     await ctx.invoke(mute, args=f"{str(member.id)} 1h {reason}")
                 except asyncio.TimeoutError:
@@ -758,16 +778,102 @@ class Interactions(commands.Cog):
             await interaction.response.send_message("The bot is missing permissions here to use that command.",
                                                     ephemeral=True)
 
-    """
-    @bot.message_command(name="Ban and clear3", check=hf.admin_check)  # creates a global message command
-    async def ban_and_clear(ctx, message: discord.Message):  # message commands return the message
+    @staticmethod
+    async def ban_and_clear_main(interaction: discord.Interaction,
+                                 member_or_message: Union[discord.Message, discord.Member]):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.author = interaction.user
         ban = ctx.bot.get_command("ban")
-        if await ban.can_run(ctx):
-            await ban.__call__(ctx, args=f"{str(message.author.id)} ⁣")  # invisible character to trigger ban shortcut
-            await ctx.interaction.response.send_message("The message has been successfully deleted", ephemeral=True)
+        default_reason = "Banned with command shortcut"
+        reason = default_reason
+
+        if isinstance(member_or_message, discord.Message):
+            author = member_or_message.author
+            ctx.message = member_or_message
+        elif isinstance(member_or_message, discord.Member):
+            author = member_or_message
+            ctx.message = ctx.channel.last_message
         else:
-            await ctx.interaction.response.send_message("You don't have the permission to use that command", ephemeral=True)
-    """
+            raise TypeError(f"Invalid type of member_or_author passed ({type(member_or_message)})")
+
+        emb = hf.red_embed(f"Attempting to ban user {author.mention}. "
+                           f"Please select one of the below options.\n\n"
+                           f"**- DELETE:** Bans and __deletes the last one day__ of messages.\n"
+                           f"**- KEEP:** Bans and preserves messages.\n"
+                           f"**- CANCEL:** Cancel the ban")
+        emb.add_field(name="Reason", value=reason)
+
+        delete_button = ui.Button(label="DELETE", style=discord.ButtonStyle.red, row=0)
+        keep_button = ui.Button(label="KEEP", style=discord.ButtonStyle.red, row=0)
+        cancel_button = ui.Button(label="CANCEL", style=discord.ButtonStyle.gray, row=0)
+        reason_button = ui.Button(label="Edit ban reason", style=discord.ButtonStyle.primary, row=1)
+
+        view = ui.View()
+        view.add_item(delete_button)
+        view.add_item(keep_button)
+        view.add_item(cancel_button)
+        view.add_item(reason_button)
+
+        async def delete_callback(button_interaction: discord.Interaction):
+            """Ban user and delete last one day of messages"""
+            # Since all user messages will be deleted, we need to make sure the jump url message isn't one of those
+            async for message in ctx.channel.history(limit=30):
+                if message.author in [author, ctx.guild.me]:
+                    continue  # skip all messages by ban target
+                ctx.message = message
+                break
+
+            await button_interaction.response.send_message(f"Will ban and delete messages ({reason})", ephemeral=True)
+            await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣delete {reason}")
+            await confirmation_msg.delete()
+
+        async def keep_callback(button_interaction: discord.Interaction):
+            """Ban user and keep messages"""
+            await button_interaction.response.send_message(f"Will ban and delete messages ({reason})", ephemeral=True)
+            await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
+            await confirmation_msg.delete()
+
+        async def cancel_callback(button_interaction: discord.Interaction):
+            """Cancel command, delete embed"""
+            await button_interaction.response.send_message(f"Cancelling ban ({reason})", ephemeral=True)
+            await confirmation_msg.delete()
+
+        async def reason_callback(button_interaction: discord.Interaction):
+            """Edit reason of ban"""
+            modal = BanModal()
+            await button_interaction.response.send_modal(modal)
+            try:
+                def modal_return_check(i):
+                    """Check to make sure the modal submitted corresponds to the current application"""
+                    return i.type == discord.InteractionType.modal_submit and \
+                        i.application_id == interaction.application_id
+
+                await ctx.bot.wait_for("interaction", timeout=20.0, check=modal_return_check)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                nonlocal reason  # to make the below line assign to the outer scope variable rather than making new one
+                reason = modal.reason.value  # edit reason
+
+                # Edit new reason into embed
+                emb.set_field_at(0, name=emb.fields[0].name, value=reason)
+                await confirmation_msg.edit(embed=emb)
+
+        delete_button.callback = delete_callback
+        keep_button.callback = keep_callback
+        cancel_button.callback = cancel_callback
+        reason_button.callback = reason_callback
+
+        try:
+            if await ban.can_run(ctx):
+                await interaction.response.send_message(embed=emb, view=view, ephemeral=False)
+                confirmation_msg = await interaction.original_message()
+            else:
+                await interaction.response.send_message("You don't have the permission to use that command",
+                                                        ephemeral=True)
+        except commands.BotMissingPermissions:
+            await interaction.response.send_message("Bot is missing the permissions to execute this command",
+                                                    ephemeral=True)
 
 
 async def setup(bot):
