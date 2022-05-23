@@ -1431,7 +1431,10 @@ class Events(commands.Cog):
             today[member_id] += hours * 60 + minutes
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    async def on_voice_state_update(self,
+                                    member: discord.Member,
+                                    before: discord.VoiceState,
+                                    after: discord.VoiceState):
         """voice stats"""
 
         # voice
@@ -1468,6 +1471,8 @@ class Events(commands.Cog):
                     return
 
         await voice_update()
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
         async def turkish_server_30_mins_role():
             if before.channel != after.channel:
@@ -1543,6 +1548,79 @@ class Events(commands.Cog):
                             return
 
         await turkish_server_30_mins_role()
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+        async def sp_serv_new_user_voice_lock():
+            """
+            This command prevents users who are new to the server from joining voice.
+
+            They are required to either be in the server for two hours, or have 100 messages in the server.
+
+            If a user has left and rejoined the server, hopefully the 100 message requirement gets them into voice.
+
+            There will also be a "voice approved" role which can override this.
+            """
+            # If this event is not for someone joining voice, ignore it
+            joined = not before.channel and after.channel  # True if they just joined voice
+            if not joined:
+                return
+
+            # Only function on Spanish server
+            if member.guild.id != SP_SERVER_ID:
+                return
+
+            # If guild is not spanish server (currently hardcoded)
+            guild = self.bot.get_guild(SP_SERVER_ID)
+            if not guild:
+                return
+
+            # If voice lock not enabled on current server
+            if not self.bot.db['voice_lock'].get(str(member.guild.id), None):
+                return
+
+            # A role which exempts the user from any requirements on joining voice
+            role = guild.get_role(978148690873167973)
+            if not role:
+                return
+
+            # If user has role, let them into voice
+            if role in member.roles:
+                return
+
+            # If user has been in the server for more than two hours, let them into voice
+            if (discord.utils.utcnow() - member.joined_at).total_seconds() > 2*60*60:
+                return
+
+            # If user has more than 100 messages in the last month, let them into voice
+            if hf.count_messages(member) > 50:
+                return
+
+            # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
+
+            # Disconnect user from voice
+            try:
+                await member.edit(voice_channel=None)
+            except (discord.Forbidden, discord.HTTPException):
+                return
+
+            t = "You cannot use the voice channels on this server yet. Once you have used the server more, " \
+                "you will be able to use the voice channels. Until then, please enjoy our text channels." \
+                "\n\n" \
+                "Todavía no puedes utilizar los canales de voz en este servidor. Cuando hayas utilizado el " \
+                "servidor un poco más, podrás utilizarlos. Mientras tanto, por favor disfruta de " \
+                "nuestros canales de texto."
+            try:
+                await hf.safe_send(member, t)
+            except discord.Forbidden:
+                bot_channel = guild.get_channel(247135634265735168)
+                t = f"{member.mention} {t}"
+                try:
+                    await hf.safe_send(bot_channel, t)
+                except discord.Forbidden:
+                    pass
+
+        await sp_serv_new_user_voice_lock()
 
     @commands.Cog.listener()
     async def on_command(self, ctx):

@@ -23,6 +23,7 @@ FEDE_TESTER_SERVER_ID = 941155953682821201
 
 RY_GUILD = discord.Object(id=RY_SERVER_ID)
 FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
+SP_GUILD = discord.Object(id=SP_SERVER_ID)
 
 
 # @app_commands.describe(): add a description to a parameter when the user is inputting it
@@ -59,8 +60,12 @@ class Interactions(commands.Cog):
     @commands.command()
     async def sync(self, ctx):
         """Syncs app commands"""
-        await self.bot.tree.sync(guild=FEDE_GUILD)
-        await self.bot.tree.sync(guild=RY_GUILD)
+        bot_guilds = [g.id for g in self.bot.guilds]
+        for guild_id in [FEDE_TESTER_SERVER_ID, RY_SERVER_ID, SP_SERVER_ID]:
+            if guild_id in bot_guilds:
+                guild_object = discord.Object(id=guild_id)
+                await self.bot.tree.sync(guild=guild_object)
+
         try:
             await ctx.message.add_reaction("♻")
         except (discord.HTTPException, discord.Forbidden):
@@ -634,7 +639,38 @@ class Interactions(commands.Cog):
 
         await interaction.response.send_message(embed=msg_find_embed, view=view)
 
+    #
+    #
+    # #########################################
+    #
+    # Dynamic embeds editing module
+    #
+    # #########################################
+    #
+    #
 
+    @app_commands.command()
+    @app_commands.guilds(SP_SERVER_ID)
+    @app_commands.default_permissions(administrator=True)
+    async def voicelock(self, interaction: discord.Interaction):
+        """Enable or disable the voice locking in the Spanish server for new users"""
+        # See sp_serv_new_user_voice_lock() in events.py
+
+        if not hf.admin_check(interaction):
+            await interaction.response.send_message("You cannot use this command.", ephemeral=True)
+
+        previous_state = self.bot.db['voice_lock'].get(str(SP_SERVER_ID), None)
+        if previous_state is None:
+            await interaction.response.send_message("There has been an error", ephemeral=True)
+            return
+        else:
+            if not previous_state:  # new state is True
+                new_state = "enabled"
+            else:
+                new_state = "disabled"
+            self.bot.db['voice_lock'][str(SP_SERVER_ID)] = not previous_state
+            await interaction.response.send_message(f"Voice locking for new users is now {new_state}.",
+                                                    ephemeral=True)
 
 
 async def setup(bot):

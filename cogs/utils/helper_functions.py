@@ -139,12 +139,10 @@ def grey_embed(text):
 
 async def safe_send(destination,
                     content=None, *,
-                    wait=False,
                     embed=None,
                     delete_after=None,
                     file=None,
-                    view=None,
-                    ephemeral=False):
+                    view=None,):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
         if type(destination) == str:
@@ -178,8 +176,7 @@ async def safe_send(destination,
                                       embed=embed,
                                       delete_after=delete_after,
                                       file=file,
-                                      view=view,
-                                      ephemeral=ephemeral)
+                                      view=view)
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
@@ -344,14 +341,22 @@ def is_voicemod():
 
 
 def admin_check(ctx):
+    if isinstance(ctx, commands.Context):
+        author = ctx.author  # Comes from a normal command
+    elif isinstance(ctx, discord.Interaction):
+        author = ctx.user  # This function was called from inside a slash command
+    else:
+        return
+
     if not ctx.guild:
         return
+
     try:
         ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
         mod_role = ctx.guild.get_role(ID)
-        return mod_role in ctx.author.roles or ctx.channel.permissions_for(ctx.author).administrator
+        return mod_role in author.roles or ctx.channel.permissions_for(author).administrator
     except (KeyError, TypeError):
-        return ctx.channel.permissions_for(ctx.author).administrator
+        return ctx.channel.permissions_for(author).administrator
 
 
 def is_admin():
@@ -787,8 +792,7 @@ def args_discriminator(args: str):
 
 
 async def send_to_test_channel(*content):
-    content = ' '.join(content)
-    print(f"send_to_test_channel(): {content}")
+    content = ' '.join([str(i) for i in content])
     test_chan_id = os.getenv("BOT_TEST_CHANNEL")
 
     if test_chan_id:
