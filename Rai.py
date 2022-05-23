@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 import discord
 from discord.ext.commands import Bot
 from discord.ext import commands, tasks
-from discord import app_commands
 
 from cogs.utils import helper_functions as hf
 
@@ -60,15 +59,6 @@ TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 
 t_start = datetime.now()
-
-# Don't change this even on forked copies of Rai
-RYRY_RAI_COPY = 270366726737231884
-JP_SERV_ID = 189571157446492161
-SP_SERV_ID = 243838819743432704
-RY_TEST_SERV_ID = 275146036178059265
-FEDE_TEST_SERV_ID = 941155953682821201
-
-FEDE_GUILD = discord.Object(FEDE_TEST_SERV_ID)
 
 
 def prefix(bot, msg):
@@ -164,14 +154,6 @@ class Rai(Bot):
 
         if not self.database_backups.is_running():
             self.database_backups.start()
-
-        @app_commands.context_menu()
-        @app_commands.guilds(FEDE_GUILD)
-        async def react(interaction: discord.Interaction, message: discord.Message):
-            await interaction.response.send_message('Very cool message!', ephemeral=True)
-
-        self.tree.add_command(react, guild=FEDE_GUILD, override=True)
-        await self.tree.sync(guild=FEDE_GUILD)
 
     async def setup_hook(self):
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
