@@ -11,6 +11,23 @@ import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
+async def find_and_unarchive_thread(ctx):
+    for channel in ctx.guild.text_channels:
+        try:
+            async for thread in channel.archived_threads(limit=15):
+                if thread.id == ctx.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]['log_channel']:
+                    try:
+                        await thread.edit(archived=False)
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, "I need to unarchive the questions log channel but I lacked the "
+                                                f"permission to do that. Please unarchive this thread: "
+                                                f"{thread.mention}.")
+                        return
+                    return thread
+        except discord.Forbidden:
+            pass  # The bot tried to look for archived threads in a channel it doesn't have `read_message_history`
+
+
 class Questions(commands.Cog):
     """Help"""
 
@@ -62,7 +79,7 @@ class Questions(commands.Cog):
             raise
 
     @commands.Cog.listener()
-    async def on_thread_update(self, before, after):
+    async def on_thread_update(self, before: discord.Thread, after: discord.Thread):
         try:
             channel_config = self.bot.db['questions'][str(after.guild.id)][str(after.parent.id)]
             questions = channel_config['questions']
@@ -80,13 +97,13 @@ class Questions(commands.Cog):
         if not is_question:
             return  # this thread is not associated with a question
 
-        # archive a thread
+        # a thread was archived, reopen it if it simply closed due to the auto-archiving date
         if not before.archived and after.archived:
             human_closed = False  # True if a human manually archvied the thread
             async for entry in after.guild.audit_logs(limit=5, oldest_first=False,
                                                       action=discord.AuditLogAction.thread_update,
                                                       after=discord.utils.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target.id == after.id:
                     if entry.user.bot:
                         return
                     if entry.after.archived:
@@ -112,7 +129,7 @@ class Questions(commands.Cog):
                 except discord.Forbidden:
                     pass
 
-        # unarchive a thread
+        # a thread was unarchived, open a question for it
         elif before.archived and not after.archived:
             for question in questions:
                 print(question, after.id)
@@ -170,7 +187,7 @@ class Questions(commands.Cog):
         # if threads enabled in "config", create a thread for the channel
         if config.setdefault('threads', False):
             try:
-                thread_title = f"[{question_number}] " + target_message.content.replace(";q ", "").split('\n')[0][:95]
+                thread_title = f"[{question_number}] " + target_message.content.split(';q ', 1)[1].split('\n')[0][:95]
                 if not hasattr(self.bot, "recently_joined_threads"):
                     self.bot.recently_joined_threads = []
                 if target_message.id not in self.bot.recently_joined_threads:
@@ -242,6 +259,9 @@ class Questions(commands.Cog):
 
         # update ;q list at bottom of log channel
         log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+
+        if not log_channel:
+            log_channel = await find_and_unarchive_thread(ctx)
 
         if isinstance(log_channel, discord.Thread):
             if log_channel.archived:
@@ -497,13 +517,20 @@ class Questions(commands.Cog):
             raise
 
         try:
+            # First, try to get thread normally
             log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+
+            # If that doesn't work, try to find the thread in all the archived threads per channel
             if not log_channel:
-                log_channel = discord.utils.get(ctx.guild.threads, id=config['log_channel'])
+                log_channel = await find_and_unarchive_thread(ctx)
+
+            # If it still doesn't work, give up.
             if not log_channel:
                 await hf.safe_send(ctx, "I couldn't find the log channel for this questions channel. Please reset "
-                                        "the questions module here.")
+                                        "the questions module here.\n\nIf your log channel is a thread, check if the "
+                                        f"thread is archived: <#{config['log_channel']}>")
                 return
+
             log_message = await log_channel.fetch_message(question['log_message'])
         except discord.NotFound:
             log_message = None
@@ -751,6 +778,8 @@ class Questions(commands.Cog):
         """
         config = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+        if not log_channel:
+            log_channel = await find_and_unarchive_thread(ctx)
         target_message = await log_channel.fetch_message(int(log_id))
         if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
             await hf.safe_send(ctx,
@@ -858,11 +887,15 @@ class Questions(commands.Cog):
                                     "the question was originally made in.")
             return
 
-        try:
-            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
-        except discord.NotFound:
-            await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
-            return
+        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+        if not log_channel:
+            # If that doesn't work, try to find the thread in all the archived threads per channel
+            log_channel = await find_and_unarchive_thread(ctx)
+
+            # If after that log_channel is still None, end function
+            if not log_channel:
+                await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
+                return
         try:
             log_message = await log_channel.fetch_message(config['questions'][index]['log_message'])
         except discord.NotFound:
@@ -893,6 +926,10 @@ class Questions(commands.Cog):
             return
 
         log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+
+        if not log_channel:
+            log_channel = await find_and_unarchive_thread(ctx)
+
         if not log_channel:
             await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
@@ -922,6 +959,12 @@ class Questions(commands.Cog):
             return
 
         log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+
+        # If the channel/thread isn't found, check archived threads
+        if not log_channel:
+            log_channel = await find_and_unarchive_thread(ctx)
+
+        # If still no log_channel found after searching archived threads...
         if not log_channel:
             await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
