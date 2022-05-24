@@ -71,6 +71,18 @@ class BanModal(ui.Modal, title='Ban Menu'):
                                                 ephemeral=True)
 
 
+class LogReason(ui.Modal, title='Input Log Reason'):
+    default_reason = "(no additional reason given)"
+    reason = ui.TextInput(label='(Optional) Input a reason or context for the message log',
+                          style=discord.TextStyle.paragraph,
+                          required=True,
+                          default=default_reason,
+                          placeholder=default_reason,
+                          max_length=1000)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"I've added your text into the log reason.", ephemeral=True)
+
 class PointTransformer(app_commands.Transformer):
     @classmethod
     async def transform(cls, interaction: discord.Interaction, value: str) -> Point:
@@ -942,6 +954,35 @@ class Interactions(commands.Cog):
         except commands.BotMissingPermissions:
             await interaction.response.send_message("Bot is missing the permissions to execute this command",
                                                     ephemeral=True)
+
+    @staticmethod
+    async def log_message(interaction: discord.Interaction,
+                          message: discord.Message):
+        ctx = await commands.Context.from_interaction(interaction)
+        log = ctx.bot.get_command("log")
+
+        modal = LogReason()
+
+        await interaction.response.send_modal(modal)
+
+        def check(i):
+            return i.type == discord.InteractionType.modal_submit and \
+                   i.application_id == interaction.application_id
+
+        try:
+            await ctx.bot.wait_for("interaction", timeout=60.0, check=check)
+            reason = modal.reason
+            content = "> " + message.content
+            content = content.replace("\n", "\n> ")
+            text = f"Logging following message: \n`{message.content[:200]}"
+            if len(message.content) > 200:
+                text += "...```"
+            else:
+                text += "```"
+            text += f"\n{reason}"
+            await ctx.invoke(log, args=text)
+        except asyncio.TimeoutError:
+            return
 
 
 async def setup(bot):

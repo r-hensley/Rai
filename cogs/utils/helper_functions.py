@@ -898,3 +898,22 @@ async def hf_sync():
         await here.bot.tree.sync(guild=RY_SERV)
     except discord.Forbidden:
         print("Failed to sync commands to RY_SERV")
+
+
+@app_commands.context_menu(name="Get ID from message")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def get_id_from_message(interaction: discord.Interaction, message: discord.Message):
+    ids = re.findall(r"\d{17,22}", message.content)
+    if ids:
+        await interaction.response.send_message(ids[-1], ephemeral=True)
+        await interaction.followup.send(f"<@{ids[-1]}>", ephemeral=True)
+    else:
+        await interaction.response.send_message("No IDs found in the message", ephemeral=True)
+
+
+@app_commands.context_menu(name="Log a message")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def log_message_context(interaction: discord.Interaction, message: discord.Message):
+    await Interactions.log_message(interaction, message)
