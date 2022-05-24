@@ -109,11 +109,17 @@ class Submod(commands.Cog):
 
         # this memorial exists to forever remember the robot head, may you rest in peace ['_']
         # this comment exists to wonder what the hell the robot head was...
-        for target in targets:
+        for target in targets.copy():
             if hasattr(target, "joined_at"):  # will be false if the user is not in the server
                 joined_at = discord.utils.utcnow() - target.joined_at
             else:
                 joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
+
+            # check if top role of target user is higher than Rai
+            if target.top_role > ctx.guild.me.top_role:
+                await hf.safe_send(ctx, f"I won't be able to ban {str(target)} as their top role is higher than mine.")
+                targets.remove(target)
+                continue
 
             # Allow server helpers on Spanish server to ban users who joined within last 60 minutes
             if not (ctx.guild.id == SP_SERV_ID and
@@ -121,6 +127,9 @@ class Submod(commands.Cog):
                     joined_at < timedelta(minutes=60)) and not \
                     hf.admin_check(ctx):
                 raise commands.MissingPermissions(['ban_members'])
+
+        if not targets:
+            return
 
         # Start constructing embed to send to user
         em = discord.Embed(title=f"You've been banned from {ctx.guild.name}")
@@ -169,7 +178,7 @@ class Submod(commands.Cog):
                 msg = await self.bot.wait_for('message',
                                               timeout=40.0,
                                               check=lambda x: x.author == ctx.author and
-                                              x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
+                                                              x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
             except asyncio.TimeoutError:
                 try:
                     await msg2.delete()

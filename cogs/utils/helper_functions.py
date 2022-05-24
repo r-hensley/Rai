@@ -861,7 +861,7 @@ async def context_view_modlog(interaction: discord.Interaction, member: discord.
 async def context_view_user_stats(interaction: discord.Interaction, member: discord.Member):
     user = here.bot.get_command("user")
     ctx = await commands.Context.from_interaction(interaction)
-    embed = await ctx.invoke(user, post_embed=False)
+    embed = await ctx.invoke(user, member=str(member.id), post_embed=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
