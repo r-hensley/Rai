@@ -84,9 +84,8 @@ class Interactions(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @commands.command()
-    async def sync(self, ctx):
-        """Syncs app commands"""
+    async def sync_main(self):
+        """Main code for syncing app commands"""
         # Sync interactions here in this file
         bot_guilds = [g.id for g in self.bot.guilds]
         for guild_id in [FEDE_TESTER_SERVER_ID, RY_SERVER_ID, SP_SERVER_ID]:
@@ -97,10 +96,15 @@ class Interactions(commands.Cog):
         # Sync context commands in helper_functions()
         await hf.hf_sync()
 
+    @commands.command()
+    async def sync(self, ctx: Optional[commands.Context]):
+        """Syncs app commands"""
+        await self.sync_main()
+
         try:
             await ctx.message.add_reaction("♻")
-        except (discord.HTTPException, discord.Forbidden):
-            pass
+        except (discord.HTTPException, discord.Forbidden, discord.NotFound):
+            await hf.safe_send(ctx, f"**`interactions: commands synced`**", delete_after=5.0)
 
     @app_commands.command()
     @app_commands.guilds(FEDE_GUILD)
@@ -703,6 +707,53 @@ class Interactions(commands.Cog):
             await interaction.response.send_message(f"Voice locking for new users is now {new_state}.",
                                                     ephemeral=True)
 
+    @app_commands.command()
+    @app_commands.guilds(SP_SERVER_ID)
+    @app_commands.default_permissions(manage_roles=True)
+    async def approveforvoice(self, interaction: discord.Interaction, member: discord.Member):
+        """Approve a new user for entering the voice chats before they've waited the typical two hours."""
+        voice_approved_role = interaction.guild.get_role(978148690873167973)
+        try:
+            if voice_approved_role not in member.roles:
+                await member.add_roles(voice_approved_role)
+                await interaction.response.send_message(f"I've successfully attached the role to {member.mention}.",
+                                                        ephemeral=True)
+
+            else:
+                emb = hf.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
+                remove_button = ui.Button(label="Yes, remove it")
+                keep_button = ui.Button(label="No, keep it")
+                view = ui.View()
+
+                async def remove_callback(button_interaction: discord.Interaction):
+                    await member.remove_roles(voice_approved_role)
+                    await button_interaction.response.send_message(
+                        f"I've successfully removed the role from {member.mention}.",
+                        ephemeral=True)
+                    await interaction.edit_original_message(content="⁣", embed=None, view=None)
+
+                async def keep_callback(button_interaction: discord.Interaction):
+                    await button_interaction.response.send_message(
+                        f"I'll keep the role on {member.mention}.",
+                        ephemeral=True)
+                    await interaction.edit_original_message(content="⁣", embed=None, view=None)
+
+                view.add_item(remove_button)
+                view.add_item(keep_button)
+                remove_button.callback = remove_callback
+                keep_button.callback = keep_callback
+
+                await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
+
+                async def on_timeout():
+                    await interaction.edit_original_message(view=None)
+
+                view.on_timeout = on_timeout
+
+        except discord.Forbidden:
+            await interaction.response.send_message(f"I failed to attach the role to the user. It seems I can't edit "
+                                                    f"their roles.", ephemeral=True)
+
     @staticmethod
     async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
         ctx = await commands.Context.from_interaction(interaction)
@@ -863,7 +914,7 @@ class Interactions(commands.Cog):
                 def modal_return_check(i):
                     """Check to make sure the modal submitted corresponds to the current application"""
                     return i.type == discord.InteractionType.modal_submit and \
-                        i.application_id == interaction.application_id
+                           i.application_id == interaction.application_id
 
                 await ctx.bot.wait_for("interaction", timeout=20.0, check=modal_return_check)
             except asyncio.TimeoutError:

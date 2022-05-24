@@ -382,6 +382,9 @@ class Owner(commands.Cog):
             else:
                 try:
                     await self.bot.reload_extension(f'cogs.{cog}')
+                    if cog == 'interactions':
+                        sync = self.bot.get_command('sync')
+                        await ctx.invoke(sync)
                 except Exception as e:
                     await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
                 else:
