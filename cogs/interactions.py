@@ -800,7 +800,7 @@ class Interactions(commands.Cog):
                            f"Please select one of the below options.\n\n"
                            f"**- DELETE:** Bans and __deletes the last one day__ of messages.\n"
                            f"**- KEEP:** Bans and preserves messages.\n"
-                           f"**- CANCEL:** Cancel the ban")
+                           f"**- CANCEL:** Cancels the ban")
         emb.add_field(name="Reason", value=reason)
 
         delete_button = ui.Button(label="DELETE", style=discord.ButtonStyle.red, row=0)
@@ -816,6 +816,8 @@ class Interactions(commands.Cog):
 
         async def delete_callback(button_interaction: discord.Interaction):
             """Ban user and delete last one day of messages"""
+            if button_interaction.user != interaction.user:
+                await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
             # Since all user messages will be deleted, we need to make sure the jump url message isn't one of those
             async for message in ctx.channel.history(limit=30):
                 if message.author in [author, ctx.guild.me]:
@@ -823,23 +825,38 @@ class Interactions(commands.Cog):
                 ctx.message = message
                 break
 
-            await button_interaction.response.send_message(f"Will ban and delete messages ({reason})", ephemeral=True)
-            await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣delete {reason}")
+            await button_interaction.response.send_message(f"Will ban and delete messages", ephemeral=True)
+            try:
+                await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣delete {reason}")
+            except commands.MissingPermissions:
+                await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
             await confirmation_msg.delete()
 
         async def keep_callback(button_interaction: discord.Interaction):
             """Ban user and keep messages"""
-            await button_interaction.response.send_message(f"Will ban and delete messages ({reason})", ephemeral=True)
-            await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
+            if button_interaction.user != interaction.user:
+                await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
+
+            await button_interaction.response.send_message(f"Will ban and delete messages", ephemeral=True)
+            try:
+                await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
+            except commands.MissingPermissions:
+                await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
             await confirmation_msg.delete()
 
         async def cancel_callback(button_interaction: discord.Interaction):
             """Cancel command, delete embed"""
+            if button_interaction.user != interaction.user:
+                await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
+
             await button_interaction.response.send_message(f"Cancelling ban ({reason})", ephemeral=True)
             await confirmation_msg.delete()
 
         async def reason_callback(button_interaction: discord.Interaction):
             """Edit reason of ban"""
+            if button_interaction.user != interaction.user:
+                await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
+
             modal = BanModal()
             await button_interaction.response.send_modal(modal)
             try:
