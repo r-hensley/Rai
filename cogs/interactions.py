@@ -73,7 +73,7 @@ class BanModal(ui.Modal, title='Ban Menu'):
 
 class LogReason(ui.Modal, title='Input Log Reason'):
     default_reason = "(no additional reason given)"
-    reason = ui.TextInput(label='(Optional) Input a reason or context for the message log',
+    reason = ui.TextInput(label='Input a reason or context for the log',
                           style=discord.TextStyle.paragraph,
                           required=True,
                           default=default_reason,
@@ -81,7 +81,7 @@ class LogReason(ui.Modal, title='Input Log Reason'):
                           max_length=1000)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I've added your text into the log reason.", ephemeral=True)
+        await interaction.response.send_message(f"I'll attempt to log the message now.", ephemeral=True)
 
 class PointTransformer(app_commands.Transformer):
     @classmethod
@@ -832,7 +832,7 @@ class Interactions(commands.Cog):
                     reason = modal.reason
                     await ctx.invoke(mute, args=f"{str(member.id)} 1h {reason}")
                 except asyncio.TimeoutError:
-                    await ctx.invoke(mute, args=f"{str(member.id)} 1h")
+                    return
 
             else:
                 await interaction.response.send_message("You don't have the permission to use that command",
@@ -959,6 +959,7 @@ class Interactions(commands.Cog):
     async def log_message(interaction: discord.Interaction,
                           message: discord.Message):
         ctx = await commands.Context.from_interaction(interaction)
+        # ctx.author = interaction.user
         log = ctx.bot.get_command("log")
 
         modal = LogReason()
@@ -972,14 +973,16 @@ class Interactions(commands.Cog):
         try:
             await ctx.bot.wait_for("interaction", timeout=60.0, check=check)
             reason = modal.reason
+            # Add > to make the whole message quoted
+            # Replace [] with () to guarantee the markdown hyperlink works
             content = "> " + message.content
-            content = content.replace("\n", "\n> ")
-            text = f"Logging following message: \n`{message.content[:200]}"
+            content = content.replace("\n", "\n> ").replace("[", "(").replace("]", ")")
+            text = f"{message.author.id} Logging following message: \n[{content[:200]}]({message.jump_url})"
             if len(message.content) > 200:
-                text += "...```"
-            else:
-                text += "```"
-            text += f"\n{reason}"
+                text += "..."
+            text += f"{reason}"
+            print(0)
+            print([text])
             await ctx.invoke(log, args=text)
         except asyncio.TimeoutError:
             return
