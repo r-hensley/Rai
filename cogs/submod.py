@@ -115,10 +115,12 @@ class Submod(commands.Cog):
                 joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
 
             # check if top role of target user is higher than Rai
-            if target.top_role > ctx.guild.me.top_role:
-                await hf.safe_send(ctx, f"I won't be able to ban {str(target)} as their top role is higher than mine.")
-                targets.remove(target)
-                continue
+            if hasattr(target, "top_role"):
+                if target.top_role > ctx.guild.me.top_role:
+                    await hf.safe_send(ctx,
+                                       f"I won't be able to ban {str(target)} as their top role is higher than mine.")
+                    targets.remove(target)
+                    continue
 
             # Allow server helpers on Spanish server to ban users who joined within last 60 minutes
             if not (ctx.guild.id == SP_SERV_ID and
