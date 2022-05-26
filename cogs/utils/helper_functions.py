@@ -24,13 +24,13 @@ from cogs.interactions import Interactions
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 here = sys.modules[__name__]
-here.bot = None
+here.bot: Optional[commands.Bot] = None
 here._loop = None
-
 
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
 SP_SERV_GUILD = discord.Object(SP_SERV_ID)
+FEDE_GUILD = discord.Object(941155953682821201)
 RY_SERV = discord.Object(275146036178059265)
 
 
@@ -148,7 +148,7 @@ async def safe_send(destination,
                     embed=None,
                     delete_after=None,
                     file=None,
-                    view=None,):
+                    view=None, ):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
         if type(destination) == str:
@@ -204,7 +204,8 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
     :return: *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
     *length*: a list with ints [days, hours, minutes]
     """
-    time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$', time)  # group 2, 4, 6, 8: years, days, hours, minutes
+    time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$',
+                        time)  # group 2, 4, 6, 8: years, days, hours, minutes
     if time_re:
         if years := time_re.group(2):
             years: int = int(years)
@@ -393,7 +394,7 @@ def rem_emoji_url(msg):
 
 async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
-    guilds: list[list[discord.Guild, int, str]] = []  # type: 
+    guilds: list[list[discord.Guild, int, str]] = []  # type:
     if member in bans_channel.guild.members:
         ping = False
     for guild in bot.guilds:  # type: discord.Guild
@@ -833,7 +834,7 @@ async def context_member_mute(interaction: discord.Interaction, member: discord.
 @app_commands.guilds(SP_SERV_GUILD)
 @app_commands.default_permissions()
 async def ban_and_clear_message(interaction: discord.Interaction,
-                        message: discord.Message):  # message commands return the message
+                                message: discord.Message):  # message commands return the message
     await Interactions.ban_and_clear_main(interaction, message)
 
 
@@ -841,7 +842,7 @@ async def ban_and_clear_message(interaction: discord.Interaction,
 @app_commands.guilds(SP_SERV_GUILD)
 @app_commands.default_permissions()
 async def ban_and_clear_member(interaction: discord.Interaction,
-                        member: discord.Member):  # message commands return the message
+                               member: discord.Member):  # message commands return the message
     await Interactions.ban_and_clear_main(interaction, member)
 
 
@@ -877,16 +878,23 @@ async def get_id_from_message(interaction: discord.Interaction, message: discord
         await interaction.response.send_message("No IDs found in the message", ephemeral=True)
 
 
+@app_commands.context_menu(name="Log a message")
+@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.default_permissions()
+async def log_message_context(interaction: discord.Interaction, message: discord.Message):
+    await Interactions.log_message(interaction, message)
+
+
 async def hf_sync():
     # Sp serv
-    for command in [delete_and_log, context_message_mute, context_member_mute,
-                    context_view_modlog, context_view_user_stats, get_id_from_message,
-                    ban_and_clear_member, ban_and_clear_message]:
-        here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
+    commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
+                        context_view_modlog, context_view_user_stats, get_id_from_message,
+                        ban_and_clear_member, ban_and_clear_message, log_message_context]
 
-    # Ry serv
-    for command in []:
-        here.bot.tree.add_command(command, guild=RY_SERV, override=True)
+    # Add any commands from this file not currently registered in the tree (new/renamed commands)
+    for command in commands_in_file:
+        # if command.name not in command_names_in_tree:
+        here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
 
     # Try to sync
     try:
@@ -894,26 +902,14 @@ async def hf_sync():
     except discord.Forbidden:
         print("Failed to sync commands to SP_SERV_GUILD")
 
+    # Ry serv
+    for command in []:
+        if command not in here.bot.tree.get_commands(guild=RY_SERV):
+            here.bot.tree.add_command(command, guild=RY_SERV, override=True)
+
     try:
         await here.bot.tree.sync(guild=RY_SERV)
     except discord.Forbidden:
         print("Failed to sync commands to RY_SERV")
 
 
-@app_commands.context_menu(name="Get ID from message")
-@app_commands.guilds(SP_SERV_GUILD)
-@app_commands.default_permissions()
-async def get_id_from_message(interaction: discord.Interaction, message: discord.Message):
-    ids = re.findall(r"\d{17,22}", message.content)
-    if ids:
-        await interaction.response.send_message(ids[-1], ephemeral=True)
-        await interaction.followup.send(f"<@{ids[-1]}>", ephemeral=True)
-    else:
-        await interaction.response.send_message("No IDs found in the message", ephemeral=True)
-
-
-@app_commands.context_menu(name="Log a message")
-@app_commands.guilds(SP_SERV_GUILD)
-@app_commands.default_permissions()
-async def log_message_context(interaction: discord.Interaction, message: discord.Message):
-    await Interactions.log_message(interaction, message)

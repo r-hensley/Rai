@@ -132,7 +132,6 @@ class Questions(commands.Cog):
         # a thread was unarchived, open a question for it
         elif before.archived and not after.archived:
             for question in questions:
-                print(question, after.id)
                 if after.id == questions[question].get('thread', 0):
                     return  # a question for this thread already exists
             if after.id == channel_config['log_channel']:
