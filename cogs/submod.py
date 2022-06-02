@@ -281,6 +281,11 @@ class Submod(commands.Cog):
     @hf.is_submod()
     async def warn(self, ctx, *, args):
         """Log a mod incident"""
+        # If log came from context command, first two characters of args will be "⁣⁣". Remove those and set ephemeral
+        # variable:
+        if ephemeral := args.startswith('⁣⁣'):
+            args = args[2:]
+
         args = hf.args_discriminator(args)
 
         user_ids = args.user_ids
@@ -422,7 +427,11 @@ class Submod(commands.Cog):
                     await hf.safe_send(modlog_channel, embed=emb)
 
             # Send notification (confirmation) to current channel
-            await hf.safe_send(ctx, embed=emb)
+            if ephemeral:  # True if this came from context command
+                return emb  # send the embed back to be used in the ephemeral followup send
+            else:
+                await hf.safe_send(ctx, embed=emb)
+
 
     @warn.command(name="set")
     @hf.is_submod()

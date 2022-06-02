@@ -981,9 +981,13 @@ class Interactions(commands.Cog):
             if len(message.content) > 200:
                 text += "..."
             text += f"{reason}"
-            print(0)
-            print([text])
-            await ctx.invoke(log, args=text)
+
+            # add invisible characters to beginning of reason to mark ephemeral for log command
+            invisible_space = "⁣⁣"
+            text = invisible_space + text
+
+            emb = await ctx.invoke(log, args=text)
+            await interaction.followup.send(embed=emb, ephemeral=True)
         except asyncio.TimeoutError:
             return
 

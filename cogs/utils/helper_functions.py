@@ -148,7 +148,7 @@ async def safe_send(destination,
                     embed=None,
                     delete_after=None,
                     file=None,
-                    view=None, ):
+                    view=None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
         if type(destination) == str:
