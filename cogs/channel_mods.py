@@ -264,7 +264,8 @@ class ChannelMods(commands.Cog):
             args += ' -s'
         else:
             args = ' -s'
-        await ctx.invoke(warn, args=args)
+        emb = await ctx.invoke(warn, args=args)
+        return emb
 
     @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     @hf.is_admin()
