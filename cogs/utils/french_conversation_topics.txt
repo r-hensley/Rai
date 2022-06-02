@@ -53,10 +53,10 @@ Quels sont les trois mots qui te décrivent parfaitement ?
 Quels sont quelques-uns de tes réflexes Pavlovien ?
 Qui t'inspire à être mieux ?
 Sur quel sujet pourrais-tu faire une présentation de 40 minutes sans aucune préparation ?
-Tu es allé(e) où le week-end dernier ? Tu as fait quoi le week-end dernier ? 
+Tu es allé·e où le week-end dernier ? Tu as fait quoi le week-end dernier ? 
 Tu ferras quoi ce week-end ?
 Préférerais-tu être marié à un 10 avec une mauvaise personalité, ou à un 6 avec une personalité incroyable ?
-Préférerais-tu pouvoir parler aux animals terrestres, aux animals volent, ou aux animals aquatiques ?
+Préférerais-tu pouvoir parler aux animaux terrestres, aux animals volants, ou aux animals aquatiques ?
 Préférerais-tu passer le reste de ta vie avec un voilier comme ta maison, ou un  camping-car comme ta maison ?
 Préférerais-tu renoncer à toute boisson sauf pour l'éau, ou renoncer à manger tout qui a été cuit au four ? 
 Préférerais-tu pouvoir voir 10 minutes dans ton propre futur, ou pouvoir voir 10 minutes dans le futur de n'importe qui sauf toi ?
@@ -76,7 +76,7 @@ Préférerais-tu voyager à travers le monde pendant un an avec un petit budget,
 Préférerais-tu vivre dans une réalité virtuelle où tu serais tout puissant ou vivre dans le monde réel et avoir la capacité d'aller où tu veux mais sans pouvoir intéragir avec quiconque ni quoi que ce soit ?
 Préférerais-tu avoir tout ce à quoi tu penses apparaître au dessus de ta tête ou bien que tout ce que tu fais sois live-streamed et que tout le monde puisse le voir ?
 Préférerais-tu voir les rares films avec un score au dessus de 95% sur Rotten Tomatoes ou bien regarder une majorité des films avec un score inférieur à 94% sur Rotten Tomatoes ?
-Préférerais-tu te réveiller chaque année dans la peau d'une nouvelle personne et avoir un contrôle total sur elle pendant toute l'année ou passer une journée chaque semaine dans la peau d'un étranger sans sans avoir aucun contrôle sur lui ?
+Préférerais-tu te réveiller chaque année dans la peau d'une nouvelle personne et avoir un contrôle total sur elle pendant toute l'année ou passer une journée chaque semaine dans la peau d'un étranger sans avoir aucun contrôle sur lui ?
 Préférerais-tu savoir à quel point tu es supérieur ou inférieur de la norme dans tous les domaines ou seulement savoir si tu es au dessus ou en dessous de la norme pour une compétence particulière d'un simple regard ?
 Préférerais-tu atteindre l'âge de 200 ans mais ressembler tout du long à quelqu'un qui a 200 ans malgré ta santé ou ressembler à quelqu'un qui a 25 ans jusqu'à ton décès à 65 ans ?
 Préférerais-tu être un centaure inverse ou une sirène inverse ?
@@ -354,7 +354,7 @@ Aimes-tu les documentaires ? Pourquoi ou pourquoi pas ?
 Quel est le pire film que tu aies vu récemment ?
 Quel est le film le plus étrange que tu aies jamais vu ?
 Aimes-tu les films d'horreur ? Pourquoi ou pourquoi pas ?
-C'est quand la dernière fois que tu es allé au cinéma ?
+C'est quand la dernière fois que tu es allé·e au cinéma ?
 Quel est le dernier film que tu as regardé ? Comment était-il ?
 Les films ont-ils le même pouvoir que les livres pour changer le monde ?
 Préfères-tu regarder des films au cinéma ou chez toi ?
@@ -639,7 +639,7 @@ Qui est/était ton ami le plus intéressant ?
 Sur quoi as-tu le plus de chances de te tromper ?
 Quelle est la chose la plus immature que tu fasses ?
 Quel est le stéréotype auquel tu corresponds le plus ?
-Quelle est la leçon la plus importante que tu n'as JAMAIS apprise ?
+Quelle est la leçon la plus importante que tu n'aies JAMAIS apprise ?
 De quelle réalisation idiote es-tu le plus fier·ère ?
 Quel est le cadeau le plus mémorable que tu aies reçu ?
 En quels chapitres séparerais-tu ton autobiographie ?
