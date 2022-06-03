@@ -329,13 +329,13 @@ class Events(commands.Cog):
                 return
             messages = (number_of_messages < 50)  # only potentially ban users who are inactive to avoid false positives
 
-            # Force a ban for users with a URL + "nitro" in their message and under 10 messages in the last month
-            url_regex = r"https:\/\/(?!(discord|discordapp|discordstatus)\.)[a-zA-Z0-9_\-\.]*\.(com|gift|xyz|ru)"
-            if messages < 10 or (messages < 100 and "@everyone" in msg.content):
-                if re.findall(url_regex, msg.content.casefold()):
-                    if "nitro" in msg.content.casefold() or "Whо is first?" in msg.content.casefold():
-                        if msg.guild.id == SP_SERVER_ID:  # for now, only on Spanish server to test
-                            everyone = messages = True
+            # # Force a ban for users with a URL + "nitro" in their message and under 10 messages in the last month
+            # url_regex = r"https:\/\/(?!(discord|discordapp|discordstatus)\.)[a-zA-Z0-9_\-\.]*\.(com|gift|xyz|ru)"
+            # if number_of_messages < 10 or (number_of_messages < 100 and "@everyone" in msg.content):
+            #     if re.findall(url_regex, msg.content.casefold()):
+            #         if "nitro" in msg.content.casefold() or "Whо is first?" in msg.content.casefold():
+            #             if msg.guild.id == SP_SERVER_ID:  # for now, only on Spanish server to test
+            #                 everyone = messages = True
 
             # edit out typical modifications to the URLs to standardized urls for more generality
             msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
