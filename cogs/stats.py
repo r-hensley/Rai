@@ -117,6 +117,12 @@ class Stats(commands.Cog):
         except KeyError:
             return
 
+        # If user in bot.db['joindates'], override their join date for users who have left and rejoined server
+        if member:
+            if str(member.id) in self.bot.db['joindates']:
+                actual_joined_timestamp = self.bot.db['joindates'][str(member.id)]
+                member.joined_at = datetime.fromtimestamp(actual_joined_timestamp, tz=timezone.utc)
+
         # ### Collect all the data from the database ###
         emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
         message_count = {}

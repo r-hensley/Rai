@@ -735,6 +735,36 @@ class Owner(commands.Cog):
             f = discord.File(buffer, filename="text.txt")
             await ctx.send("Result was over 2000 characters", file=f)
 
+    @commands.command()
+    async def joindate(self, ctx, user, jump_url):
+        """
+        Adds a user to the manual join date database if you link to their first message with a jump url
+        """
+        user_id = re.findall(r"<?@?!?(\d{17,22})>?", user)  # a list containing the IDs in user
+        if user_id:
+            user_id = user_id[0]  # get the ID
+        else:
+            await hf.safe_send(ctx, "Failed to parse user")
+            return
+
+        channel_message_id = re.findall(r"https:\/\/(?:.*\.)?.*\.com\/channels\/\d{17,22}\/(\d{17,22})\/(\d{17,22})",
+                                        jump_url)
+        if channel_message_id:
+            channel_id = int(channel_message_id[0][0])
+            message_id = int(channel_message_id[0][1])
+        else:
+            await hf.safe_send(ctx, "Failed to parse jump url")
+            return
+
+        channel = self.bot.get_channel(channel_id)
+        message = await channel.fetch_message(message_id)
+
+        new_join_date_timestamp = message.created_at.timestamp()
+        self.bot.db['joindates'][user_id] = new_join_date_timestamp
+
+        await hf.safe_send(ctx, embed=hf.green_embed(f"Set new join date for <@{user_id}> to "
+                                                     f"<t:{int(new_join_date_timestamp)}:f>"))
+
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
