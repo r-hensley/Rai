@@ -1392,7 +1392,7 @@ class ChannelMods(commands.Cog):
             try:
                 if modlog_channel:
                     if modlog_channel != ctx.channel:
-                        await hf.safe_send(modlog_channel, embed=emb)
+                        await hf.safe_send(modlog_channel, target.id, embed=emb)
             except AttributeError:
                 await hf.safe_send(ctx, embed=emb)
 
