@@ -148,6 +148,15 @@ class Submod(commands.Cog):
             if '-c' in reason:
                 reason = '⠀' + reason  # invisible space = crosspost
             em.add_field(name="Reason:", value=reason)
+
+            # If the current guild is in Modbot's appeals server, add a field for the link to that server
+            # so users can appeal their bans
+            ban_appeal_server: discord.Guild = self.bot.get_guild(985963522796183622)
+            ban_appeal_server_invite_link = "https://discord.gg/pnHEGPah8X"
+            if ban_appeal_server:
+                if discord.utils.get(ban_appeal_server.text_channels, topic=str(ctx.guild.id)):
+                    em.add_field(name="Server for appealing your ban", value=ban_appeal_server_invite_link,
+                                 inline=False)
         if not slash:
             await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
         msg2 = f"Do you wish to continue?  Options:\n" \
