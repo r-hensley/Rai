@@ -198,10 +198,10 @@ class General(commands.Cog):
         """Provides a random conversation topic.
         Hint: make sure you also answer "why". Challenge your friends on their answers.
         If you disagree with their answer, talk it out."""
-        if ctx.guild.id == FRENCH_SERVER_ID:
-            path = f"{dir_path}/cogs/utils/french_conversation_topics.txt"
-        else:
-            path = f"{dir_path}/cogs/utils/conversation_topics.txt"
+        path = f"{dir_path}/cogs/utils/conversation_topics.txt"
+        if ctx.guild:
+            if ctx.guild.id == FRENCH_SERVER_ID:
+                path = f"{dir_path}/cogs/utils/french_conversation_topics.txt"
 
         topics = [line.rstrip('\n') for line in open(path, 'r', encoding='utf8')]
         topic = choice(topics)
