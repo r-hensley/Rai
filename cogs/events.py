@@ -684,7 +684,7 @@ class Events(commands.Cog):
                     elif isinstance(msg.channel, discord.TextChannel):
                         channel_id = msg.channel.id
                     else:
-                        return
+                        return None, False
                     if channel_id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
                         hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
                         if hardcore_role in msg.author.roles:
