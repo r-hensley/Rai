@@ -424,7 +424,7 @@ class Submod(commands.Cog):
             # Send notification to modlog channel if the modlog channel isn't current channel
             if modlog_channel:
                 if modlog_channel != ctx.channel:
-                    await hf.safe_send(modlog_channel, embed=emb)
+                    await hf.safe_send(modlog_channel, user.id, embed=emb)
 
             # Send notification (confirmation) to current channel
             if ephemeral:  # True if this came from context command

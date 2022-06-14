@@ -1419,7 +1419,7 @@ class Logger(commands.Cog):
             emb.set_footer(text=f"Muted by {author.name} ({author.id})")
             try:
                 if modlog_channel:
-                    await hf.safe_send(modlog_channel, embed=emb)
+                    await hf.safe_send(modlog_channel, after.id, embed=emb)
             except AttributeError:
                 pass
         await check_timeouts()
@@ -1688,7 +1688,7 @@ class Logger(commands.Cog):
                 return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await hf.safe_send(channel, embed=ban_emb)
+                await hf.safe_send(channel, member.id, embed=ban_emb)
 
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 # ⁣ is a flag to *skip* crossposting
