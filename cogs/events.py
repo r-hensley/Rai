@@ -41,17 +41,26 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
+        ctx = await self.bot.get_context(msg)
+
         if msg.author.bot:
-            if msg.author.id != 720900750724825138:  # a window for BurdBot to post questions to AOTW
+            # for BurdBot to post questions to AOTW
+            if msg.author.id == 720900750724825138:
+                pass
+            # for modbot to call the modlog of users in report rooms
+            if msg.author.id == 713245294657273856 and msg.content.startswith(";ml"):
+                modlog = self.bot.get_command("modlog")
+                await ctx.invoke(modlog, id_in=msg.content[4:])
+                return
+            else:
                 return
 
+        # if you want something to happen everytime you say something for debugging, put it here
         if msg.author.id == self.bot.owner_id:
             pass
 
         if not self.bot.is_ready:
             return
-
-        ctx = await self.bot.get_context(msg)
 
         ##########################################
 

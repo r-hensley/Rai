@@ -44,7 +44,7 @@ List of commands for Rai bot.
 These are usable by anyone, mostly just for fun or light general utility.
 - **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
 - **`;eraser`** Erases the last character of your nickname, supposedly a :pencil:, made in conjunction with ;pencil.  Mostly a joke command
-- **`;github`** Shows my github page
+- **`;github`** Shows my GitHub page
 - **`;invite`** Gives an invite to invite Rai to your server
 - **`;jisho <text>`** Links to a Jisho search of the text you cite.  Useful for people who ask questions that could be answered with a simple jisho search.
 - **`;lb`** Shows the guild leaderboard.
