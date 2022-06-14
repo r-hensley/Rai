@@ -213,26 +213,28 @@ class General(commands.Cog):
 
         if 'topics' not in self.bot.db:
             self.bot.db['topics'] = {}
-        config: dict = self.bot.db['topics'].setdefault(str(ctx.guild.id), {})
-
-        last_occurence: str = config.get(idx, {}).get('jump_url', '')
-        number_of_times: int = config.get(idx, {}).get('number', 0)
 
         description = f"__Topic {idx}/{len(topics)}__\n" \
                       f"**{topic}**"
 
-        if last_occurence:
-            if number_of_times > 1:
-                s = 's'
-            else:
-                s = ''
+        if config := ctx.guild:
+            config: dict = self.bot.db['topics'].setdefault(str(ctx.guild.id), {})
+            last_occurence: str = config.get(idx, {}).get('jump_url', '')
+            number_of_times: int = config.get(idx, {}).get('number', 0)
 
-            description += f"\n[`(chosen {number_of_times} time{s}, last time here)`]({last_occurence})"
+            if last_occurence:
+                if number_of_times > 1:
+                    s = 's'
+                else:
+                    s = ''
+
+                description += f"\n[`(chosen {number_of_times} time{s}, last time here)`]({last_occurence})"
 
         try:
             sent_msg = await hf.safe_send(ctx, embed=discord.Embed(description=description, color=color))
-            config[idx] = {'number': config.get('number', 0) + 1,
-                           'jump_url': sent_msg.jump_url}
+            if ctx.guild:
+                config[idx] = {'number': config.get('number', 0) + 1,
+                               'jump_url': sent_msg.jump_url}
         except discord.Forbidden:
             pass
 
