@@ -1200,6 +1200,29 @@ class Questions(commands.Cog):
             except discord.Forbidden:
                 pass
 
+    @staticmethod
+    async def get_number_google_results(ctx, site, engine_id, search_term) -> str:
+        """
+        Returns number of Google results for a search term.
+        site: Can limit search results to a certain site. Input URL like https://twitter.com
+        """
+        with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
+            url = f'https://www.googleapis.com/customsearch/v1' \
+                  f'?exactTerms={search_term}' \
+                  f'&key={read_file.read()}' \
+                  f'&cx={engine_id}'  # %22 is quotation mark
+            if site:
+                url += f"&siteSearch={site}"
+
+        data = await aiohttp_get(ctx, url)
+
+        num_of_results = data.split('"formattedTotalResults": "')[1].split('"')[0]
+        try:
+            return num_of_results
+        except ValueError:
+            return "0"
+
+
     @commands.command(aliases=['sc'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(1, 5, type=commands.BucketType.user)
@@ -1210,8 +1233,12 @@ class Questions(commands.Cog):
 
         Examples: `;sc おはよう おはよー`   `;sc こんにちは こんにちわ こにちわ`
 
-        Prefix the terms with one `site:<site>` to limit the search to one site.
-        Example: `;sc site:twitter.com ワロタ 笑`"""
+        Prefix the terms with one `site:<site>` to limit the search to one site in the google.jp portion.
+        Example: `;sc site:twitter.com ワロタ 笑`
+
+        News sites index from top ten news sites in Japan:
+        `news24`, `nhk`, `rocketnews24`, `asahi`, `jiji`,
+        `nikkei`, `oricon`, `sankei`, `yomiuri`, `news.yahoo.co.jp`"""
         if not search_terms:
             await hf.safe_send(ctx, ctx.command.help)
             return
@@ -1226,72 +1253,43 @@ class Questions(commands.Cog):
             site = None
 
         # ### Call the search ###
-        engine_id = 'c7afcd4ef85db31a2'
         results = {}
+        s = ''
         for search_term in search_terms:
-            with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
-                url = f'https://www.googleapis.com/customsearch/v1' \
-                      f'?exactTerms={search_term}' \
-                      f'&key={read_file.read()}' \
-                      f'&cx={engine_id}'  # %22 is quotation mark
-                if site:
-                    url += f"&siteSearch={site}"
+            s += f"__{search_term}__\n"
 
-            data = await aiohttp_get(ctx, url)
+            # Normal google results
+            engine_id = 'c7afcd4ef85db31a2'
+            num_of_google_results = await self.get_number_google_results(ctx, site, engine_id, search_term) or "0"
+            url = f'https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0&gsc.q=%22{quote(search_term)}%22'  # %22 --> "
+            if site:
+                url += f"%20site:{site}"
+            s += f"[google.jp]({url}): 約{num_of_google_results}件\n"
 
-            try:
-                key = f"[{search_term}](https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0" \
-                      f'&gsc.q="{search_term}")'
-                if site:
-                    key = key[:-1] + f"%20site:{site})"
-                results[key] = data.split('"formattedTotalResults": "')[1].split('"')[0]
-            except IndexError:
-                await hf.safe_send(ctx, "There was an error retrieving the results.")
-                return
+            # News sites
+            engine_id = 'cbbca2d78e3d9fb2d'
+            num_of_news_results = await self.get_number_google_results(ctx, site, engine_id, search_term) or "0"
+            url = f"https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0&gsc.q=%22{quote(search_term)}%22"
+            s += f"[News sites]({url}): 約{num_of_news_results}件\n"
 
-        s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
-        await hf.safe_send(ctx, embed=discord.Embed(title="Google search results", description=s, color=0x0C8DF0))
+            # Massif
+            massif_result = await self.get_massif_results(ctx, search_term)
+            num_of_massif_results: str = massif_result['hits'] or 0
+            num_of_massif_results = f"{num_of_massif_results:,}"
+            if massif_result['hits_limited']:
+                num_of_massif_results += "+"
+            url = f"https://massif.la/ja/search?q={quote(search_term)}"
+            s += f"[Massif]({url}): {num_of_massif_results}\n"
 
-    @commands.command(aliases=['nsc', 'ns', 'nc'])
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    @commands.cooldown(1, 5, type=commands.BucketType.user)
-    async def newssearchcompare(self, ctx, *search_terms):
-        """Compares number of results from top ten Japanese news sites:
-        `news24`, `nhk`, `rocketnews24`, `asahi`, `jiji`,
-        `nikkei`, `oricon`, `sankei`, `yomiuri`, `news.yahoo.co.jp`
+            # Yourei
+            yourei_result = await self.get_yourei_results(ctx, search_term)
+            num_yourei_results = getattr(yourei_result.find(id="num-examples"), "text", "0")
+            url = f"https://yourei.jp/{quote(search_term)}"
+            s += f"[Yourei]({url}): {num_yourei_results}\n"
 
-        Usage: `;nsc <term1> <term2> ...`. Use quotation marks to input a term with multiple words.
+            s += "\n"  # Split different search terms
 
-        Examples: `;nsc おはよう おはよー`   `;nsc こんにちは こんにちわ こにちわ`"""
-        if not search_terms:
-            await hf.safe_send(ctx, ctx.command.help)
-            return
-        if len(search_terms) > 5:
-            await hf.safe_send(ctx, "Please input less terms. You'll kill my bot!!")
-            return
-
-        # ### Call the search ###
-        engine_id = 'cbbca2d78e3d9fb2d'
-        results = {}
-        for search_term in search_terms:
-            with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
-                url = f'https://www.googleapis.com/customsearch/v1' \
-                      f'?exactTerms={search_term}' \
-                      f'&key={read_file.read()}' \
-                      f'&cx={engine_id}'  # %22 is quotation mark
-
-            data = await aiohttp_get(ctx, url)
-
-            try:
-                results[f"[{search_term}](https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0"
-                        f"&gsc.q=%22{search_term}%22)"] = \
-                    data.split('"formattedTotalResults": "')[1].split('"')[0]
-            except IndexError:
-                await hf.safe_send(ctx, "There was an error retrieving the results.")
-                return
-
-        s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
-        await hf.safe_send(ctx, embed=discord.Embed(title="News sites search results", description=s, color=0x7900F7))
+        await hf.safe_send(ctx, embed=discord.Embed(title="Search comparison results", description=s, color=0x0C8DF0))
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -1484,6 +1482,18 @@ class Questions(commands.Cog):
         msg = await hf.safe_send(ctx, embed=emb)
         await wait_for_delete(msg)
 
+    async def get_massif_results(self, ctx, search_term):
+        url_quoted_search_term = quote(search_term)
+        url = f"https://massif.la/ja/search?q={url_quoted_search_term}&fmt=json"
+
+        text = await aiohttp_get(ctx, url)
+        if not text:
+            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            return
+
+        jr = json.loads(text)
+        return jr
+
     @commands.command()
     async def massif(self, ctx, *, search_term):
         """Performs a search on the massif database. Note most of the sentences
@@ -1499,12 +1509,9 @@ class Questions(commands.Cog):
         url_quoted_search_term = quote(search_term)
         url = f"https://massif.la/ja/search?q={url_quoted_search_term}&fmt=json"
 
-        text = await aiohttp_get(ctx, url)
-        if not text:
-            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+        jr = await self.get_massif_results(ctx, search_term)
+        if not jr:
             return
-
-        jr = json.loads(text)
 
         # Sample JSON data:
         # {
@@ -1599,7 +1606,10 @@ class Questions(commands.Cog):
         num_examples = int(num_examples.replace(',', ''))  # an int 13381
 
         if not num_examples:
-            await hf.safe_send(ctx, embed=hf.red_embed("Your search returned no results."))
+            await hf.safe_send(ctx, embed=hf.red_embed("Your search returned no results. Note, this probably means "
+                                                       "your word or phrase wasn't in yourei's (limited) database "
+                                                       "rather than it never appearing in literature. The database "
+                                                       "focuses mainly on single words or very short phrases."))
             return
 
         # results now should be a list of sentence tags, bs4.element.Tag
