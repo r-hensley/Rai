@@ -1372,6 +1372,9 @@ class Logger(commands.Cog):
                         time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         reason = entry.reason
 
+                        if reason == 'CIRI_SELFMUTE':
+                            return
+
                         if time_left < 70:  # 60 SEC
                             timeout_length = 60
                             timeout_length_str = "1m"
