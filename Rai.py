@@ -372,7 +372,11 @@ def run_bot():
         if "Rai Test" in os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
             bot.run(key + 'M')  # Rai Test
         elif "Rai" == os.path.basename(dir_path) and os.getenv("OWNER_ID") == "202995638860906496":
-            bot.run(key + 'k')  # Rai
+            try:
+                bot.run(key + 'k')  # Rai
+            except discord.LoginFailure:
+                bot = Rai()
+                bot.run(key + 'M')  # Rai test anyway
         else:
             bot.run(key)
 

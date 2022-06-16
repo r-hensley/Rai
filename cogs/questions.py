@@ -1,13 +1,18 @@
+import re
+import os
+import json
+import asyncio, aiohttp
+from datetime import date, timedelta
+from typing import Optional
+from urllib.parse import quote
+
 import discord
 from discord.ext import commands
-from .utils import helper_functions as hf
-import asyncio, aiohttp, async_timeout
 from bs4 import BeautifulSoup
-import re
-import json
-from datetime import date, timedelta
+from Levenshtein import distance as LDist
 
-import os
+from .utils import helper_functions as hf
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
@@ -112,7 +117,7 @@ class Questions(commands.Cog):
 
             if human_closed:  # a user manually archived the thread ==> close the question
                 try:
-                    last_message = await after.history(limit=1).flatten()  # returns a list of length 1
+                    last_message = [message async for message in after.history(limit=1)]  # returns a list of length 1
                     last_message = last_message[0]  # get the first message in it
                     if not last_message:
                         raise discord.NotFound
@@ -139,7 +144,6 @@ class Questions(commands.Cog):
             opening_message = await after.parent.fetch_message(after.id)
             ctx = await self.bot.get_context(opening_message)
             await self.question(ctx, args=opening_message.content)  # open the question
-
 
     def get_color_from_name(self, ctx):
         config = self.bot.db['questions'][str(ctx.channel.guild.id)]
@@ -214,8 +218,8 @@ class Questions(commands.Cog):
                 thread_id = thread.id
             except discord.Forbidden:
                 await hf.safe_send(ctx, "You've enabled thread support for this channel but I don't have the "
-                                   "permission to create threads in this channel. Please fix this or rerun "
-                                   "`;q setup` and choose to disable thread support.")
+                                        "permission to create threads in this channel. Please fix this or rerun "
+                                        "`;q setup` and choose to disable thread support.")
                 return
         else:
             thread_id = None
@@ -252,7 +256,7 @@ class Questions(commands.Cog):
 
             emb.add_field(name=f"Jump Link to Question:", value=jump_links)
         else:
-            emb.add_field(name=f"Question:", value=f"{title[:1023-len(jump_links)]}\n{jump_links}")
+            emb.add_field(name=f"Question:", value=f"{title[:1023 - len(jump_links)]}\n{jump_links}")
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
 
@@ -395,6 +399,7 @@ class Questions(commands.Cog):
                 return (m.author == ctx.author) and \
                        (m.channel == ctx.channel) and \
                        (m.content.casefold() in ['yes', 'no'])
+
             msg_4 = await self.bot.wait_for('message', timeout=20.0, check=check)
         except asyncio.TimeoutError:
             await msg_3.edit(content="Question has timed out. Please restart the command.", delete_after=10.0)
@@ -431,7 +436,7 @@ class Questions(commands.Cog):
                                f"This channel is not setup as a questions channel.  Please make sure you mark your "
                                f"question as 'answered' in the channel you asked it in.")
             return
-        except AttributeError: # NoneType object has no attribute 'id' (used in a DM)
+        except AttributeError:  # NoneType object has no attribute 'id' (used in a DM)
             return
         questions = config['questions']
         args = args.split(' ')
@@ -442,7 +447,7 @@ class Questions(commands.Cog):
                 if ctx.author.id == questions[question_number]['author']:
                     return int(question_number)  # question author can use just ";q a"
                 if questions[question_number].get('thread', 0) == ctx.channel.id:
-                    return int(question_number)   # mods can also use it in a thread
+                    return int(question_number)  # mods can also use it in a thread
             await hf.safe_send(ctx, f"Only the asker of the question can omit stating the question ID.  You "
                                     f"must specify which question  you're trying to answer: `;q a <question id>`.  "
                                     f"For example, `;q a 3`.")
@@ -710,10 +715,10 @@ class Questions(commands.Cog):
                 continue
             if first:
                 first = False
-                emb.description=f"**__#{question_channel.name}__**"
+                emb.description = f"**__#{question_channel.name}__**"
             else:
                 if channel_config:
-                    emb.add_field(name=f"⁣**__{'　'*30}__**⁣",
+                    emb.add_field(name=f"⁣**__{'　' * 30}__**⁣",
                                   value=f'**__#{question_channel.name}__**', inline=False)
             for question in channel_config.copy():
                 try:
@@ -905,7 +910,7 @@ class Questions(commands.Cog):
         emb: discord.Embed = log_message.embeds[0]
         value_text = f"⁣⁣⁣\n[Jump URL]({ctx.message.jump_url})"
         emb.add_field(name=f"Response by {ctx.author.name}#{ctx.author.discriminator}",
-                      value=value_text.replace('⁣⁣⁣', response[:1024-len(value_text)]))
+                      value=value_text.replace('⁣⁣⁣', response[:1024 - len(value_text)]))
         await log_message.edit(embed=emb)
         config['questions'][index].setdefault('responses', []).append(ctx.message.jump_url)
         await self._delete_log(ctx)
@@ -1018,17 +1023,7 @@ class Questions(commands.Cog):
         if site:
             url += f"&siteSearch={site}"
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    response = resp
-                    data = await resp.text()
-        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-            return
-        if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
-            return
+        data = await aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
@@ -1143,17 +1138,7 @@ class Questions(commands.Cog):
                   f'&cx={engine_id}' \
                   f'&key={read_file.read()}'
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    response = resp
-                    data = await resp.text()
-        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-            return
-        if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
-            return
+        data = await aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
@@ -1251,26 +1236,17 @@ class Questions(commands.Cog):
                       f'&cx={engine_id}'  # %22 is quotation mark
                 if site:
                     url += f"&siteSearch={site}"
+
+            data = await aiohttp_get(ctx, url)
+
             try:
-                with async_timeout.timeout(10):
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(url) as resp:
-                            response = resp
-                            data = await resp.text()
-                            try:
-                                key = f"[{search_term}](https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0" \
-                                      f'&gsc.q="{search_term}")'
-                                if site:
-                                    key = key[:-1] + f"%20site:{site})"
-                                results[key] = data.split('"formattedTotalResults": "')[1].split('"')[0]
-                            except IndexError:
-                                await hf.safe_send(ctx, "There was an error retrieving the results.")
-                                return
-            except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-                await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-                return
-            if response.status != 200:
-                await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+                key = f"[{search_term}](https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0" \
+                      f'&gsc.q="{search_term}")'
+                if site:
+                    key = key[:-1] + f"%20site:{site})"
+                results[key] = data.split('"formattedTotalResults": "')[1].split('"')[0]
+            except IndexError:
+                await hf.safe_send(ctx, "There was an error retrieving the results.")
                 return
 
         s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
@@ -1304,24 +1280,14 @@ class Questions(commands.Cog):
                       f'&key={read_file.read()}' \
                       f'&cx={engine_id}'  # %22 is quotation mark
 
+            data = await aiohttp_get(ctx, url)
+
             try:
-                with async_timeout.timeout(10):
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(url) as resp:
-                            response = resp
-                            data = await resp.text()
-                            try:
-                                results[f"[{search_term}](https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0"
-                                        f"&gsc.q=%22{search_term}%22)"] = \
-                                    data.split('"formattedTotalResults": "')[1].split('"')[0]
-                            except IndexError:
-                                await hf.safe_send(ctx, "There was an error retrieving the results.")
-                                return
-            except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-                await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-                return
-            if response.status != 200:
-                await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+                results[f"[{search_term}](https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0"
+                        f"&gsc.q=%22{search_term}%22)"] = \
+                    data.split('"formattedTotalResults": "')[1].split('"')[0]
+            except IndexError:
+                await hf.safe_send(ctx, "There was an error retrieving the results.")
                 return
 
         s = '\n'.join([f"**{x}**: 約{results[x]}件" for x in results])
@@ -1335,8 +1301,9 @@ class Questions(commands.Cog):
             await ctx.message.delete()
         except (discord.Forbidden, discord.HTTPException):
             pass
+        pretty_url = "https://jisho.org/search/" + text.replace(" ", "%20").replace("　", "%E3%80%80")
         await hf.safe_send(ctx, f"Try finding the meaning to the word you're looking for here: "
-                                f"https://jisho.org/search/{text}")
+                                f"{pretty_url}")
 
     @commands.command(aliases=['diff'])
     async def difference(self, ctx, *, query):
@@ -1367,15 +1334,15 @@ class Questions(commands.Cog):
             await hf.safe_send(ctx, "You have to input a search term!")
             return
 
-        dictionaries = {"dojg/dojgpages/basic": "A Dictionary of Basic Japanese Grammar",
-                        "basic": "A Dictionary of Basic Japanese Grammar",
-                        "dojg/dojgpages/intermediate": "A Dictionary of Intermediate Japanese Grammar",
-                        "intermediate": "A Dictionary of Intermediate Japanese Grammar",
-                        "dojg/dojgpages/advanced": "A Dictionary of Advanced Japanese Grammar",
-                        "advanced": "A Dictionary of Advanced Japanese Grammar",
-                        "https://core6000.neocities.org/hjgp/": "Handbook of Japanese Grammar",
-                        "handbook": "Handbook of Japanese Grammar",
-                        "donnatoki": "どんなときどう使う 日本語表現文型辞典"}
+        dictionaries: dict[str: str] = {"dojg/dojgpages/basic": "A Dictionary of Basic Japanese Grammar",
+                                        "basic": "A Dictionary of Basic Japanese Grammar",
+                                        "dojg/dojgpages/intermediate": "A Dictionary of Intermediate Japanese Grammar",
+                                        "intermediate": "A Dictionary of Intermediate Japanese Grammar",
+                                        "dojg/dojgpages/advanced": "A Dictionary of Advanced Japanese Grammar",
+                                        "advanced": "A Dictionary of Advanced Japanese Grammar",
+                                        "https://core6000.neocities.org/hjgp/": "Handbook of Japanese Grammar",
+                                        "handbook": "Handbook of Japanese Grammar",
+                                        "donnatoki": "どんなときどう使う 日本語表現文型辞典"}
 
         dict_abbreviations = {"A Dictionary of Basic Japanese Grammar": "DoBJG",
                               "A Dictionary of Intermediate Japanese Grammar": "DoIJG",
@@ -1383,10 +1350,7 @@ class Questions(commands.Cog):
                               "Handbook of Japanese Grammar": "HoJG",
                               "どんなときどう使う 日本語表現文型辞典": "表現文型辞典"}
 
-        with async_timeout.timeout(10):
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://itazuraneko.neocities.org/grammar/masterreference.html') as response:
-                    html = await response.text()
+        html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1418,24 +1382,26 @@ class Questions(commands.Cog):
         entries = []
 
         def parse_search(text):
-            for c in "()（）":
-                text = text.replace(c, "")
-            if "〈" in text:
-                text = re.compile("〈.*〉").sub("", text)
+            # for c in "()（）":
+            #     text = text.replace(c, "")
+            # if "〈" in text:
+            #     text = re.compile("〈.*〉").sub("", text)
+            # for the purpose of matching searches, changes things like が〈前置き・和らげ〉 or が(1) to just が
+            text = re.compile(r"(〈.*〉)|(\(\d+\))").sub("", text)
             return text.replace("…", "～").replace("~", "～")
 
         for i in results:
             url = i["href"]
-            dictionary = None
+            dictionary: Optional[str] = None
             for site in dictionaries:
                 if site in url:
-                    dictionary = dictionaries[site]
+                    dictionary: str = dictionaries[site]
                     break
             if not url.startswith("https"):
-                url = "https://itazuraneko.neocities.org/grammar/" + url
+                url: str = "https://itazuraneko.neocities.org/grammar/" + url
             grammar = "".join([str(x) for x in i.contents])
             if "<rt>" in grammar:
-                grammar = re.compile(r"(<rt>.*?<\/rt>|<\/?ruby>)").sub("", grammar)
+                grammar = re.compile(r"(<rt>.*?</rt>|</?ruby>)").sub("", grammar)
             search_field = parse_search(grammar)
             entries.append((grammar, dictionary, url, search_field))
 
@@ -1446,16 +1412,31 @@ class Questions(commands.Cog):
             dictionary = None
 
         exacts = []
+        almost = []
         contains = []
-        for entry in entries:  # (grammar name, dictionary name, url, search field)
-            if dictionary and entry[1] != dictionary:
-                continue
-            for term in search:
+        for term in search:
+            for entry in entries:  # (grammar name, dictionary name, url, search field)
+                if dictionary and entry[1] != dictionary:
+                    continue
                 term = parse_search(term)
                 if term == entry[3]:
                     exacts.append(entry)
+                elif len(term) >= 2 and LDist(term, entry[3]) <= len(term) // 3:
+                    almost.append(entry)
                 elif term in entry[3]:
                     contains.append(entry)
+
+        def min_dist(search_term) -> int:
+            search_term = search_term[3]
+            distances = []
+            for _term in search:
+                distances.append(LDist(search_term, _term))
+
+            return min(distances)
+
+        # sort the items in contains list by the distance from the search term
+        # the terms closest to the search term will appear first
+        contains = sorted(contains, key=min_dist)
 
         async def wait_for_delete(msg):
             await msg.add_reaction('🗑️')
@@ -1470,7 +1451,12 @@ class Questions(commands.Cog):
                 return
             await msg.delete()
 
-        if not exacts and not contains:
+            try:
+                await ctx.message.delete
+            except discord.Forbidden:
+                pass
+
+        if not (exacts or almost or contains):
             msg = await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find any results for your search term."))
             await wait_for_delete(msg)
             return
@@ -1478,20 +1464,189 @@ class Questions(commands.Cog):
         desc = 'These are pulled from [this page](https://itazuraneko.neocities.org/grammar/masterreference.html). ' \
                '\nIf you save the link, you can do\nyour own seaches in the future.\n\n'
         index = 1
-        for entry in exacts + ['middle'] + contains:
+        # Add in these "middle" elements to mark where in the list there should be dividers added
+        total_length = len(exacts + almost + contains)
+        for entry in exacts + ['middle'] + almost + ['middle'] + contains:
             if entry == 'middle':
-                desc += "～～～～～～\n"
+                if desc[-7:] != "～～～～～～\n":
+                    desc += "～～～～～～\n"
                 continue
             addition = f"{index}) [{entry[0]}]({entry[2]}) ({dict_abbreviations[entry[1]]})\n"
-            if len(desc + addition) < 2046:
+            if len(desc + addition) < 2028:
                 desc += addition
                 index += 1
             else:
+                # index has already been incremented by 1 from previous iteration even if this iteration couldn't fit
+                # so i need to subtract 1 from the below calculation
+                desc += f"(+ {total_length - (index - 1)} others...)"
                 break
         emb.description = desc
         msg = await hf.safe_send(ctx, embed=emb)
         await wait_for_delete(msg)
 
+    @commands.command()
+    async def massif(self, ctx, *, search_term):
+        """Performs a search on the massif database. Note most of the sentences
+        here are from amateur writers, so they may be unnatural. In addition,
+        they are all from web novels, so the language may be more dramatic
+        or exaggerated than actual real-life Japanese.
+        
+        __Try searching for:__
+        words: もちろん　セミ　光景　あくまで　揃う　痙攣
+        phrases: 写真を撮る　表情を浮かべる　蛇口をひねる
+        multiple in the same sentence: 冒険者 戦う　過去 時間
+        exact text: 'あろう'　'以'　'留まる'"""
+        url_quoted_search_term = quote(search_term)
+        url = f"https://massif.la/ja/search?q={url_quoted_search_term}&fmt=json"
+
+        text = await aiohttp_get(ctx, url)
+        if not text:
+            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            return
+
+        jr = json.loads(text)
+
+        # Sample JSON data:
+        # {
+        #   "hits": 4898,
+        #   "hits_limited": false,
+        #
+        #   "results": [
+        #     {
+        #       "highlighted_html": "あっという間に<em>テスト</em>は終わり、放課後になった。",
+        #       "sample_source": {
+        #         "publish_date": "2018-02-21",
+        #         "title": "99回告白したけどダメでした - 101話",
+        #         "url": "https://ncode.syosetu.com/n5829ej/103/"
+        #       },
+        #       "source_count": 1,
+        #       "text": "あっという間にテストは終わり、放課後になった。"
+        #     },
+        #     ..., ..., ...,
+        #     ]
+
+        hits: int = jr['hits']  # number of results
+        hits_limited: bool = jr['hits_limited']  # if number of results was 10,000+
+        results: list[dict] = jr['results']
+        # result['highlighted_html']: text with key-word bolded with <em> ... </em>
+        # result['text']: raw text
+        # result['source_count']: usually 1? idk what this is
+        # result['sample_source']['publish_date']: string of date published like 2018-02-21
+        # result['sample_source']['title']: title of source
+        # result['sample_source']['url']: url of source page
+
+        if not hits:
+            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            return
+
+        emb = discord.Embed(title="Massif search results", url=url.replace("&fmt=json", ""))
+        emb.description = f"__First {min(10, hits)} of {'>' if hits_limited else ''}{hits} unique matching" \
+                          f" sentences__\n(see full results by clicking the above link)\n\n"
+        emb.colour = 0x0099CC
+
+        index = 1
+        for result in results[:10]:
+            text = result['highlighted_html']
+            text = text.replace("</em><em>", "").replace("<em>", "**__").replace("</em>", "__**")
+            index_text = f"[`[ {index} ]`]({result['sample_source']['url']}) "
+            emb.description += index_text + text + '\n'
+            index += 1
+
+        await hf.safe_send(ctx, embed=emb)
+
+    async def get_yourei_results(self, ctx, search_term) -> Optional[BeautifulSoup]:
+        url_quoted_search_term = quote(search_term)
+        url = f"https://yourei.jp/{url_quoted_search_term}"
+
+        text = await aiohttp_get(ctx, url)
+        if not text:
+            return
+
+        soup = BeautifulSoup(text, 'html.parser')
+
+        return soup
+
+    @commands.command()
+    async def yourei(self, ctx, *, search_term):
+        """Searches the [yourei.jp](https://yourei.jp) database for example sentences.
+
+        Note that yourei only supports searching of words it specifically has in its dictionary
+        rather than for general phrases. Therefore, zero results for a phrase usually means
+        it's not in its dictionary rather than it's not common Japanese.
+
+        For example, searching 「寿司を食べる」 returns zero results even though the
+        phrase probably appears many times in literature."""
+        url_quoted_search_term = quote(search_term)
+        url = f"https://yourei.jp/{url_quoted_search_term}"
+
+        soup = await self.get_yourei_results(ctx, search_term)
+        if not soup:
+            return  # sending error information to user should have been handled in above function
+
+        try:
+            results = soup.find_all("li", "sentence")  # list of sentence tag objects (get text using result.text)
+        except IndexError:
+            await hf.safe_send(ctx, "It's possible the HTML structure of the yourei.jp site has changed. I received "
+                                    "a response with data from the site but the list of sentences were not where I "
+                                    f"expected. Try checking the site yourself: {url}")
+            return
+
+        num_examples = soup.find(id="num-examples")
+        if num_examples:
+            num_examples = num_examples.text  # a string like "13,381", need to remove the comma
+        else:
+            num_examples = '0'
+        num_examples = int(num_examples.replace(',', ''))  # an int 13381
+
+        if not num_examples:
+            await hf.safe_send(ctx, embed=hf.red_embed("Your search returned no results."))
+            return
+
+        # results now should be a list of sentence tags, bs4.element.Tag
+
+        emb = discord.Embed(title="Yourei.jp search results", url=url)
+        emb.description = f"__First {min(7, num_examples)} of {num_examples} 例文__" \
+                          f"\n(see full results by clicking the above link)\n\n"
+        emb.colour = 0x0099CC
+
+        index = 1
+        for result in results[:8]:
+            text = (result.find(class_="the-sentence") or result).text  # either the main sentence or just full result
+            text = (text.split() or [''])[0]  # remove \n characters
+            text = text.replace(search_term, f"**__{search_term}__**")
+            if not text:
+                continue
+            source_link_class = result.find(class_="sentence-source-title")
+            source_link = source_link_class.a.attrs['href']
+            source_title = source_link_class.text
+
+            index_text = f"[`[ {index} ] {source_title}`]({source_link})\n"
+            emb.description += index_text + text + '\n'
+            index += 1
+
+        await hf.safe_send(ctx, embed=emb)
+
 
 async def setup(bot):
     await bot.add_cog(Questions(bot))
+
+
+async def aiohttp_get(ctx: commands.Context, url: str) -> str:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                response = resp
+                text = await resp.text()
+    except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+        await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+        return ''
+
+    if not text:
+        await hf.safe_send(ctx, embed=hf.red_embed("I received nothing from the site for your search query."))
+        return ''
+
+    if response.status == 200:
+        return text
+    else:
+        await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+        return ''
