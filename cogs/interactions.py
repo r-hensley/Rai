@@ -728,6 +728,7 @@ class Interactions(commands.Cog):
             if self.bot.db['voice_lock'][str(interaction.guild.id)][str(category.id)]:
                 s += f"- {category.name.upper()}\n"
 
+
         await interaction.response.send_message(s, ephemeral=True)
 
     @app_commands.command()
