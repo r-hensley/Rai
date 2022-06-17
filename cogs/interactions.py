@@ -697,27 +697,38 @@ class Interactions(commands.Cog):
     #
 
     @app_commands.command()
-    @app_commands.guilds(SP_SERVER_ID)
+    @app_commands.guilds(SP_GUILD)
     @app_commands.default_permissions()
-    async def voicelock(self, interaction: discord.Interaction):
-        """Enable or disable the voice locking in the Spanish server for new users"""
+    async def categorylock(self, interaction: discord.Interaction, category: discord.CategoryChannel=None):
+        """Toggle voice locking for new users. Leave category blank to view currently locked channels."""
         # See sp_serv_new_user_voice_lock() in events.py
 
         if not hf.admin_check(interaction):
             await interaction.response.send_message("You cannot use this command.", ephemeral=True)
 
-        previous_state = self.bot.db['voice_lock'].get(str(SP_SERVER_ID), None)
-        if previous_state is None:
-            await interaction.response.send_message("There has been an error", ephemeral=True)
-            return
-        else:
-            if not previous_state:  # new state is True
-                new_state = "enabled"
+        s = ''
+        if category:
+            previous_state = self.bot.db['voice_lock'].setdefault(str(interaction.guild.id), {}).\
+                setdefault(str(category.id), False)
+            if previous_state is None:
+                await interaction.response.send_message("There has been an error, the database read `None`",
+                                                        ephemeral=True)
+                return
             else:
-                new_state = "disabled"
-            self.bot.db['voice_lock'][str(SP_SERVER_ID)] = not previous_state
-            await interaction.response.send_message(f"Voice locking for new users is now {new_state}.",
-                                                    ephemeral=True)
+                if not previous_state:  # new state is True
+                    new_state = "enabled"
+                else:
+                    new_state = "disabled"
+                self.bot.db['voice_lock'][str(interaction.guild.id)][str(category.id)] = not previous_state
+                s += f"Voice locking for new users in {category.name} is now {new_state}.\n\n"
+
+        s += f"The list of current categories with voice locking enabled is:\n"
+        for category in self.bot.db['voice_lock'][str(interaction.guild.id)]:
+            category = discord.utils.get(interaction.guild.channels, id=int(category))
+            if self.bot.db['voice_lock'][str(interaction.guild.id)][str(category.id)]:
+                s += f"- {category.name.upper()}\n"
+
+        await interaction.response.send_message(s, ephemeral=True)
 
     @app_commands.command()
     @app_commands.guilds(SP_SERVER_ID)
