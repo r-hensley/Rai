@@ -1571,6 +1571,9 @@ class Events(commands.Cog):
             There will also be a "voice approved" role which can override this.
             """
             # If this event is not for someone joining voice, ignore it
+            if member.id not in [202995638860906496, 414873201349361664]:  # ryry, abelian
+                return  # for testing
+
             joined = not before.channel and after.channel  # True if they just joined voice
             if not joined:
                 return
@@ -1585,7 +1588,8 @@ class Events(commands.Cog):
                 return
 
             # If voice lock not enabled on current server
-            if not self.bot.db['voice_lock'].get(str(member.guild.id), None):
+            joined_to = after.channel
+            if not self.bot.db['voice_lock'].get(str(member.guild.id), {}).get(str(joined_to.category.id), None):
                 return
 
             # A role which exempts the user from any requirements on joining voice
@@ -1598,7 +1602,7 @@ class Events(commands.Cog):
                 return
 
             # If user has been in the server for more than two hours, let them into voice
-            if (discord.utils.utcnow() - member.joined_at).total_seconds() > 2*60*60:
+            if (discord.utils.utcnow() - member.joined_at).total_seconds() > 3*60*60:
                 return
 
             # If user has more than 100 messages in the last month, let them into voice
@@ -1613,12 +1617,16 @@ class Events(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 return
 
-            t = "You cannot use the voice channels on this server yet. Once you have used the server more, " \
-                "you will be able to use the voice channels. Until then, please enjoy our text channels." \
+            t = "You cannot join the event channels on this server yet. We require the users to have been on the " \
+                "server for at least three hours before they can join an event. Until then, please enjoy our other " \
+                "voice channels. Note, if you are a member that has been in our server before and you just rejoined, " \
+                "message <@713245294657273856> to gain special permission to join the event." \
                 "\n\n" \
-                "Todavía no puedes utilizar los canales de voz en este servidor. Cuando hayas utilizado el " \
-                "servidor un poco más, podrás utilizarlos. Mientras tanto, por favor disfruta de " \
-                "nuestros canales de texto."
+                "Todavía no puedes unirte a los canales de eventos en este servidor. Requerimos que los usuarios " \
+                "lleven al menos tres horas en el servidor antes de poder unirse a un evento. Mientras tanto, " \
+                "por favor disfruta de nuestros otros canales de voz. Sin embargo, si eres un miembro que ya ha " \
+                "estado en nuestro servidor y acabas de unirte nuevamente, envía un mensaje a " \
+                "<@713245294657273856> para obtener permiso especial para unirte al evento. "
             try:
                 await hf.safe_send(member, t)
             except discord.Forbidden:
