@@ -1623,7 +1623,7 @@ class Questions(commands.Cog):
         for result in results[:8]:
             text = (result.find(class_="the-sentence") or result).text  # either the main sentence or just full result
             text = (text.split() or [''])[0]  # remove \n characters
-            text = text.replace(search_term, f"**__{search_term}__**")
+            text = text.replace(search_term, f"**__{search_term}__**").replace("__****__", "")
             if not text:
                 continue
             source_link_class = result.find(class_="sentence-source-title")
