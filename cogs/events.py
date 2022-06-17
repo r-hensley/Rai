@@ -35,7 +35,7 @@ RYRY_RAI_BOT_ID = 270366726737231884
 class Events(commands.Cog):
     """This module contains event listeners not in logger.py"""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
 
@@ -47,11 +47,6 @@ class Events(commands.Cog):
             # for BurdBot to post questions to AOTW
             if msg.author.id == 720900750724825138:
                 pass
-            # for modbot to call the modlog of users in report rooms
-            if msg.author.id == 713245294657273856 and msg.content.startswith(";ml"):
-                modlog = self.bot.get_command("modlog")
-                await ctx.invoke(modlog, id_in=msg.content[4:])
-                return
             else:
                 return
 
@@ -68,6 +63,44 @@ class Events(commands.Cog):
             return
 
         ##########################################
+
+        # ### Call modlog when people in reports mention IDs or usernames
+        async def post_modlog_in_reports():
+            if not isinstance(msg.channel, discord.Thread):
+                return
+            if msg.channel.owner.id != 713245294657273856:  # modbot
+                return
+
+            modlog: commands.Command = self.bot.get_command("modlog")
+
+            # Search for direct mentions of IDs
+            user_ids = re.findall(r"<?@?!?(\d{17,22})>?", msg.content)
+            print(user_ids)
+            for user_id in user_ids:
+                try:
+                    user_id = int(user_id)
+                except ValueError:
+                    continue
+                user = msg.guild.get_member(user_id)
+                print(user)
+                if not user:
+                    try:
+                        user: discord.User = await self.bot.fetch_user(user_id)
+                    except discord.NotFound:
+                        continue
+                print('a')
+                await ctx.invoke(modlog, id_in=str(user_id))
+
+            # Search for usernamse like Ryry013#1234
+            usernames = re.findall(r"(\S+)#(\d{4})", msg.content)
+            print(usernames)
+            for username in usernames:
+                user: discord.Member = discord.utils.get(msg.guild.members, name=username[0], discriminator=username[1])
+                if user:
+                    await ctx.invoke(modlog, id_in=str(user.id))
+
+        await post_modlog_in_reports()
+
 
         # ### BurdBot's window to open questions in #audio_of_the_week
         async def burdbot_window():
@@ -1650,6 +1683,15 @@ class Events(commands.Cog):
         date_str = discord.utils.utcnow().strftime("%Y%m%d")
         config[date_str] = config.setdefault(date_str, 0) + 1
 
+    @commands.Cog.listener()
+    async def on_thread_create(self, thread: discord.Thread):
+        if thread.owner == 713245294657273856:  # modbot
+            opening_msg = await thread.parent.fetch_message(987069662053416980)
+            user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
+            if user_id:
+                ctx = await self.bot.get_context(opening_msg)
+                modlog = self.bot.get_command("modlog")
+                await ctx.invoke(modlog, id_in=user_id)
 
 async def setup(bot):
     await bot.add_cog(Events(bot))
