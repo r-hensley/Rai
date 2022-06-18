@@ -70,7 +70,7 @@ class Events(commands.Cog):
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
                 return
-            if msg.channel.owner.id != 713245294657273856:  # modbot
+            if getattr(msg.channel.owner, "id", 0) != 713245294657273856:  # modbot
                 return
             if msg.author.id != 713245294657273856:
                 return
