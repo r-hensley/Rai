@@ -45,7 +45,9 @@ class Events(commands.Cog):
 
         if msg.author.bot:
             # for BurdBot to post questions to AOTW
-            if msg.author.id == 720900750724825138:
+            if msg.author.id == 720900750724825138:  # BurdBot
+                pass
+            elif msg.author.id == 713245294657273856:  # modbot
                 pass
             else:
                 return
@@ -70,37 +72,36 @@ class Events(commands.Cog):
                 return
             if msg.channel.owner.id != 713245294657273856:  # modbot
                 return
+            if msg.author.id != 713245294657273856:
+                return
+
+            content = msg.content[25:]
 
             modlog: commands.Command = self.bot.get_command("modlog")
 
             # Search for direct mentions of IDs
-            user_ids = re.findall(r"<?@?!?(\d{17,22})>?", msg.content)
-            print(user_ids)
+            user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
             for user_id in user_ids:
                 try:
                     user_id = int(user_id)
                 except ValueError:
                     continue
                 user = msg.guild.get_member(user_id)
-                print(user)
                 if not user:
                     try:
                         user: discord.User = await self.bot.fetch_user(user_id)
                     except discord.NotFound:
                         continue
-                print('a')
                 await ctx.invoke(modlog, id_in=str(user_id))
 
             # Search for usernamse like Ryry013#1234
-            usernames = re.findall(r"(\S+)#(\d{4})", msg.content)
-            print(usernames)
+            usernames = re.findall(r"(\S+)#(\d{4})", content)
             for username in usernames:
                 user: discord.Member = discord.utils.get(msg.guild.members, name=username[0], discriminator=username[1])
                 if user:
                     await ctx.invoke(modlog, id_in=str(user.id))
 
         await post_modlog_in_reports()
-
 
         # ### BurdBot's window to open questions in #audio_of_the_week
         async def burdbot_window():
@@ -111,7 +112,8 @@ class Events(commands.Cog):
             if not msg.attachments:
                 return
             if "AOTW recording" in msg.content:
-                await ctx.invoke(self.bot.get_command("question"), args=msg.content)
+                question: commands.Command = self.bot.get_command("question")
+                await ctx.invoke(question, args=msg.content)
 
         await burdbot_window()
 
@@ -119,10 +121,19 @@ class Events(commands.Cog):
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
-                    serverinfo = self.bot.get_command("serverinfo")
+                    serverinfo: commands.Command = self.bot.get_command("serverinfo")
                     await ctx.invoke(serverinfo)
 
         await replace_tatsumaki_posts()
+
+        if msg.author.bot:
+            return
+
+        # ###############################################
+        #
+        # No more bots
+        #
+        # # ###############################################
 
         # ### guild stats
         def guild_stats():
