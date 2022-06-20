@@ -137,15 +137,7 @@ class Events(commands.Cog):
                     await ctx.invoke(serverinfo)
 
         await replace_tatsumaki_posts()
-
-        if msg.author.bot:
-            return
-
-        # ###############################################
-        #
-        # No more bots
-        #
-        # # ###############################################
+        
 
         async def log_ciri_warnings():
             if msg.guild.id != JP_SERVER_ID:
@@ -160,7 +152,7 @@ class Events(commands.Cog):
             args = hf.args_discriminator(args_str)
 
             if msg.author.id == 202995638860906496:
-                # await hf.send_to_test_channel(args.user_ids, args.reason, first_word)
+                print(args.user_ids, args.reason, first_word)
                 pass
 
             if first_word in ['warn', 'log']:
@@ -172,31 +164,34 @@ class Events(commands.Cog):
                     silent = True
 
             elif first_word == 'ban':
-                # await hf.send_to_test_channel("1 ban")
+                print("1 ban")
                 ciri_id = 299335689558949888
 
                 def ciri_check(_m: discord.Message) -> bool:
-                    return _m.author.id == ciri_id and _m.embeds and _m.channel == msg.channel
+                    if _m.embeds:
+                        e = _m.embeds[0]
+                        if 'Banned' in e.description or "Cancelled" in e.description:
+                            return _m.author.id == ciri_id and _m.channel == msg.channel and not e.title
 
-                # Wait for confirmation message from Ciri that asks if you want to ban etc
-                try:
-                    await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
-                except asyncio.TimeoutError:
-                    # await hf.send_to_test_channel("2 return", msg.content)
-                    return
-
-                # await hf.send_to_test_channel(2, msg.content)
+                # # Wait for confirmation message from Ciri that asks if you want to ban etc
+                # try:
+                #     m1 = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
+                # except asyncio.TimeoutError:
+                #     print("2 return", msg.content)
+                #     return
+                #
+                # print(2, msg.content, m1.embeds[0].description)
 
                 # Wait for final confirmation message after user has made a choice
                 try:
-                    m = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
+                    m2 = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
                 except asyncio.TimeoutError:
-                    # await hf.send_to_test_channel("3 return", msg.content)
+                    print("3 return", msg.content)
                     return
                 else:
-                    # await hf.send_to_test_channel(3, msg.content)
-                    if 'Banned' not in m.embeds[0].description:
-                        # await hf.send_to_test_channel("return for not Banned", msg.content)
+                    print(3, m2.embeds[0].description, msg.content)
+                    if 'Banned' not in m2.embeds[0].description:
+                        print("return for not Banned", m2.embeds[0].description, msg.content)
                         return  # user canceled ban
 
                     incident_type = 'Ban'
@@ -206,14 +201,14 @@ class Events(commands.Cog):
                 return
 
             for user_id in args.user_ids:
-                # await hf.send_to_test_channel(f"4 {user_id}", incident_type, msg.content)
+                print(f"4 {user_id}", incident_type, msg.content)
                 user = msg.guild.get_member(int(user_id))
                 if not user:
                     try:
                         user = await self.bot.fetch_user(int(user_id))
-                        # await hf.send_to_test_channel(5, user, msg.content)
+                        print(5, user, msg.content)
                     except discord.NotFound:
-                        # await hf.send_to_test_channel(5, "continue", msg.content)
+                        print(5, "continue", msg.content)
                         continue
                 modlog_entry = hf.ModlogEntry(event=incident_type,
                                               user=user,
@@ -225,6 +220,15 @@ class Events(commands.Cog):
                 modlog_entry.add_to_modlog()
 
         await log_ciri_warnings()
+
+        if msg.author.bot:
+            return
+
+        # ###############################################
+        #
+        # No more bots
+        #
+        # # ###############################################
 
         # ### guild stats
         def guild_stats():
@@ -816,7 +820,7 @@ class Events(commands.Cog):
                 if stripped_msg[0] not in '=;>' and len(stripped_msg) > 3:
                     if isinstance(msg.channel, discord.Thread):
                         channel_id = msg.channel.parent.id
-                    elif isinstance(msg.channel, discord.TextChannel):
+                    elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
                         channel_id = msg.channel.id
                     else:
                         return None, False
@@ -896,7 +900,7 @@ class Events(commands.Cog):
             today = config['messages'][date_str]
             author = str(msg.author.id)
             channel = msg.channel
-            if isinstance(channel, discord.TextChannel):
+            if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
                 channel = str(msg.channel.id)
             elif isinstance(channel, discord.Thread):
                 if msg.channel.parent_id:
