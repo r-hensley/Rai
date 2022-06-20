@@ -70,7 +70,11 @@ class Events(commands.Cog):
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
                 await asyncio.sleep(1)
-                thread = msg.channel.get_thread(msg.id)
+                try:
+                    thread = msg.channel.get_thread(msg.id)
+                except AttributeError:
+                    return
+
                 if thread:
                     msg.channel = thread
                     content = msg.content
@@ -142,6 +146,84 @@ class Events(commands.Cog):
         # No more bots
         #
         # # ###############################################
+
+        async def log_ciri_warnings():
+            if msg.guild.id != JP_SERVER_ID:
+                return
+
+            try:
+                first_word = msg.content.split()[0][1:]  # minus first character for potential command prefix
+                args_list = msg.content.split()[1:]
+                args_str = ' '.join(args_list)
+            except IndexError:
+                return
+            args = hf.args_discriminator(args_str)
+
+            if msg.author.id == 202995638860906496:
+                await hf.send_to_test_channel(args.user_ids, args.reason, first_word)
+
+            if first_word in ['warn', 'log']:
+                if first_word == 'warn':
+                    incident_type = "Warning"
+                    silent = False
+                else:
+                    incident_type = "Log"
+                    silent = True
+
+            elif first_word == 'ban':
+                await hf.send_to_test_channel("1 ban")
+                ciri_id = 299335689558949888
+
+                def ciri_check(_m: discord.Message) -> bool:
+                    return _m.author.id == ciri_id and _m.embeds and _m.channel == msg.channel
+
+                # Wait for confirmation message from Ciri that asks if you want to ban etc
+                try:
+                    await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
+                except asyncio.TimeoutError:
+                    await hf.send_to_test_channel("2 return", msg.content)
+                    return
+
+                await hf.send_to_test_channel(2, msg.content)
+
+                # Wait for final confirmation message after user has made a choice
+                try:
+                    m = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
+                except asyncio.TimeoutError:
+                    await hf.send_to_test_channel("3 return", msg.content)
+                    return
+                else:
+                    await hf.send_to_test_channel(3, msg.content)
+                    if 'Banned' not in m.embeds[0].description:
+                        await hf.send_to_test_channel("return for not Banned", msg.content)
+                        return  # user canceled ban
+
+                    incident_type = 'Ban'
+                    silent = False
+
+            else:
+                return
+
+            for user_id in args.user_ids:
+                await hf.send_to_test_channel(f"4 {user_id}", incident_type, msg.content)
+                user = msg.guild.get_member(int(user_id))
+                if not user:
+                    try:
+                        user = await self.bot.fetch_user(int(user_id))
+                        await hf.send_to_test_channel(5, user, msg.content)
+                    except discord.NotFound:
+                        await hf.send_to_test_channel(5, "continue", msg.content)
+                        continue
+                modlog_entry = hf.ModlogEntry(event=incident_type,
+                                              user=user,
+                                              guild=ctx.guild,
+                                              ctx=ctx,
+                                              silent=silent,
+                                              reason=args.reason
+                                              )
+                modlog_entry.add_to_modlog()
+
+        await log_ciri_warnings()
 
         # ### guild stats
         def guild_stats():
