@@ -40,7 +40,7 @@ class Events(commands.Cog):
         self.ignored_characters = []
 
     @commands.Cog.listener()
-    async def on_message(self, msg):
+    async def on_message(self, msg: discord.Message):
         ctx = await self.bot.get_context(msg)
 
         if msg.author.bot:
@@ -69,13 +69,21 @@ class Events(commands.Cog):
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
-                return
+                await asyncio.sleep(1)
+                thread = msg.channel.get_thread(msg.id)
+                if thread:
+                    msg.channel = thread
+                    content = msg.content
+                else:
+                    return
+            else:
+                content = msg.content[25:]
             if getattr(msg.channel.owner, "id", 0) != 713245294657273856:  # modbot
                 return
             if msg.author.id != 713245294657273856:
                 return
 
-            content = msg.content[25:]
+            # content = msg.content[25:]
 
             modlog: commands.Command = self.bot.get_command("modlog")
 
@@ -86,7 +94,7 @@ class Events(commands.Cog):
                     user_id = int(user_id)
                 except ValueError:
                     continue
-                user = msg.guild.get_member(user_id)
+                user: discord.Member = msg.guild.get_member(user_id)
                 if not user:
                     try:
                         user: discord.User = await self.bot.fetch_user(user_id)
