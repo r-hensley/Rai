@@ -151,10 +151,6 @@ class Events(commands.Cog):
                 return
             args = hf.args_discriminator(args_str)
 
-            if msg.author.id == 202995638860906496:
-                print(args.user_ids, args.reason, first_word)
-                pass
-
             if first_word in ['warn', 'log']:
                 if first_word == 'warn':
                     incident_type = "Warning"
@@ -164,7 +160,6 @@ class Events(commands.Cog):
                     silent = True
 
             elif first_word == 'ban':
-                print("1 ban")
                 ciri_id = 299335689558949888
 
                 def ciri_check(_m: discord.Message) -> bool:
@@ -173,25 +168,13 @@ class Events(commands.Cog):
                         if 'Banned' in e.description or "Cancelled" in e.description:
                             return _m.author.id == ciri_id and _m.channel == msg.channel and not e.title
 
-                # # Wait for confirmation message from Ciri that asks if you want to ban etc
-                # try:
-                #     m1 = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
-                # except asyncio.TimeoutError:
-                #     print("2 return", msg.content)
-                #     return
-                #
-                # print(2, msg.content, m1.embeds[0].description)
-
                 # Wait for final confirmation message after user has made a choice
                 try:
                     m2 = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
                 except asyncio.TimeoutError:
-                    print("3 return", msg.content)
                     return
                 else:
-                    print(3, m2.embeds[0].description, msg.content)
                     if 'Banned' not in m2.embeds[0].description:
-                        print("return for not Banned", m2.embeds[0].description, msg.content)
                         return  # user canceled ban
 
                     incident_type = 'Ban'
@@ -201,14 +184,11 @@ class Events(commands.Cog):
                 return
 
             for user_id in args.user_ids:
-                print(f"4 {user_id}", incident_type, msg.content)
                 user = msg.guild.get_member(int(user_id))
                 if not user:
                     try:
                         user = await self.bot.fetch_user(int(user_id))
-                        print(5, user, msg.content)
                     except discord.NotFound:
-                        print(5, "continue", msg.content)
                         continue
                 modlog_entry = hf.ModlogEntry(event=incident_type,
                                               user=user,
