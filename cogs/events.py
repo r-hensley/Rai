@@ -160,7 +160,8 @@ class Events(commands.Cog):
             args = hf.args_discriminator(args_str)
 
             if msg.author.id == 202995638860906496:
-                await hf.send_to_test_channel(args.user_ids, args.reason, first_word)
+                # await hf.send_to_test_channel(args.user_ids, args.reason, first_word)
+                pass
 
             if first_word in ['warn', 'log']:
                 if first_word == 'warn':
@@ -171,7 +172,7 @@ class Events(commands.Cog):
                     silent = True
 
             elif first_word == 'ban':
-                await hf.send_to_test_channel("1 ban")
+                # await hf.send_to_test_channel("1 ban")
                 ciri_id = 299335689558949888
 
                 def ciri_check(_m: discord.Message) -> bool:
@@ -181,21 +182,21 @@ class Events(commands.Cog):
                 try:
                     await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
                 except asyncio.TimeoutError:
-                    await hf.send_to_test_channel("2 return", msg.content)
+                    # await hf.send_to_test_channel("2 return", msg.content)
                     return
 
-                await hf.send_to_test_channel(2, msg.content)
+                # await hf.send_to_test_channel(2, msg.content)
 
                 # Wait for final confirmation message after user has made a choice
                 try:
                     m = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
                 except asyncio.TimeoutError:
-                    await hf.send_to_test_channel("3 return", msg.content)
+                    # await hf.send_to_test_channel("3 return", msg.content)
                     return
                 else:
-                    await hf.send_to_test_channel(3, msg.content)
+                    # await hf.send_to_test_channel(3, msg.content)
                     if 'Banned' not in m.embeds[0].description:
-                        await hf.send_to_test_channel("return for not Banned", msg.content)
+                        # await hf.send_to_test_channel("return for not Banned", msg.content)
                         return  # user canceled ban
 
                     incident_type = 'Ban'
@@ -205,14 +206,14 @@ class Events(commands.Cog):
                 return
 
             for user_id in args.user_ids:
-                await hf.send_to_test_channel(f"4 {user_id}", incident_type, msg.content)
+                # await hf.send_to_test_channel(f"4 {user_id}", incident_type, msg.content)
                 user = msg.guild.get_member(int(user_id))
                 if not user:
                     try:
                         user = await self.bot.fetch_user(int(user_id))
-                        await hf.send_to_test_channel(5, user, msg.content)
+                        # await hf.send_to_test_channel(5, user, msg.content)
                     except discord.NotFound:
-                        await hf.send_to_test_channel(5, "continue", msg.content)
+                        # await hf.send_to_test_channel(5, "continue", msg.content)
                         continue
                 modlog_entry = hf.ModlogEntry(event=incident_type,
                                               user=user,
