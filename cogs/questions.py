@@ -153,7 +153,7 @@ class Questions(commands.Cog):
         colors = [65280, 16750848, 5093631, 16711680, 16711935, 16776960]
         return colors[index]
 
-    async def add_question(self, ctx, target_message, title=None):
+    async def add_question(self, ctx: commands.Context, target_message: discord.Message, title=None):
         try:
             config: dict = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         except KeyError:
@@ -200,7 +200,6 @@ class Questions(commands.Cog):
 
                 try:
                     thread = await target_message.create_thread(name=thread_title)
-
                 except discord.HTTPException:
                     thread = ctx.guild.get_thread(target_message.id)
 
@@ -211,7 +210,7 @@ class Questions(commands.Cog):
                                            "closes the question.")
 
                 try:
-                    self.bot.recently_joined_threads.remove(thread)
+                    self.bot.recently_joined_threads.remove(thread.id)
                 except ValueError:
                     pass
 
@@ -297,15 +296,25 @@ class Questions(commands.Cog):
             return
 
         # react with question ID on user message if ID is less than 10
-        number_map = {'1': '1\u20e3', '2': '2\u20e3', '3': '3\u20e3', '4': '4\u20e3', '5': '5\u20e3',
-                      '6': '6\u20e3', '7': '7\u20e3', '8': '8\u20e3', '9': '9\u20e3'}
-        if question_number < 10:
+        number_map = {'1': '1\N{combining enclosing keycap}', '2': '2\N{combining enclosing keycap}',
+                      '3': '3\N{combining enclosing keycap}', '4': '4\N{combining enclosing keycap}',
+                      '5': '5\N{combining enclosing keycap}', '6': '6\N{combining enclosing keycap}',
+                      '7': '7\N{combining enclosing keycap}', '8': '8\N{combining enclosing keycap}',
+                      '9': '9\N{combining enclosing keycap}', '10': '\N{keycap ten}'}
+        if question_number < 11:
+            # I have NO idea why this is necessary, but sometimes during this function,
+            # the target_message variable randomly gets its channel changed to the thread...
+            # Once it's the thread, doing add_reaction becomes impossible
+            if isinstance(target_message.channel, discord.Thread):
+                target_message = await target_message.channel.parent.fetch_message(target_message.id)
+
             try:
                 await target_message.add_reaction(number_map[str(question_number)])
             except discord.Forbidden:
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
-            except discord.NotFound:
-                await hf.safe_send(ctx, "I can't find the question message.")
+            except discord.NotFound:  # emoji specified not found
+                await ctx.send("I can't find that emoji.")
+                # noinspection PyTypeChecker
                 await ctx.invoke(self.answer, args=str(question_number))
                 return
 
@@ -1221,7 +1230,6 @@ class Questions(commands.Cog):
             return num_of_results
         except ValueError:
             return "0"
-
 
     @commands.command(aliases=['sc'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
