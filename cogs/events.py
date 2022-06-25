@@ -93,6 +93,7 @@ class Events(commands.Cog):
 
             # Search for direct mentions of IDs
             user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
+            user_ids = set(user_ids)  # eliminate duplicate IDs
             for user_id in user_ids:
                 try:
                     user_id = int(user_id)
@@ -108,9 +109,12 @@ class Events(commands.Cog):
 
             # Search for usernamse like Ryry013#1234
             usernames = re.findall(r"(\S+)#(\d{4})", content)
+            usernames = set(usernames)  # eliminate duplicate usernames
             for username in usernames:
                 user: discord.Member = discord.utils.get(msg.guild.members, name=username[0], discriminator=username[1])
                 if user:
+                    if user.id in user_ids:
+                        continue
                     await ctx.invoke(modlog, id_in=str(user.id))
 
         await post_modlog_in_reports()
