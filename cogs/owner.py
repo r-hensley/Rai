@@ -765,6 +765,12 @@ class Owner(commands.Cog):
         await hf.safe_send(ctx, embed=hf.green_embed(f"Set new join date for <@{user_id}> to "
                                                      f"<t:{int(new_join_date_timestamp)}:f>"))
 
+    @commands.command()
+    async def network(self, ctx: commands.Context):
+        """Resets the network on my pi"""
+        os.system("sudo /etc/init.d/networking restart")
+        await ctx.add_reaction("✅")
+
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
