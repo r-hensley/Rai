@@ -769,7 +769,7 @@ class Owner(commands.Cog):
     async def network(self, ctx: commands.Context):
         """Resets the network on my pi"""
         os.system("sudo /etc/init.d/networking restart")
-        await ctx.add_reaction("✅")
+        await ctx.message.add_reaction("✅")
 
 
 async def setup(bot):
