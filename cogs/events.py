@@ -1693,10 +1693,11 @@ class Events(commands.Cog):
 
             There will also be a "voice approved" role which can override this.
             """
-            # If this event is not for someone joining voice, ignore it
-            if member.id not in [202995638860906496, 414873201349361664]:  # ryry, abelian
-                return  # for testing
+            # uncomment below for testing
+            # if member.id not in [202995638860906496, 414873201349361664]:  # ryry, abelian
+            #     return  # for testing
 
+            # If this event is not for someone joining voice, ignore it
             joined = not before.channel and after.channel  # True if they just joined voice
             if not joined:
                 return
