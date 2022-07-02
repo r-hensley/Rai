@@ -1738,6 +1738,7 @@ class Events(commands.Cog):
             # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
 
             # Disconnect user from voice
+            voice_channel_joined = after.channel
             try:
                 await member.edit(voice_channel=None)
             except (discord.Forbidden, discord.HTTPException):
@@ -1762,6 +1763,28 @@ class Events(commands.Cog):
                     await hf.safe_send(bot_channel, t)
                 except discord.Forbidden:
                     pass
+
+            async def one_minute_voice_lock():
+                try:
+                    await voice_channel_joined.set_permissions(member, connect=False)
+                except (discord.Forbidden, discord.NotFound):
+                    return
+
+                await asyncio.sleep(120)
+
+                try:
+                    await voice_channel_joined.set_permissions(member, overwrite=None)
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+
+            try:
+                await one_minute_voice_lock()
+            except Exception:
+                try:
+                    await after.channel.set_permissions(member, overwrite=None)
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                raise
 
         await sp_serv_new_user_voice_lock()
 
