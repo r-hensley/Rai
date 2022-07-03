@@ -988,6 +988,9 @@ class Logger(commands.Cog):
                             except discord.Forbidden:
                                 list_of_readd_roles.remove(role)
                                 failed_roles.append(role)
+                            except AttributeError:  # role is None
+                                list_of_readd_roles.remove(role)
+                                continue
                     except discord.NotFound:
                         pass
                     try:
