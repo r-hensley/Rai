@@ -22,7 +22,7 @@ async def find_and_unarchive_thread(ctx):
             async for thread in channel.archived_threads(limit=15):
                 if thread.id == ctx.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]['log_channel']:
                     try:
-                        await thread.edit(archived=False)
+                        thread = await thread.edit(archived=False)
                     except discord.Forbidden:
                         await hf.safe_send(ctx, "I need to unarchive the questions log channel but I lacked the "
                                                 f"permission to do that. Please unarchive this thread: "
@@ -130,7 +130,7 @@ class Questions(commands.Cog):
 
             else:  # the thread was auto-archived, reopen it
                 try:
-                    await after.edit(archived=False)
+                    after = await after.edit(archived=False)
                 except discord.Forbidden:
                     pass
 
@@ -266,9 +266,15 @@ class Questions(commands.Cog):
             log_channel = await find_and_unarchive_thread(ctx)
 
         if isinstance(log_channel, discord.Thread):
+            # The above find_and_unarchive_thread() function should attempt to unarchive the thread too, so this
+            # code is potentially repetitive. Note also if a bot lacks `Manage Threads` permission,
+            # it's possible thread.edit(archived=False) may work a first time, but it'll fail when you try
+            # a second time to unarchive a thread that is already unarchived. If the bot has `Manage Threads`,
+            # then you can try again to unarchive the already-unarchived thread, it'll just pass by
+            # with no action/error
             if log_channel.archived:
                 try:
-                    await log_channel.edit(archived=False)
+                    log_channel = await log_channel.edit(archived=False)
                 except discord.Forbidden:
                     try:
                         await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
@@ -457,13 +463,22 @@ class Questions(commands.Cog):
                     return int(question_number)  # question author can use just ";q a"
                 if questions[question_number].get('thread', 0) == ctx.channel.id:
                     return int(question_number)  # mods can also use it in a thread
-            await hf.safe_send(ctx, f"Only the asker of the question can omit stating the question ID.  You "
-                                    f"must specify which question  you're trying to answer: `;q a <question id>`.  "
+
+            # if the code gets here, it never returned anywhere above
+            await hf.safe_send(ctx, f"I can't find a question to close (maybe your question was "
+                                    f"already marked as answered?) If you're trying to close someone else's question, "
+                                    f"only the original asker can close a question by typing `;q a`. "
+                                    f"Others must specify which question "
+                                    f"they're trying to answer using `;q a <question id>`.  "
                                     f"For example, `;q a 3`.")
-            return
+            raise NameError
 
         if args == ['']:  # if a user just inputs ;q a
-            number = await self_answer_shortcut()
+            try:
+                number = await self_answer_shortcut()
+            except NameError:
+                # Error message is already sent to user in above function
+                return
             answer_message = ctx.message
             answer_text = ''
             if not number:
@@ -592,7 +607,7 @@ class Questions(commands.Cog):
             if isinstance(log_message.channel, discord.Thread):
                 if log_message.channel.archived:
                     try:
-                        await log_message.channel.edit(archived=False)
+                        log_message = await log_message.channel.edit(archived=False)
                     except discord.Forbidden:
                         await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
                                                 "and I don't have permission to unarchive it. Please either unarchive "
@@ -618,18 +633,7 @@ class Questions(commands.Cog):
                     except discord.Forbidden:
                         await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
-        # archive the thread attached to the message if it exists
-        thread = ctx.guild.get_thread(question_message.id)
-        if thread:
-            try:
-                await thread.edit(archived=True, auto_archive_duration=60)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
-
-        try:
-            del (config['questions'][number])
-        except KeyError:
-            pass
+        # add thumbs up reaction before archiving thread
         if ctx.message:
             try:
                 await ctx.message.add_reaction('\u2705')
@@ -637,6 +641,19 @@ class Questions(commands.Cog):
                 await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except (discord.NotFound, discord.HTTPException):
                 pass
+
+        # archive the thread attached to the message if it exists
+        thread = ctx.guild.get_thread(question_message.id)
+        if thread:
+            try:
+                thread = await thread.edit(archived=True, auto_archive_duration=60)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+        try:
+            del (config['questions'][number])
+        except KeyError:
+            pass
 
         await self._delete_log(ctx)
         await self._post_log(ctx)
