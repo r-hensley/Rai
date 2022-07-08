@@ -607,7 +607,7 @@ async def uhc_check(msg):
                 if ratio or ratio == 0.0:
                     if isinstance(msg.channel, discord.Thread):
                         channel_id = msg.channel.parent.id
-                    elif isinstance(msg.channel, discord.TextChannel):
+                    elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
                         channel_id = msg.channel.id
                     else:
                         return
