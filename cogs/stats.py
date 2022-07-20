@@ -5,6 +5,9 @@ from datetime import datetime, timedelta, timezone
 import re
 
 import os
+
+from .utils.timeutil import format_interval
+
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SPAM_CHAN = 275879535977955330
 
@@ -217,11 +220,9 @@ class Stats(commands.Cog):
             if str(member_id) in voice_config[day]:
                 time = voice_config[day][str(member_id)]
                 voice_time += time
-        hours = voice_time // 60
-        minutes = voice_time % 60
         if voice_time:
             emb.add_field(name="Time in voice chats",
-                          value=f"{hours}h {minutes}m")
+                          value=format_interval(voice_time))
 
         # ### If no messages or voice in last 30 days ###
         if (not total_msgs_month or not sorted_msgs) and not voice_time:
@@ -315,15 +316,11 @@ class Stats(commands.Cog):
                 if number_of_users_found < 24 or \
                         (number_of_users_found == 24 and (found_yourself or member == ctx.author)) or \
                         number_of_users_found > 24 and member == ctx.author:
-                    if title.startswith("Messages"):
-                        value = sorted_dict[i][1]
-                        emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
-                                      value=sorted_dict[i][1])
-                    elif title.startswith("Voice"):
-                        hours = sorted_dict[i][1] // 60
-                        minutes = sorted_dict[i][1] % 60
-                        emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
-                                      value=f"{hours}h {minutes}m")
+                    value = sorted_dict[i][1]
+                    if title.startswith("Voice"):
+                        value = format_interval(value)
+                    emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
+                                  value=value)
                 number_of_users_found += 1
                 if member == ctx.author:
                     found_yourself = True

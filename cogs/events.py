@@ -12,6 +12,7 @@ from discord.ext import commands
 from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
+from .utils.timeutil import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -590,9 +591,9 @@ class Events(commands.Cog):
                                           f"\n**Server:** {msg.author.guild.name}" \
                                           f"\n**Name:** {msg.author.name} {msg.author.mention}" \
                                           f"\n**Account creation:** {msg.author.created_at} " \
-                                          f"({created_ago.days}d {created_ago.seconds // 3600}h ago)" \
+                                          f"({format_interval(created_ago, show_minutes=False)} ago)" \
                                           f"\n**Server join:** {msg.author.joined_at} " \
-                                          f"({joined_ago.days}d {joined_ago.seconds // 3600}h ago)" \
+                                          f"({format_interval(joined_ago, show_minutes=False)} ago)" \
                                           f"\n**Message:** {msg.content}"
                                 emb2 = hf.red_embed(message)
                                 emb2.color = discord.Color(int('000000', 16))

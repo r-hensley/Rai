@@ -29,7 +29,7 @@ API*
 *.txt
 !cogs/utils/conversation_topics.txt
 !cogs/utils/french_conversation_topics.txt
-!requirements.txt
+!requirements*.txt
 
 # other file extensions
 *.json
