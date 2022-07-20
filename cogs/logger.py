@@ -1011,13 +1011,15 @@ class Logger(commands.Cog):
             log_message = await hf.safe_send(log_channel, embed=x)
 
             # Logging join info for modlog pulls
+            recorded_info = {}
             if log_message:
-                if invites:
-                    first_invite: Optional[str] = invites[0].code
-                else:
-                    first_invite = None
-                server_config.setdefault('join_history', {})[str(member.id)] = {'jump_url': log_message.jump_url,
-                                                                                'invite': first_invite}
+                recorded_info['jump_url'] = log_message.jump_url
+
+            if used_invite:
+                recorded_info['invite'] = used_invite[0].code
+                recorded_info['invite_creator'] = used_invite[0].inviter.id
+
+            server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
             # Special Japanese server invite management
             if guild_id == str(JP_SERV_ID) and used_invite:
