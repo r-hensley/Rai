@@ -556,7 +556,7 @@ class ChannelMods(commands.Cog):
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def modlog(self, ctx, id_in, delete_parameter: Optional[int] = None, post_embed=True):
+    async def modlog(self, ctx: commands.Context, id_in, delete_parameter: Optional[int] = None, post_embed=True):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
@@ -765,15 +765,24 @@ class ChannelMods(commands.Cog):
         join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
         if join_history:
             invite: Optional[str]
-            if invite := join_history['invite']:
-                invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
-                                                                          await ctx.guild.invites())
-                if invite_obj:
-                    emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
-                                       f"{invite} by {invite_obj.inviter.name}"
+            invite_creator: Optional[int]
+            if invite := join_history.get('invite'):
+                invite_creator = join_history.get('invite_creator')
+                invite_creator_user = None
+                if invite_creator:
+                    try:
+                        invite_creator_user = await ctx.bot.fetch_user(invite_creator)
+                    except (discord.NotFound, discord.HTTPException):
+                        pass
+
+                if invite_creator_user:
+                    invite_author_str = \
+                        f"{invite_creator_user.name}#{invite_creator_user.discriminator} " \
+                        f"([ID](https://rai/inviter-id-is-I{invite_creator}))"
                 else:
-                    emb.description += f"\n[**`Used Invite`** : {invite}]" \
-                                       f"({join_history['jump_url']})"
+                    invite_author_str = f"unknown user {invite_creator_user}"
+                emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
+                                   f"{invite} by {invite_author_str}"
 
         #
         #
