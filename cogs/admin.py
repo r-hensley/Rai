@@ -11,6 +11,7 @@ import io
 from discord.ext import commands
 
 from .utils import helper_functions as hf
+from .utils.timeutil import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161
@@ -319,12 +320,11 @@ class Admin(commands.Cog):
                 except discord.NotFound:
                     continue
                 member_text = f"{user.name} ({user.id})"
-            seconds = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                       - discord.utils.utcnow()).total_seconds()
-            hours = int(seconds // 3600)
-            minutes = int((3600 % 3600) // 60)
+            interval = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                        - discord.utils.utcnow())
+            interval_str = format_interval(interval)
             embed_text += f"• {member_text}\n" \
-                          f"Until {mute['until']} (in {hours}h{minutes}m)\n" \
+                          f"Until {mute['until']} (in {interval_str})\n" \
                           f"{mute['reason']} (by {author.name})\n"
         await hf.safe_send(ctx, embed=hf.green_embed(embed_text))
 
@@ -2291,13 +2291,8 @@ class Admin(commands.Cog):
                 continue
             category_c = channel_obj.category.name[0].replace("S", " Ｓ ").replace("G", " Ｇ ")
             time = channel[1]
-            hours = int(time // 3600)
-            minutes = int(time % 3600 // 60)
-            seconds = int(time % 3600 % 60)
-            if hours:
-                addition = f"[{category_c}] {channel_obj.mention}: {hours}h{minutes}m{seconds}s\n"
-            else:
-                addition = f"[{category_c}] {channel_obj.mention}: {minutes}m{seconds}s\n"
+            interval_str = format_interval(time, show_seconds=True)
+            addition = f"[{category_c}] {channel_obj.mention}: {interval_str}\n"
 
             if len(msg + addition) > 2000:
                 first_msg = msg
