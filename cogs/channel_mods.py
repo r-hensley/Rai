@@ -1,9 +1,10 @@
 from typing import Optional, Union, List
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
+from .utils.timeutil import format_interval
 import re
 
 import os
@@ -608,11 +609,7 @@ class ChannelMods(commands.Cog):
                     .get(user_id, None):
                 muted = True
                 unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                time_left = unmute_date - discord.utils.utcnow()
-                days_left = time_left.days
-                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
-                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
-                unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+                unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
             else:
                 unmute_time_left_str = None
 
@@ -626,11 +623,7 @@ class ChannelMods(commands.Cog):
                 voice_muted = True
                 unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(
                     tzinfo=timezone.utc)
-                time_left = unmute_date - discord.utils.utcnow()
-                days_left = time_left.days
-                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
-                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
-                voice_unmute_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+                voice_unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
 
             else:
                 voice_unmute_time_left_str = None
@@ -650,11 +643,7 @@ class ChannelMods(commands.Cog):
             if member:
                 if member.is_timed_out():
                     timeout = True
-                    time_left = member.timed_out_until - discord.utils.utcnow()
-                    days_left = time_left.days
-                    hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
-                    minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
-                    timeout_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+                    timeout_time_left_str = format_interval(member.timed_out_until - discord.utils.utcnow())
 
             # Check for voice mute role in member roles
             if member:
@@ -673,11 +662,7 @@ class ChannelMods(commands.Cog):
                     .get(user_id, None):
                 banned = True
                 unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                time_left = unban_date - discord.utils.utcnow()
-                days_left = time_left.days
-                hours_left = int(round(time_left.total_seconds() % 86400 // 3600, 0))
-                minutes_left = int(round(time_left.total_seconds() % 86400 % 3600 / 60, 0))
-                unban_time_left_str = f"{days_left}d {hours_left}h {minutes_left}m"
+                unban_time_left_str = format_interval(unban_date - discord.utils.utcnow())
             else:
                 unban_time_left_str = None  # indefinite ban
 
@@ -772,9 +757,7 @@ class ChannelMods(commands.Cog):
                     if str(member.id) in voice_config[day]:
                         time = voice_config[day][str(member.id)]
                         voice_time += time
-                hours = voice_time // 60
-                minutes = voice_time % 60
-                voice_time_str = f"{hours}h {minutes}m"
+                voice_time_str = format_interval(voice_time)
 
             emb.description += f"\n**`Number of messages M | W`** : {total_msgs_month} | {total_msgs_week}"
             emb.description += f"\n**`Time in voice`** : {voice_time_str}"
@@ -1369,11 +1352,8 @@ class ChannelMods(commands.Cog):
             if voice_mute:
                 notif_text = notif_text.replace("muted", "voice muted").replace("text and voice", "voice")
             if time_string:
-                if length[2]:
-                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h{length[2]}m"
-                else:
-                    notif_text = f"{notif_text[:-1]} for {length[0]}d{length[1]}h"
-                notif_text += f" (until <t:{int(time_obj.timestamp())}:f>)."
+                interval_str = format_interval(timedelta(days=length[0], hours=length[1], minutes=length[2]))
+                notif_text = f"{notif_text[:-1]} for {interval_str} (until <t:{int(time_obj.timestamp())}:f>)."
             if reason:
                 notif_text += f"\nReason: {reason}"
             emb = hf.red_embed(notif_text)
