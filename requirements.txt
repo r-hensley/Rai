@@ -1,8 +1,8 @@
-aiohttp~=3.8.1
+aiohttp
 aiosignal
 async-timeout
 attrs
-beautifulsoup4~=4.11.1
+beautifulsoup4
 charset-normalizer
 click
 colorama
@@ -13,19 +13,19 @@ idna
 jarowinkler
 joblib
 kiwisolver
-Levenshtein~=0.18.1
-matplotlib~=3.5.2
+Levenshtein
+matplotlib
 multidict
 nltk
-numpy~=1.22.4
+numpy
 packaging
 Pillow
 pyparsing
 python-dateutil
-python-dotenv~=0.20.0
+python-dotenv
 rapidfuzz
 regex
-scikit-learn~=1.1.1
+scikit-learn
 scipy
 six
 soupsieve
@@ -34,6 +34,3 @@ tqdm
 yarl
 
 git+https://github.com/Rapptz/discord.py.git
-
-tensorflow~=2.9.1
-tensor2tensor~=1.15.7
