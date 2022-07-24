@@ -33,6 +33,35 @@ def any_channel_mod_check(ctx):
                 return True
 
 
+async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_history: dict) -> dict:
+    """Fix the invite used in join_history database for the year period of bugged logging"""
+    if not join_history:
+        return join_history
+    notification_message_url = join_history['jump_url']
+    # example: https://discord.com/channels/266695661670367232/321837027295363073/858265556297187328
+    guild_id, channel_id, message_id = map(int, notification_message_url.split('/')[-3:])
+    channel = ctx.bot.get_channel(channel_id)
+
+    if not channel:
+        return join_history
+
+    try:
+        message = await channel.fetch_message(message_id)
+    except (discord.NotFound, discord.HTTPException):
+        return join_history
+
+    if not message.embeds:
+        return join_history
+
+    embed = message.embeds[0]
+    invite_field = discord.utils.get(embed.fields, name="Invite link used")
+    if not invite_field:
+        return join_history
+    used_invite = invite_field.value.replace("`", "").split(' ')[0]
+    join_history['invite'] = used_invite
+    return join_history
+
+
 async def make_mute_role(ctx, dest, voice_mute):
     """For use in mute command"""
     if voice_mute:
@@ -763,11 +792,26 @@ class ChannelMods(commands.Cog):
             emb.description += f"\n**`Time in voice`** : {voice_time_str}"
 
         join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
+
+        # most invites recorded between june 26, 2021 and july 23, 2022 had a bug that caused them to default to
+        # the same invite. For those invites, I jump to the jump_url in the join_history object and check in that embed
+        # what the correct invite was
+        if member:
+            if datetime(2021, 6, 25, tzinfo=timezone.utc) <= member.joined_at <= datetime(2022, 7, 24, tzinfo=timezone.utc):
+                join_history = await fix_join_history_invite(ctx, user_id, join_history)
+        else:
+            join_history = await fix_join_history_invite(ctx, user_id, join_history)
+
         if join_history:
             invite: Optional[str]
             invite_creator: Optional[int]
             if invite := join_history.get('invite'):
-                invite_creator = join_history.get('invite_creator')
+                invite_creator = join_history.get('invite_creator')  # all old join entries don't have this field
+                if not invite_creator:
+                    invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
+                                                                              await ctx.guild.invites())
+                    invite_creator = invite_obj.inviter.id
+
                 invite_creator_user = None
                 if invite_creator:
                     try:
@@ -780,7 +824,7 @@ class ChannelMods(commands.Cog):
                         f"{invite_creator_user.name}#{invite_creator_user.discriminator} " \
                         f"([ID](https://rai/inviter-id-is-I{invite_creator}))"
                 else:
-                    invite_author_str = f"unknown user {invite_creator_user}"
+                    invite_author_str = f"unknown user"
                 emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                    f"{invite} by {invite_author_str}"
 
