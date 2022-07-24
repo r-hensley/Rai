@@ -810,7 +810,11 @@ class ChannelMods(commands.Cog):
                 if not invite_creator:
                     invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
                                                                               await ctx.guild.invites())
-                    invite_creator = invite_obj.inviter.id
+                    if not invite_obj:
+                        if invite == ctx.guild.vanity_url_code:
+                            invite_obj = await ctx.guild.vanity_invite()
+
+                    invite_creator = getattr(invite_obj.inviter, "id", None)
 
                 invite_creator_user = None
                 if invite_creator:
