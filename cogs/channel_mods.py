@@ -827,8 +827,10 @@ class ChannelMods(commands.Cog):
                     invite_author_str = \
                         f"{invite_creator_user.name}#{invite_creator_user.discriminator} " \
                         f"([ID](https://rai/inviter-id-is-I{invite_creator}))"
-                else:
+                elif invite_creator:
                     invite_author_str = f"unknown user {invite_creator}"
+                else:
+                    invite_author_str = f"unknown user"
                 emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                    f"{invite} by {invite_author_str}"
 
