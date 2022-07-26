@@ -656,7 +656,12 @@ class Admin(commands.Cog):
         if not num:
             await hf.safe_send(ctx, "Please input a number")
             return
-        if len(num) == 18:
+        if 17 <= len(num) <= 20:  # message ID
+            try:
+                _ = await ctx.channel.fetch_message(int(num))
+            except (ValueError, discord.NotFound):
+                await hf.safe_send(ctx, "Looks like you tried to input a message ID, but I couldn't find that message")
+                return
             args = ('0', int(num))
             num = 100
         try:
@@ -673,6 +678,7 @@ class Admin(commands.Cog):
                                         check=lambda m: m.author == ctx.author and m.content == 'y')
             except asyncio.TimeoutError:
                 await msg.edit(content="Canceling channel prune", delete_after=5.0)
+                return
         try:
             await ctx.message.delete()
         except (discord.NotFound, discord.Forbidden):
