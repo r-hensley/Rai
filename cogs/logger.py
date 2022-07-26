@@ -1017,7 +1017,8 @@ class Logger(commands.Cog):
 
             if used_invite:
                 recorded_info['invite'] = used_invite[0].code
-                recorded_info['invite_creator'] = used_invite[0].inviter.id
+                invite_creator = getattr(used_invite[0].inviter, "id", None)
+                recorded_info['invite_creator'] = invite_creator
 
             server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
