@@ -670,6 +670,10 @@ class Admin(commands.Cog):
             await hf.safe_send(ctx, f"You need to put a number of messages. "
                                     f"Type `;help clear` for information on syntax.")
             return
+        if 1000 < int(num):
+            await hf.safe_send(ctx, "I can't erase a server for you! Capping the number of messages down "
+                                    "to 1000.", delete_after=5)
+            num = 1000
         if 100 < int(num):
             msg = await hf.safe_send(ctx, f"You're trying to delete the last {num} messages. "
                                           f"Please type `y` to confirm this.")
