@@ -351,7 +351,15 @@ class Submod(commands.Cog):
 
             # Add reason to embed
             modlog_entry.reason = reason
-            emb.add_field(name="Reason", value=reason, inline=False)
+            if len(reason) <= 1024:
+                emb.add_field(name="Reason", value=reason, inline=False)
+            elif 1024 < len(reason) <= 2048:
+                emb.add_field(name="Reason", value=reason[:1024], inline=False)
+                emb.add_field(name="Reason (cont.)", value=reason[1024:2048], inline=False)
+            else:
+                await hf.safe_send(ctx, f"Your warning text is too long ({len(reason)} characters). Please write "
+                                        f"a message shorter than 2048 characters.")
+                return
 
             # Send notification to warned user if not a log
             if not modlog_entry.silent:
