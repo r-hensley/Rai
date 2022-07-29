@@ -1390,7 +1390,15 @@ class ChannelMods(commands.Cog):
             else:
                 emb.add_field(name="Length", value="Indefinite", inline=False)
             if reason:
-                emb.add_field(name="Reason", value=reason)
+                if len(reason) <= 1024:
+                    emb.add_field(name="Reason", value=reason)
+                elif 1024 < len(reason) <= 2048:
+                    emb.add_field(name="Reason", value=reason[:1024])
+                    emb.add_field(name="Reason (cont.)", value=reason[1024:])
+                else:
+                    await hf.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
+                                            "characters.")
+                    return
             if not silent:
                 try:
                     await hf.safe_send(target, embed=emb)
