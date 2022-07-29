@@ -269,6 +269,12 @@ class Events(commands.Cog):
             if msg.author.bot or msg.author.id == 202995638860906496:
                 return
 
+            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
+
+            if msg.guild.id in [254463427949494292,  # french server
+                                970703212107661402]:  # english server
+                to_check_words.remove('ryan')  # There's a popular user named "Ryan" in these two servers
+
             try:
                 ryry = msg.guild.get_member(202995638860906496)
                 if not ryry:
@@ -293,7 +299,7 @@ class Events(commands.Cog):
                 #     if msg.guild.id == SP_SERVER_ID:
                 #         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
 
-            to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
+
             for to_check_word in to_check_words:
                 # if word in cont.casefold():
                 if re.search(fr"(^| |\.){to_check_word}($|\W)", cont.casefold()):
