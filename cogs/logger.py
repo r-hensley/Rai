@@ -865,9 +865,20 @@ class Logger(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         """auto role"""
         async def auto_role():
-            if member.guild.id == 780188673575485463:
-                role = member.guild.get_role(834936351778144316)
-                await member.add_roles(role)
+            if member.guild.id == SPAN_SERV_ID:
+                category_roles = [member.guild.get_role(802629332425375794),
+                                  member.guild.get_role(802657919400804412),
+                                  member.guild.get_role(1002681814734880899)]
+
+                for role in category_roles.copy():
+                    if not role:
+                        category_roles.remove(role)
+
+                try:
+                    await member.add_roles(*category_roles)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
         await auto_role()
 
         """welcome message"""
@@ -980,7 +991,7 @@ class Logger(commands.Cog):
                         # Category roles
                         list_of_readd_roles.append(member.guild.get_role(802629332425375794))
                         list_of_readd_roles.append(member.guild.get_role(802657919400804412))
-                        list_of_readd_roles.append(member.guild.get_role(831574815718506507))
+                        list_of_readd_roles.append(member.guild.get_role(1002681814734880899))
                     try:
                         for role in list_of_readd_roles:
                             try:
@@ -1229,7 +1240,7 @@ class Logger(commands.Cog):
                 for role in member.roles:
                     if role.name in ['Nitro Booster', 'New User'] or \
                             role.id in [249695630606336000, member.guild.id, 645021058184773643, 802629332425375794,
-                                        802657919400804412, 831574815718506507]:
+                                        802657919400804412, 1002681814734880899]:
                         pass
                     else:
                         if str(role.id) in codes:
