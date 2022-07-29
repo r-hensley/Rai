@@ -627,7 +627,8 @@ class Events(commands.Cog):
             spanish_role = msg.guild.get_role(243854128424550401)
             other_role = msg.guild.get_role(247020385730691073)
             category_roles = [msg.guild.get_role(802629332425375794),
-                              msg.guild.get_role(802657919400804412)]
+                              msg.guild.get_role(802657919400804412),
+                              msg.guild.get_role(1002681814734880899)]
             for role in category_roles:
                 if not role:
                     category_roles.remove(role)
