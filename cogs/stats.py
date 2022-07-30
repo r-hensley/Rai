@@ -215,14 +215,14 @@ class Stats(commands.Cog):
 
         # ### Calculate voice time / Add field to embed ###
         voice_config = self.bot.stats[str(ctx.guild.id)]['voice']['total_time']
-        voice_time = 0
+        voice_time = 0  # counted in minutes
         for day in voice_config:
             if str(member_id) in voice_config[day]:
                 time = voice_config[day][str(member_id)]
                 voice_time += time
         if voice_time:
             emb.add_field(name="Time in voice chats",
-                          value=format_interval(voice_time))
+                          value=format_interval(voice_time * 60))
 
         # ### If no messages or voice in last 30 days ###
         if (not total_msgs_month or not sorted_msgs) and not voice_time:
@@ -270,7 +270,7 @@ class Stats(commands.Cog):
         # ### Calculate join position ###
         if member:
             member_list = ctx.guild.members
-            for member_in_list in member_list.copy():
+            for member_in_list in list(member_list).copy():
                 if not member_in_list.joined_at:
                     member_list.remove(member_in_list)
             sorted_members_by_join = sorted([(member, member.joined_at) for member in member_list],
@@ -318,7 +318,7 @@ class Stats(commands.Cog):
                         number_of_users_found > 24 and member == ctx.author:
                     value = sorted_dict[i][1]
                     if title.startswith("Voice"):
-                        value = format_interval(value)
+                        value = format_interval(value * 60)  # value is counted in minutes
                     emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
                                   value=value)
                 number_of_users_found += 1
