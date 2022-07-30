@@ -1515,7 +1515,7 @@ class Events(commands.Cog):
             try:
                 await user.remove_roles(role)
             except discord.Forbidden:
-                self.bot.get_user(202995638860906496).send(
+                await self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_remove: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
             except AttributeError:
@@ -1536,7 +1536,7 @@ class Events(commands.Cog):
         member_id = str(member.id)
         config = self.bot.stats[guild]['voice']
         if member_id not in config['in_voice']:
-            config['in_voice'][member_id] = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+            config['in_voice'][member_id] = discord.utils.utcnow().timestamp()
 
     @commands.command(hidden=True)
     async def command_out_of_voice(self, ctx, member):
@@ -1552,9 +1552,8 @@ class Events(commands.Cog):
             return
 
         # calculate how long they've been in voice
-        join_time = datetime.strptime(
-            config['in_voice'][str(member.id)], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-        total_length = (discord.utils.utcnow() - join_time).seconds
+        join_time = config['in_voice'][str(member.id)]
+        total_length = discord.utils.utcnow().timestamp() - join_time
         hours = total_length // 3600
         minutes = total_length % 3600 // 60
         del config['in_voice'][member_id]
