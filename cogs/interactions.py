@@ -228,6 +228,27 @@ class Interactions(commands.Cog):
     async def range(self, interaction: discord.Interaction, value: app_commands.Range[int, 10, 12]):
         await interaction.response.send_message(f'Your value is {value}', ephemeral=True)
 
+    @app_commands.command()
+    @app_commands.guilds(SP_GUILD)
+    async def emojiname(self, interaction: discord.Interaction, emoji: str):
+        """Puts an emoji in your name"""
+        user = interaction.user
+        if re.search(r"<:.*:\d{17,22}>", emoji):
+            await interaction.response.send_message("I think you're trying to add a custom emoji to your name, but "
+                                                    "I can't add custom emojis to names! Please try again",
+                                                    ephemeral=True)
+            return
+
+        try:
+            await user.edit(nick=user.display_name + emoji)
+        except discord.Forbidden:
+            await interaction.response.send_message("I lack the ability to edit your nickname!", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.response.send_message("I couldn't add your text to your nickname! Maybe the resulting "
+                                                    "nickname was too long?", ephemeral=True)
+        else:
+            await interaction.response.send_message("I've added that to your nickname!", ephemeral=True)
+
     #
     #
     # ########################################
