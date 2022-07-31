@@ -789,7 +789,7 @@ class ChannelMods(commands.Cog):
                     if str(member.id) in voice_config[day]:
                         time = voice_config[day][str(member.id)]
                         voice_time += time
-                voice_time_str = format_interval(voice_time)
+                voice_time_str = format_interval(voice_time * 60)
 
             emb.description += f"\n**`Number of messages M | W`** : {total_msgs_month} | {total_msgs_week}"
             emb.description += f"\n**`Time in voice`** : {voice_time_str}"
