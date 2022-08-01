@@ -149,12 +149,16 @@ class Events(commands.Cog):
                 return
 
             try:
+                first_character = msg.content[0]
                 first_word = msg.content.split()[0][1:]  # minus first character for potential command prefix
                 args_list = msg.content.split()[1:]
                 args_str = ' '.join(args_list)
             except IndexError:
                 return
             args = hf.args_discriminator(args_str)
+
+            if first_character != ",":
+                return  # only look at ciri commands
 
             if first_word in ['warn', 'log']:
                 if first_word == 'warn':
