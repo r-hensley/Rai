@@ -88,7 +88,7 @@ class Rai(Bot):
                       'auto_bans': {}, 'global_blacklist': {}, 'super_voicewatch': {}, 'report': {},
                       'super_watch': {}, 'prefix': {}, 'questions': {}, 'mutes': {}, 'submod_role': {},
                       'colors': {}, 'submod_channel': {}, 'SAR': {}, 'channel_mod': {}, 'channel_mods': {},
-                      'modlog': {}, 'dbtest': {}, 'modsonly': {}, 'voice_mods': [], 'voice_mutes': {},
+                      'modlog': {}, 'dbtest': {}, 'modsonly': {}, 'voice_mutes': {},
                       'selfmute': {}, 'voicemod': {}, 'staff_ping': {}, 'voice': {}, 'new_user_watch': {},
                       'reactionroles': {}, 'pmbot': {}, 'joins': {}, 'timed_voice_role': {}, 'banlog': {},
                       'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
