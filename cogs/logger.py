@@ -1414,6 +1414,15 @@ class Logger(commands.Cog):
             if reason:
                 emb.add_field(name="Reason", value=reason)
 
+            try:
+                await hf.safe_send(after, embed=emb)
+            except discord.Forbidden:
+                try:
+                    await hf.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
+                                               "their privacy settings.", embed=emb)
+                except discord.Forbidden:
+                    pass
+
             emb.set_footer(text=f"Muted by {author.name} ({author.id})")
             try:
                 if modlog_channel:
