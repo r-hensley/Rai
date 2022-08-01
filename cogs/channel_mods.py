@@ -195,20 +195,25 @@ class ChannelMods(commands.Cog):
                 return
             if msg.embeds:
                 for embed in msg.embeds:
-                    embeds.append(embed)
-                    emb.add_field(name=f"Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
+                    if embed.title or embed.description or embed.fields:
+                        embeds.append(embed)
+                        emb.add_field(name=f"Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
             if msg.content:
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
                               value=f"{msg.content}"[:1008 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
             if msg.content[1009:]:
                 emb.add_field(name=f"continued", value=f"...{msg.content[1009 - len(jump_url):len(jump_url) + 1024]}")
-            if msg.attachments:
-                x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
-                if not msg.content:
-                    name = f"Message attachments by {str(msg.author)} (might expire soon):"
-                else:
-                    name = "Attachments (might expire soon):"
-                emb.add_field(name=name, value='\n'.join(x))
+            if msg.attachments and not msg.content:
+                emb.description = f"Attachments by {str(msg.author)} ({msg.author.id}) in below thread"
+            if msg.attachments and msg.content:
+                emb.description = f"Attachments in below thread"
+            # if msg.attachments:
+            #     x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
+            #     if not msg.content:
+            #         name = f"Message attachments by {str(msg.author)} (might expire soon):"
+            #     else:
+            #         name = "Attachments (might expire soon):"
+            #     emb.add_field(name=name, value='\n'.join(x))
             emb.timestamp = msg.created_at
         emb.set_footer(text=f"Deleted by {str(ctx.author)} - Message sent at:")
         if str(ctx.guild.id) in self.bot.db['submod_channel']:
@@ -230,7 +235,9 @@ class ChannelMods(commands.Cog):
                                     "`;set_mod_channel` or `;set_submod_channel`")
             return
 
-        await hf.safe_send(channel, embed=emb)
+        log_message = await hf.safe_send(channel, msg.author.id, embed=emb)
+        for msg in msgs:
+            await hf.send_attachments_to_thread_on_message(log_message, msg)
         if embeds:
             for embed in embeds:
                 if not embed:
