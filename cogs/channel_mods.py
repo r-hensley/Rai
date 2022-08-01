@@ -89,27 +89,50 @@ class ChannelMods(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
+        # only usable in guilds
         if not ctx.guild:
             return
+
+        # mod channel must be set
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             if not ctx.message.content.endswith("help"):  # ignore if it's the help command
                 await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
-        if not hf.submod_check(ctx):
-            if isinstance(ctx.channel, discord.TextChannel):
+
+        # submods can use all channel mod commands
+        if hf.submod_check(ctx):
+            return True
+
+        else:
+            if isinstance(ctx.channel, (discord.TextChannel, discord.VoiceChannel)):
                 channel_id = ctx.channel.id
             elif isinstance(ctx.channel, discord.Thread):
                 channel_id = ctx.channel.parent.id
             else:
                 return
+
+            # channel mods can use commands in their channel
             if ctx.author.id in self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(channel_id), {}):
                 return True
+
+            # anyone can use commands in the submod channel
             if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
                 return True
-            if ctx.command.name == "staffping" and ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
-                return True
-        else:
-            return True
+
+            # voice mods...
+            if ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
+                # ...can use staffping
+                if ctx.command.name == "staffping":
+                    return True
+
+                # ...can use commands in text channels with the word "voice" in them
+                elif "voice" in ctx.channel.name.casefold() or "vc" in ctx.channel.name.casefold():
+                    return True
+
+                # ...can use commands in the text channels associated with voice channels
+                elif isinstance(ctx.channel, discord.VoiceChannel):
+                    return True
+
         if ctx.command.name == 'role':
             return True
 
