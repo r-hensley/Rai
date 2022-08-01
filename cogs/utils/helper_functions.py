@@ -776,13 +776,19 @@ def args_discriminator(args: str):
         if user_id_match := re.search(user_regex, arg):
             _user_ids.append(int(user_id_match.group(1)))
             args_list.remove(arg)
-            args = args.replace(f"{arg} ", "").replace(arg, "")
+            if f"{arg} " in args:
+                args = args.replace(f"{arg} ", "", 1)
+            else:
+                args = args.replace(arg, "", 1)
         elif (t := parse_time(arg))[0]:
             _time_string = t[0]
             _length = t[1]
             _time_arg = arg
             args_list.remove(arg)
-            args = args.replace(f"{arg} ", "").replace(arg, "")
+            if f"{arg} " in args:
+                args = args.replace(f"{arg} ", "", 1)
+            else:
+                args = args.replace(arg, "", 1)
         else:
             break  # Assuming all user_ids and times are before the reason
     _reason = args
