@@ -1553,6 +1553,10 @@ class Events(commands.Cog):
 
         # calculate how long they've been in voice
         join_time = config['in_voice'][str(member.id)]
+        try:
+            join_time = float(join_time)
+        except ValueError:
+            join_time = datetime.strptime(join_time, "%Y/%m/%d %H:%M UTC").timestamp()
         total_length = discord.utils.utcnow().timestamp() - join_time
         hours = total_length // 3600
         minutes = total_length % 3600 // 60
@@ -1813,8 +1817,41 @@ class Events(commands.Cog):
             user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
             if user_id:
                 ctx = await self.bot.get_context(opening_msg)
-                modlog = self.bot.get_command("modlog")
+                modlog: commands.Command = self.bot.get_command("modlog")
                 await ctx.invoke(modlog, id_in=user_id)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
+        if config := self.bot.db['deletes'].get(str(channel.guild.id), {}):
+            enable = config['enable']
+            log_channel_id = config['channel']
+            if not enable or not log_channel_id:
+                return
+        else:
+            return
+
+        log_channel = channel.guild.get_channel(int(log_channel_id))
+        cached_messages_in_channel: list[discord.Message] = []
+        authors_in_channel = set()
+        for m in self.bot.cached_messages:
+            if m.channel.id == channel.id:
+                cached_messages_in_channel.append(m)
+                authors_in_channel.add(m.author)
+
+        if not cached_messages_in_channel:
+            return
+
+        text = hf.message_list_to_text(cached_messages_in_channel)
+        file = hf.text_to_file(text, f"deleted_channel_{channel.name}_messages.txt")
+        embed_text = f"Saving {len(cached_messages_in_channel)} cached messages from deleted channel " \
+                     f"__#{channel.name}__.\nThe file contains messages from the following authors:"
+        for author in authors_in_channel:
+            embed_text += f"\n- M{author.id} ({str(author)})"
+            embed_text += f" **x{len([m for m in cached_messages_in_channel if m.author == author])}**"
+        emb = hf.red_embed(embed_text)
+
+        await log_channel.send(embed=emb, file=file)
+
 
 async def setup(bot):
     await bot.add_cog(Events(bot))
