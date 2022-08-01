@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import io
 import json
 import os
 import re
@@ -917,5 +918,38 @@ async def hf_sync():
         await here.bot.tree.sync(guild=RY_SERV)
     except discord.Forbidden:
         print("Failed to sync commands to RY_SERV")
+
+
+def message_list_to_text(msgs: list[discord.Message], text: str = "") -> str:
+    for msg in msgs:
+        date = msg.created_at.strftime("%d/%m/%y %H:%M:%S")
+        author = f"{msg.author.name}#{msg.author.discriminator} ({msg.author.id})"
+        if msg.content:
+            text += f"({date}) - {author} || {msg.content}\n"
+        for embed in msg.embeds:
+            embed_cont = ""
+            if embed.title:
+                embed_cont += f"{embed.title} - "
+            if embed.description:
+                embed_cont += f"{embed.description} - "
+            if embed.url:
+                embed_cont += f"{embed.url} - "
+            if embed_cont:
+                embed_cont = embed_cont[:-3]
+            text += f"({date}) - Deleted embed from {author} || {embed_cont}\n"
+        for att in msg.attachments:
+            text += f"({date}) - Deleted attachment from {author} || {att.filename}: {att.proxy_url}\n"
+
+    return text
+
+
+def text_to_file(text: str, filename) -> discord.File:
+    with io.StringIO() as write_file:
+        write_file.write(text)
+        write_file.seek(0)
+        filename = filename
+        file = discord.File(write_file, filename=filename)
+
+    return file
 
 

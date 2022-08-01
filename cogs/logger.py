@@ -524,6 +524,7 @@ class Logger(commands.Cog):
         message_channel = self.bot.get_channel(payload.channel_id)
         cached = [m.id for m in payload.cached_messages]
         uncached = [m for m in payload.message_ids if m not in cached]
+        cached_authors = {m.author for m in payload.cached_messages}
 
         if payload.cached_messages:
             if message_channel:
@@ -534,49 +535,25 @@ class Logger(commands.Cog):
                        f"(times are in UTC)\n"
 
             msgs = sorted(list(payload.cached_messages), key=lambda m: m.id)
-            for msg in msgs:
-                date = msg.created_at.strftime("%d/%m/%y %H:%M:%S")
-                author = f"{msg.author.name}#{msg.author.discriminator} ({msg.author.id})"
-                if msg.content:
-                    text += f"|||| ({date}) - {author} |||| {msg.content}\n"
-                for embed in msg.embeds:
-                    embed_cont = ""
-                    if embed.title:
-                        embed_cont += f"{embed.title} - "
-                    if embed.description:
-                        embed_cont += f"{embed.description} - "
-                    if embed.url:
-                        embed_cont += f"{embed.url} - "
-                    if embed_cont:
-                        embed_cont = embed_cont[:-3]
-                    text += f"|||| ({date}) - Deleted embed from {author} |||| {embed_cont}\n"
-                for att in msg.attachments:
-                    text += f"|||| ({date}) - Deleted attachment from {author}|||| {att.filename}: {att.proxy_url}\n"
-            with io.StringIO() as write_file:
-                write_file.write(text)
-                write_file.seek(0)
-                filename = f"{payload.channel_id}_{msgs[0].id}-{msgs[-1].id}_messages.txt"
-                file = discord.File(write_file, filename=filename)
-                text = f"**{len(msgs)}** messages have been cleared from <#{payload.channel_id}> and logged above.\n" \
-                       f"Deleted author/message IDs are:\n"
-                for msg in payload.cached_messages:
-                    addition = f"M{msg.author.id}/{msg.id}\n"
-                    if len(text + addition) < 2048:
-                        text += addition
-                    else:
-                        break
-                emb = hf.red_embed(text)
-                if uncached:
-                    text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
-                           f"I am unable to see who sent messages. The message IDs are:\n"
-                    if len(emb.description + text) < 2048:
-                        emb.description += text
-                    for msg_id in uncached:
-                        # 2048 characters is the character limit for an embed description so cut it off here
-                        # Ideally this would either tell the user that the message got cut-off, or even better
-                        # send a second embed with the remaining text, but that is a project for another day
-                        if len(emb.description + f"{msg_id}, ") < 2048:
-                            emb.description += f"{msg_id}, "
+            text = hf.message_list_to_text(msgs, text)
+            file = hf.text_to_file(text, f"{payload.channel_id}_{msgs[0].id}-{msgs[-1].id}_messages.txt")
+
+            # Reset text variable, start building text for embed
+            text = f"**{len(msgs)}** messages have been cleared from <#{payload.channel_id}> and logged above.\n" \
+                   f"This file contains messages from the following authors:"
+            for author in cached_authors:
+                addition = f"\n- M{author.id} ({str(author)})"
+                addition += f" **x{len([m for m in payload.cached_messages if m.author == author])}**"
+                if len(text + addition) < 2048:
+                    text += addition
+                else:
+                    break
+            emb = hf.red_embed(text)
+            if uncached:
+                text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
+                       f"I am unable to see who sent uncached messages.\n"
+                if len(emb.description + text) < 2048:
+                    emb.description += text
 
         else:
             file = None
