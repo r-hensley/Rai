@@ -953,3 +953,50 @@ def text_to_file(text: str, filename) -> discord.File:
     return file
 
 
+async def send_attachments_to_thread_on_message(log_message: discord.Message, attachments_message: discord.Message):
+    """This command creates a thread on a log message and uploads all the attachments from an "attachment_message"
+    to a thread on the log message"""
+    thread = None
+    if attachments_message.attachments:
+        try:
+            # Either get the thread on a message or create a new thread
+            if thread := log_message.guild.get_thread(log_message.id):
+                pass
+            else:
+                thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        else:
+            for attachment in attachments_message.attachments:
+                file = await attachment.to_file(filename=attachment.filename,
+                                                description=attachment.description,
+                                                use_cached=True,
+                                                spoiler=True)
+                try:
+                    await safe_send(thread, file=file)
+                except (discord.Forbidden, discord.HTTPException) as e:
+                    try:
+                        await safe_send(thread, f"Error attempting to send {attachment.filename} "
+                                                f"({attachment.proxy_url}): {e}")
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+
+            # archive after uploading all attachments
+            await thread.edit(archived=True)
+
+    if attachments_message.embeds:
+        if not thread:
+            # Either get the thread on a message or create a new thread
+            if thread := log_message.guild.get_thread(log_message.id):
+                pass
+            else:
+                thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
+
+        for embed in attachments_message.embeds:
+            try:
+                await safe_send(thread, embed.url)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                try:
+                    await safe_send(thread, f"Error attempting to send attached link to message: {e}")
+                except (discord.Forbidden, discord.HTTPException):
+                    pass

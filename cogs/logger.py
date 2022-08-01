@@ -468,9 +468,6 @@ class Logger(commands.Cog):
                     file_bool = True
                     continue
 
-            if list_of_attachments:
-                emb.add_field(name='**Attachments (link may quickly become unviewable):**', value='\n'.join(list_of_attachments))
-                emb.set_thumbnail(url=list_of_attachments[0])
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
@@ -483,25 +480,27 @@ class Logger(commands.Cog):
     async def on_message_delete(self, message):
         if ';report' in message.content:
             return  # for keeping anonymous reports anonymous
-        if not message.guild:
+        if not message.guild or message.author.bot:
             return
         guild = str(message.guild.id)
-        if not message.author.bot:
-            if guild in self.bot.db['deletes']:
-                guild_config: dict = self.bot.db['deletes'][guild]
-                if guild_config['enable']:
-                    try:
-                        channel = self.bot.get_channel(guild_config["channel"])
-                    except KeyError:
-                        guild_config['enable'] = False
-                        return
-                    if not channel:
-                        del (guild_config['channel'])
-                        return
-                    try:
-                        await hf.safe_send(channel, embed=await self.make_delete_embed(message))
-                    except discord.Forbidden:
-                        await self.module_disable_notification(message.guild, guild_config, 'message deletes')
+        guild_config: dict = self.bot.db['deletes'].get(guild, {'enable': False})
+        if not guild_config['enable']:
+            return
+
+        try:
+            channel = self.bot.get_channel(guild_config["channel"])
+        except KeyError:
+            del self.bot.db['deletes'][guild]
+            return
+        if not channel:
+            del self.bot.db['deletes'][guild]
+            return
+
+        try:
+            log_message = await hf.safe_send(channel, embed=await self.make_delete_embed(message))
+            await hf.send_attachments_to_thread_on_message(log_message, message)
+        except discord.Forbidden:
+            await self.module_disable_notification(message.guild, guild_config, 'message deletes')
 
     @commands.Cog.listener()
     async def on_raw_bulk_message_delete(self, payload):
