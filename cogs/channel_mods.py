@@ -313,6 +313,7 @@ class ChannelMods(commands.Cog):
             await ctx.message.delete()
         except discord.Forbidden:
             pass
+
         try:
             await to_be_pinned_msg.pin()
         except discord.Forbidden:
@@ -1418,6 +1419,7 @@ class ChannelMods(commands.Cog):
                               value=f"{time_arg} (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R> )",
                               inline=False)
             else:
+                timestamp = 0
                 emb.add_field(name="Length", value="Indefinite", inline=False)
             if reason:
                 if len(reason) <= 1024:
@@ -1450,9 +1452,44 @@ class ChannelMods(commands.Cog):
                 notif_text = f"{notif_text[:-1]} for {interval_str} (until <t:{int(time_obj.timestamp())}:f>)."
             if reason:
                 notif_text += f"\nReason: {reason}"
-            emb = hf.red_embed(notif_text)
+
+            # Make embed
+            emb = hf.red_embed('')
+            if voice_mute:
+                emb.title = "Voice Mute"
+            else:
+                emb.title = "Mute"
+
+            emb.add_field(name="User", value=f"{str(target)} ({target.id})",
+                          inline=False)
+
+            if time_string:
+                emb.title = "Temporary " + emb.title
+                if length[2]:
+                    dhm_str = f"{length[0]}d{length[1]}h{length[2]}m"
+                else:
+                    dhm_str = f"{length[0]}d{length[1]}h"
+                emb.add_field(name="Mute duration",
+                              value=f"For {dhm_str} (unmute on <t:{int(timestamp)}:f> - <t:{int(timestamp)}:R>)",
+                              inline=False)
+            else:
+                emb.title = "Permanent " + emb.title
+
+            if reason:
+                reason_field = reason
+            else:
+                reason_field = "(No given reason)"
+            emb.add_field(name="Reason", value=reason_field,
+                          inline=False)
+
+            if ctx.message:
+                emb.add_field(name="Jump URL", value=ctx.message.jump_url,
+                              inline=False)
+
+            emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+
             if silent:
-                emb.description += " (The user was not notified of this)"
+                emb.title += " (The user was not notified of this)"
             if ctx.author == ctx.guild.me:
                 additonal_text = str(target.id)
             else:
@@ -1468,10 +1505,8 @@ class ChannelMods(commands.Cog):
 
             # Add info about mute to modlog channel
             modlog_channel = self.bot.get_channel(modlog_config['channel'])
-            emb.insert_field_at(0, name="User", value=f"{target.name} ({target.id})", inline=False)
-            if ctx.message:
-                emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
-            emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+
+
             try:
                 if modlog_channel:
                     if modlog_channel != ctx.channel:
