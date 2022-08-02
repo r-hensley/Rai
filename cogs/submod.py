@@ -340,14 +340,9 @@ class Submod(commands.Cog):
                                           reason=reason
                                           )
 
-            emb = hf.red_embed(f"Warned on {ctx.guild.name} server")
+            emb = hf.red_embed("")
+            emb.title = f"Warning from {ctx.guild.name}"
             emb.color = 0xffff00  # embed ff8800
-            emb.add_field(name="User", value=f"{user.name} ({user.id})", inline=False)
-
-            if silent:
-                emb.description = "Log *(This incident was not sent to the user)*"
-            else:
-                emb.description = "Warning"
 
             # Add reason to embed
             modlog_entry.reason = reason
@@ -367,61 +362,25 @@ class Submod(commands.Cog):
                     await hf.safe_send(user, embed=emb)
                 # if bot fails to send message to user, offer to send warning to a public channel
                 except discord.Forbidden:
-                    if notif_channel_id := self.bot.db['modlog'] \
-                            .get(str(ctx.guild.id), {}) \
-                            .get("warn_notification_channel", None):
-                        notif_channel = self.bot.get_channel(notif_channel_id)
-                    else:
-                        await hf.safe_send(ctx, "I was unable to send the warning to this user. "
-                                                "In the future you can type `;warn set` in a text channel in your "
-                                                "server and I will offer to send a public warning to the user in "
-                                                "these cases.")
-                        continue
-
-                    if notif_channel:
-                        question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
-                                                           f"Would you like to send a pubic warning to "
-                                                           f"{notif_channel.mention}?")
-                        await question.add_reaction('✅')
-                        await question.add_reaction('❌')
-
-                        def reaction_check(r, u):
-                            return u == ctx.author and str(r) in '✅❌'
-
-                        try:
-                            reaction_added, user_react = await self.bot.wait_for("reaction_add",
-                                                                                 check=reaction_check,
-                                                                                 timeout=10)
-                        except asyncio.TimeoutError:
-                            await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                            continue
-                        else:
-                            if str(reaction_added) == '✅':
-                                try:
-                                    await hf.safe_send(notif_channel,
-                                                       f"{user.mention}: Due to your privacy settings "
-                                                       f"disabling messages from bots, we are "
-                                                       f"delivering this warning in a "
-                                                       f"public channel. If you believe this to be an "
-                                                       f"error, please contact a mod.",
-                                                       embed=emb)
-                                except discord.Forbidden:
-                                    await hf.safe_send(ctx, "I can't send messages to the channel you have marked "
-                                                            "in this server as the warn notifications channel. Please "
-                                                            "go to a new channel and type `;warns set`.")
-                                    continue
-                            else:
-                                await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                                continue
+                    try:
+                        # This will attempt to warn the user in a public channel if possible on your server
+                        await self.attempt_public_warn(ctx, user, emb)
+                    except discord.Forbidden:
+                        continue  # failure in above command
                 except discord.HTTPException:
                     await hf.safe_send(ctx, f"I cannot send messages to {user.mention}.")
                     continue
 
-            # Add this footer/field only after potentially sending warn notification to user
+            # Edit embed for internal logging view after sending initial embed to user
+            emb.insert_field_at(0, name="User", value=f"{user.name} ({user.id})", inline=False)
+
             if silent:
+                emb.title = "Log *(This incident was not sent to the user)*"
                 footer_text = f"Logged by {ctx.author.name} ({ctx.author.id})"
             else:
+                emb.title = "Warning"
                 footer_text = f"Warned by {ctx.author.name} ({ctx.author.id})"
+
             emb.set_footer(text=footer_text)
 
             emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
@@ -449,6 +408,53 @@ class Submod(commands.Cog):
             else:
                 await hf.safe_send(ctx, embed=emb)
 
+    async def attempt_public_warn(self, ctx, user, emb):
+        if notif_channel_id := self.bot.db['modlog'] \
+                .get(str(ctx.guild.id), {}) \
+                .get("warn_notification_channel", None):
+            notif_channel = self.bot.get_channel(notif_channel_id)
+        else:
+            await hf.safe_send(ctx, "I was unable to send the warning to this user. "
+                                    "In the future you can type `;warn set` in a text channel in your "
+                                    "server and I will offer to send a public warning to the user in "
+                                    "these cases.")
+            raise discord.Forbidden
+
+        if notif_channel:
+            question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
+                                               f"Would you like to send a pubic warning to "
+                                               f"{notif_channel.mention}?")
+            await question.add_reaction('✅')
+            await question.add_reaction('❌')
+
+            def reaction_check(r, u):
+                return u == ctx.author and str(r) in '✅❌'
+
+            try:
+                reaction_added, user_react = await self.bot.wait_for("reaction_add",
+                                                                     check=reaction_check,
+                                                                     timeout=10)
+            except asyncio.TimeoutError:
+                await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
+                raise discord.Forbidden
+            else:
+                if str(reaction_added) == '✅':
+                    try:
+                        await hf.safe_send(notif_channel,
+                                           f"{user.mention}: Due to your privacy settings "
+                                           f"disabling messages from bots, we are "
+                                           f"delivering this warning in a "
+                                           f"public channel. If you believe this to be an "
+                                           f"error, please contact a mod.",
+                                           embed=emb)
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, "I can't send messages to the channel you have marked "
+                                                "in this server as the warn notifications channel. Please "
+                                                "go to a new channel and type `;warns set`.")
+                        raise discord.Forbidden
+                else:
+                    await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
+                    raise discord.Forbidden
 
     @warn.command(name="set")
     @hf.is_submod()
