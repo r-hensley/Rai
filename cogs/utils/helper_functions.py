@@ -154,7 +154,7 @@ async def safe_send(destination,
     if not content and not embed and not file:
         if type(destination) == str:
             raise SyntaxError("You maybe forgot to state a destination in the safe_send() function")
-        elif type(destination) == commands.Context:
+        elif issubclass(destination, discord.abc.Messageable):
             raise SyntaxError("The content you tried to send in the safe_send() function was None")
         else:
             raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
