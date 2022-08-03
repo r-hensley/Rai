@@ -294,16 +294,29 @@ class Logger(commands.Cog):
                     users_in_voice += f"\n- {user.mention} ({str(user)})"
                 emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
                 try:
-                    await hf.safe_send(channel, member.mention, embed=emb)
+                    await hf.safe_send(channel, member.id, embed=emb)
                 except discord.Forbidden:
                     pass
 
             thirty_minutes_in_seconds = 60 * 30
-            if (discord.utils.utcnow() - member.created_at).total_seconds() < thirty_minutes_in_seconds:
+            if (discord.utils.utcnow() - member.created_at).total_seconds() < thirty_minutes_in_seconds and a and not b:
+                emb.description += "\n(Newly created account joining voice)"
                 try:
-                    await hf.safe_send(channel, member.mention, embed=emb)
+                    await hf.safe_send(channel, member.id, embed=emb)
                 except discord.Forbidden:
                     pass
+
+            bronox = member.guild.get_member(894817002672259072)
+            if bronox:
+                if bronox in a.members:
+                    # 'jason' in the database is a timestamp showing the last time a jason alt was banned
+                    if member.created_at.timestamp() > self.bot.db['jason']:
+                        emb.description += "\n(An account that was created after the last time Jason was banned " \
+                                           "has joined a voice channel with Bronox)"
+                        try:
+                            await hf.safe_send(channel, member.id, embed=emb)
+                        except discord.Forbidden:
+                            pass
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
