@@ -1506,7 +1506,6 @@ class ChannelMods(commands.Cog):
             # Add info about mute to modlog channel
             modlog_channel = self.bot.get_channel(modlog_config['channel'])
 
-
             try:
                 if modlog_channel:
                     if modlog_channel != ctx.channel:
