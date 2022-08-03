@@ -2,6 +2,7 @@ log/
 gitignore/
 database_backups/
 old_stuff/
+banned_img/
 
 # Test Rai
 local/
