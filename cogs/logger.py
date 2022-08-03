@@ -175,7 +175,9 @@ class Logger(commands.Cog):
                                     f'`V202995638860906496`).')
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    async def on_voice_state_update(self, member: discord.Member,
+                                    before: discord.VoiceState,
+                                    after: discord.VoiceState):
         guild = str(member.guild.id)
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
@@ -287,8 +289,19 @@ class Logger(commands.Cog):
             b = before.channel
             a = after.channel
             if member.id in config['users'] and a and not b:
+                users_in_voice = ""
+                for user in after.channel.members:
+                    users_in_voice += f"\n- {user.mention} ({str(user)})"
+                emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
                 try:
-                    await hf.safe_send(channel, embed=emb)
+                    await hf.safe_send(channel, member.mention, embed=emb)
+                except discord.Forbidden:
+                    pass
+
+            thirty_minutes_in_seconds = 60 * 30
+            if (discord.utils.utcnow() - member.created_at).total_seconds() < thirty_minutes_in_seconds:
+                try:
+                    await hf.safe_send(channel, member.mention, embed=emb)
                 except discord.Forbidden:
                     pass
 
