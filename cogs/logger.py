@@ -1008,7 +1008,7 @@ class Logger(commands.Cog):
                 del readd_config['users'][str(member.id)]
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
-            log_message = await hf.safe_send(log_channel, embed=x)
+            log_message = await hf.safe_send(log_channel, member.id, embed=x)
 
             # Logging join info for modlog pulls
             recorded_info = {}
@@ -1211,7 +1211,7 @@ class Logger(commands.Cog):
                     del self.bot.db['leaves'][guild]
                     return
                 try:
-                    await hf.safe_send(channel, embed=self.make_leave_embed(member))
+                    await hf.safe_send(channel, member.id, embed=self.make_leave_embed(member))
                 except discord.Forbidden:
                     await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
