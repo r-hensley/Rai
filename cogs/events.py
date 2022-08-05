@@ -7,7 +7,7 @@ import urllib
 from datetime import timedelta, datetime
 from typing import Optional
 from urllib.error import HTTPError
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, UnidentifiedImageError
 import imagehash
 
 import discord
@@ -100,7 +100,10 @@ class Events(commands.Cog):
                                                                          'apng', 'tiff', 'mov', 'mp4']:
                         data = io.BytesIO()
                         await attachment.save(data)
-                        img2 = Image.open(data).convert("RGB")
+                        try:
+                            img2 = Image.open(data).convert("RGB")
+                        except UnidentifiedImageError:
+                            return
 
                         results = [compare_images(img2, self.bot.imga),
                                    compare_images(img2, self.bot.imgb),
