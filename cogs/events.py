@@ -49,7 +49,6 @@ def compare_images(img2, img1):
     threshold = 1  # some experimentally valid value
 
     totalaccuracy = phashvalue + ahashvalue
-    print(totalaccuracy)
     return totalaccuracy
 
 
@@ -1780,8 +1779,8 @@ class Events(commands.Cog):
             There will also be a "voice approved" role which can override this.
             """
             # uncomment below for testing
-            # if member.id not in [202995638860906496, 414873201349361664]:  # ryry, abelian
-            #     return  # for testing
+            # if member.id in [202995638860906496, 414873201349361664, 416452861816340497 ]:  # ryry, abelian, hermitian
+                # return  # for testing
 
             # If this event is not for someone joining voice, ignore it
             joined = not before.channel and after.channel  # True if they just joined voice
@@ -1798,8 +1797,9 @@ class Events(commands.Cog):
                 return
 
             # If voice lock not enabled on current server
+            config = self.bot.db['voice_lock'].get(str(member.guild.id), {})
             joined_to = after.channel
-            if not self.bot.db['voice_lock'].get(str(member.guild.id), {}).get(str(joined_to.category.id), None):
+            if not config['categories'].get(str(joined_to.category.id), None):
                 return
 
             # A role which exempts the user from any requirements on joining voice
@@ -1811,13 +1811,18 @@ class Events(commands.Cog):
             if role in member.roles:
                 return
 
-            # If user has been in the server for more than two hours, let them into voice
-            if (discord.utils.utcnow() - member.joined_at).total_seconds() > 3 * 60 * 60:
-                return
+            # If the user is a newly made account
+            hours_for_new_users = config.get('hours_for_new_users', 24)
+            if (discord.utils.utcnow() - member.created_at).total_seconds() > hours_for_new_users * 60 * 60:
+                # If user has been in the server for more than three hours, let them into voice
+                hours_for_users = config.get('hours_for_users', 3)
+                if (discord.utils.utcnow() - member.joined_at).total_seconds() > hours_for_users * 60 * 60:
+                    return
 
-            # If user has more than 100 messages in the last month, let them into voice
-            if hf.count_messages(member) > 50:
-                return
+                # If user has more than 100 messages in the last month, let them into voice
+                messages_for_users = config.get('messages_for_users', 50)
+                if hf.count_messages(member) > messages_for_users:
+                    return
 
             # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
 
