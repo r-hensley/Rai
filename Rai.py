@@ -312,29 +312,7 @@ class Rai(Bot):
             await ctx.send(f"Only the bot owner can do that.")
             return
 
-        print(datetime.now())
-        error = getattr(error, 'original', error)
-        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
-        print(f'Error in {qualified_name}:', file=sys.stderr)
-        traceback.print_tb(error.__traceback__)
-        print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-
-        e = discord.Embed(title='Command Error', colour=0xcc3366)
-        e.add_field(name='Name  ', value=qualified_name)
-        e.add_field(name='Command', value=ctx.message.content[:1000])
-        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
-
-        fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
-        if ctx.guild:
-            fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
-
-        e.add_field(name='Location', value=fmt, inline=False)
-
-        exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-        traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
-        e.timestamp = discord.utils.utcnow()
-        await self.get_channel(TRACEBACK_LOGGING_CHANNEL).send(traceback_text[:2000], embed=e)
-        print('')
+        await hf.send_error_embed(self, ctx, error)
 
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
