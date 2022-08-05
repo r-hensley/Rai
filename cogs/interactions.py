@@ -31,6 +31,10 @@ SP_GUILD = discord.Object(id=SP_SERVER_ID)
 # app_commands.context_menu() doesn't work in cogs!
 
 
+async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    await hf.send_error_embed(interaction.client, interaction, error)
+
+
 class Point(NamedTuple):
     x: int
     y: int
@@ -95,6 +99,7 @@ class Interactions(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.bot.tree.on_error = on_tree_error
 
     async def sync_main(self):
         """Main code for syncing app commands"""
