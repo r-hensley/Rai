@@ -214,12 +214,7 @@ class Stats(commands.Cog):
                           value=f"{channeltext}")
 
         # ### Calculate voice time / Add field to embed ###
-        voice_config = self.bot.stats[str(ctx.guild.id)]['voice']['total_time']
-        voice_time = 0  # counted in minutes
-        for day in voice_config:
-            if str(member_id) in voice_config[day]:
-                time = voice_config[day][str(member_id)]
-                voice_time += time
+        voice_time: int = hf.calculate_voice_time(member_id, ctx.guild.id)  # number of minutes
         if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=format_interval(voice_time * 60))

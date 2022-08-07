@@ -91,7 +91,7 @@ _emoji = re.compile(r'<a?(:[A-Za-z0-9_]+:|#|@|@&)!?[0-9]{17,20}>')
 _lock = asyncio.Lock()
 
 
-def count_messages(member, guild=None):
+def count_messages(member, guild=None) -> int:
     """Returns an integer of number of messages sent in the last month"""
     msgs = 0
     if not guild:
@@ -105,6 +105,19 @@ def count_messages(member, guild=None):
         return msgs
     except KeyError:
         return 0
+
+
+def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) -> int:
+    if isinstance(guild_id, discord.Guild):
+        guild_id: int = guild_id.id
+    assert isinstance(guild_id, int)
+    voice_config: dict = here.bot.stats[str(guild_id)]['voice']['total_time']
+    voice_time: int = 0
+    for day in voice_config:
+        if str(member_id) in voice_config[day]:
+            time = voice_config[day][str(member_id)]
+            voice_time += time
+    return voice_time
 
 
 def add_to_modlog(ctx, user, modlog_type, reason, silent, length=None):
