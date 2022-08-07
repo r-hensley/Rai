@@ -861,7 +861,7 @@ class Events(commands.Cog):
 
             link = f"\n([Jump URL]({msg.jump_url})"
             if which == 'sw':
-                if config['users'][str(msg.author.id)]:
+                if config['users'].get(str(msg.author.id), None):
                     link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
             link += ')'
             emb.add_field(name="Message:", value=msg.content[:1024 - len(link)] + link)
