@@ -273,6 +273,15 @@ class Logger(commands.Cog):
         emb.set_footer(text=footer_text,
                        icon_url=member.display_avatar.replace(static_format="png").url)
 
+        if after.channel:
+            users_in_voice = ""
+            for user in after.channel.members:
+                users_in_voice += f"\n- [{str(user)}"
+                if user.nick:
+                    users_in_voice += f" ({user.nick})"
+                users_in_voice += f"](https://rai/participant-id-is-P{user.id})"
+            emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+
         """Voice logging"""
         if guild_config:
             try:
@@ -290,22 +299,21 @@ class Logger(commands.Cog):
             a = after.channel
             if a and not b:
                 if member.id in config['users']:
-                    users_in_voice = ""
-                    for user in after.channel.members:
-                        users_in_voice += f"\n- {user.mention} ({str(user)})"
-                    emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
                     try:
                         await hf.safe_send(channel, member.id, embed=emb)
                     except discord.Forbidden:
                         pass
 
-                thirty_minutes_in_seconds = 60 * 30
-                if (discord.utils.utcnow() - member.created_at).total_seconds() < thirty_minutes_in_seconds:
-                    emb.description += "\n(Newly created account joining voice)"
-                    try:
-                        await hf.safe_send(channel, member.id, embed=emb)
-                    except discord.Forbidden:
-                        pass
+                forty_eight_hours_in_seconds = 60 * 60 * 48
+                if (discord.utils.utcnow() - member.created_at).total_seconds() < forty_eight_hours_in_seconds:
+                    emb.description += "\n(Newly created account joining voice):"
+                    emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
+                    emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
+                    if hf.calculate_voice_time(member.id, member.guild.id) < 60:  # num. of minutes
+                        try:
+                            await hf.safe_send(channel, member.id, embed=emb)
+                        except discord.Forbidden:
+                            pass
 
                 bronox = member.guild.get_member(894817002672259072)
                 if bronox:
