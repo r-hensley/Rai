@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Union
 
 import os
 
@@ -943,15 +943,17 @@ class Logger(commands.Cog):
             old_invites: Optional[Dict[str, List[Optional[float]]]]
             invites: Optional[List[discord.Invite]]
             old_invites, invites = await self.get_invites(guild)  # returns None, None if invites_enable=False in config
-            used_invite: List[discord.Invite] = []
-            maybe_used_invite: List[discord.Invite] = []
+            used_invite: Union[List[discord.Invite]] = []
+            maybe_used_invite: List[str] = []
             if invites:
                 invites_dict: Dict[str, discord.Invite] = {}
                 for i in invites:
+                    assert isinstance(i, discord.Invite)
                     if i:
                         invites_dict[i.code] = i  # same form as old_invites
 
                 for invite in old_invites:
+                    assert isinstance(invite, str)
                     if invite not in invites_dict:  # the invite disappeared
                         if old_invites[invite][1]:
                             if discord.utils.utcnow().timestamp() > old_invites[invite][1]:
@@ -1038,9 +1040,8 @@ class Logger(commands.Cog):
                 recorded_info['jump_url'] = log_message.jump_url
 
             if used_invite:
-                recorded_info['invite'] = used_invite[0].code
+                recorded_info['invite'] = getattr(used_invite[0], "code", None)
                 invite_creator = getattr(used_invite[0].inviter, "id", None)
-                recorded_info['invite_creator'] = invite_creator
 
             server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
