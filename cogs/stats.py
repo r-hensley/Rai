@@ -217,7 +217,7 @@ class Stats(commands.Cog):
         voice_time: int = hf.calculate_voice_time(member_id, ctx.guild.id)  # number of minutes
         if voice_time:
             emb.add_field(name="Time in voice chats",
-                          value=format_interval(voice_time * 60))
+                          value=format_interval(voice_time))
 
         # ### If no messages or voice in last 30 days ###
         if (not total_msgs_month or not sorted_msgs) and not voice_time:
