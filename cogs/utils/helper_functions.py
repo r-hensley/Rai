@@ -108,16 +108,18 @@ def count_messages(member, guild=None) -> int:
 
 
 def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) -> int:
+    """Returns number of seconds a user has been in voice"""
     if isinstance(guild_id, discord.Guild):
         guild_id: int = guild_id.id
     assert isinstance(guild_id, int)
     voice_config: dict = here.bot.stats[str(guild_id)]['voice']['total_time']
-    voice_time: int = 0
+    voice_time_minutes: int = 0
     for day in voice_config:
         if str(member_id) in voice_config[day]:
             time = voice_config[day][str(member_id)]
-            voice_time += time
-    return voice_time
+            voice_time_minutes += time
+    voice_time_seconds = voice_time_minutes * 60
+    return voice_time_seconds
 
 
 def add_to_modlog(ctx, user, modlog_type, reason, silent, length=None):
