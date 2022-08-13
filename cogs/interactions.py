@@ -31,6 +31,10 @@ SP_GUILD = discord.Object(id=SP_SERVER_ID)
 # app_commands.context_menu() doesn't work in cogs!
 
 
+async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    await hf.send_error_embed(interaction.client, interaction, error)
+
+
 class Point(NamedTuple):
     x: int
     y: int
@@ -95,6 +99,7 @@ class Interactions(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.bot.tree.on_error = on_tree_error
 
     async def sync_main(self):
         """Main code for syncing app commands"""
@@ -717,11 +722,17 @@ class Interactions(commands.Cog):
     #
     #
 
-    @app_commands.command()
-    @app_commands.guilds(SP_GUILD)
+    categorylock = app_commands.Group(name="categorylock", description="Settings for voice locking of new users",
+                                      guild_ids=[SP_SERVER_ID])
+
+    categorylock_set = app_commands.Group(name="set", parent=categorylock, description="Set a value for new users",
+                                          guild_ids=[SP_SERVER_ID])
+
+    @categorylock.command()
     @app_commands.default_permissions()
-    async def categorylock(self, interaction: discord.Interaction, category: discord.CategoryChannel=None):
-        """Toggle voice locking for new users. Leave category blank to view currently locked channels."""
+    @app_commands.describe(category="Choose the category you wish to lock or unlock")
+    async def togglecategory(self, interaction: discord.Interaction, category: discord.CategoryChannel = None):
+        """Voice lock a category for new users. Send no args to view current locked categories."""
         # See sp_serv_new_user_voice_lock() in events.py
 
         if not hf.admin_check(interaction):
@@ -729,8 +740,8 @@ class Interactions(commands.Cog):
 
         s = ''
         if category:
-            previous_state = self.bot.db['voice_lock'].setdefault(str(interaction.guild.id), {}).\
-                setdefault(str(category.id), False)
+            config = self.bot.db['voice_lock'].setdefault(str(interaction.guild.id), {'categories': {}})
+            previous_state = config['categories'].setdefault(str(category.id), False)
             if previous_state is None:
                 await interaction.response.send_message("There has been an error, the database read `None`",
                                                         ephemeral=True)
@@ -740,17 +751,46 @@ class Interactions(commands.Cog):
                     new_state = "enabled"
                 else:
                     new_state = "disabled"
-                self.bot.db['voice_lock'][str(interaction.guild.id)][str(category.id)] = not previous_state
+                self.bot.db['voice_lock'][str(interaction.guild.id)]['categories'][str(category.id)] = not previous_state
                 s += f"Voice locking for new users in {category.name} is now {new_state}.\n\n"
 
         s += f"The list of current categories with voice locking enabled is:\n"
-        for category in self.bot.db['voice_lock'][str(interaction.guild.id)]:
+        for category in self.bot.db['voice_lock'][str(interaction.guild.id)]['categories']:
             category = discord.utils.get(interaction.guild.channels, id=int(category))
-            if self.bot.db['voice_lock'][str(interaction.guild.id)][str(category.id)]:
+            if self.bot.db['voice_lock'][str(interaction.guild.id)]['categories'][str(category.id)]:
                 s += f"- {category.name.upper()}\n"
 
-
         await interaction.response.send_message(s, ephemeral=True)
+
+    @categorylock_set.command()
+    @app_commands.default_permissions()
+    @app_commands.choices(new_user=[discord.app_commands.Choice(name="Newly created accounts", value=1),
+                                    discord.app_commands.Choice(name="All new users", value=2)])
+    @app_commands.describe(new_user="Do you want to set the limit for newly created accounts or all new users?")
+    @app_commands.describe(number_of_hours="How many hours should members have to wait before they can join voice?")
+    async def hourlimit(self, interaction: discord.Interaction, new_user: discord.app_commands.Choice[int],
+                        number_of_hours: int):
+        """Set the number of hours new members to the server should have to wait before joining voice?"""
+        config = self.bot.db['voice_lock'].get(str(interaction.guild.id))
+        if new_user.value == 1:
+            config['hours_for_new_users'] = number_of_hours
+            await interaction.response.send_message(f"Newly made accounts now will have to be at least "
+                                                    f"{number_of_hours} hours old before they can join voice.",
+                                                    ephemeral=True)
+        else:
+            config['hours_for_users'] = number_of_hours
+            await interaction.response.send_message(f"New users will have to wait {number_of_hours} hours before "
+                                                    f"joining voice", ephemeral=True)
+
+    @categorylock_set.command()
+    @app_commands.describe(number_of_messages="How many messages should members have before they can join voice?")
+    async def messagelimit(self, interaction: discord.Interaction, number_of_messages: int):
+        """Set num. of messages required for new users to join voice (if not meeting time requirement)"""
+        config = self.bot.db['voice_lock'].get(str(interaction.guild.id))
+        config['messages_for_users'] = number_of_messages
+        await interaction.response.send_message("New users under the required number of hours in the server "
+                                                f"will require {number_of_messages} messages before they can "
+                                                f"join voice.", ephemeral=True)
 
     @app_commands.command()
     @app_commands.guilds(SP_SERVER_ID)
