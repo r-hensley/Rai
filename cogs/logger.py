@@ -7,7 +7,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 import io
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Union
 
 import os
 
@@ -73,18 +73,18 @@ class Logger(commands.Cog):
                 emb_value += f"\n[Ban crossposting](https://discordapp.com/channels/257984339025985546/" \
                              f"329576845949534208/603019430536151041): {config.get('crosspost', False)}"
 
-        emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+        emb.add_field(name=f"**__{'　' * 30}__**", value=emb_value, inline=False)
 
         emb_value = "**DISABLED MODULES**\nThe following are the currently disabled modules."
         for module in disabled_modules:
             emb_value += f"\n・`{module.name}` ― {module.brief}"
-            emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+            emb.add_field(name=f"**__{'　' * 30}__**", value=emb_value, inline=False)
 
         emb_value = "**TO EDIT SETTINGS**\nTo enable/disable a module, type just the module name as a command. \n" \
                     "- Examples: `;joins`   `;edits`   `leaves`\n" \
                     "To set where that channel logs to, add `set` to the command.\n" \
                     "- Examples: `joins set`   `;edits set`   `;leaves set`"
-        emb.add_field(name=f"**__{'　'*30}__**", value=emb_value, inline=False)
+        emb.add_field(name=f"**__{'　' * 30}__**", value=emb_value, inline=False)
         await hf.safe_send(ctx, embed=emb)
 
     @logs.command()
@@ -175,7 +175,9 @@ class Logger(commands.Cog):
                                     f'`V202995638860906496`).')
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    async def on_voice_state_update(self, member: discord.Member,
+                                    before: discord.VoiceState,
+                                    after: discord.VoiceState):
         guild = str(member.guild.id)
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
@@ -271,6 +273,15 @@ class Logger(commands.Cog):
         emb.set_footer(text=footer_text,
                        icon_url=member.display_avatar.replace(static_format="png").url)
 
+        if after.channel:
+            users_in_voice = ""
+            for user in after.channel.members:
+                users_in_voice += f"\n- [{str(user)}"
+                if user.nick:
+                    users_in_voice += f" ({user.nick})"
+                users_in_voice += f"](https://rai/participant-id-is-P{user.id})"
+            emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+
         """Voice logging"""
         if guild_config:
             try:
@@ -286,11 +297,35 @@ class Logger(commands.Cog):
         if config:
             b = before.channel
             a = after.channel
-            if member.id in config['users'] and a and not b:
-                try:
-                    await hf.safe_send(channel, embed=emb)
-                except discord.Forbidden:
-                    pass
+            if a and not b:
+                if member.id in config['users']:
+                    try:
+                        await hf.safe_send(channel, member.id, embed=emb)
+                    except discord.Forbidden:
+                        pass
+
+                forty_eight_hours_in_seconds = 60 * 60 * 48
+                if (discord.utils.utcnow() - member.created_at).total_seconds() < forty_eight_hours_in_seconds:
+                    emb.description += "\n(Newly created account joining voice):"
+                    emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
+                    emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
+                    if hf.calculate_voice_time(member.id, member.guild.id) < 60*60:  # 60 mins
+                        try:
+                            await hf.safe_send(channel, member.id, embed=emb)
+                        except discord.Forbidden:
+                            pass
+
+                bronox = member.guild.get_member(894817002672259072)
+                if bronox:
+                    if bronox in a.members:
+                        # 'jason' in the database is a timestamp showing the last time a jason alt was banned
+                        if member.created_at.timestamp() > self.bot.db['jason']:
+                            emb.description += "\n(An account that was created after the last time Jason was banned " \
+                                               "has joined a voice channel with Bronox)"
+                            try:
+                                await hf.safe_send(channel, member.id, embed=emb)
+                            except discord.Forbidden:
+                                pass
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -374,7 +409,8 @@ class Logger(commands.Cog):
                 emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
                 emb.add_field(name='**After:** (Part 2)', value=after.content[1000:2000])
 
-        emb.set_footer(text=f'#{before.channel.name}', icon_url=before.author.display_avatar.replace(static_format="png").url)
+        emb.set_footer(text=f'#{before.channel.name}',
+                       icon_url=before.author.display_avatar.replace(static_format="png").url)
 
         return emb
 
@@ -646,7 +682,7 @@ class Logger(commands.Cog):
                               list_of_roles=None, failed_roles=None):
         minutes_ago_created = int(((discord.utils.utcnow() - member.created_at).total_seconds()) // 60)
         if 60 < minutes_ago_created < 3600:
-            time_str = f'\n\nAccount created **{int(minutes_ago_created//60)}** hours ago'
+            time_str = f'\n\nAccount created **{int(minutes_ago_created // 60)}** hours ago'
         elif minutes_ago_created < 60:
             time_str = f'\n\nAccount created **{minutes_ago_created}** minutes ago'
         else:
@@ -685,9 +721,9 @@ class Logger(commands.Cog):
                 seconds_ago_created = (discord.utils.utcnow() - invite.created_at).total_seconds()
 
                 if 3600 < seconds_ago_created < 86400:
-                    field_value += f" - created **{int(seconds_ago_created//3600)}** hours ago)"
+                    field_value += f" - created **{int(seconds_ago_created // 3600)}** hours ago)"
                 elif seconds_ago_created < 3600:
-                    field_value += f" - created **{int(seconds_ago_created//60)}** minutes ago)"
+                    field_value += f" - created **{int(seconds_ago_created // 60)}** minutes ago)"
                 else:
                     field_value += ")"
             else:
@@ -735,7 +771,7 @@ class Logger(commands.Cog):
         if not config.get('invites_enable', None):
             return
         try:
-            del(config['invites'][invite.code])
+            del (config['invites'][invite.code])
         except KeyError:
             return
 
@@ -840,6 +876,7 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """auto role"""
+
         async def auto_role():
             if member.guild.id == SPAN_SERV_ID:
                 category_roles = [member.guild.get_role(802629332425375794),
@@ -850,14 +887,16 @@ class Logger(commands.Cog):
                     if not role:
                         category_roles.remove(role)
 
-                try:
-                    await member.add_roles(*category_roles)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
+                if (discord.utils.utcnow() - member.created_at) > timedelta(weeks=2):
+                    try:
+                        await member.add_roles(*category_roles)
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
 
         await auto_role()
 
         """welcome message"""
+
         async def welcome_message():
             guild = str(member.guild.id)
             _welcome_channel: Optional[discord.TextChannel] = None
@@ -877,6 +916,7 @@ class Logger(commands.Cog):
         welcome_channel = await welcome_message()
 
         """Join logging"""
+
         async def join_logging():
             guild: discord.Guild = member.guild
             guild_id = str(member.guild.id)
@@ -908,15 +948,17 @@ class Logger(commands.Cog):
             old_invites: Optional[Dict[str, List[Optional[float]]]]
             invites: Optional[List[discord.Invite]]
             old_invites, invites = await self.get_invites(guild)  # returns None, None if invites_enable=False in config
-            used_invite: List[discord.Invite] = []
-            maybe_used_invite: List[discord.Invite] = []
+            used_invite: Union[List[discord.Invite]] = []
+            maybe_used_invite: List[str] = []
             if invites:
                 invites_dict: Dict[str, discord.Invite] = {}
                 for i in invites:
+                    assert isinstance(i, discord.Invite), f"{guild.name} - {i} - {len(invites)}"
                     if i:
                         invites_dict[i.code] = i  # same form as old_invites
 
                 for invite in old_invites:
+                    assert isinstance(invite, str)
                     if invite not in invites_dict:  # the invite disappeared
                         if old_invites[invite][1]:
                             if discord.utils.utcnow().timestamp() > old_invites[invite][1]:
@@ -995,7 +1037,7 @@ class Logger(commands.Cog):
                 del readd_config['users'][str(member.id)]
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
-            log_message = await hf.safe_send(log_channel, embed=x)
+            log_message = await hf.safe_send(log_channel, member.id, embed=x)
 
             # Logging join info for modlog pulls
             recorded_info = {}
@@ -1003,9 +1045,8 @@ class Logger(commands.Cog):
                 recorded_info['jump_url'] = log_message.jump_url
 
             if used_invite:
-                recorded_info['invite'] = used_invite[0].code
+                recorded_info['invite'] = getattr(used_invite[0], "code", None)
                 invite_creator = getattr(used_invite[0].inviter, "id", None)
-                recorded_info['invite_creator'] = invite_creator
 
             server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
@@ -1045,6 +1086,7 @@ class Logger(commands.Cog):
                         await msg.delete()
                     except asyncio.TimeoutError:
                         pass
+
         await join_logging()
 
         """ban invite link names"""
@@ -1102,7 +1144,6 @@ class Logger(commands.Cog):
                 emb.description += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
                 emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
 
-
             pings = ""
             if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:  # type: Dict[str: int]
                 role_id: int = self.bot.db['bansub']['guild_to_role'][str(member.guild.id)]
@@ -1130,7 +1171,7 @@ class Logger(commands.Cog):
                     await hf.safe_send(bans_channel, msg, embed=emb)
 
                 else:
-                    del(self.bot.db['banlogs'][str(member.id)])  # cleanup
+                    del (self.bot.db['banlogs'][str(member.id)])  # cleanup
 
             hf.add_to_modlog(None, [member, member.guild], 'Log', emb.description, False, None)
 
@@ -1187,7 +1228,7 @@ class Logger(commands.Cog):
         # ### have already left the server, and 2) for the make_ban_embed command if it didn't get a member
         self.bot.recently_removed_members.setdefault(str(member.guild.id), [member]).append(member)
         if len(self.bot.recently_removed_members[str(member.guild.id)]) > 10:
-            del(self.bot.recently_removed_members[str(member.guild.id)][0])
+            del (self.bot.recently_removed_members[str(member.guild.id)][0])
 
         guild = str(member.guild.id)
         if guild in self.bot.db['leaves']:
@@ -1198,7 +1239,7 @@ class Logger(commands.Cog):
                     del self.bot.db['leaves'][guild]
                     return
                 try:
-                    await hf.safe_send(channel, embed=self.make_leave_embed(member))
+                    await hf.safe_send(channel, member.id, embed=self.make_leave_embed(member))
                 except discord.Forbidden:
                     await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
@@ -1339,6 +1380,7 @@ class Logger(commands.Cog):
                 await hf.safe_send(channel, embed=emb)
             except discord.Forbidden:
                 pass
+
         await check_nickname_change()
 
         # ######### Timeouts #############
@@ -1429,7 +1471,34 @@ class Logger(commands.Cog):
                     await hf.safe_send(modlog_channel, after.id, embed=emb)
             except AttributeError:
                 pass
+
         await check_timeouts()
+
+        # ######### Role change #############
+        async def check_role_change():
+            if after.guild.id != SPAN_SERV_ID:
+                return
+
+            category_roles = [after.guild.get_role(802629332425375794),
+                              after.guild.get_role(802657919400804412),
+                              after.guild.get_role(1002681814734880899)]
+            native_lang_roles = [after.guild.get_role(243853718758359040),  # eng native
+                                 after.guild.get_role(243854128424550401),  # sp native
+                                 after.guild.get_role(247020385730691073)]  # other native
+
+            lang_role_change = False
+            for role in native_lang_roles:
+                if role not in before.roles and role in after.roles:
+                    lang_role_change = True
+                    break
+
+            if lang_role_change:
+                try:
+                    await after.add_roles(*category_roles)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+        await check_role_change()
 
     # ############### reaction removals #####################
 
@@ -1734,7 +1803,7 @@ class Logger(commands.Cog):
                 pass
 
             try:
-                del(self.bot.db['banlog'][str(ABELIAN_ID)])
+                del (self.bot.db['banlog'][str(ABELIAN_ID)])
             except KeyError:
                 pass
 
@@ -1763,7 +1832,7 @@ class Logger(commands.Cog):
                 if guild.id == entry[0]:
                     self.bot.db['banlog'][str(user.id)].remove(entry)
                     if not self.bot.db['banlog'][str(user.id)]:
-                        del(self.bot.db['banlog'][str(user.id)])  # if the list is now empty
+                        del (self.bot.db['banlog'][str(user.id)])  # if the list is now empty
                     try:
                         crosspost_msg = await self.bot.get_channel(329576845949534208).fetch_message(entry[1])
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):

@@ -1,15 +1,18 @@
-import urllib
-import string
-import re
 import asyncio
+import io
 import os
+import re
+import string
+import urllib
+from datetime import timedelta, datetime
 from typing import Optional
 from urllib.error import HTTPError
-from datetime import timedelta, datetime, timezone
+from PIL import Image, ImageFilter, UnidentifiedImageError
+import imagehash
 
 import discord
-from discord.ext import commands
 from Levenshtein import distance as LDist
+from discord.ext import commands
 
 from .utils import helper_functions as hf
 from .utils.timeutil import format_interval
@@ -33,12 +36,31 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
+def compare_images(img2, img1):
+    if img1.width < img2.width:
+        img2 = img2.resize((img1.width, img1.height))
+    else:
+        img1 = img1.resize((img2.width, img2.height))
+    img1 = img1.filter(ImageFilter.BoxBlur(radius=3))
+    img2 = img2.filter(ImageFilter.BoxBlur(radius=3))
+    phashvalue = imagehash.phash(img1) - imagehash.phash(img2)
+    ahashvalue = imagehash.average_hash(img1) - imagehash.average_hash(img2)
+
+    threshold = 1  # some experimentally valid value
+
+    totalaccuracy = phashvalue + ahashvalue
+    return totalaccuracy
+
+
 class Events(commands.Cog):
     """This module contains event listeners not in logger.py"""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
+        self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
+        self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
+        self.bot.imgc = Image.open(f'{dir_path}/banned_img/3.jpg').convert("RGB")
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
@@ -66,6 +88,39 @@ class Events(commands.Cog):
             return
 
         ##########################################
+
+        async def watch_for_banned_images():
+            if msg.guild.id != SP_SERVER_ID:
+                return
+
+            if msg.attachments:
+                for attachment in msg.attachments:
+                    if attachment.filename.split('.')[-1].casefold() in ['jpg', 'jpeg', 'png', 'gif',
+                                                                         'apng', 'tiff', 'mov', 'mp4']:
+                        data = io.BytesIO()
+                        await attachment.save(data)
+                        try:
+                            img2 = Image.open(data).convert("RGB")
+                        except UnidentifiedImageError:
+                            return
+
+                        results = [compare_images(img2, self.bot.imga),
+                                   compare_images(img2, self.bot.imgb),
+                                   compare_images(img2, self.bot.imgc)]
+                        for result in results:
+                            if result < 10:
+                                mod_channel = self.bot.get_channel(296013414755598346)
+                                x = await mod_channel.send("@here Check for a potential leaked image of Ori here "
+                                                           f"posted by {msg.author.mention}.\n"
+                                                           f"I've tested this a bunch but it's possible that there's an"
+                                                           f" error causing false positives. If Rai is spamming this "
+                                                           f"channel, please remove its permission to message in this "
+                                                           f"channel until I wake up.")
+                                await hf.send_attachments_to_thread_on_message(x, msg)
+                                await msg.delete()
+                                return
+
+        await watch_for_banned_images()
 
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
@@ -142,7 +197,6 @@ class Events(commands.Cog):
                     await ctx.invoke(serverinfo)
 
         await replace_tatsumaki_posts()
-        
 
         async def log_ciri_warnings():
             if msg.guild.id != JP_SERVER_ID:
@@ -302,7 +356,6 @@ class Events(commands.Cog):
                 # if msg.guild:
                 #     if msg.guild.id == SP_SERVER_ID:
                 #         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
-
 
             for to_check_word in to_check_words:
                 # if word in cont.casefold():
@@ -527,7 +580,8 @@ class Events(commands.Cog):
                                                                   f"potential  spam link:\n```{cont}```"))
                     elif messages:  # mute
                         ctx.author = ctx.guild.me
-                        await ctx.invoke(self.bot.get_command('mute'),
+                        mute_command: commands.Command = self.bot.get_command('mute')
+                        await ctx.invoke(mute_command,
                                          args=f"1h {str(msg.author.id)} "
                                               f"Inactive user sending Nitro spam-like message (please confirm)"
                                               f"\n```{cont}```")
@@ -566,7 +620,7 @@ class Events(commands.Cog):
                      'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!", "freenitros.ru/",
                      'discorcl.click/', 'discord-giveaway.com/', 'bit.do/randomgift', 'stmeacomunnitty.ru',
                      'discordrgift.com', 'discordc.gift', 'discord-gifte.com'
-                     'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
+                                                          'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
             if "@everyone" not in msg.content:
                 return
             try:
@@ -723,7 +777,7 @@ class Events(commands.Cog):
                     return
 
                     #  "You can add more roles in <#703075065016877066>:\n" \
-                   #  "Puedes añadirte más en <#703075065016877066>:\n\n" \
+                #  "Puedes añadirte más en <#703075065016877066>:\n\n" \
             txt2 = "Before using the server, please read the rules in <#243859172268048385>.\n" \
                    "Antes de usar el servidor, por favor lee las reglas en <#243859172268048385>."
             await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
@@ -766,6 +820,7 @@ class Events(commands.Cog):
                 self.bot.synced_reactions = [(notif, msg)]
 
             return
+
         await mods_ping()
 
         # ### super_watch
@@ -778,7 +833,14 @@ class Events(commands.Cog):
             if not hasattr(msg.author, "guild"):
                 return  # idk why this should be an issue but it returned an error once
 
-            if str(msg.author.id) in config['users']:
+            mentioned: Optional[discord.Member] = None
+            for user_id in config['users']:
+                if user_id in msg.content:
+                    user = msg.guild.get_member(int(user_id))
+                    if user:
+                        mentioned = user
+
+            if str(msg.author.id) in config['users'] or mentioned:
                 desc = "❗ "
                 which = 'sw'
             elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
@@ -790,13 +852,16 @@ class Events(commands.Cog):
             else:
                 return
 
-            desc += f"**{msg.author.name}#{msg.author.discriminator}** ({msg.author.id})"
+            if mentioned:
+                desc += f"**{str(mentioned)}** ({mentioned.id}) mentioned by {str(msg.author)} ({msg.author.id})"
+            else:
+                desc += f"**{str(msg.author)}** ({msg.author.id})"
             emb = discord.Embed(description=desc, color=0x00FFFF, timestamp=discord.utils.utcnow())
             emb.set_footer(text=f"#{msg.channel.name}")
 
             link = f"\n([Jump URL]({msg.jump_url})"
             if which == 'sw':
-                if config['users'][str(msg.author.id)]:
+                if config['users'].get(str(msg.author.id), None):
                     link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
             link += ')'
             emb.add_field(name="Message:", value=msg.content[:1024 - len(link)] + link)
@@ -937,6 +1002,7 @@ class Events(commands.Cog):
         await hf.uhc_check(msg)
 
         """Chinese server hardcore mode"""
+
         async def cn_lang_check(check_hardcore_role=True):
             content = re.sub("^(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
             if len(content) > 3:
@@ -1124,7 +1190,8 @@ class Events(commands.Cog):
                 try:
                     # execute the 1h mute command
                     ctx.author = msg.guild.me
-                    await ctx.invoke(self.bot.get_command('mute'), args=f"1h {str(msg.author.id)} {reason}")
+                    mute_command: commands.Command = self.bot.get_command('mute')
+                    await ctx.invoke(mute_command, args=f"1h {str(msg.author.id)} {reason}")
 
                     # notify in mod channel if it is set
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
@@ -1234,6 +1301,7 @@ class Events(commands.Cog):
                         pass
             except KeyError:
                 pass
+
         await remove_selfmute_reactions()
 
         async def synchronize_reactions():
@@ -1325,7 +1393,7 @@ class Events(commands.Cog):
                     voting_guild_id = config['residency'][str(payload.user_id)]
                     if voting_guild_id not in config['votes2'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
-                            blacklist_add = self.bot.get_command("global_blacklist add")
+                            blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
                             await ctx.invoke(blacklist_add, args=user_id)
                 else:
                     print('not in residency')
@@ -1353,7 +1421,7 @@ class Events(commands.Cog):
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
-                        blacklist_add = self.bot.get_command("global_blacklist add")
+                        blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
                         await ctx.invoke(blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
@@ -1442,7 +1510,7 @@ class Events(commands.Cog):
             try:
                 await user.add_roles(role)
             except discord.Forbidden:
-                self.bot.get_user(202995638860906496).send(
+                await self.bot.get_user(202995638860906496).send(
                     'on_raw_reaction_add: Lacking `Manage Roles` permission'
                     f'<#{payload.guild_id}>')
             except AttributeError:
@@ -1526,12 +1594,12 @@ class Events(commands.Cog):
                 return
 
     @commands.command(hidden=True)
-    async def command_into_voice(self, ctx, member, after):
+    async def command_into_voice(self, ctx: commands.Context, member: discord.Member, after: discord.VoiceState):
         if not ctx.author == self.bot.user:  # only Rai can use this
             return
         await self.into_voice(member, after)
 
-    async def into_voice(self, member, after):
+    async def into_voice(self, member: discord.Member, after: discord.VoiceState):
         if member.bot:
             return
         if after.afk or after.deaf or after.self_deaf or len(after.channel.members) <= 1:
@@ -1543,12 +1611,12 @@ class Events(commands.Cog):
             config['in_voice'][member_id] = discord.utils.utcnow().timestamp()
 
     @commands.command(hidden=True)
-    async def command_out_of_voice(self, ctx, member):
+    async def command_out_of_voice(self, ctx: commands.Context, member: discord.Member):
         if not ctx.author == self.bot.user:
             return
         await self.out_of_voice(member, date_str=None)
 
-    async def out_of_voice(self, member, date_str=None):
+    async def out_of_voice(self, member: discord.Member, date_str=None):
         guild = str(member.guild.id)
         member_id = str(member.id)
         config = self.bot.stats[guild]['voice']
@@ -1711,8 +1779,8 @@ class Events(commands.Cog):
             There will also be a "voice approved" role which can override this.
             """
             # uncomment below for testing
-            # if member.id not in [202995638860906496, 414873201349361664]:  # ryry, abelian
-            #     return  # for testing
+            # if member.id in [202995638860906496, 414873201349361664, 416452861816340497 ]:  # ryry, abelian, hermitian
+                # return  # for testing
 
             # If this event is not for someone joining voice, ignore it
             joined = not before.channel and after.channel  # True if they just joined voice
@@ -1729,8 +1797,9 @@ class Events(commands.Cog):
                 return
 
             # If voice lock not enabled on current server
+            config = self.bot.db['voice_lock'].get(str(member.guild.id), {})
             joined_to = after.channel
-            if not self.bot.db['voice_lock'].get(str(member.guild.id), {}).get(str(joined_to.category.id), None):
+            if not config['categories'].get(str(joined_to.category.id), None):
                 return
 
             # A role which exempts the user from any requirements on joining voice
@@ -1742,13 +1811,18 @@ class Events(commands.Cog):
             if role in member.roles:
                 return
 
-            # If user has been in the server for more than two hours, let them into voice
-            if (discord.utils.utcnow() - member.joined_at).total_seconds() > 3*60*60:
-                return
+            # If the user is a newly made account
+            hours_for_new_users = config.get('hours_for_new_users', 24)
+            if (discord.utils.utcnow() - member.created_at).total_seconds() > hours_for_new_users * 60 * 60:
+                # If user has been in the server for more than three hours, let them into voice
+                hours_for_users = config.get('hours_for_users', 3)
+                if (discord.utils.utcnow() - member.joined_at).total_seconds() > hours_for_users * 60 * 60:
+                    return
 
-            # If user has more than 100 messages in the last month, let them into voice
-            if hf.count_messages(member) > 50:
-                return
+                # If user has more than 100 messages in the last month, let them into voice
+                messages_for_users = config.get('messages_for_users', 50)
+                if hf.count_messages(member) > messages_for_users:
+                    return
 
             # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
 
