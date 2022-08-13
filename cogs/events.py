@@ -1759,16 +1759,17 @@ class Events(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 return
 
-            t = "You cannot join the event channels on this server yet. We require the users to have been on the " \
-                "server for at least three hours before they can join an event. Until then, please enjoy our other " \
-                "voice channels. Note, if you are a member that has been in our server before and you just rejoined, " \
-                "message <@713245294657273856> to gain special permission to join the event." \
+            t = "You cannot join the voice channels on this server yet. We require the users to have been on the " \
+                "server for at least three hours before they can join a voice channel. " \
+                "Until then, please enjoy our other channels. Note, if you are a member that has been " \
+                "in our server before and you just rejoined, " \
+                "message <@713245294657273856> to gain special permission to join the voice channels." \
                 "\n\n" \
-                "Todavía no puedes unirte a los canales de eventos en este servidor. Requerimos que los usuarios " \
-                "lleven al menos tres horas en el servidor antes de poder unirse a un evento. Mientras tanto, " \
-                "por favor disfruta de nuestros otros canales de voz. Sin embargo, si eres un miembro que ya ha " \
+                "Todavía no puedes unirte a los canales de voz de este servidor. Requerimos que los usuarios " \
+                "lleven al menos tres horas en el servidor antes de poder unirse a un canal de voz. Mientras tanto, " \
+                "por favor, disfruta de nuestros otros canales. No obstante, si eres un miembro que ya ha " \
                 "estado en nuestro servidor y acabas de unirte nuevamente, envía un mensaje a " \
-                "<@713245294657273856> para obtener permiso especial para unirte al evento. "
+                "<@713245294657273856> para obtener un permiso especial para unirte a los canales de voz. "
             try:
                 await hf.safe_send(member, t)
             except discord.Forbidden:
