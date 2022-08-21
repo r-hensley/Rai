@@ -1762,7 +1762,7 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
         if not isinstance(member, discord.Member):
-            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members[str(guild.id)]}
+            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members.get(str(guild.id), [])}
             if member.id in id_to_member_dict:
                 member = id_to_member_dict[member.id]
 
