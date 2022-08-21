@@ -877,7 +877,8 @@ class Logger(commands.Cog):
         if 'VANITY_URL' in guild.features:
             try:
                 vanity = await guild.vanity_invite()
-                invites.append(vanity)
+                if vanity:
+                    invites.append(vanity)
             except (discord.HTTPException, discord.Forbidden):
                 pass
 
