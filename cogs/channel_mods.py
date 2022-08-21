@@ -1530,6 +1530,9 @@ class ChannelMods(commands.Cog):
             target: discord.Member = guild.get_member(int(target_in))
         config = self.bot.db['mutes'][str(guild.id)]
         role = guild.get_role(config['role'])
+        if not role:
+            await hf.safe_send(ctx, "I could not find the mute role. Maybe it has been deleted?")
+            return
 
         voice_role = None
         if str(ctx.guild.id) in self.bot.db['voice_mutes']:
