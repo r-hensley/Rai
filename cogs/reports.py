@@ -222,7 +222,11 @@ class Reports(commands.Cog):
 
         message = 'List of users on the waiting list: '
         if config['waiting_list']:
-            members = [ctx.guild.get_member(user).mention for user in config['waiting_list']]
+            members = []
+            for user in config['waiting_list']:
+                m = ctx.guild.get_member(user)
+                if m:
+                    members.append(m.mention)
             message = message + ', '.join(members)
         else:
             message = 'There are no users on the waiting list'
