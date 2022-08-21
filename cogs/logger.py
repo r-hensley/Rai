@@ -275,12 +275,23 @@ class Logger(commands.Cog):
 
         if after.channel:
             users_in_voice = ""
+            needed_two_fields = False
             for user in after.channel.members:
-                users_in_voice += f"\n- [{str(user)}"
+                text_to_add = f"\n- [{str(user)}"
                 if user.nick:
-                    users_in_voice += f" ({user.nick})"
-                users_in_voice += f"](https://rai/participant-id-is-P{user.id})"
-            emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+                    text_to_add += f" ({user.nick})"
+                text_to_add += f"](https://rai/participant-id-is-P{user.id})"
+                if len(users_in_voice + text_to_add) < 1024:
+                    users_in_voice += text_to_add
+                else:
+                    emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+                    users_in_voice = text_to_add
+                    needed_two_fields = True
+
+            if needed_two_fields:
+                emb.add_field(name="User list (cont.)", value=users_in_voice)
+            else:
+                emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
 
         """Voice logging"""
         if guild_config:
