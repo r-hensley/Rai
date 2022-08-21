@@ -2,6 +2,7 @@ from typing import Optional, Union, List
 from datetime import datetime, timedelta, timezone
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from .utils import helper_functions as hf
 from .utils.timeutil import format_interval
@@ -671,7 +672,7 @@ class ChannelMods(commands.Cog):
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 muted = True
-                unmute_date = datetime.strptime(unmute_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                unmute_date = hf.convert_to_datetime(unmute_date_str)
                 unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
             else:
                 unmute_time_left_str = None
@@ -684,8 +685,7 @@ class ChannelMods(commands.Cog):
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 voice_muted = True
-                unmute_date = datetime.strptime(voice_unmute_time_left_str, "%Y/%m/%d %H:%M UTC").replace(
-                    tzinfo=timezone.utc)
+                unmute_date = hf.convert_to_datetime(voice_unmute_time_left_str)
                 voice_unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
 
             else:
@@ -724,7 +724,7 @@ class ChannelMods(commands.Cog):
                     .get('timed_bans', {}) \
                     .get(user_id, None):
                 banned = True
-                unban_date = datetime.strptime(unban_date_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                unban_date = hf.convert_to_datetime(unban_date_str)
                 unban_time_left_str = format_interval(unban_date - discord.utils.utcnow())
             else:
                 unban_time_left_str = None  # indefinite ban
@@ -904,7 +904,7 @@ class ChannelMods(commands.Cog):
             name = f"{config.index(entry) + 1}) {entry['type']}"
             if entry['silent']:
                 name += " (silent)"
-            incident_time = datetime.strptime(entry['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            incident_time = hf.convert_to_datetime(entry['date'])
             value = f"<t:{int(incident_time.timestamp())}:f>\n"
             if entry['length']:
                 value += f"*For {entry['length']}*\n"
@@ -1263,7 +1263,7 @@ class ChannelMods(commands.Cog):
             # get last item in user's modlog
             last_modlog = self.bot.db['modlog'][str(ctx.guild.id)][str(target.id)][-1]
             # time of last item in user's modlog
-            event_time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            event_time = hf.convert_to_datetime(last_modlog['date'])
             # if last modlog was a mute and was less than 70 seconds ago
             if (discord.utils.utcnow() - event_time).total_seconds() < 70 \
                     and last_modlog['type'] in ["Mute", "Voice Mute"]:
@@ -1574,6 +1574,77 @@ class ChannelMods(commands.Cog):
         if not failed:
             return True
 
+    compare = app_commands.Group(name="compare", description="Compare two things", guild_ids=[SP_SERV])
+
+    @compare.command()
+    @app_commands.default_permissions()
+    async def users(self, interaction: discord.Interaction,
+                    user_id_1: str,
+                    user_id_2: str = None,
+                    user_id_3: str = None):
+        """Compares the join/leave dates, creation dates, and used invite of two users"""
+        guild = interaction.guild
+        join_history = self.bot.db['joins'].get(str(guild.id), {}).get('join_history', {})
+        if not join_history:
+            await interaction.response.send_message("This guild is not set up properly to use this command",
+                                                    ephemeral=True)
+            return
+
+        users = []
+        joins = []
+        modlogs = []
+        creates = []
+        invites = []
+
+        try:
+            user_ids = list(map(int, [user_id_1, user_id_2 or 0, user_id_3 or 0]))
+        except (ValueError, TypeError):
+            await interaction.response.send_message("Please only input IDs as arguments.", ephemeral=True)
+            return
+
+        for user_id in user_ids:
+            if not user_id:
+                continue
+            user = guild.get_member(user_id)
+            if user:
+                joins.append(user.joined_at)
+            else:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except discord.NotFound:
+                    await interaction.response.send_message(f"Could not find user {user_id}.", ephemeral=True)
+                    return
+                else:
+                    joins.append(None)
+            users.append(user)
+            modlogs.append(self.bot.db['modlog'].get(str(guild.id), {}).get(str(user_id), [None]))
+            creates.append(user.created_at)
+            invites.append(join_history.get((str(user.id)), {}).get("invite", None))
+
+        emb = discord.Embed()
+        for num, user in enumerate(users):
+            emb_name = f"{str(user)} ({user.id})"
+            emb_value = ""
+            if create := creates[num]:
+                emb_value += f"Creation date: <t:{int(create.timestamp())}>\n"
+
+            if join := joins[num]:
+                emb_value += f"Join date: <t:{int(join.timestamp())}>\n"
+
+            if modlog := modlogs[num]:
+                for modlog_entry in modlog[::-1]:
+                    if modlog_entry['type'] == "Warning" and modlog_entry.get("silent", False):
+                        continue
+                    last_modlog_date = hf.convert_to_datetime(modlog_entry['date'])
+                    emb_value += f"Last modlog date ({modlog_entry['type']}): <t:{int(last_modlog_date.timestamp())}>\n"
+                    break
+
+            if invite := invites[num]:
+                emb_value += f"Invite used: {invite}\n"
+
+            emb.add_field(name=emb_name, value=emb_value, inline=False)
+
+        await interaction.response.send_message(embed=emb)
 
 async def setup(bot):
     await bot.add_cog(ChannelMods(bot))
