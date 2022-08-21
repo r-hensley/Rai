@@ -9,7 +9,7 @@ import sys
 import traceback
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Union, Tuple
 
 import discord
@@ -1056,3 +1056,10 @@ async def send_error_embed(bot, ctx, error):
     TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
     await bot.get_channel(TRACEBACK_LOGGING_CHANNEL).send(traceback_text[:2000], embed=e)
     print('')
+
+
+def convert_to_datetime(input_str: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime(input_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return
