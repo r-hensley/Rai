@@ -984,16 +984,33 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
             pass
         else:
             for attachment in attachments_message.attachments:
-                file = await attachment.to_file(filename=attachment.filename,
-                                                description=attachment.description,
-                                                use_cached=True,
-                                                spoiler=True)
                 try:
-                    await safe_send(thread, file=file)
-                except (discord.Forbidden, discord.HTTPException) as e:
+                    file = await attachment.to_file(filename=attachment.filename,
+                                                    description=attachment.description,
+                                                    use_cached=True,
+                                                    spoiler=True)
+                except discord.HTTPException:
                     try:
-                        await safe_send(thread, f"Error attempting to send {attachment.filename} "
-                                                f"({attachment.proxy_url}): {e}")
+                        file = await attachment.to_file(filename=attachment.filename,
+                                                        description=attachment.description,
+                                                        spoiler=True)
+                    except discord.Forbidden:
+                        file = None
+
+                if file:
+                    try:
+                        await safe_send(thread, file=file)
+                    except (discord.Forbidden, discord.HTTPException) as e:
+                        try:
+                            await safe_send(thread, f"Error attempting to send {attachment.filename} "
+                                                    f"({attachment.proxy_url}): {e}")
+                        except (discord.Forbidden, discord.HTTPException):
+                            pass
+                else:
+                    file_info = f"Failed to download file: {attachment.filename} - {attachment.description}\n" \
+                                f"{attachment.proxy_url}"
+                    try:
+                        await safe_send(thread, file_info)
                     except (discord.Forbidden, discord.HTTPException):
                         pass
 
