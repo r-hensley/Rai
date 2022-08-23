@@ -435,8 +435,8 @@ class Submod(commands.Cog):
                                                                      check=reaction_check,
                                                                      timeout=10)
             except asyncio.TimeoutError:
-                await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                raise discord.Forbidden
+                await hf.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
+                return
             else:
                 if str(reaction_added) == '✅':
                     try:
@@ -454,7 +454,7 @@ class Submod(commands.Cog):
                         raise discord.Forbidden
                 else:
                     await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                    raise discord.Forbidden
+                    raise ValueError("The reaction I detected was not ✅")
 
     @warn.command(name="set")
     @hf.is_submod()
