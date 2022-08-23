@@ -208,7 +208,7 @@ async def safe_send(destination,
 
             try:
                 await safe_send(ctx.author, msg_content)
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.HTTPException):
                 pass
 
         raise
