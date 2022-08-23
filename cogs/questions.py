@@ -190,7 +190,8 @@ class Questions(commands.Cog):
         # if threads enabled in "config", create a thread for the channel
         if config.setdefault('threads', False):
             try:
-                thread_title = f"[{question_number}] " + target_message.content.split(';q ', 1)[1].split('\n')[0][:95]
+                content = target_message.content.replace(";question", ";q")
+                thread_title = f"[{question_number}] " + content.split(';q ', 1)[1].split('\n')[0][:95]
                 if not hasattr(self.bot, "recently_joined_threads"):
                     self.bot.recently_joined_threads = []
                 if target_message.id not in self.bot.recently_joined_threads:
