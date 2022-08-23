@@ -1474,7 +1474,7 @@ class Logger(commands.Cog):
                 try:
                     await hf.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
                                                "their privacy settings.", embed=emb)
-                except discord.Forbidden:
+                except (discord.Forbidden, discord.HTTPException):
                     pass
 
             emb.set_footer(text=f"Muted by {author.name} ({author.id})")
