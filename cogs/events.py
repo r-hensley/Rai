@@ -330,7 +330,8 @@ class Events(commands.Cog):
             to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
 
             if msg.guild.id in [254463427949494292,  # french server
-                                970703212107661402]:  # english server
+                                970703212107661402,  # english server
+                                116379774825267202]:  # nihongo to eigo server
                 to_check_words.remove('ryan')  # There's a popular user named "Ryan" in these two servers
 
             try:
