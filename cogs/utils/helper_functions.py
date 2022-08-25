@@ -161,11 +161,12 @@ def grey_embed(text):
 
 
 async def safe_send(destination,
-                    content=None, *,
-                    embed=None,
-                    delete_after=None,
-                    file=None,
-                    view=None):
+                    content: str = None, *,
+                    embed: discord.Embed = None,
+                    embeds: list[discord.Embed] = None,
+                    delete_after: float = None,
+                    file: discord.File = None,
+                    view: discord.ui.View = None):
     """A command to be clearer about permission errors when sending messages"""
     if not content and not embed and not file:
         if type(destination) == str:
@@ -197,6 +198,7 @@ async def safe_send(destination,
                 await destination.create_dm()
         return await destination.send(content,
                                       embed=embed,
+                                      embeds=embeds,
                                       delete_after=delete_after,
                                       file=file,
                                       view=view)
@@ -1080,3 +1082,36 @@ def convert_to_datetime(input_str: str) -> Optional[datetime]:
         return datetime.strptime(input_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
     except ValueError:
         return
+
+
+async def get_message_from_id_or_link(interaction: discord.Interaction,
+                                      message_id: str,
+                                      message_link: str) -> Optional[discord.Message]:
+    if message_link:  # get message ID in order to get URL
+        try:
+            message_id = message_link.split("/")[-1]
+        except IndexError:
+            await interaction.response.send_message("The message link format you gave is invalid. Please try "
+                                                    "again. An example valid message link is "
+                                                    "https://discord.com/channels/243838819743432704/"
+                                                    "742449924519755878/1012253103271186442.", ephemeral=True)
+            return
+
+    if message_id:  # get URL of image
+        try:
+            message_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("The message ID format you gave is invalid. Please try again. "
+                                                    "An example valid message ID is 1012253103271186442.",
+                                                    ephemeral=True)
+            return
+
+        try:
+            message: discord.Message = await interaction.channel.fetch_message(int(message_id))
+        except discord.NotFound:
+            await interaction.response.send_message("I could not find the message ID you specified *in this "
+                                                    "channel*. Please check the ID of the message.",
+                                                    ephemeral=True)
+            return
+
+        return message
