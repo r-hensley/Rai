@@ -1084,44 +1084,21 @@ class Interactions(commands.Cog):
                                                     ephemeral=True)
             return
 
-        if message_link:  # get message ID in order to get URL
-            try:
-                message_id = message_link.split("/")[-1]
-            except IndexError:
-                await interaction.response.send_message("The message link format you gave is invalid. Please try "
-                                                        "again. An example valid message link is "
-                                                        "https://discord.com/channels/243838819743432704/"
-                                                        "742449924519755878/1012253103271186442.", ephemeral=True)
-                return
+        message: discord.Message = await hf.get_message_from_id_or_link(interaction, message_id, message_link)
+        if not message:
+            return  # error messages should have been sent from above function
 
-        if message_id:  # get URL of image
-            try:
-                message_id = int(message_id)
-            except ValueError:
-                await interaction.response.send_message("The message ID format you gave is invalid. Please try again. "
-                                                        "An example valid message ID is 1012253103271186442.",
-                                                        ephemeral=True)
-                return
+        if message.attachments:
+            url = getattr(message.attachments[0], "url", "")
+        elif message.embeds:
+            url = getattr(message.embeds[0], "url", "")
+        else:
+            url = ""
 
-            try:
-                message: discord.Message = await interaction.channel.fetch_message(int(message_id))
-            except discord.NotFound:
-                await interaction.response.send_message("I could not find the message ID you specified *in this "
-                                                        "channel*. Please check the ID of the message.",
-                                                        ephemeral=True)
-                return
-
-            if message.attachments:
-                url = getattr(message.attachments[0], "url", "")
-            elif message.embeds:
-                url = getattr(message.embeds[0], "url", "")
-            else:
-                url = ""
-
-            if not url:
-                await interaction.response.send_message("I could not find an image in your message. Please try "
-                                                        "again with a different message.", ephemeral=True)
-                return
+        if not url:
+            await interaction.response.send_message("I could not find an image in your message. Please try "
+                                                    "again with a different message.", ephemeral=True)
+            return
 
         if url:
             try:
@@ -1156,6 +1133,61 @@ class Interactions(commands.Cog):
                                                         "went wrong. Maybe the image I tried to use is invalid.",
                                                         ephemeral=True)
                 return
+
+    @app_commands.command()
+    @app_commands.guilds(SP_SERVER_ID, JP_SERVER_ID)
+    @app_commands.default_permissions()
+    @app_commands.describe(message_link="A Jump URL message link to a message")
+    @app_commands.describe(message_id="An integer ID for a message")
+    @app_commands.describe(destination_member="The member you want to send the message to")
+    @app_commands.describe(destination_id="The ID of the user or channel you want to send the message to")
+    async def forward(self,
+                      intr: discord.Interaction,
+                      message_link: str = None,
+                      message_id: str = None,
+                      destination_member: discord.Member = None,
+                      destination_id: str = None):
+        """Forward a message to another user. You must specify either one of message_link/message_id and one of
+        destination_member/destination_id."""
+        if not destination_member and not destination_id:
+            await intr.response.send_message("Please specify either a destination_member or a destination_id",
+                                             ephemeral=True)
+            return
+        if not message_link and not message_id:
+            await intr.response.send_message("Please specify either a message_link or a message_id",
+                                             ephemeral=True)
+            return
+
+        message: discord.Message = await hf.get_message_from_id_or_link(intr, message_id, message_link)
+        if not message:
+            return
+
+        if not destination_member:
+            try:
+                destination_id = int(destination_id)
+            except ValueError:
+                await intr.response.send_message("Please input a valid message ID", ephemeral=True)
+                return
+
+            destination_member = intr.guild.get_member(destination_id)
+            if not destination_member:
+                try:
+                    destination_member = await self.bot.fetch_user(destination_id)
+                except (discord.NotFound, discord.HTTPException):
+                    pass
+
+            if not destination_member:
+                await intr.response.send_message("Failed to find the member you specified", ephemeral=True)
+                return
+
+        try:
+            await hf.safe_send(destination_member, message.content, embeds=message.embeds)
+        except (discord.Forbidden, discord.HTTPException) as e:
+            await intr.response.send_message(f"Failed to send a message to the user you specified: {e}", ephemeral=True)
+            return
+
+        await intr.response.send_message(f"Forwarded {message.jump_url} by {str(message.author)} to "
+                                         f"{str(destination_member)}")
 
 
 async def setup(bot):
