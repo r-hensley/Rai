@@ -2,6 +2,8 @@ import asyncio
 import os
 import re
 from typing import Union, List, NamedTuple
+import aiohttp
+from io import BytesIO
 
 import discord
 import discord.ext.commands as commands
@@ -1063,6 +1065,97 @@ class Interactions(commands.Cog):
             await interaction.followup.send(embed=emb, ephemeral=True)
         except asyncio.TimeoutError:
             return
+
+    change = app_commands.Group(name="change", description="Change a setting in the server",
+                                guild_ids=[SP_SERVER_ID])
+
+    @change.command()
+    @app_commands.default_permissions()
+    @app_commands.describe(message_link="A Jump URL message link to a message")
+    @app_commands.describe(message_id="An integer ID for a message")
+    @app_commands.describe(url="A URL link to an image on the internet")
+    async def banner(self, interaction: discord.Interaction,
+                     message_link: str = None,
+                     message_id: str = None,
+                     url: str = None):
+        """Change the server banner to an image of your choice"""
+        if not message_link and not message_id and not url:
+            await interaction.response.send_message("Please link an image using one of the optional arguments.",
+                                                    ephemeral=True)
+            return
+
+        if message_link:  # get message ID in order to get URL
+            try:
+                message_id = message_link.split("/")[-1]
+            except IndexError:
+                await interaction.response.send_message("The message link format you gave is invalid. Please try "
+                                                        "again. An example valid message link is "
+                                                        "https://discord.com/channels/243838819743432704/"
+                                                        "742449924519755878/1012253103271186442.", ephemeral=True)
+                return
+
+        if message_id:  # get URL of image
+            try:
+                message_id = int(message_id)
+            except ValueError:
+                await interaction.response.send_message("The message ID format you gave is invalid. Please try again. "
+                                                        "An example valid message ID is 1012253103271186442.",
+                                                        ephemeral=True)
+                return
+
+            try:
+                message: discord.Message = await interaction.channel.fetch_message(int(message_id))
+            except discord.NotFound:
+                await interaction.response.send_message("I could not find the message ID you specified *in this "
+                                                        "channel*. Please check the ID of the message.",
+                                                        ephemeral=True)
+                return
+
+            if message.attachments:
+                url = getattr(message.attachments[0], "url", "")
+            elif message.embeds:
+                url = getattr(message.embeds[0], "url", "")
+            else:
+                url = ""
+
+            if not url:
+                await interaction.response.send_message("I could not find an image in your message. Please try "
+                                                        "again with a different message.", ephemeral=True)
+                return
+
+        if url:
+            try:
+                filename = url.split("/")[-1]
+            except IndexError:
+                await interaction.response.send_message("I had trouble pulling the filename out of the URL. Make sure "
+                                                        "the URL ends in something like .../image.png",
+                                                        ephemeral=True)
+                return
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        cont = BytesIO(await resp.content.read())
+                    else:
+                        await interaction.response.send_message("I had trouble downloading the image you linked. "
+                                                                "Please try again or try a different image."
+                                                                f" {message_id}, {message_link}, {url}",
+                                                                ephemeral=True)
+                        return
+
+            try:
+                cont.seek(0)
+                old_banner = await interaction.guild.banner.to_file(filename="old_banner.png")
+                await interaction.response.send_message(f"Banner changed. Previous banner is attached below:",
+                                                        file=old_banner)
+                await interaction.guild.edit(banner=cont.read())
+            except discord.Forbidden:
+                await interaction.response.send_message("I lacked the permission to edit the banner", ephemeral=True)
+                return
+            except discord.HTTPException:
+                await interaction.response.send_message("I have permission to edit the banner, but something else "
+                                                        "went wrong. Maybe the image I tried to use is invalid.",
+                                                        ephemeral=True)
+                return
 
 
 async def setup(bot):
