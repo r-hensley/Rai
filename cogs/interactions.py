@@ -1085,20 +1085,21 @@ class Interactions(commands.Cog):
             return
 
         message: discord.Message = await hf.get_message_from_id_or_link(interaction, message_id, message_link)
-        if not message:
+        if not message and not url:
             return  # error messages should have been sent from above function
 
-        if message.attachments:
-            url = getattr(message.attachments[0], "url", "")
-        elif message.embeds:
-            url = getattr(message.embeds[0], "url", "")
-        else:
-            url = ""
-
         if not url:
-            await interaction.response.send_message("I could not find an image in your message. Please try "
-                                                    "again with a different message.", ephemeral=True)
-            return
+            if message.attachments:
+                url = getattr(message.attachments[0], "url", "")
+            elif message.embeds:
+                url = getattr(message.embeds[0], "url", "")
+            else:
+                url = ""
+
+            if not url:
+                await interaction.response.send_message("I could not find an image in your message. Please try "
+                                                        "again with a different message.", ephemeral=True)
+                return
 
         if url:
             try:
