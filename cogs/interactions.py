@@ -1084,11 +1084,11 @@ class Interactions(commands.Cog):
                                                     ephemeral=True)
             return
 
-        message: discord.Message = await hf.get_message_from_id_or_link(interaction, message_id, message_link)
-        if not message and not url:
-            return  # error messages should have been sent from above function
+        if message_link or message_id:
+            message: discord.Message = await hf.get_message_from_id_or_link(interaction, message_id, message_link)
+            if not message:
+                return  # error messages should have been sent from above function
 
-        if not url:
             if message.attachments:
                 url = getattr(message.attachments[0], "url", "")
             elif message.embeds:
