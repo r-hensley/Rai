@@ -1653,10 +1653,13 @@ class Questions(commands.Cog):
             if not text:
                 continue
             source_link_class = result.find(class_="sentence-source-title")
-            source_link = source_link_class.a.attrs['href']
-            source_title = source_link_class.text
+            if hasattr(source_link_class, 'a'):
+                source_link = source_link_class.a.attrs['href']
+                source_title = source_link_class.text
+                index_text = f"[`[ {index} ] {source_title}`]({source_link})\n"
+            else:
+                index_text = f"`[ {index} ]`\n"
 
-            index_text = f"[`[ {index} ] {source_title}`]({source_link})\n"
             emb.description += index_text + text + '\n'
             index += 1
 
