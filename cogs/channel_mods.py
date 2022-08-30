@@ -72,7 +72,8 @@ async def make_mute_role(ctx, dest, voice_mute):
         name = 'rai-voice-mute'
     else:
         name = 'rai-mute'
-    _role = discord.utils.find(lambda r: r.name.casefold() == name, ctx.guild.roles)
+    name_with_spaces = name.replace("-", " ")
+    _role = discord.utils.find(lambda r: r.name.casefold().replace('-', " ") == name_with_spaces, ctx.guild.roles)
     if _role:
         first = False
         await hf.safe_send(dest, "Reusing previously existing Rai mute role")
