@@ -431,6 +431,11 @@ class Logger(commands.Cog):
             return
         if not before.guild:
             return
+
+        # exempt a certain channel from logging by the request of the mods of that server
+        if after.channel.id == 243858886266847233:
+            return
+
         guild = str(before.guild.id)
         if not before.author.bot:
             if guild in self.bot.db['edits']:
@@ -532,6 +537,10 @@ class Logger(commands.Cog):
         guild = str(message.guild.id)
         guild_config: dict = self.bot.db['deletes'].get(guild, {'enable': False})
         if not guild_config['enable']:
+            return
+
+        # exempt a certain channel from logging by the request of the mods of that server
+        if message.channel.id == 243858886266847233:
             return
 
         try:
