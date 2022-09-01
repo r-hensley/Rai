@@ -528,8 +528,8 @@ class ChannelMods(commands.Cog):
         learningenglish = ctx.guild.get_role(247021017740869632)
         learningspanish = ctx.guild.get_role(297415063302832128)
 
-        heritageenglish = ctx.guild.get_role(846112293422497793)
-        heritagespanish = ctx.guild.get_role(402148856629821460)
+        heritageenglish = ctx.guild.get_role(1001176425296052324)
+        heritagespanish = ctx.guild.get_role(1001176351874752512)
 
         language_roles = [english, spanish, other]
         all_roles = [english, spanish, other,
@@ -592,7 +592,13 @@ class ChannelMods(commands.Cog):
             return
 
         # right now, user=a member object, lansg=a list of strings the user typed o/e/s/other/english/spanish/etc
-        langs = [langs_dict[lang] for lang in langs]  # now langs is a list of role objects
+        lang_roles = [langs_dict[lang] for lang in langs]  # now langs is a list of role objects
+        for lang in lang_roles:  # one of the roles no longer exists
+            if not lang:
+                role_index = lang_roles.index(lang)
+                deleted_str = langs[role_index]
+                await hf.safe_send(ctx, f"I could not find the role corresponding to your request for `{deleted_str}`")
+                return
         removed = []
         for role in all_roles:
             if role in user.roles:
@@ -601,7 +607,7 @@ class ChannelMods(commands.Cog):
             await user.remove_roles(*removed)
         if not none:
             try:
-                await user.add_roles(*langs)
+                await user.add_roles(*lang_roles)
             except discord.Forbidden:
                 await hf.safe_send(ctx,
                                    "I lack the ability to attach the roles. Please make sure I have the ability "
@@ -614,10 +620,10 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
                                     f"{user.display_name}.")
         elif removed:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} instead of "
+            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} instead of "
                                     f"{', '.join([r.mention for r in removed])} to {user.display_name}.")
         else:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in langs])} to {user.display_name}.")
+            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} to {user.display_name}.")
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
