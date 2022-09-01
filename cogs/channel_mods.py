@@ -1412,10 +1412,11 @@ class ChannelMods(commands.Cog):
                 return  # Errors should have been already sent in apply_mute_role() function
 
             if voice_mute:
-                description = f"You have been voice muted on {ctx.guild.name} server"
+                description = f"You have been voice muted on {ctx.guild.name}"
             else:
-                description = f"You have been muted on {ctx.guild.name} server"
-            emb = hf.red_embed(description)
+                description = f"You have been muted on {ctx.guild.name}"
+            emb = hf.red_embed("")
+            emb.title = description
             emb.color = discord.Color(int('ff8800', 16))  # embed
             if time_arg:
                 timestamp = int(time_obj.timestamp())
@@ -1435,6 +1436,15 @@ class ChannelMods(commands.Cog):
                     await hf.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
                                             "characters.")
                     return
+
+            # Add default prompt to go to modbot for questions about the warning
+            modbot = ctx.guild.get_member(713245294657273856)
+            if modbot:
+                emb.add_field(name="Questions about this mute?",
+                              value="If you have a question about this notification, or if you think this mute "
+                                    f"was a mistake, please send a message to {modbot.mention}.",
+                              inline=False)
+
             if not silent:
                 try:
                     await hf.safe_send(target, embed=emb)

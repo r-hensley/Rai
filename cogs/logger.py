@@ -1467,7 +1467,8 @@ class Logger(commands.Cog):
             modlog_config = hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
             modlog_channel = self.bot.get_channel(modlog_config['channel'])
 
-            emb = hf.red_embed("Timeout")
+            emb = hf.red_embed("")
+            emb.title = f"You have been timed out on {guild.name}"
             emb.color = 0xff8800  # orange
             emb.add_field(name="User", value=f"{after.name} ({after.id})", inline=False)
             timestamp = int(after.timed_out_until.timestamp())
@@ -1476,6 +1477,14 @@ class Logger(commands.Cog):
                           inline=False)
             if reason:
                 emb.add_field(name="Reason", value=reason)
+
+            # Add default prompt to go to modbot for questions about the warning
+            modbot = guild.get_member(713245294657273856)
+            if modbot:
+                emb.add_field(name="Questions about this mute?",
+                              value="If you have a question about this notification, or if you think this mute "
+                                    f"was a mistake, please send a message to {modbot.mention}.",
+                              inline=False)
 
             try:
                 await hf.safe_send(after, embed=emb)

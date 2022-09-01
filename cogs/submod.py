@@ -356,6 +356,14 @@ class Submod(commands.Cog):
                                         f"a message shorter than 2048 characters.")
                 return
 
+            # Add default prompt to go to modbot for questions about the warning
+            modbot = ctx.guild.get_member(713245294657273856)
+            if modbot:
+                emb.add_field(name="Questions about this warning?",
+                              value="If you have a question about this notification, or if you think this warning "
+                                    f"was a mistake, please send a message to {modbot.mention}.",
+                              inline=False)
+
             # Send notification to warned user if not a log
             if not modlog_entry.silent:
                 try:
