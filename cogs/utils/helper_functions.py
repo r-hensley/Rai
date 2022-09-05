@@ -867,7 +867,7 @@ async def ban_and_clear_message(interaction: discord.Interaction,
 @app_commands.guilds(SP_SERV_GUILD)
 @app_commands.default_permissions()
 async def ban_and_clear_member(interaction: discord.Interaction,
-                               member: discord.Member):  # message commands return the message
+                               member: discord.User):  # message commands return the message
     await Interactions.ban_and_clear_main(interaction, member)
 
 
@@ -1037,44 +1037,62 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                     except (discord.Forbidden, discord.HTTPException):
                         pass
 
-async def send_error_embed(bot, ctx, error):
-    print(datetime.now())
+
+async def send_error_embed(bot: discord.Client,
+                           ctx: Union[commands.Context, discord.Interaction],
+                           error: Exception,
+                           embed: discord.Embed):
     error = getattr(error, 'original', error)
-    qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
-    print(f'Error in {qualified_name}:', file=sys.stderr)
+    try:
+        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
+    except AttributeError:  # ctx.command.name is also None
+        qualified_name = "Non-command"
     traceback.print_tb(error.__traceback__)
+    print(discord.utils.utcnow())
+    print(f'Error in {qualified_name}:', file=sys.stderr)
     print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
 
-    if isinstance(ctx, commands.Context):
-        e = discord.Embed(title='Command Error', colour=0xcc3366)
-        e.add_field(name='Name', value=qualified_name)
-        e.add_field(name='Command', value=ctx.message.content[:1000])
-        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
-    elif isinstance(ctx, discord.Interaction):
-        e = discord.Embed(title='App Command Error', colour=0xcc3366)
-        e.add_field(name='Name', value=qualified_name)
-        e.add_field(name='Author', value=ctx.user)
-    else:
-        e = discord.Embed(title="Error of unknown type", colour=0xcc3366)
-
-    fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
-    if ctx.guild:
-        fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
-
-    e.add_field(name='Location', value=fmt, inline=False)
-
     exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-    if isinstance(ctx, commands.Context):
+    if ctx.message:
         traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
-    elif isinstance(ctx, discord.Interaction):
+    elif ctx.channel:
         traceback_text = f'{ctx.channel.mention}\n```py\n{exc}```'
     else:
         traceback_text = f'```py\n{exc}```'
 
-    e.timestamp = discord.utils.utcnow()
-    TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
-    await bot.get_channel(TRACEBACK_LOGGING_CHANNEL).send(traceback_text[:2000], embed=e)
+    embed.timestamp = discord.utils.utcnow()
+    traceback_logging_channel = int(os.getenv("ERROR_CHANNEL_ID"))
+    view = None
+    if ctx.message:
+        view = discord.ui.View.from_message(ctx.message)
+    await bot.get_channel(traceback_logging_channel).send(traceback_text[-2000:], embed=embed, view=view)
     print('')
+
+
+class RaiView(discord.ui.View):
+    async def on_error(self,
+                       interaction: discord.Interaction,
+                       error: Exception,
+                       item: Union[discord.ui.Button, discord.ui.Select, discord.ui.TextInput]):
+        e = discord.Embed(title=f'View Component Error ({str(item.type)})', colour=0xcc3366)
+        e.add_field(name='Interaction User', value=f"{interaction.user} ({interaction.user.mention})")
+
+        fmt = f'Channel: {interaction.channel} (ID: {interaction.channel.id})'
+        if interaction.guild:
+            fmt = f'{fmt}\nGuild: {interaction.guild} (ID: {interaction.guild.id})'
+
+        e.add_field(name='Location', value=fmt, inline=False)
+
+        if hasattr(item, "label"):
+            e.add_field(name="Item label", value=item.label)
+
+        if interaction.data:
+            e.add_field(name="Data", value=f"```{interaction.data}```", inline=False)
+
+        if interaction.extras:
+            e.add_field(name="Extras", value=f"```{interaction.extras}```")
+
+        await send_error_embed(interaction.client, interaction, error, e)
 
 
 def convert_to_datetime(input_str: str) -> Optional[datetime]:

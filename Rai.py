@@ -312,7 +312,18 @@ class Rai(Bot):
             await ctx.send(f"Only the bot owner can do that.")
             return
 
-        await hf.send_error_embed(self, ctx, error)
+        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
+        e = discord.Embed(title='Command Error', colour=0xcc3366)
+        e.add_field(name='Name', value=qualified_name)
+        e.add_field(name='Command', value=ctx.message.content[:1000])
+        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
+
+        fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
+        if ctx.guild:
+            fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
+        e.add_field(name='Location', value=fmt, inline=False)
+
+        await hf.send_error_embed(self, ctx, error, e)
 
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
