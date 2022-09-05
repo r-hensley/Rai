@@ -615,7 +615,7 @@ class Interactions(commands.Cog):
             except discord.Forbidden:
                 return
 
-            await interaction.delete_original_message()
+            await interaction.delete_original_response()
             await self.edit_embed(button_interaction, working_embed_msg)
 
         async def edit_embed_button_callback(button_interaction: discord.Interaction):
@@ -629,7 +629,7 @@ class Interactions(commands.Cog):
             Delete config menu
             """
             try:
-                await interaction.delete_original_message()
+                await interaction.delete_original_response()
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
@@ -717,7 +717,7 @@ class Interactions(commands.Cog):
                 except (IndexError, ValueError):
                     await modal_interaction.response.send_message("Please input a Jump URL like "
                                                                   "https://discord.com/channels/123/456/789.")
-                    await interaction.delete_original_message()
+                    await interaction.delete_original_response()
                     await self.edit_embed(interaction, msg=None)
 
         view = hf.RaiView()
@@ -834,13 +834,13 @@ class Interactions(commands.Cog):
                     await button_interaction.response.send_message(
                         f"I've successfully removed the role from {member.mention}.",
                         ephemeral=True)
-                    await interaction.edit_original_message(content="⁣", embed=None, view=None)
+                    await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
                 async def keep_callback(button_interaction: discord.Interaction):
                     await button_interaction.response.send_message(
                         f"I'll keep the role on {member.mention}.",
                         ephemeral=True)
-                    await interaction.edit_original_message(content="⁣", embed=None, view=None)
+                    await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
                 view.add_item(remove_button)
                 view.add_item(keep_button)
@@ -850,7 +850,7 @@ class Interactions(commands.Cog):
                 await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
 
                 async def on_timeout():
-                    await interaction.edit_original_message(view=None)
+                    await interaction.edit_original_response(view=None)
 
                 view.on_timeout = on_timeout
 
@@ -1043,7 +1043,7 @@ class Interactions(commands.Cog):
         try:
             if await ban.can_run(ctx):
                 await interaction.response.send_message(embed=emb, view=view, ephemeral=False)
-                confirmation_msg = await interaction.original_message()
+                confirmation_msg = await interaction.original_response()
             else:
                 await interaction.response.send_message("You don't have the permission to use that command",
                                                         ephemeral=True)
