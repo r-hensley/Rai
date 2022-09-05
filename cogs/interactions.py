@@ -874,6 +874,10 @@ class Interactions(commands.Cog):
         except commands.BotMissingPermissions:
             await interaction.response.send_message("The bot is missing permissions here to use that command.",
                                                     ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"There was an unknown error in using that command:\n`{e}`",
+                                                    ephemeral=True)
+            raise
 
     @staticmethod
     async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
