@@ -1447,8 +1447,7 @@ class ChannelMods(commands.Cog):
             modbot = ctx.guild.get_member(713245294657273856)
             if modbot:
                 emb.add_field(name="Questions about this mute?",
-                              value="If you have a question about this notification, or if you think this mute "
-                                    f"was a mistake, please send a message to {modbot.mention}.",
+                              value=f"Please send a message to {modbot.mention}.",
                               inline=False)
 
             if not silent:

@@ -975,7 +975,7 @@ class Interactions(commands.Cog):
             if button_interaction.user != interaction.user:
                 await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
 
-            await button_interaction.response.send_message(f"Will ban and delete messages", ephemeral=True)
+            await button_interaction.response.send_message(f"Will ban and keep messages", ephemeral=True)
             try:
                 await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
             except commands.MissingPermissions:
