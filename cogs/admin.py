@@ -91,7 +91,10 @@ class Admin(commands.Cog):
             except discord.Forbidden:
                 await hf.safe_send(ctx, "I lack permissions to add reactions. Please attach your emojis to the "
                                         "target message yourself.")
-        await ctx.message.add_reaction('✅')
+        try:
+            await ctx.message.add_reaction('✅')
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
     @staticmethod
     async def get_reaction_msg(ctx, text):
