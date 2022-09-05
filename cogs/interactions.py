@@ -90,7 +90,8 @@ class BanModal(ui.Modal, title='Ban Menu'):
                           max_length=512 - len("*by* <@202995638860906496> \n**Reason:** ") - 32)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I've edited the ban reason.",
+        await interaction.response.send_message(f"I've edited the ban reason (check to make sure the reason "
+                                                f"above properly changed).",
                                                 ephemeral=True)
 
 
@@ -951,7 +952,10 @@ class Interactions(commands.Cog):
             ctx.message = member_or_message
         elif isinstance(member_or_message, (discord.User, discord.Member)):
             author = member_or_message
-            ctx.message = ctx.channel.last_message
+            async for m in ctx.channel.history(limit=10):
+                if m:
+                    ctx.message = m
+                    break
         else:
             raise TypeError(f"Invalid type of member_or_author passed ({type(member_or_message)})")
 
@@ -989,7 +993,7 @@ class Interactions(commands.Cog):
                 await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣delete {reason}")
             except commands.MissingPermissions:
                 await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
-            await confirmation_msg.delete()
+            await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
         async def keep_callback(button_interaction: discord.Interaction):
             """Ban user and keep messages"""
@@ -1001,15 +1005,15 @@ class Interactions(commands.Cog):
                 await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
             except commands.MissingPermissions:
                 await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
-            await confirmation_msg.delete()
+            await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
         async def cancel_callback(button_interaction: discord.Interaction):
             """Cancel command, delete embed"""
             if button_interaction.user != interaction.user:
                 await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
 
-            await button_interaction.response.send_message(f"Cancelling ban ({reason})", ephemeral=True)
-            await confirmation_msg.delete()
+            await button_interaction.response.send_message(f"Cancelling ban (reason: {reason})", ephemeral=True)
+            await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
         async def reason_callback(button_interaction: discord.Interaction):
             """Edit reason of ban"""
@@ -1033,7 +1037,7 @@ class Interactions(commands.Cog):
 
                 # Edit new reason into embed
                 emb.set_field_at(0, name=emb.fields[0].name, value=reason)
-                await confirmation_msg.edit(embed=emb)
+                await interaction.edit_original_response(embed=emb)
 
         delete_button.callback = delete_callback
         keep_button.callback = keep_callback
@@ -1042,8 +1046,7 @@ class Interactions(commands.Cog):
 
         try:
             if await ban.can_run(ctx):
-                await interaction.response.send_message(embed=emb, view=view, ephemeral=False)
-                confirmation_msg = await interaction.original_response()
+                await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
             else:
                 await interaction.response.send_message("You don't have the permission to use that command",
                                                         ephemeral=True)

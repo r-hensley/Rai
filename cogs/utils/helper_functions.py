@@ -1061,7 +1061,7 @@ async def send_error_embed(bot: discord.Client,
         traceback_text = f'```py\n{exc}```'
 
     embed.timestamp = discord.utils.utcnow()
-    traceback_logging_channel = int(os.getenv("ERROR_CHANNEL_ID"))
+    traceback_logging_channel = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
     view = None
     if ctx.message:
         view = discord.ui.View.from_message(ctx.message)
