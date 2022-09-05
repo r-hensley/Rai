@@ -939,7 +939,7 @@ class Interactions(commands.Cog):
 
     @staticmethod
     async def ban_and_clear_main(interaction: discord.Interaction,
-                                 member_or_message: Union[discord.Message, discord.Member]):
+                                 member_or_message: Union[discord.Message, discord.User]):
         ctx = await commands.Context.from_interaction(interaction)
         ctx.author = interaction.user
         ban = ctx.bot.get_command("ban")
@@ -949,7 +949,7 @@ class Interactions(commands.Cog):
         if isinstance(member_or_message, discord.Message):
             author = member_or_message.author
             ctx.message = member_or_message
-        elif isinstance(member_or_message, discord.Member):
+        elif isinstance(member_or_message, (discord.User, discord.Member)):
             author = member_or_message
             ctx.message = ctx.channel.last_message
         else:
