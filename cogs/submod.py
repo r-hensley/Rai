@@ -461,7 +461,7 @@ class Submod(commands.Cog):
                         raise discord.Forbidden
                 else:
                     await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                    raise ValueError("The reaction I detected was not ✅")
+                    raise ValueError(f"The reaction I detected was not ✅, I got {reaction_added}")
 
     @warn.command(name="set")
     @hf.is_submod()
