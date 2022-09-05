@@ -191,7 +191,7 @@ class Questions(commands.Cog):
         if config.setdefault('threads', False):
             try:
                 content = target_message.content.replace(";question", ";q")
-                thread_title = f"[{question_number}] " + content.split(';q ', 1)[1].split('\n')[0][:95]
+                thread_title = f"[{question_number}] " + content.replace(';q ', '').split('\n')[0][:95]
                 if not hasattr(self.bot, "recently_joined_threads"):
                     self.bot.recently_joined_threads = []
                 if target_message.id not in self.bot.recently_joined_threads:
