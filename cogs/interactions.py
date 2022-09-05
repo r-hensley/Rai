@@ -34,7 +34,24 @@ SP_GUILD = discord.Object(id=SP_SERVER_ID)
 
 
 async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-    await hf.send_error_embed(interaction.client, interaction, error)
+    qualified_name = getattr(interaction.command, 'qualified_name', interaction.command.name)
+    e = discord.Embed(title=f'App Command Error ({interaction.type})', colour=0xcc3366)
+    e.add_field(name='Name', value=qualified_name)
+    e.add_field(name='Author', value=interaction.user)
+
+    fmt = f'Channel: {interaction.channel} (ID: {interaction.channel.id})'
+    if interaction.guild:
+        fmt = f'{fmt}\nGuild: {interaction.guild} (ID: {interaction.guild.id})'
+
+    e.add_field(name='Location', value=fmt, inline=False)
+
+    if interaction.data:
+        e.add_field(name="Data", value=f"```{interaction.data}```")
+
+    if interaction.extras:
+        e.add_field(name="Extras", value=f"```{interaction.extras}```")
+
+    await hf.send_error_embed(interaction.client, interaction, error, e)
 
 
 class Point(NamedTuple):
@@ -157,7 +174,7 @@ class Interactions(commands.Cog):
                              min_values=1,
                              max_values=2)
 
-        view = ui.View()
+        view = hf.RaiView()
         view.add_item(button_1)
         view.add_item(button_2)
         view.add_item(dropdown)
@@ -373,7 +390,7 @@ class Interactions(commands.Cog):
         buttons = [button_author, button_1, button_2, button_3, button_4,
                    button_5, button_6, button_7, button_8, button_9]
 
-        class MyView(ui.View):
+        class MyView(hf.RaiView):
             def __init__(self, timeout):
                 super().__init__(timeout=timeout)
 
@@ -574,7 +591,7 @@ class Interactions(commands.Cog):
                                      row=1)
 
         # Set up the view with the three buttons
-        view = ui.View()
+        view = hf.RaiView()
         view.add_item(create_embed_button)
         view.add_item(edit_embed_button)
         view.add_item(exit_menu_button)
@@ -647,7 +664,7 @@ class Interactions(commands.Cog):
                                            row=2)
 
         # Setup the view with the three buttons
-        view = ui.View()
+        view = hf.RaiView()
         view.add_item(add_button_button)
         view.add_item(add_dropdown_menu_button)
         view.add_item(remove_element_button)
@@ -703,7 +720,7 @@ class Interactions(commands.Cog):
                     await interaction.delete_original_message()
                     await self.edit_embed(interaction, msg=None)
 
-        view = ui.View()
+        view = hf.RaiView()
         view.add_item(input_jump_url_button)
 
         async def button_callback(button_interaction: discord.Interaction):
@@ -810,7 +827,7 @@ class Interactions(commands.Cog):
                 emb = hf.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
                 remove_button = ui.Button(label="Yes, remove it")
                 keep_button = ui.Button(label="No, keep it")
-                view = ui.View()
+                view = hf.RaiView()
 
                 async def remove_callback(button_interaction: discord.Interaction):
                     await member.remove_roles(voice_approved_role)
@@ -946,7 +963,7 @@ class Interactions(commands.Cog):
         cancel_button = ui.Button(label="CANCEL", style=discord.ButtonStyle.gray, row=0)
         reason_button = ui.Button(label="Edit ban reason", style=discord.ButtonStyle.primary, row=1)
 
-        view = ui.View()
+        view = hf.RaiView()
         view.add_item(delete_button)
         view.add_item(keep_button)
         view.add_item(cancel_button)
