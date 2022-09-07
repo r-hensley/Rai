@@ -1376,7 +1376,7 @@ class Logger(commands.Cog):
                 pass
 
     @commands.Cog.listener()
-    async def on_member_update(self, before: discord.Member, after: discord.Member):
+    async def on_member_update(self: commands.Cog, before: discord.Member, after: discord.Member):
         # ######### Nicknames #############
         async def check_nickname_change():
             guild = str(before.guild.id)
@@ -1464,9 +1464,6 @@ class Logger(commands.Cog):
             if not time_left:
                 return  # No matching entries found
 
-            modlog_config = hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
-            modlog_channel = self.bot.get_channel(modlog_config['channel'])
-
             emb = hf.red_embed("")
             emb.title = f"You have been timed out on {guild.name}"
             emb.color = 0xff8800  # orange
@@ -1495,11 +1492,13 @@ class Logger(commands.Cog):
                     pass
 
             emb.set_footer(text=f"Muted by {author.name} ({author.id})")
-            try:
-                if modlog_channel:
-                    await hf.safe_send(modlog_channel, after.id, embed=emb)
-            except AttributeError:
-                pass
+            modlog_channel = self.bot.get_channel(self.bot.db['modlog'][str(guild.id)]['channel'])
+            if modlog_channel:
+                notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)
+                ctx = await self.bot.get_context(notif_msg)
+                hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
+            else:
+                hf.add_to_modlog(None, after, 'Timeout', reason, False, timeout_length_str)
 
         await check_timeouts()
 
