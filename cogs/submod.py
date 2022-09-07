@@ -491,7 +491,7 @@ class Submod(commands.Cog):
 
         config['warn_notification_channel'] = channel.id
 
-    @commands.command(aliases=["cleanup", "bclr"])
+    @commands.command(aliases=["cleanup", "bclr", "bc"])
     @commands.bot_has_permissions(manage_messages=True)
     @hf.is_submod()
     async def botclear(self, ctx, num_of_messages=10):
@@ -510,7 +510,7 @@ class Submod(commands.Cog):
             await hf.safe_send(ctx, "Setting number of messages to the maximum of `50`.", delete_after=3)
 
         await ctx.channel.purge(limit=num_of_messages, check=lambda m: m.author.bot and m.content[0:7] != "Setting",
-                                after=discord.utils.utcnow() - timedelta(minutes=60))
+                                after=discord.utils.utcnow() - timedelta(minutes=60), oldest_first=False)
         try:
             await ctx.message.add_reaction('✅')
             await asyncio.sleep(1)
