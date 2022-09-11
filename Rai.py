@@ -127,6 +127,13 @@ class Rai(Bot):
         else:
             ctxmsg = self.ctx = None
 
+        try:  # in on_ready because there are many tasks in here that require a loaded bot
+            await self.load_extension('cogs.background')
+            print(f'Loaded cogs.background')
+        except Exception as e:
+            print(f'Failed to load extension cogs.background.', file=sys.stderr)
+            traceback.print_exc()
+
         print("Bot loaded")
 
         t_finish = datetime.now()
@@ -156,13 +163,6 @@ class Rai(Bot):
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
-
-        try:  # in on_ready because if not I get tons of errors from on_message before bot loads
-            await self.load_extension('cogs.background')
-            print(f'Loaded cogs.background')
-        except Exception as e:
-            print(f'Failed to load extension cogs.background.', file=sys.stderr)
-            traceback.print_exc()
 
         hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 
