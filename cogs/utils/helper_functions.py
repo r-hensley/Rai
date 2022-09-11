@@ -377,6 +377,28 @@ def is_submod():
     return commands.check(pred)
 
 
+def helper_check(ctx):
+    if not ctx.guild:
+        return
+    if admin_check(ctx):
+        return True
+    if submod_check(ctx):
+        return True
+    try:
+        role_id = here.bot.db['helper_role'][str(ctx.guild.id)]['id']
+    except KeyError:
+        return
+    helper_role = ctx.guild.get_role(role_id)
+    return helper_role in ctx.author.roles
+
+
+def is_helper():
+    async def pred(ctx):
+        return helper_check(ctx)
+
+    return commands.check(pred)
+
+
 def voicemod_check(ctx):
     if submod_check(ctx) or ctx.author.id in [650044067194863647]:  # hardcoded mods
         return True
@@ -419,12 +441,13 @@ def is_admin():
     return commands.check(pred)
 
 
-def database_toggle(ctx, module_name):
+def database_toggle(guild: discord.Guild, module_dict: dict):
+    """Enable or disable a module"""
     try:
-        config = module_name[str(ctx.guild.id)]
+        config = module_dict[str(guild.id)]
         config['enable'] = not config['enable']
     except KeyError:
-        config = module_name[str(ctx.guild.id)] = {'enable': True}
+        config = module_dict[str(guild.id)] = {'enable': True}
     return config
 
 

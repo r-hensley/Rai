@@ -125,7 +125,9 @@ class Interactions(commands.Cog):
         """Main code for syncing app commands"""
         # Sync interactions here in this file
         bot_guilds = [g.id for g in self.bot.guilds]
-        for guild_id in [FEDE_TESTER_SERVER_ID, RY_SERVER_ID, SP_SERVER_ID]:
+        # for guild_id in [FEDE_TESTER_SERVER_ID]:
+        # temporarily disable slash commands in fede's test server from disuse
+        for guild_id in []:
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)

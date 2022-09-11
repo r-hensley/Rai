@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from .utils import helper_functions as hf
 import asyncio
@@ -263,28 +264,28 @@ class Submod(commands.Cog):
             modlog_entry.add_to_modlog()
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
-    @commands.command()
-    @hf.is_admin()
-    async def set_submod_role(self, ctx, *, role_name):
-        """Set the submod role for your server.  Type the exact name of the role like `;set_submod_role Mods`."""
-        config = hf.database_toggle(ctx, self.bot.db['submod_role'])
+    submod = app_commands.Group(name="submod", description="Commands to configure server submods",
+                                guild_ids=[SP_SERV_ID])
+
+    @submod.command(name="role")
+    @app_commands.default_permissions()
+    async def set_submod_role(self, itx: discord.Interaction, *, role: discord.Role):
+        """Set the submod role for your server."""
+        config = hf.database_toggle(itx.guild, self.bot.db['submod_role'])
         if 'enable' in config:
             del (config['enable'])
-        submod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
-        if not submod_role:
-            await hf.safe_send(ctx, "The role with that name was not found")
-            return None
-        config['id'] = submod_role.id
-        await hf.safe_send(ctx, f"Set the submod role to {submod_role.name} ({submod_role.id})")
 
-    @commands.command(aliases=['setsubmodchannel'])
-    @hf.is_admin()
-    async def set_submod_channel(self, ctx, channel_id=None):
+        config['id'] = role.id
+        await itx.response.send_message(f"Set the submod role to {role.name} ({role.id})")
+
+    @submod.command(name="channel")
+    @app_commands.default_permissions()
+    async def set_submod_channel(self, itx: discord.Interaction, channel: discord.TextChannel = None):
         """Sets the channel for submods"""
-        if not channel_id:
-            channel_id = ctx.channel.id
-        self.bot.db['submod_channel'][str(ctx.guild.id)] = channel_id
-        await hf.safe_send(ctx, f"Set the submod channel for this server as {ctx.channel.mention}.")
+        if not channel:
+            channel = itx.channel
+        self.bot.db['submod_channel'][str(itx.guild.id)] = channel.id
+        await itx.response.send_message(f"Set the submod channel for this server as {channel.mention}.")
 
     @commands.group(invoke_without_command=True, aliases=['w'])
     @hf.is_submod()

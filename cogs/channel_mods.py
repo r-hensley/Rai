@@ -15,25 +15,6 @@ SP_SERV = 243838819743432704
 JP_SERV = 189571157446492161
 
 
-def any_channel_mod_check(ctx):
-    if ctx.command.name == 'staffping':
-        if ctx.guild.id == JP_SERV:
-            return hf.submod_check(ctx)
-    if ctx.guild.id != SP_SERV:
-        return
-    if hf.submod_check(ctx):
-        return True
-    chmd_config = ctx.bot.db['channel_mods'][str(SP_SERV)]
-    helper_role = ctx.guild.get_role(591745589054668817)
-    for ch_id in chmd_config:
-        if ctx.author.id in chmd_config[ch_id]:
-            if helper_role:
-                if helper_role in ctx.author.roles:
-                    return True
-            else:
-                return True
-
-
 async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_history: dict) -> dict:
     """Fix the invite used in join_history database for the year period of bugged logging"""
     if not join_history:
@@ -105,38 +86,45 @@ class ChannelMods(commands.Cog):
         if hf.submod_check(ctx):
             return True
 
-        else:
-            if isinstance(ctx.channel, (discord.TextChannel, discord.VoiceChannel)):
-                channel_id = ctx.channel.id
-            elif isinstance(ctx.channel, discord.Thread):
-                channel_id = ctx.channel.parent.id
-            else:
-                return
-
-            # channel mods can use commands in their channel
-            if ctx.author.id in self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(channel_id), {}):
-                return True
-
-            # anyone can use commands in the submod channel
-            if ctx.channel.id == self.bot.db['submod_channel'].get(str(ctx.guild.id), None):
-                return True
-
-            # voice mods...
-            if ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
-                # ...can use staffping
-                if ctx.command.name == "staffping":
-                    return True
-
-                # ...can use commands in text channels with the word "voice" in them
-                elif "voice" in ctx.channel.name.casefold() or "vc" in ctx.channel.name.casefold():
-                    return True
-
-                # ...can use commands in the text channels associated with voice channels
-                elif isinstance(ctx.channel, discord.VoiceChannel):
-                    return True
-
-        if ctx.command.name == 'role':
+        # check if helper
+        if hf.helper_check(ctx):
             return True
+
+        # voice mods...
+        if ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
+            # ...can use staffping
+            if ctx.command.name == "staffping":
+                return True
+
+            # ...can use commands in text channels with the word "voice" in them
+            elif "voice" in ctx.channel.name.casefold() or "vc" in ctx.channel.name.casefold():
+                return True
+
+            # ...can use commands in the text channels associated with voice channels
+            elif isinstance(ctx.channel, discord.VoiceChannel):
+                return True
+
+    helper = app_commands.Group(name="helper", description="Commands to configure server helpers", guild_ids=[SP_SERV])
+
+    @helper.command(name="role")
+    @app_commands.default_permissions()
+    async def set_helper_role(self, itx: discord.Interaction, *, role: discord.Role):
+        """Set the helper role for your server."""
+        config = hf.database_toggle(itx.guild, self.bot.db['helper_role'])
+        if 'enable' in config:
+            del (config['enable'])
+
+        config['id'] = role.id
+        await itx.response.send_message(f"Set the helper role to {role.name} ({role.id})")
+
+    @helper.command(name="channel")
+    @app_commands.default_permissions()
+    async def set_helper_channel(self, itx: discord.Interaction, channel: discord.TextChannel = None):
+        """Sets the channel for helpers"""
+        if not channel:
+            channel = itx.channel
+        self.bot.db['helper_channel'][str(itx.guild.id)] = channel.id
+        await itx.response.send_message(f"Set the helper channel for this server as {channel.mention}.")
 
     @commands.command(name="delete", aliases=['del'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_messages=True)
@@ -260,7 +248,7 @@ class ChannelMods(commands.Cog):
                                     "`;set_mod_channel` or `;set_submod_channel`")
             return
 
-        log_message = await hf.safe_send(channel, msg.author.id, embed=emb)
+        log_message = await hf.safe_send(channel, str(msg.author.id), embed=emb)
         for msg in msgs:
             await hf.send_attachments_to_thread_on_message(log_message, msg)
         if embeds:
@@ -333,91 +321,90 @@ class ChannelMods(commands.Cog):
         emb = await ctx.invoke(warn, args=args)
         return emb
 
-    @commands.command(aliases=['channel_helper', 'cm', 'ch'])
-    @hf.is_admin()
-    async def channel_mod(self, ctx, *, user):
-        """Assigns a channel mod. You must do this command in the channel you
-        where you wish to assign them as a channel helper.
+    # @commands.command(aliases=['channel_helper', 'cm', 'ch'])
+    # @hf.is_admin()
+    # async def channel_mod(self, ctx, *, user):
+    #     """Assigns a channel mod. You must do this command in the channel you
+    #     where you wish to assign them as a channel helper.
+    #
+    #     Usage (in the channel): `;cm <user name>`"""
+    #     config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
+    #     user = await hf.member_converter(ctx, user)
+    #     if not user:
+    #         await ctx.invoke(self.list_channel_mods)
+    #         return
+    #     if str(ctx.channel.id) in config:
+    #         if user.id in config[str(ctx.channel.id)]:
+    #             await hf.safe_send(ctx, "That user is already a channel mod in this channel.")
+    #             return
+    #         else:
+    #             config[str(ctx.channel.id)].append(user.id)
+    #     else:
+    #         config[str(ctx.channel.id)] = [user.id]
+    #     await ctx.message.delete()
+    #     await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
 
-        Usage (in the channel): `;cm <user name>`"""
-        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-        user = await hf.member_converter(ctx, user)
-        if not user:
-            await ctx.invoke(self.list_channel_mods)
-            return
-        if str(ctx.channel.id) in config:
-            if user.id in config[str(ctx.channel.id)]:
-                await hf.safe_send(ctx, "That user is already a channel mod in this channel.")
-                return
-            else:
-                config[str(ctx.channel.id)].append(user.id)
-        else:
-            config[str(ctx.channel.id)] = [user.id]
-        await ctx.message.delete()
-        await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
-
-    @commands.command(aliases=['list_channel_helpers', 'lcm', 'lch'])
-    async def list_channel_mods(self, ctx):
-        """Lists current channel mods"""
-        output_msg = '```md\n'
-        if str(ctx.guild.id) not in self.bot.db['channel_mods']:
-            return
-        config = self.bot.db['channel_mods'][str(ctx.guild.id)]
-        for channel_id in config.copy():
-            channel = self.bot.get_channel(int(channel_id))
-            if not channel:
-                await hf.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
-                                        f"{', '.join([str(i) for i in config[channel_id]])}")
-                del config[channel_id]
-                continue
-            output_msg += f"#{channel.name}\n"
-            for user_id in config[channel_id]:
-                user = self.bot.get_user(int(user_id))
-                if not user:
-                    await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
-                    config[channel_id].remove(user_id)
-                    continue
-                output_msg += f"{user.display_name}\n"
-            output_msg += '\n'
-        output_msg += '```'
-        await hf.safe_send(ctx, output_msg)
-
-    @commands.command(aliases=['rcm', 'rch'])
-    @hf.is_admin()
-    async def remove_channel_mod(self, ctx, user):
-        """Removes a channel mod. You must do this in the channel they're a channel mod in.
-
-        Usage: `;rcm <user name>`"""
-        config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-        user_obj = await hf.member_converter(ctx, user)
-        if user_obj:
-            user_id = user_obj.id
-            user_name = user_obj.name
-        else:
-            try:
-                user_id = int(user)
-                user_name = user
-            except ValueError:
-                await hf.safe_send(ctx, "I couldn't parse the user you listed and couldn't find them in the server. "
-                                        "Please check your input.", delete_after=5.0)
-                return
-            await hf.safe_send(ctx, "Note: I couldn't find that user in the server.", delete_after=5.0)
-        if str(ctx.channel.id) in config:
-            if user_id not in config[str(ctx.channel.id)]:
-                await hf.safe_send(ctx, "That user is not a channel mod in this channel. You must call this command "
-                                        "in their channel.")
-                return
-            else:
-                config[str(ctx.channel.id)].remove(user_id)
-                if not config[str(ctx.channel.id)]:
-                    del config[str(ctx.channel.id)]
-        else:
-            return
-        await ctx.message.delete()
-        await hf.safe_send(ctx, f"Removed {user_name} as a channel mod for this channel", delete_after=5.0)
+    # @commands.command(aliases=['list_channel_helpers', 'lcm', 'lch'])
+    # async def list_channel_mods(self, ctx):
+    #     """Lists current channel mods"""
+    #     output_msg = '```md\n'
+    #     if str(ctx.guild.id) not in self.bot.db['channel_mods']:
+    #         return
+    #     config = self.bot.db['channel_mods'][str(ctx.guild.id)]
+    #     for channel_id in config.copy():
+    #         channel = self.bot.get_channel(int(channel_id))
+    #         if not channel:
+    #             await hf.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
+    #                                     f"{', '.join([str(i) for i in config[channel_id]])}")
+    #             del config[channel_id]
+    #             continue
+    #         output_msg += f"#{channel.name}\n"
+    #         for user_id in config[channel_id]:
+    #             user = self.bot.get_user(int(user_id))
+    #             if not user:
+    #                 await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
+    #                 config[channel_id].remove(user_id)
+    #                 continue
+    #             output_msg += f"{user.display_name}\n"
+    #         output_msg += '\n'
+    #     output_msg += '```'
+    #     await hf.safe_send(ctx, output_msg)
+    #
+    # @commands.command(aliases=['rcm', 'rch'])
+    # @hf.is_admin()
+    # async def remove_channel_mod(self, ctx, user):
+    #     """Removes a channel mod. You must do this in the channel they're a channel mod in.
+    #
+    #     Usage: `;rcm <user name>`"""
+    #     config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
+    #     user_obj = await hf.member_converter(ctx, user)
+    #     if user_obj:
+    #         user_id = user_obj.id
+    #         user_name = user_obj.name
+    #     else:
+    #         try:
+    #             user_id = int(user)
+    #             user_name = user
+    #         except ValueError:
+    #             await hf.safe_send(ctx, "I couldn't parse the user you listed and couldn't find them in the server. "
+    #                                     "Please check your input.", delete_after=5.0)
+    #             return
+    #         await hf.safe_send(ctx, "Note: I couldn't find that user in the server.", delete_after=5.0)
+    #     if str(ctx.channel.id) in config:
+    #         if user_id not in config[str(ctx.channel.id)]:
+    #             await hf.safe_send(ctx, "That user is not a channel mod in this channel. You must call this command "
+    #                                     "in their channel.")
+    #             return
+    #         else:
+    #             config[str(ctx.channel.id)].remove(user_id)
+    #             if not config[str(ctx.channel.id)]:
+    #                 del config[str(ctx.channel.id)]
+    #     else:
+    #         return
+    #     await ctx.message.delete()
+    #     await hf.safe_send(ctx, f"Removed {user_name} as a channel mod for this channel", delete_after=5.0)
 
     @commands.command(aliases=['staff'])
-    @commands.check(any_channel_mod_check)
     async def staffrole(self, ctx):
         """You can add/remove the staff role from yourself with this"""
         staffrole = ctx.guild.get_role(642782671109488641)
@@ -484,7 +471,6 @@ class ChannelMods(commands.Cog):
             await hf.safe_send(ctx, ctx.command.help)
 
     @commands.command(aliases=['r', 't', 'tag'])
-    @commands.check(any_channel_mod_check)
     async def role(self, ctx, *, args):
         """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify\
         multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces or be \
