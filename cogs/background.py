@@ -64,6 +64,12 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
+        if not self.bot.db:
+            print("main database not yet fully loaded, so delaying database saving")
+            return
+        if not self.bot.stats:
+            print("stats database not yet fully loaded, so delaying database saving")
+
         await hf.dump_json()
 
     @tasks.loop(minutes=10.0)

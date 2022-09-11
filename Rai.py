@@ -76,6 +76,8 @@ class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix,
                          help_command=None, intents=intents, max_messages=10000)
+        self.db = {}
+        self.stats = {}
         self.language_detection = False
         print('starting loading of jsons')
 
@@ -100,32 +102,18 @@ class Rai(Bot):
             db.close()
         if not os.path.exists(f"{dir_path}/stats.json"):
             db = open(f"{dir_path}/stats.json", 'w')
+            print("Creating new stats database.")
             json.dump({}, db)
             db.close()
 
-        try:
-            with open(f"{dir_path}/db.json", "r") as read_file1:
-                read_file1.seek(0)
-                self.db = json.load(read_file1)
-        except json.decoder.JSONDecodeError as e:
-            if e.msg == "Expecting value":
-                logging.warning("No data detected in db.json")
-                self.db = {}
-            else:
-                raise
-
-        try:
-            with open(f"{dir_path}/stats.json", "r") as read_file2:
-                read_file2.seek(0)
-                self.stats = json.load(read_file2)
-        except json.decoder.JSONDecodeError as e:
-            if e.msg == "Expecting value":
-                logging.warning("No data detected in stats.json")
-                self.stats = {}
-            else:
-                raise
-
     async def on_ready(self):
+        # i have no idea why but sometimes between the period of setup_hook and on_ready, self.stats gets reset to
+        # an empty dictionary, so I have to reload it here
+        if not self.db:
+            hf.load_db(self)
+        if not self.stats:
+            hf.load_stats(self)
+
         await hf.load_language_detection_model()
         self.language_detection = True
 
@@ -153,9 +141,13 @@ class Rai(Bot):
         await self.change_presence(activity=discord.Game(';help for help'))
 
         if not self.database_backups.is_running():
+            print("Starting database backups")
             self.database_backups.start()
 
     async def setup_hook(self):
+        hf.load_db(self)
+        hf.load_stats(self)
+
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions']
