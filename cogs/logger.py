@@ -1498,7 +1498,7 @@ class Logger(commands.Cog):
                 ctx = await self.bot.get_context(notif_msg)
                 hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
             else:
-                hf.add_to_modlog(None, after, 'Timeout', reason, False, timeout_length_str)
+                hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
 
         await check_timeouts()
 
