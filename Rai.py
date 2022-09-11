@@ -107,10 +107,6 @@ class Rai(Bot):
             db.close()
 
     async def on_ready(self):
-        # i have no idea why but sometimes between the period of setup_hook and on_ready, self.stats gets reset to
-        # an empty dictionary, so I have to reload it here
-        if not self.db:
-            hf.load_db(self)
         if not self.stats:
             hf.load_stats(self)
 

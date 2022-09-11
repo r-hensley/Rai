@@ -69,6 +69,7 @@ class Background(commands.Cog):
             return
         if not self.bot.stats:
             print("stats database not yet fully loaded, so delaying database saving")
+            return
 
         await hf.dump_json()
 

@@ -336,7 +336,6 @@ def load_db(bot):
         with open(f"{dir_path}/db.json", "r") as read_file1:
             read_file1.seek(0)
             bot.db = json.load(read_file1)
-            print(f"db loaded: {len(bot.db)}\n")
     except json.decoder.JSONDecodeError as e:
         if e.msg == "Expecting value":
             logging.warning("No data detected in db.json")
@@ -350,7 +349,6 @@ def load_stats(bot):
         with open(f"{dir_path}/stats.json", "r") as read_file2:
             read_file2.seek(0)
             bot.stats = json.load(read_file2)
-            print(f"stats loaded: {len(bot.stats)}\n")
     except json.decoder.JSONDecodeError as e:
         if e.msg == "Expecting value":
             logging.warning("No data detected in stats.json")
