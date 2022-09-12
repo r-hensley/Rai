@@ -11,6 +11,8 @@ import discord
 from discord.ext import commands
 from Levenshtein import distance as LDist
 
+from cogs.utils.timeutil import format_interval
+
 from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -1133,14 +1135,7 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "Please choose a time less than 7d")
             return
 
-        delta_str = ''
-        if length[0]:
-            delta_str += f"{length[0]}d "
-        if length[1]:
-            delta_str += f"{length[1]}h "
-        if length[2]:
-            delta_str += f"{length[2]}m "
-        delta_str = delta_str[:-1]  # remove last space
+        delta_str = format_interval(delta_obj)  # remove last space
 
         conf = await hf.safe_send(ctx, f"You are about to irreversibly mute yourself for {delta_str}. "
                                        f"Is this really what you want to do? The mods of this server CANNOT undo "
