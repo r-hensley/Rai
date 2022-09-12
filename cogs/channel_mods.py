@@ -112,7 +112,7 @@ class ChannelMods(commands.Cog):
         """Set the helper role for your server."""
         config = hf.database_toggle(itx.guild, self.bot.db['helper_role'])
         if 'enable' in config:
-            del (config['enable'])
+            del config['enable']
 
         config['id'] = role.id
         await itx.response.send_message(f"Set the helper role to {role.name} ({role.id})")
@@ -192,7 +192,7 @@ class ChannelMods(commands.Cog):
             return  # no messages found
 
         emb = discord.Embed(title=f"Deleted messages in #{msg.channel.name}", color=discord.Color(int('ff0000', 16)),
-                            description=f"")
+                            description="")
         embeds = []
         for msg_index in range(len(msgs)):
             msg = msgs[msg_index]
@@ -210,16 +210,16 @@ class ChannelMods(commands.Cog):
                 for embed in msg.embeds:
                     if embed.title or embed.description or embed.fields:
                         embeds.append(embed)
-                        emb.add_field(name=f"Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
+                        emb.add_field(name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
             if msg.content:
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
                               value=f"{msg.content}"[:1008 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
             if msg.content[1009:]:
-                emb.add_field(name=f"continued", value=f"...{msg.content[1009 - len(jump_url):len(jump_url) + 1024]}")
+                emb.add_field(name="continued", value=f"...{msg.content[1009 - len(jump_url):len(jump_url) + 1024]}")
             if msg.attachments and not msg.content:
                 emb.description = f"Attachments by {str(msg.author)} ({msg.author.id}) in below thread"
             if msg.attachments and msg.content:
-                emb.description = f"Attachments in below thread"
+                emb.description = "Attachments in below thread"
             # if msg.attachments:
             #     x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
             #     if not msg.content:
@@ -234,14 +234,14 @@ class ChannelMods(commands.Cog):
             if not channel:
                 await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
-                del (self.bot.db['submod_channel'][str(ctx.guild.id)])
+                del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
             channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
             if not channel:
                 await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
-                del (self.bot.db['submod_channel'][str(ctx.guild.id)])
+                del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         else:
             await hf.safe_send(ctx, "Please set either a mod channel or a submod channel with "
@@ -467,7 +467,7 @@ class ChannelMods(commands.Cog):
                 await hf.safe_send(ctx, f"I've set the watched staff role to **{role.name}** (`{role.mention}`)")
 
         if not channel and not role:
-            await hf.safe_send(ctx, f"I couldn't figure out what you wanted to do.")
+            await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
             await hf.safe_send(ctx, ctx.command.help)
 
     @commands.command(aliases=['r', 't', 'tag'])
@@ -621,16 +621,13 @@ class ChannelMods(commands.Cog):
         member: discord.Member = await hf.member_converter(ctx, id_in)
         if member:
             user: Optional[Union[discord.User, discord.Member]] = member
-            username = f"{member.name}#{member.discriminator} ({member.id})"
             user_id = str(member.id)
         else:
             try:
                 user = await self.bot.fetch_user(int(id_in))
-                username = f"{user.name}#{user.discriminator} ({user.id})"
                 user_id = id_in
             except discord.NotFound:
                 user = None
-                username = user_id = "UNKNOWN USER"
             except discord.HTTPException:
                 await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
@@ -724,10 +721,8 @@ class ChannelMods(commands.Cog):
 
             # Check guild ban logs for ban entry
             try:
-                ban_entry = await ctx.guild.fetch_ban(user)
                 banned = True
             except (discord.Forbidden, discord.HTTPException, discord.NotFound):
-                ban_entry = None
                 banned = False  # manual unbans are possible, leaving the ban entry in the DB
 
             #
@@ -798,8 +793,8 @@ class ChannelMods(commands.Cog):
                             continue
                         for channel in user_stats['channels']:
                             message_count[channel] = message_count.get(channel, 0) + user_stats['channels'][channel]
-                            days_ago = (discord.utils.utcnow() -
-                                        datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                            days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d")
+                                        .replace(tzinfo=timezone.utc)).days
                             if days_ago <= 7:
                                 total_msgs_week += user_stats['channels'][channel]
                             total_msgs_month += user_stats['channels'][channel]
@@ -857,7 +852,7 @@ class ChannelMods(commands.Cog):
                             f"by {invite_creator_user.name}#{invite_creator_user.discriminator} " \
                             f"([ID](https://rai/inviter-id-is-I{invite_creator_id}))"
                     else:
-                        invite_author_str = f"by unknown user"
+                        invite_author_str = "by unknown user"
                 else:
                     invite_author_str = ""
 
@@ -978,9 +973,9 @@ class ChannelMods(commands.Cog):
                 await hf.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
                 return
             except ValueError:  # or if the index given is not an integer...
-                await hf.safe_send(ctx, f"The given index is invalid.\n"
-                                        f"Please write numeric indices equal to or greater than 1 or "
-                                        f"`-all` to clear the user's modlog.")
+                await hf.safe_send(ctx, "The given index is invalid.\n"
+                                        "Please write numeric indices equal to or greater than 1 or "
+                                        "`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
 
@@ -1023,7 +1018,7 @@ class ChannelMods(commands.Cog):
             await ctx.message.add_reaction('✅')
 
             # Prepare emb to send:
-            summary_text = f"Task completed."
+            summary_text = "Task completed."
 
             if removed_indices:  # If it removed logs in config:
                 removed_indices = ["#**" + i + "**" for i in removed_indices]  # format it...
@@ -1218,11 +1213,11 @@ class ChannelMods(commands.Cog):
 
                 failed_channels = await set_channel_overrides(role)
                 if failed_channels:
-                    msg = f"Couldn't add the role permission to the following channels for missing the " \
-                          f"listed permissions.  If a muted " \
-                          f"member joins this (these) channel(s), they'll be able to type/speak. If you " \
-                          f"want to edit the permissions and have Rai reapply all the permissions, please " \
-                          f"delete the `rai-mute` role and then try to mute someone again."
+                    msg = "Couldn't add the role permission to the following channels for missing the " \
+                          "listed permissions.  If a muted " \
+                          "member joins this (these) channel(s), they'll be able to type/speak. If you " \
+                          "want to edit the permissions and have Rai reapply all the permissions, please " \
+                          "delete the `rai-mute` role and then try to mute someone again."
                     for channel in failed_channels:
                         msg += f"\n{channel[0]}: {channel[1]}"
                     try:
@@ -1383,7 +1378,7 @@ class ChannelMods(commands.Cog):
                 try:
                     await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
                                             "or a mention to the user (this is to prevent mistaking people).")
-                except discord.HTTPException:  # Possible if Rai is trying to send a message to itself for automatic mutes
+                except discord.HTTPException:  # Possible if Rai is sending a message to itself for automatic mutes
                     pass
                 continue
 
@@ -1656,6 +1651,7 @@ class ChannelMods(commands.Cog):
             emb.add_field(name=emb_name, value=emb_value, inline=False)
 
         await interaction.response.send_message(embed=emb)
+
 
 async def setup(bot):
     await bot.add_cog(ChannelMods(bot))

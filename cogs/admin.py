@@ -323,8 +323,8 @@ class Admin(commands.Cog):
                 except discord.NotFound:
                     continue
                 member_text = f"{user.name} ({user.id})"
-            interval = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                        - discord.utils.utcnow())
+            interval = (datetime.strptime(mute['until'], "%Y/%m/%d %H:%M UTC")
+                        .replace(tzinfo=timezone.utc) - discord.utils.utcnow())
             interval_str = format_interval(interval)
             embed_text += f"• {member_text}\n" \
                           f"Until {mute['until']} (in {interval_str})\n" \
@@ -368,9 +368,9 @@ class Admin(commands.Cog):
         else:
             config = self.bot.db['bans'][str(ctx.guild.id)] = {'enable': False, 'channel': None, 'crosspost': True}
         if config['crosspost']:
-            await hf.safe_send(ctx, f"Rai will now crosspost ban logs")
+            await hf.safe_send(ctx, "Rai will now crosspost ban logs")
         else:
-            await hf.safe_send(ctx, f"Rai won't crosspost ban logs anymore")
+            await hf.safe_send(ctx, "Rai won't crosspost ban logs anymore")
 
     @commands.command(hidden=True)
     async def echo(self, ctx, *, content: str):
@@ -494,7 +494,7 @@ class Admin(commands.Cog):
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
                 else:
-                    await hf.safe_send(ctx, f"Something went wrong")
+                    await hf.safe_send(ctx, "Something went wrong")
                     return
             else:
                 try:
@@ -614,7 +614,7 @@ class Admin(commands.Cog):
     async def captcha_set_role(self, ctx, *, role_input: str = None):
         """Sets the role that will be given when captcha is completed. Usage: `;captcha set_role <role_name>`"""
         if not role_input:
-            instr_msg = await hf.safe_send(ctx, f"Please input the exact name of the role new users will receive")
+            instr_msg = await hf.safe_send(ctx, "Please input the exact name of the role new users will receive")
             try:
                 reply_msg = await self.bot.wait_for('message',
                                                     timeout=20.0,
@@ -670,8 +670,8 @@ class Admin(commands.Cog):
         try:
             int(num)
         except ValueError:
-            await hf.safe_send(ctx, f"You need to put a number of messages. "
-                                    f"Type `;help clear` for information on syntax.")
+            await hf.safe_send(ctx, "You need to put a number of messages. "
+                                    "Type `;help clear` for information on syntax.")
             return
         if 1000 < int(num):
             await hf.safe_send(ctx, "I can't erase a server for you! Capping the number of messages down "
@@ -804,7 +804,7 @@ class Admin(commands.Cog):
                 await hf.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
                 config['readd_roles']['enable'] = False
                 return
-            await hf.safe_send(ctx, f"I will readd roles to people who have previously left the server")
+            await hf.safe_send(ctx, "I will readd roles to people who have previously left the server")
         else:
             await hf.safe_send(ctx, "I will NOT readd roles to people who have previously left the server")
         if 'users' not in config:
@@ -868,7 +868,7 @@ class Admin(commands.Cog):
             del (config[str(target_id)])
             await hf.safe_send(ctx, f"Removed <@{target_id}> from super_watch list")
         except KeyError:
-            await hf.safe_send(ctx, f"That user wasn't on the super_watch list")
+            await hf.safe_send(ctx, "That user wasn't on the super_watch list")
 
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
@@ -1192,13 +1192,13 @@ class Admin(commands.Cog):
                 choice, menu = await self.wait_menu(ctx, menu, emb, choices)
             except discord.Forbidden:
                 await hf.safe_send(ctx,
-                                   f"I lack the ability to manage messages, which I require for the options module")
+                                   "I lack the ability to manage messages, which I require for the options module")
                 return
             if choice == 'time_out':
                 return
             elif choice == 'x':
                 await menu.delete()
-                await hf.safe_send(ctx, f"Closing options menu")
+                await hf.safe_send(ctx, "Closing options menu")
                 return
 
             #           main > set mod role
@@ -1214,7 +1214,7 @@ class Admin(commands.Cog):
                         role = ctx.guild.get_role(config['id'])
                         emb.description = f"Current role is {role.mention} ({role.id})\n" + emb.description
                     except KeyError:
-                        emb.description = f"No role is currently set\n" + emb.description
+                        emb.description = "No role is currently set\n" + emb.description
 
                     choices = ['1', '2', '3', '4', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1223,7 +1223,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
@@ -1271,7 +1271,7 @@ class Admin(commands.Cog):
                         channel = ctx.guild.get_channel_or_thread(config[str(ctx.guild.id)])
                         emb.description = f"Current channel is {channel.mention} ({channel.id})\n" + emb.description
                     except KeyError:
-                        emb.description = f"There is no mod channel currently set\n" + emb.description
+                        emb.description = "There is no mod channel currently set\n" + emb.description
 
                     choices = ['1', '2', '3', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1280,7 +1280,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
@@ -1312,12 +1312,12 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closing options menu")
+                        await hf.safe_send(ctx, "Closing options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
                         instr_msg = await hf.safe_send(ctx,
-                                                       f"Please input the custom prefix you wish to use on this server")
+                                                       "Please input the custom prefix you wish to use on this server")
                         try:
                             reply_msg = await self.bot.wait_for('message',
                                                                 timeout=20.0,
@@ -1354,7 +1354,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closing options menu")
+                        await hf.safe_send(ctx, "Closing options menu")
                         await menu.delete()
                         return
 
@@ -1373,8 +1373,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks deleted messages " \
-                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks deleted messages " \
+                                                  "by users.\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1384,7 +1384,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1407,8 +1407,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks edited messages " \
-                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks edited messages " \
+                                                  "by users.\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1418,7 +1418,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1442,8 +1442,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks joins " \
-                                                  f"by users.\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks joins " \
+                                                  "by users.\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', '3', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1453,7 +1453,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1478,8 +1478,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It logs when a member leaves." \
-                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It logs when a member leaves." \
+                                                  "\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1489,7 +1489,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1512,8 +1512,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks kicked members " \
-                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks kicked members " \
+                                                  "\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1523,7 +1523,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1545,8 +1545,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks banned members " \
-                                                  f"\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks banned members " \
+                                                  "\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1556,7 +1556,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1579,8 +1579,8 @@ class Admin(commands.Cog):
                                                   f"{channel.mention}\n\nReply with any of the option numbers " \
                                                   f"or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks member nickname " \
-                                                  f"changes.\n\nReply with any of the option numbers or letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks member nickname " \
+                                                  "changes.\n\nReply with any of the option numbers or letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1590,7 +1590,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1613,9 +1613,9 @@ class Admin(commands.Cog):
                                                   f"message in {channel.mention}\n\nReply with any of the option " \
                                                   f"numbers or letters (b/x)"
                             else:
-                                emb.description = f"This module is currently disabled.  It tracks when users remove " \
-                                                  f"a reaction from a\n\nReply with any of the option numbers or " \
-                                                  f"letters (b/x)"
+                                emb.description = "This module is currently disabled.  It tracks when users remove " \
+                                                  "a reaction from a\n\nReply with any of the option numbers or " \
+                                                  "letters (b/x)"
 
                             choices = ['1', '2', 'b', 'x']
                             choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1625,7 +1625,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, f"Closing options menu")
+                                await hf.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1661,7 +1661,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1743,7 +1743,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1787,7 +1787,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1824,7 +1824,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, f"Closed options menu")
+                        await hf.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 

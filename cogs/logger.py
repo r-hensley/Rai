@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
-import io
-from typing import Optional, List, Tuple, Dict, Union
+
+from typing import Optional, List, Tuple, Dict
 
 import os
 
@@ -20,7 +20,6 @@ SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
-SPAM_CHAN = 275879535977955330
 
 
 class Logger(commands.Cog):
@@ -60,7 +59,8 @@ class Logger(commands.Cog):
             except KeyError:
                 disabled_modules.append(module)
                 continue
-            emb_value += f"\n\n・{module.name.capitalize()} ({ctx.guild.get_channel_or_thread(config['channel']).mention})"
+            emb_value += (f"\n\n・{module.name.capitalize()} "
+                          f"{ctx.guild.get_channel_or_thread(config['channel']).mention})")
             if module.name == 'edits':
                 emb_value += f"\n[Levenshtein limit](https://github.com/ryry013/Rai/wiki/Rai-Info-Pages#" \
                              f"levenshtein-distance-limit): {config.get('distance_limit', False)}"
@@ -154,8 +154,8 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, 'Disabled voice logging for this server')
         elif result == 2:
             await hf.safe_send(ctx, 'Enabled voice logging for this server. Embeds have a secret ID '
-                                    f'inside of that you can find by searching the user ID with "V" in front (like '
-                                    f'`V202995638860906496`).')
+                                    'inside of that you can find by searching the user ID with "V" in front (like '
+                                    '`V202995638860906496`).')
         elif result == 3:
             await hf.safe_send(ctx, 'You have not yet set a channel for voice logging yet. Run `;voice_logging set`')
         elif result == 4:
@@ -213,7 +213,9 @@ class Logger(commands.Cog):
             color = 0x3B88C3
             footer_text = "Voice Join"
             if after.channel.guild.id == 243838819743432704:
-                # self.bot.db['spvoice'].append(("Join", discord.utils.utcnow().timestamp(),  member.id, after.channel.id))
+                # self.bot.db['spvoice'].append(("Join",
+                # discord.utils.utcnow().timestamp(),
+                # member.id, after.channel.id))
                 pass
 
         # leave voice  DD2E44
@@ -222,7 +224,9 @@ class Logger(commands.Cog):
             color = 0xDD2E44
             footer_text = "Voice Leave"
             if before.channel.guild.id == 243838819743432704:
-                # self.bot.db['spvoice'].append(("Leave", discord.utils.utcnow().timestamp(),  member.id, before.channel.id))
+                # self.bot.db['spvoice'].append(("Leave",
+                # discord.utils.utcnow().timestamp(),
+                # member.id, before.channel.id))
                 pass
 
         # switch channel 🔄️ 3B88C3
@@ -232,8 +236,12 @@ class Logger(commands.Cog):
             color = 0x3B88C3
             footer_text = "Voice Switch"
             if after.channel.guild.id == 243838819743432704:
-                # self.bot.db['spvoice'].append(("Leave", discord.utils.utcnow().timestamp(), member.id, before.channel.id))
-                # self.bot.db['spvoice'].append(("Join", discord.utils.utcnow().timestamp(),  member.id, after.channel.id))
+                # self.bot.db['spvoice'].append(("Leave",
+                # discord.utils.utcnow().timestamp(),
+                # member.id, before.channel.id))
+                # self.bot.db['spvoice'].append(("Join",
+                # discord.utils.utcnow().timestamp(),
+                # member.id, after.channel.id))
                 pass
 
         ############################
@@ -320,7 +328,7 @@ class Logger(commands.Cog):
                     emb.description += "\n(Newly created account joining voice):"
                     emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
                     emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
-                    if hf.calculate_voice_time(member.id, member.guild.id) < 60*60:  # 60 mins
+                    if hf.calculate_voice_time(member.id, member.guild.id) < 60 * 60:  # 60 mins
                         try:
                             await hf.safe_send(channel, member.id, embed=emb)
                         except discord.Forbidden:
@@ -821,15 +829,16 @@ class Logger(commands.Cog):
     @welcome_message.command()
     async def set_message(self, ctx, *, message: str = None):
         if not message:
-            await hf.safe_send(ctx, 'Please put your welcome message after the command invocation.  For example: \n'
-                                    '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
-                                    "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
-                                    "the user\n`$SERVER$` = The name of the server")
+            text = ('Please put your welcome message after the command invocation.  For example: \n'
+                    '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
+                    "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
+                    "the user\n`$SERVER$` = The name of the server")
+            await hf.safe_send(ctx, text)
         else:
             try:
                 config = self.bot.db['welcome_message'][str(ctx.guild.id)]
             except KeyError:
-                await hf.safe_send(ctx, f"Run `;welcome_message` first to setup the module")
+                await hf.safe_send(ctx, "Run `;welcome_message` first to setup the module")
                 return
             config['message'] = message
             await hf.safe_send(ctx, f"Set welcome message to ```{message}```")
@@ -954,8 +963,8 @@ class Logger(commands.Cog):
 
             if not log_channel.permissions_for(guild.me).embed_links:
                 try:
-                    await hf.safe_send(log_channel, f"I tried to post a join notification but I lack the permission to"
-                                                    f" post embeds. Please give me the permission to embed links.")
+                    await hf.safe_send(log_channel, "I tried to post a join notification but I lack the permission to"
+                                                    " post embeds. Please give me the permission to embed links.")
                 except discord.Forbidden:
                     del server_config
                 return
@@ -969,7 +978,7 @@ class Logger(commands.Cog):
             old_invites: Optional[Dict[str, List[Optional[float]]]]
             invites: Optional[List[discord.Invite]]
             old_invites, invites = await self.get_invites(guild)  # returns None, None if invites_enable=False in config
-            used_invite: Union[List[discord.Invite]] = []
+            used_invite: List[discord.Invite] = []
             maybe_used_invite: List[str] = []
             if invites:
                 invites_dict: Dict[str, discord.Invite] = {}
@@ -1000,7 +1009,7 @@ class Logger(commands.Cog):
             if maybe_used_invite and not used_invite:
                 used_invite = maybe_used_invite
 
-            def get_list_of_roles() -> (dict, List[discord.Role]):
+            def get_list_of_roles() -> tuple[dict, List[discord.Role]]:
                 try:
                     config: dict = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
@@ -1067,7 +1076,7 @@ class Logger(commands.Cog):
 
             if used_invite:
                 recorded_info['invite'] = getattr(used_invite[0], "code", None)
-                invite_creator = getattr(used_invite[0].inviter, "id", None)
+                # invite_creator = getattr(used_invite[0].inviter, "id", None)
 
             server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
@@ -1101,9 +1110,9 @@ class Logger(commands.Cog):
                             await message.delete()
                             break
                     try:
-                        msg = await self.bot.wait_for('message', timeout=10.0,
-                                                      check=lambda m: m.author.id == 299335689558949888 and
-                                                                      m.channel == jpJHO)
+                        def check(m):
+                            return m.author.id == 299335689558949888 and m.channel == jpJHO
+                        msg = await self.bot.wait_for('message', timeout=10.0, check=check)
                         await msg.delete()
                     except asyncio.TimeoutError:
                         pass
@@ -1115,7 +1124,7 @@ class Logger(commands.Cog):
             if self.bot.db['auto_bans'][str(member.guild.id)]['enable']:
                 pat = re.compile(r'.*(discord|discordapp).(gg|com/invite)/[A-Z0-9]{1,7}.*', re.I)
                 if re.match(pat, member.name):
-                    guild = str(member.guild.id)
+                    # guild = str(member.guild.id)
                     await member.ban(reason="Name was a discord invite link")
                     message = f"Banned user `{member.name}` from {member.guild.name} for being an invite link name\n" \
                               f"({member.id} {member.mention})"
@@ -1166,7 +1175,7 @@ class Logger(commands.Cog):
                 emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
 
             pings = ""
-            if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:  # type: Dict[str: int]
+            if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:
                 role_id: int = self.bot.db['bansub']['guild_to_role'][str(member.guild.id)]
                 for user_id in self.bot.db['bansub']['user_to_role']:  # type: Dict[str: List[int]]
                     if role_id in self.bot.db['bansub']['user_to_role'][user_id]:
@@ -1406,7 +1415,7 @@ class Logger(commands.Cog):
 
         # ######### Timeouts #############
         async def check_timeouts():
-            if not (config := self.bot.db['modlog'].get(str(before.guild.id), None)):
+            if not (self.bot.db['modlog'].get(str(before.guild.id), None)):
                 return  # guild has not setup modlog
 
             if not (not before.is_timed_out() and after.is_timed_out()):
@@ -1415,7 +1424,6 @@ class Logger(commands.Cog):
             guild = before.guild
             attempts = 0
             time_left = None
-            timeout_length = None
             timeout_length_str = None
             reason = None
             author = None
@@ -1434,25 +1442,18 @@ class Logger(commands.Cog):
                             return
 
                         if time_left < 70:  # 60 SEC
-                            timeout_length = 60
                             timeout_length_str = "1m"
                         elif 250 < time_left < 350:  # 5 MIN = 300 SEC
-                            timeout_length = 300
                             timeout_length_str = "5m"
                         elif 550 < time_left < 650:  # 10 MIN = 600 SEC
-                            timeout_length = 600
                             timeout_length_str = "10m"
                         elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
-                            timeout_length = 3600
                             timeout_length_str = "1h"
                         elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
-                            timeout_length = 86400
                             timeout_length_str = "1d"
                         elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
-                            timeout_length = 604800
                             timeout_length_str = "7d"
                         else:
-                            timeout_length = 0
                             timeout_length_str = "Unknown"
 
                         break  # this breaks the for entry in guild.audit_logs() if it finds the entry
@@ -1805,7 +1806,6 @@ class Logger(commands.Cog):
                     if mod_channel:
                         try:
                             await hf.safe_send(mod_channel, f"@here {member.mention}", embed=crosspost_emb)
-                            sent_to_mod_channel = True
                         except (discord.Forbidden, discord.HTTPException):
                             pass
 
@@ -1847,14 +1847,13 @@ class Logger(commands.Cog):
             colour=0x7F8C8D,
             timestamp=discord.utils.utcnow()
         )
-        emb.set_footer(text=f'User unbanned',
+        emb.set_footer(text='User unbanned',
                        icon_url=user.display_avatar.replace(static_format="png").url)
         return emb
 
     @commands.Cog.listener()
     async def on_member_unban(self, guild, user):
         guild_id = str(guild.id)
-        spam_chan = self.bot.get_channel(SPAM_CHAN)
         if str(user.id) in self.bot.db['banlog']:  # a list of lists of [guild.id, crosspost_msg.id]
             for entry in self.bot.db['banlog'][str(user.id)]:
                 if guild.id == entry[0]:
@@ -1937,7 +1936,7 @@ class Logger(commands.Cog):
                 colour=0x4C4C4C,
                 timestamp=discord.utils.utcnow()
             )
-            emb.set_footer(text=f'User Kicked',
+            emb.set_footer(text='User Kicked',
                            icon_url=member.display_avatar.replace(static_format="png").url)
             return emb
 
