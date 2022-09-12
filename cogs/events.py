@@ -95,7 +95,7 @@ class Events(commands.Cog):
                 await msg.reply("Please use that command in <#1018716355081543701> (https://discord.com/channels/" 
                                 "243838819743432704/1018716355081543701/9999916373733613588)")
 
-        await redirect_tatsumaki_commands()
+        # await redirect_tatsumaki_commands()
 
         async def watch_for_banned_images():
             if msg.guild.id != SP_SERVER_ID:
