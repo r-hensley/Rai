@@ -15,7 +15,7 @@ from typing import Optional, List, Union, Tuple
 
 import discord
 import numpy as np
-from discord import app_commands, ui
+from discord import app_commands
 from discord.ext import commands
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
@@ -323,6 +323,18 @@ def _predump_json():
 
 
 async def dump_json():
+    # Wait up to five minutes for the lock to be released
+    for _ in range(5):
+        if _lock.locked():
+            logging.info("In dump_json, _lock is already locked, waiting 60s")
+            await asyncio.sleep(60)
+        if not _lock.locked():
+            break
+
+    # if still locked
+    if _lock.locked():
+        raise Exception("Attempted to call dump_json while _lock was locked; waiting five minutes didn't help.")
+
     async with _lock:
         try:
             await here._loop.run_in_executor(None, _predump_json)
@@ -463,7 +475,7 @@ def rem_emoji_url(msg):
 
 async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
-    guilds: list[list[discord.Guild, int, str]] = []  # type:
+    guilds: list[list[discord.Guild, int, str]] = []
     if member in bans_channel.guild.members:
         ping = False
     for guild in bot.guilds:  # type: discord.Guild
