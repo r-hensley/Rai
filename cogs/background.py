@@ -6,7 +6,7 @@ import traceback
 import discord
 from discord.ext import commands, tasks
 from bs4 import BeautifulSoup
-from utils import helper_functions as hf
+from .utils import helper_functions as hf
 
 RYRY_SPAM_CHAN = 275879535977955330
 
