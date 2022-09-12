@@ -325,10 +325,14 @@ class Background(commands.Cog):
             guild_config = config[guild_id]
             for user_id in list(guild_config):
                 try:
-                    unmute_time = datetime.strptime(guild_config[user_id]['time'],
-                                                    "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                except TypeError:
-                    print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'])
+                    unmute_time = guild_config[user_id]['time']
+                    if type(unmute_time) == int:
+                        unmute_time = datetime.fromtimestamp(unmute_time).replace(tzinfo=timezone.utc)
+                    else:
+                        unmute_time = datetime.strptime(guild_config[user_id]['time'],
+                                                        "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                except TypeError as e:
+                    print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'], e)
                     del (guild_config[user_id])
                     continue
                 if unmute_time < discord.utils.utcnow():
