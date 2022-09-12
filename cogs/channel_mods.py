@@ -926,8 +926,9 @@ class ChannelMods(commands.Cog):
                 # if there's a first embed, this will be the second embed
                 await hf.safe_send(ctx, user_id, embed=emb, delete_after=delete_parameter)
             except discord.Forbidden:
-                await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
-                return
+                if not ctx.author.bot:
+                    await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+                    return
 
         if first_embed:
             return first_embed
