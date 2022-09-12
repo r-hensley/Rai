@@ -87,6 +87,16 @@ class Events(commands.Cog):
 
         ##########################################
 
+        async def redirect_tatsumaki_commands():
+            """Redirect users to use Tatsumaki commands in the thread 
+            instead of the main channel on the Spanish server."""
+            GENERAL_BOT_ID = 247135634265735168
+            if msg.channel.id == GENERAL_BOT_ID and msg.content.startswith("t!"):
+                await msg.reply("Please use that command in <#1018716355081543701> (https://discord.com/channels/" 
+                                "243838819743432704/1018716355081543701/9999916373733613588)")
+
+        await redirect_tatsumaki_commands()
+
         async def watch_for_banned_images():
             if msg.guild.id != SP_SERVER_ID:
                 return
