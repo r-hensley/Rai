@@ -656,30 +656,27 @@ class ChannelMods(commands.Cog):
 
             # Check DB for mute entry
             muted = False
-            unmute_date_str: str  # unmute_date looks like "2021/06/26 23:24 UTC"
+            unmute_date: str  # unmute_date looks like "2021/06/26 23:24 UTC"
             if unmute_date_str := self.bot.db['mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 muted = True
                 unmute_date = hf.convert_to_datetime(unmute_date_str)
-                unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
             else:
-                unmute_time_left_str = None
+                unmute_date = None
 
             # Check DB for voice mute entry
             voice_muted = False
-            voice_unmute_time_left_str: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
+            voice_unmute_date: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 voice_muted = True
-                unmute_date = hf.convert_to_datetime(voice_unmute_time_left_str)
-                voice_unmute_time_left_str = format_interval(unmute_date - discord.utils.utcnow())
-
+                voice_unmute_date = hf.convert_to_datetime(voice_unmute_time_left_str)
             else:
-                voice_unmute_time_left_str = None
+                voice_unmute_date = None
 
             # Check for mute role in member roles
             if member:
@@ -692,11 +689,9 @@ class ChannelMods(commands.Cog):
 
             # Check for timeout
             timeout: bool = False
-            timeout_time_left_str: Optional[str] = None
             if member:
                 if member.is_timed_out():
                     timeout = True
-                    timeout_time_left_str = format_interval(member.timed_out_until - discord.utils.utcnow())
 
             # Check for voice mute role in member roles
             if member:
@@ -707,23 +702,23 @@ class ChannelMods(commands.Cog):
                 else:
                     voice_muted = False  # even if the user is in the DB, if they don't the role they aren't muted
 
-            # Check DB for ban entry
             banned = False  # unban_date looks like "2021/06/26 23:24 UTC"
-            if unban_date_str := self.bot.db['bans'] \
-                    .get(str(ctx.guild.id), {}) \
-                    .get('timed_bans', {}) \
-                    .get(user_id, None):
-                banned = True
-                unban_date = hf.convert_to_datetime(unban_date_str)
-                unban_time_left_str = format_interval(unban_date - discord.utils.utcnow())
-            else:
-                unban_time_left_str = None  # indefinite ban
-
+            unban_date = None
             # Check guild ban logs for ban entry
             try:
+                await ctx.guild.fetch_ban(user)
                 banned = True
+
+                # check if timed ban
+                if unban_date_str := self.bot.db['bans'] \
+                        .get(str(ctx.guild.id), {}) \
+                        .get('timed_bans', {}) \
+                        .get(user_id, None):
+                    unban_date = hf.convert_to_datetime(unban_date_str)
+                else:
+                    unban_date = None  # indefinite ban
             except (discord.Forbidden, discord.HTTPException, discord.NotFound):
-                banned = False  # manual unbans are possible, leaving the ban entry in the DB
+                banned = False  # user is not banned
 
             #
             #
@@ -742,26 +737,30 @@ class ChannelMods(commands.Cog):
 
             rai_emoji = str(self.bot.get_emoji(858486763802853387))
             if banned:
-                if unban_time_left_str:
-                    emb.description = f"{rai_emoji} **`Current Status`** Banned for {unban_time_left_str}"
+                if unban_date:
+                    emb.description = (f"{rai_emoji} **`Current Status`** Temporarily Banned "
+                                       f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
-                if voice_unmute_time_left_str:
-                    emb.description = f"{rai_emoji} **`Current Status`** Voice Muted for {voice_unmute_time_left_str}"
+                if voice_unmute_date:
+                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                                       f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
-                if unmute_time_left_str:
-                    emb.description = f"{rai_emoji} **`Current Status`** Muted for {unmute_time_left_str}"
+                if unmute_date:
+                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                                       f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Muted"
 
             elif timeout:
-                if timeout_time_left_str:
-                    emb.description = f"{rai_emoji} **`Current Status`** Timeout for {timeout_time_left_str}"
+                if member.timed_out_until:
+                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                                       f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
                 else:
                     pass
 
