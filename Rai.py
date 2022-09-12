@@ -129,9 +129,9 @@ class Rai(Bot):
 
         try:  # in on_ready because there are many tasks in here that require a loaded bot
             await self.load_extension('cogs.background')
-            print(f'Loaded cogs.background')
-        except Exception as e:
-            print(f'Failed to load extension cogs.background.', file=sys.stderr)
+            print('Loaded cogs.background')
+        except Exception:
+            print('Failed to load extension cogs.background.', file=sys.stderr)
             traceback.print_exc()
 
         print("Bot loaded")
@@ -159,7 +159,7 @@ class Rai(Bot):
             try:
                 print(f"Loaded {extension}")
                 await self.load_extension(extension)
-            except Exception as e:
+            except Exception:
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
@@ -177,7 +177,7 @@ class Rai(Bot):
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
-            await ctx.send(f"Failed to find the object you tried to look up.  Please try again")
+            await ctx.send("Failed to find the object you tried to look up.  Please try again")
             return
 
         elif isinstance(error, commands.MaxConcurrencyReached):
@@ -190,7 +190,7 @@ class Rai(Bot):
         elif isinstance(error, discord.DiscordServerError):
             try:
                 await asyncio.sleep(5)
-                await ctx.send(f"There was a discord server error. Please try again.")
+                await ctx.send("There was a discord server error. Please try again.")
             except discord.DiscordServerError:
                 return
 
@@ -211,9 +211,9 @@ class Rai(Bot):
             msg = f"To do that command, Rai is missing the following permissions: " \
                   f"`{'`, `'.join(error.missing_permissions)}`"
             if 'send_messages' in msg and isinstance(ctx.channel, discord.Thread):
-                msg += f"\n\nThis may be an error due to me lacking the permission to send messages in the " \
-                       f"parent channel to this thread. Try granting me the missing permissions in the parent " \
-                       f"channel as well."
+                msg += "\n\nThis may be an error due to me lacking the permission to send messages in the " \
+                       "parent channel to this thread. Try granting me the missing permissions in the parent " \
+                       "channel as well."
             try:
                 await ctx.send(msg)
             except discord.Forbidden:
@@ -224,13 +224,12 @@ class Rai(Bot):
             return
 
         elif isinstance(error, commands.CommandInvokeError):
-            command = ctx.command.qualified_name
             try:
-                await ctx.send(f"I couldn't execute the command.  I probably have a bug.  "
-                               f"This has been reported to the bot owner.")
+                await ctx.send("I couldn't execute the command.  I probably have a bug.  "
+                               "This has been reported to the bot owner.")
             except discord.Forbidden:
-                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.  "
-                                      f"I probably have a bug.  This has been reported to the bot owner.")
+                await ctx.author.send("I tried doing something but I lack permissions to send messages.  "
+                                      "I probably have a bug.  This has been reported to the bot owner.")
             pass
 
         elif isinstance(error, commands.CommandNotFound):
@@ -272,7 +271,7 @@ class Rai(Bot):
                     await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
                                    f"`{self.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
             except discord.Forbidden:
-                await ctx.author.send(f"I tried doing something but I lack permissions to send messages.")
+                await ctx.author.send("I tried doing something but I lack permissions to send messages.")
             return
 
         elif isinstance(error, commands.MissingRequiredArgument):
@@ -288,7 +287,7 @@ class Rai(Bot):
             return
 
         elif isinstance(error, discord.Forbidden):
-            await ctx.send(f"I tried to do something I'm not allowed to do, so I couldn't complete your command :(")
+            await ctx.send("I tried to do something I'm not allowed to do, so I couldn't complete your command :(")
 
         elif isinstance(error, commands.MissingPermissions):
             error_str = f"To do that command, you are missing the following permissions: " \
@@ -297,7 +296,7 @@ class Rai(Bot):
             return
 
         elif isinstance(error, commands.NotOwner):
-            await ctx.send(f"Only the bot owner can do that.")
+            await ctx.send("Only the bot owner can do that.")
             return
 
         qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
