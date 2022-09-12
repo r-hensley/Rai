@@ -1,4 +1,5 @@
 import aiohttp.client_exceptions
+from cv2 import split
 import discord
 from discord.ext import commands
 import asyncio
@@ -1438,7 +1439,7 @@ class Logger(commands.Cog):
                         time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         reason = entry.reason
 
-                        if reason == 'CIRI_SELFMUTE':
+                        if "SELFMUTE" in reason and len(split(reason)) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
                             return
 
                         if time_left < 70:  # 60 SEC

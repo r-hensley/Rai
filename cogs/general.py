@@ -1,3 +1,4 @@
+from datetime import timedelta
 import os
 import asyncio
 import re
@@ -127,8 +128,8 @@ class General(commands.Cog):
 
         else:  # user wants to see full command list
             cmd_dict = {}
-            help_msg = "Type `;help <command>` for more info on any command or category. For (subcommands), chain with" \
-                       " the parent command.\n\n"
+            help_msg = "Type `;help <command>` for more info on any command or category. " \
+                       "For (subcommands), chain with the parent command.\n\n"
             for cog in self.bot.cogs:
                 cmd_dict[cog] = []
                 for command in self.bot.cogs[cog].get_commands():
@@ -159,9 +160,7 @@ class General(commands.Cog):
     async def fe(self, ctx):
         """If you have both fluent English and native Japanese tags, type this command
         to swap out the color in your name between blue and green."""
-        lower_fluent_english = ctx.guild.get_role(241997079168155649)
         upper_fluent_english = ctx.guild.get_role(820133363700596756)
-        native_japanese = ctx.guild.get_role(196765998706196480)
 
         if upper_fluent_english in ctx.author.roles:
             try:
@@ -449,14 +448,10 @@ class General(commands.Cog):
             pass
         try:
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
-            msg = await hf.safe_send(ctx,
-                                     "I've added 📝 to your name.  This means you wish to be corrected in your sentences")
-            await asyncio.sleep(7)
-            await msg.delete()
+            msg_text = "I've added 📝 to your name.  This means you wish to be corrected in your sentences"
+            await hf.safe_send(ctx, msg_text, delete_after=7.0)
         except discord.Forbidden:
-            msg = await hf.safe_send(ctx, "I lack the permissions to change your nickname")
-            await asyncio.sleep(7)
-            await msg.delete()
+            await hf.safe_send(ctx, "I lack the permissions to change your nickname", delete_after=7.0)
         except discord.HTTPException:
             try:
                 await ctx.message.add_reaction('💢')
@@ -626,8 +621,8 @@ class General(commands.Cog):
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
         except discord.NotFound:
             await hf.safe_send(ctx,
-                               f"Message not found.  If you inputted the ID of a user, please input the message ID of "
-                               f"the entry in the blacklist instead.")
+                               "Message not found.  If you inputted the ID of a user, please input the message ID of "
+                               "the entry in the blacklist instead.")
             return
         emb = entry_message.embeds[0]
         target_id = emb.title.split(' ')[0]
@@ -671,8 +666,8 @@ class General(commands.Cog):
             return
 
         await hf.safe_send(ctx,
-                           "For the purpose of maintaining fairness in a ban, you're about to claim your mod residency to "
-                           f"`{ctx.guild.name}`.  This can not be changed without talking to Ryan.  "
+                           f"For the purpose of maintaining fairness in a ban, you're about to claim your mod residency"
+                           f" to `{ctx.guild.name}`.  This can not be changed without talking to Ryan.  "
                            f"Do you wish to continue?\n\nType `yes` or `no` (case insensitive).")
         msg = await self.bot.wait_for('message',
                                       timeout=25.0,
@@ -681,8 +676,8 @@ class General(commands.Cog):
         if msg.content.casefold() == 'yes':  # register
             config[str(ctx.author.id)] = ctx.guild.id
             await hf.safe_send(ctx,
-                               f"Registered your residency to `{ctx.guild.name}`.  Type `;global_blacklist add <ID>` to "
-                               f"vote on a user for the blacklist")
+                               f"Registered your residency to `{ctx.guild.name}`.  Type `;global_blacklist add <ID>`"
+                               f" to vote on a user for the blacklist")
 
         elif msg.content.casefold() == 'no':  # cancel
             await hf.safe_send(ctx, "Understood.  Exiting module.")
@@ -698,7 +693,7 @@ class General(commands.Cog):
         list_of_ids = []
         reason = "None"
         for arg_index in range(len(args)):
-            if re.search('\d{17,22}', args[arg_index]):
+            if re.search(r'\d{17,22}', args[arg_index]):
                 list_of_ids.append(str(args[arg_index]))
             else:
                 reason = ' '.join(args[arg_index:])
@@ -706,7 +701,7 @@ class General(commands.Cog):
         channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         config = self.bot.db['global_blacklist']
         if not list_of_ids:
-            await hf.safe_send(ctx.author, f"No valid ID found in command")
+            await hf.safe_send(ctx.author, "No valid ID found in command")
             return
         for user in list_of_ids:
             user_obj = self.bot.get_user(user)
@@ -760,7 +755,7 @@ class General(commands.Cog):
                 message = await channel.fetch_message(config['votes2'][user]['message'])
                 emb = message.embeds[0]
                 title_str = emb.title
-                result = re.search('(\((.*)\))? \((.) votes?\)', title_str)
+                result = re.search(r'(\((.*)\))? \((.) votes?\)', title_str)
                 # target_username = result.group(2)
                 num_of_votes = result.group(3)
                 emb.title = re.sub('(.) vote', f'{int(num_of_votes) + 1} vote', emb.title)
@@ -835,7 +830,7 @@ class General(commands.Cog):
 
         # ########################## ASK FOR WHICH ROLE TO TOGGLE ########################
 
-        msg += f"\nTo toggle the subscription for a role, please input now the number for that role."
+        msg += "\nTo toggle the subscription for a role, please input now the number for that role."
         await hf.safe_send(ctx, msg)
         try:
             resp = await self.bot.wait_for("message", timeout=20.0,
@@ -872,7 +867,7 @@ class General(commands.Cog):
                     await hf.safe_send(ctx, "Module timed out.")
                     return
 
-                if re.search('^\d{17,22}$', resp):  # user specifies a guild ID
+                if re.search(r'^\d{17,22}$', resp):  # user specifies a guild ID
                     guild = self.bot.get_guild(int(resp))
                     if not guild:
                         await hf.safe_send(ctx, "I couldn't find the guild corresponding to that ID. "
@@ -1102,25 +1097,21 @@ class General(commands.Cog):
         if not failed:
             return True
 
-    @commands.command(aliases=['selfmute'])
+    @commands.command(aliases=['selfmute', 'sm'])
     @commands.bot_has_permissions(send_messages=True)
     @commands.guild_only()
-    async def self_mute(self, ctx, time=None):
-        """Irreversible mutes yourself for a certain amount of hours. Use like `;selfmute <number of hours>`.
+    async def self_mute(self, ctx: commands.Context, time: Optional[str] = None):
+        """Irreversible mutes yourself for a certain amount of time. Use like `;selfmute <amount of time>`.
 
-        For example: `;selfmute 3` to mute yourself for three hours. This was made half for anti-procrastination, half\
-        to end people asking for it."""
+        Examples:
+        - `;selfmute 3h`   Mute yourself for three hours
+        - `;selfmute 5d12h`    Mute yourself for 5d12h"""
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
             await hf.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
                                     "but Rai currently lacks the `Manage Messages` permission, so you can't use this "
                                     "command.")
             return
 
-        try:
-            time = int(time)
-        except (ValueError, TypeError):
-            await hf.safe_send(ctx, "Please give an integer number.")
-            return
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
@@ -1129,20 +1120,31 @@ class General(commands.Cog):
             except KeyError:
                 pass
         else:
-            await hf.safe_send(ctx, "You need to put something! Please give an integer number.")
+            await hf.safe_send(ctx, "You need to put something! Please give a length of time like 3d, 2h, 5d2h, 5m.")
             return
 
-        if time > 24:
-            time = 24
-            await hf.safe_send(ctx, "Maxing out at 24h")
+        time_string, length = hf.parse_time(f"{time}")  # length = [days, hours, minutes]
+        if not time_string:
+            await ctx.message.reply("Please give a length of time like 3d, 2h, 5d2h, 5m.")
+            return
+        delta_obj = timedelta(days=length[0], hours=length[1], minutes=length[2])
+        unmute_time = discord.utils.utcnow() + delta_obj
+        if delta_obj.total_seconds() > 604800:  # if length is longer than 7d
+            await hf.safe_send(ctx, "Please choose a time less than 7d")
+            return
 
-        await hf.safe_send(ctx, f"You are about to irreversibly mute yourself for {time} hours. "
-                                f"Is this really what you want to do? The mods of this server CANNOT undo "
-                                f"this.\nType 'Yes' to confirm.")
+        delta_str = ''
+        if length[0]:
+            delta_str += f"{length[0]}d "
+        if length[1]:
+            delta_str += f"{length[1]}h "
+        if length[2]:
+            delta_str += f"{length[2]}m "
+        delta_str = delta_str[:-1]  # remove last space
 
-        old_time = time
-        if time <= 0:
-            time = 0
+        conf = await hf.safe_send(ctx, f"You are about to irreversibly mute yourself for {delta_str}. "
+                                       f"Is this really what you want to do? The mods of this server CANNOT undo "
+                                       f"this.\nType 'Yes' to confirm.")
 
         try:
             msg = await self.bot.wait_for('message',
@@ -1151,11 +1153,15 @@ class General(commands.Cog):
 
             if msg.content.casefold() == 'yes':  # confirm
                 config = self.bot.db['selfmute'].setdefault(str(ctx.guild.id), {})
-                time_string, length = hf.parse_time(f"{time}h")
-                config[str(ctx.author.id)] = {'enable': True, 'time': time_string}
-                await hf.safe_send(ctx, f"Muted {ctx.author.display_name} for {old_time} hours. This is irreversible. "
-                                        f"The mods have nothing to do with this so no matter what you ask them, "
-                                        f"they can't help you. You alone chose to do this.")
+                timestamp = int(unmute_time.timestamp())
+
+                try:
+                    await ctx.author.timeout(delta_obj, reason="RAI_SELFMUTE")
+                except (discord.Forbidden, discord.HTTPException):
+                    config[str(ctx.author.id)] = {'enable': True, 'time': timestamp}  # someone who Rai couldn't timeout
+
+                await conf.reply(f"Muted {ctx.author.display_name} for {delta_str}. This is irreversible.\n"
+                                 f"Unmute time: <t:{timestamp}> (<t:{timestamp}:R>)")
 
         except asyncio.TimeoutError:
             await hf.safe_send(ctx, "Canceling.")
@@ -1192,10 +1198,10 @@ class General(commands.Cog):
         It will update the timer every second."""
         time_left = int(time_left)
         if time_left not in [1, 2, 3, 4, 5, 30]:
-            await hf.safe_send(ctx, f"Please choose any of the following values to set your timer: \n"
-                                    f"• Seconds: *30*\n"
-                                    f"• Minutes: *1*, *2*, *3*, *4* or *5* \n"
-                                    f"For example: `;timer 5`.")
+            await hf.safe_send(ctx, "Please choose any of the following values to set your timer: \n"
+                                    "• Seconds: *30*\n"
+                                    "• Minutes: *1*, *2*, *3*, *4* or *5* \n"
+                                    "For example: `;timer 5`.")
             return
 
         if time_left == 30:
@@ -1222,9 +1228,7 @@ class General(commands.Cog):
         await msg_countdown.add_reaction('🔟')
 
         def check_reactions(reaction: discord.Reaction, user: discord.User) -> bool:
-            return str(reaction) in '❌↩🔟' \
-                   and user.id == ctx.author.id \
-                   and reaction.message.id == msg_countdown.id
+            return str(reaction) in '❌↩🔟' and user.id == ctx.author.id and reaction.message.id == msg_countdown.id
 
         time_left_backup = time_left
 
