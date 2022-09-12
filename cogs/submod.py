@@ -160,11 +160,11 @@ class Submod(commands.Cog):
                                  inline=False)
         if not slash:
             await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
-        msg2 = f"Do you wish to continue?  Options:\n" \
-               f"⠀・ `Yes` Silently ban the user\n" \
-               f"⠀・ `Send` Ban the user and send them the above notification\n" \
-               f"⠀・ `No` Cancel the ban\n" \
-               f"⠀・ Add `delete` or `del` to delete last 24 hours of messages (example `send del`)\n"
+        msg2 = "Do you wish to continue?  Options:\n" \
+               "⠀・ `Yes` Silently ban the user\n" \
+               "⠀・ `Send` Ban the user and send them the above notification\n" \
+               "⠀・ `No` Cancel the ban\n" \
+               "⠀・ Add `delete` or `del` to delete last 24 hours of messages (example `send del`)\n"
 
         are = self.bot.get_guild(257984339025985546)
         if are:
@@ -189,13 +189,13 @@ class Submod(commands.Cog):
                 msg = await self.bot.wait_for('message',
                                               timeout=40.0,
                                               check=lambda x: x.author == ctx.author and
-                                                              x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
+                                              x.content.casefold()[:4] in ['yes', 'yes ', 'no', 'send'])
             except asyncio.TimeoutError:
                 try:
                     await msg2.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
-                await hf.safe_send(ctx, f"Timed out.  Canceling ban.")
+                await hf.safe_send(ctx, "Timed out.  Canceling ban.")
                 return
             content = msg.content.casefold()
             if content == 'no':
@@ -203,7 +203,7 @@ class Submod(commands.Cog):
                     await msg2.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
-                await hf.safe_send(ctx, f"Canceling ban")
+                await hf.safe_send(ctx, "Canceling ban")
                 return
 
             try:
@@ -220,7 +220,7 @@ class Submod(commands.Cog):
 
         text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
         if len(text) > 512:
-            await hf.safe_send(ctx, "Discord only allows bans with a length of 512 characters. With my included "
+            await hf.safe_send(ctx, f"Discord only allows bans with a length of 512 characters. With my included "
                                     f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
                                     f"length of your ban message. ")
             return
@@ -273,7 +273,7 @@ class Submod(commands.Cog):
         """Set the submod role for your server."""
         config = hf.database_toggle(itx.guild, self.bot.db['submod_role'])
         if 'enable' in config:
-            del (config['enable'])
+            del config['enable']
 
         config['id'] = role.id
         await itx.response.send_message(f"Set the submod role to {role.name} ({role.id})")

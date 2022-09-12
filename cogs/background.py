@@ -1,11 +1,12 @@
-import discord
-from discord.ext import commands, tasks
-from .utils import helper_functions as hf
-from bs4 import BeautifulSoup
+import re
+import sys
 import aiohttp, async_timeout
 from datetime import datetime, timezone
-import re
-import traceback, sys
+import traceback
+import discord
+from discord.ext import commands, tasks
+from bs4 import BeautifulSoup
+from utils import helper_functions as hf
 
 RYRY_SPAM_CHAN = 275879535977955330
 
@@ -27,7 +28,7 @@ class Background(commands.Cog):
 
     async def handle_error(self, error):
         error = getattr(error, 'original', error)
-        print(f'Error in background task:', file=sys.stderr)
+        print('Error in background task:', file=sys.stderr)
         traceback.print_tb(error.__traceback__)
         print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
         channel = self.bot.get_channel(554572239836545074)
@@ -110,7 +111,7 @@ class Background(commands.Cog):
             last_event = log.index(config['log'][-1])
         except ValueError:
             last_event = -1
-        for event in log[last_event+1:]:
+        for event in log[last_event + 1:]:
             for emphasis in ["Gogatron", "Uoktem", "tronk", "drshrub", "snafuuu", "rahuligan", "Ryry013", "dumpyDirac",
                              "supagorilla", "tvbrown", 'davis.zackaria', 'AegonTargaryenVI']:
                 event = event.replace(emphasis, f"**{emphasis}**")
@@ -178,7 +179,7 @@ class Background(commands.Cog):
             config[manga]['last'] += 1
 
     @check_rawmangas.error
-    async def risk_check_error(self, error):
+    async def check_rawmangas_error(self, error):
         await self.handle_error(error)
 
     @tasks.loop(minutes=5.0)

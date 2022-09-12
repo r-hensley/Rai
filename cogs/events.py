@@ -46,8 +46,6 @@ def compare_images(img2, img1):
     phashvalue = imagehash.phash(img1) - imagehash.phash(img2)
     ahashvalue = imagehash.average_hash(img1) - imagehash.average_hash(img2)
 
-    threshold = 1  # some experimentally valid value
-
     totalaccuracy = phashvalue + ahashvalue
     return totalaccuracy
 
@@ -442,8 +440,8 @@ class Events(commands.Cog):
                         await msg.delete()
                     except discord.Forbidden:
                         await hf.safe_send(mod_channel,
-                                           f"Rai is lacking the permission to delete messages for the Chinese "
-                                           f"spam message.")
+                                           "Rai is lacking the permission to delete messages for the Chinese "
+                                           "spam message.")
                     except discord.NotFound:
                         pass
 
@@ -453,8 +451,8 @@ class Events(commands.Cog):
                                                     f"{msg.content[:100]}", delete_message_days=1)
                     except discord.Forbidden:
                         await hf.safe_send(mod_channel,
-                                           f"I tried to ban someone for the Chinese spam message, but I lack "
-                                           f"the permission to ban users.")
+                                           "I tried to ban someone for the Chinese spam message, but I lack "
+                                           "the permission to ban users.")
 
                     await hf.safe_send(log_channel, f"Banned {msg.author} for the banned words spam message."
                                                     f"\nMessage was posted in {msg.channel.mention}.  Message:"
@@ -1051,8 +1049,8 @@ class Events(commands.Cog):
                         channel_id = msg.channel.id
                     else:
                         return
-                    if ('*' not in msg.content
-                            and channel_id not in self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']):
+                    config = self.bot.db['hardcore'][str(CH_SERVER_ID)]['ignore']
+                    if ('*' not in msg.content and channel_id not in config):
                         await cn_lang_check()
             except KeyError:
                 self.bot.db['forcehardcore'] = []
@@ -1258,10 +1256,9 @@ class Events(commands.Cog):
             if str(reaction.emoji) in '🗑':
                 if user == self.bot.user:
                     return  # Don't let Rai delete messages that Rai attaches :x: to
-                if reaction.message.author == self.bot.user and \
-                        (user.id == self.bot.owner_id or
-                         reaction.message.channel.permissions_for(user).manage_messages):
-                    await reaction.message.delete()
+                if reaction.message.author == self.bot.user:
+                    if user.id == self.bot.owner_id or reaction.message.channel.permissions_for(user).manage_messages:
+                        await reaction.message.delete()
 
         await delete_rai_message()
 
@@ -1337,7 +1334,7 @@ class Events(commands.Cog):
                         # attach reaction to all linked messages
                         try:
                             await target.add_reaction(reaction)
-                        except (discord.Forbidden, discord.HTTPException) as e:
+                        except (discord.Forbidden, discord.HTTPException):
                             return
 
                         # Resolve staff ping embed and turn it green etc
@@ -1412,10 +1409,10 @@ class Events(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 ctx.author = self.bot.get_user(payload.user_id)
                 ctx.reacted_user_id = payload.user_id
-                user_id = re.search('^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
+                user_id = re.search(r'^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
                 try:
                     reason = re.search('__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
-                except AttributeError as e:
+                except AttributeError:
                     await hf.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
                                                 "the GBL.")
                     return
@@ -1435,7 +1432,7 @@ class Events(commands.Cog):
                 if config['enable']:
                     guild = self.bot.get_guild(payload.guild_id)
                     role = guild.get_role(config['role'])
-                    if not 'message' in config:
+                    if 'message' not in config:
                         return
                     if payload.message_id == config['message']:
                         try:
@@ -1781,7 +1778,7 @@ class Events(commands.Cog):
             """
             # uncomment below for testing
             # if member.id in [202995638860906496, 414873201349361664, 416452861816340497 ]:  # ryry, abelian, hermitian
-                # return  # for testing
+            # return  # for testing
 
             # If this event is not for someone joining voice, ignore it
             joined = not before.channel and after.channel  # True if they just joined voice
