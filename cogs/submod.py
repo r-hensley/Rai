@@ -516,7 +516,7 @@ class Submod(commands.Cog):
             await ctx.message.add_reaction('✅')
             await asyncio.sleep(1)
             await ctx.message.delete()
-        except discord.Forbidden:
+        except (discord.Forbidden, discord.NotFound):
             pass
 
 
