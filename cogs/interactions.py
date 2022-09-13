@@ -34,9 +34,10 @@ SP_GUILD = discord.Object(id=SP_SERVER_ID)
 
 
 async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-    qualified_name = getattr(interaction.command, 'qualified_name', interaction.command.name)
+    qualified_name = getattr(interaction.command, 'qualified_name', None)
     e = discord.Embed(title=f'App Command Error ({interaction.type})', colour=0xcc3366)
-    e.add_field(name='Name', value=qualified_name)
+    if qualified_name:
+        e.add_field(name='Name', value=qualified_name)
     e.add_field(name='Author', value=interaction.user)
 
     fmt = f'Channel: {interaction.channel} (ID: {interaction.channel.id})'
@@ -128,6 +129,7 @@ class Interactions(commands.Cog):
         bot_guilds = [g.id for g in self.bot.guilds]
         # for guild_id in [FEDE_TESTER_SERVER_ID]:
         # temporarily disable slash commands in fede's test server from disuse
+        self.bot.tree.copy_global_to(guild=RY_GUILD)
         for guild_id in []:
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
