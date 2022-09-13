@@ -6,9 +6,11 @@ from typing import Optional
 from inspect import cleandoc
 from random import choice
 from collections import Counter
+from dateutil.parser import parse, ParserError
 
 import discord
 from discord.ext import commands
+from discord import app_commands
 from Levenshtein import distance as LDist
 
 from cogs.utils.timeutil import format_interval
@@ -1125,21 +1127,31 @@ class General(commands.Cog):
             await hf.safe_send(ctx, "You need to put something! Please give a length of time like 3d, 2h, 5d2h, 5m.")
             return
 
+        if neg := time.startswith("-"):  # negative time
+            time = time[1:]  # remove negative sign
         time_string, length = hf.parse_time(f"{time}")  # length = [days, hours, minutes]
         if not time_string:
             await ctx.message.reply("Please give a length of time like 3d, 2h, 5d2h, 5m.")
             return
         delta_obj = timedelta(days=length[0], hours=length[1], minutes=length[2])
-        unmute_time = discord.utils.utcnow() + delta_obj
+        if neg:
+            unmute_time = discord.utils.utcnow() - delta_obj
+        else:
+            unmute_time = discord.utils.utcnow() + delta_obj
         if delta_obj.total_seconds() > 604800:  # if length is longer than 7d
             await hf.safe_send(ctx, "Please choose a time less than 7d")
             return
 
         delta_str = format_interval(delta_obj)  # remove last space
 
-        conf = await hf.safe_send(ctx, f"You are about to irreversibly mute yourself for {delta_str}. "
-                                       f"Is this really what you want to do? The mods of this server CANNOT undo "
-                                       f"this.\nType 'Yes' to confirm.")
+        if not neg:
+            conf_msg = (f"You are about to irreversibly mute yourself for {delta_str}. "
+                        f"Is this really what you want to do? The mods of this server CANNOT undo "
+                        f"this.\nType 'Yes' to confirm.")
+        else:
+            conf_msg = (f"You are about to irreversibly mute yourself for... {delta_str}? You want to mute yourself" 
+                        f"for negative time? Well, the mods of the server cannot undo this. Type 'yes' to confirm.")
+        conf = await hf.safe_send(ctx, conf_msg)
 
         try:
             msg = await self.bot.wait_for('message',
@@ -1148,6 +1160,8 @@ class General(commands.Cog):
 
             if msg.content.casefold() == 'yes':  # confirm
                 config = self.bot.db['selfmute'].setdefault(str(ctx.guild.id), {})
+                if neg:
+                    delta_obj = timedelta(seconds=0.5)  # unmute after 3 seconds
                 timestamp = int(unmute_time.timestamp())
 
                 try:
@@ -1299,6 +1313,38 @@ class General(commands.Cog):
             await msg_countdown.clear_reactions()
         except (discord.Forbidden, discord.NotFound):
             return
+
+    @app_commands.command(name="time")
+    @app_commands.describe(time_str="Input a date in any format (example: Jan. 23rd, 2012, 2014 feb 2 9:20am, now, "
+                                    "today, ...)")
+    @app_commands.choices(format_option=[
+        app_commands.Choice(name='Short Time (9:41 PM)', value='t'),
+        app_commands.Choice(name='Long Time (9:41:30 PM)', value='T'),
+        app_commands.Choice(name='Short Date (2021/06/30)', value='d'),
+        app_commands.Choice(name='Long Date (June 30 2021)', value='D'),
+        app_commands.Choice(name='Short Date+Time (June 30 2021, 9:41 PM)', value='f'),
+        app_commands.Choice(name='Long Date+Time (Wednesday, June 30, 2021, 9:41 PM)', value='F'),
+        app_commands.Choice(name='Relative (2 months ago, in an hour, in five years)', value='R'),
+    ])
+    async def time_fmt(self, itx: discord.Interaction, time_str: str, format_option: app_commands.Choice[str]) -> None:
+        """
+        Returns a Discord-formatted date string representing the date you input.
+
+        You can input something like "January 23rd, 2014", or also the special keyword "Now" or "Today".
+        """
+        if time_str.casefold() in ["now", "today"]:
+            date = discord.utils.utcnow()
+        else:
+            try:
+                date = parse(time_str)
+            except ParserError:
+                await itx.ressponse.send_message("I failed to input your date string. Please try again.", 
+                                                 ephemeral=True)
+                return
+
+        date_str = f"<t:{int(date.timestamp())}:{format_option.value}>"
+        await itx.response.send_message(date_str, ephemeral=True)
+        await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
 
 async def setup(bot):
