@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+
 from .utils import helper_functions as hf
 from datetime import datetime, timedelta, timezone
 import re
@@ -19,6 +20,12 @@ class Stats(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
+        if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
+            try:
+                await ctx.reply("Please use that command in <#247135634265735168>.")
+                return
+            except (discord.Forbidden, discord.HTTPException):
+                return
         if ctx.guild:
             return True
         else:
@@ -102,7 +109,7 @@ class Stats(commands.Cog):
             member = ctx.author
             member_id = ctx.author.id
         else:
-            if re.findall("[JIMVN]\d{17,22}", member):
+            if re.findall(r"[JIMVN]\d{17,22}", member):
                 member = re.sub('[JIMVN]', '', member)
             member_id = member
             member = await hf.member_converter(ctx, member)
@@ -383,9 +390,9 @@ class Stats(commands.Cog):
                         continue
                 except ValueError:
                     await hf.safe_send(ctx,
-                                       f"Please provide a link to a channel, not just the channel name "
-                                       f"(e.g. `;chlb #general`), or if you just type `;chlb` "
-                                       f"it will show the leaderboard for the current channel.")
+                                       "Please provide a link to a channel, not just the channel name "
+                                       "(e.g. `;chlb #general`), or if you just type `;chlb` "
+                                       "it will show the leaderboard for the current channel.")
                     return
         if channel_obs:
             await self.make_lb(ctx, channel_obs)
@@ -578,8 +585,8 @@ class Stats(commands.Cog):
             if channel in config:
                 config.remove(channel)
                 await hf.safe_send(ctx,
-                                   f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now be shown "
-                                   f"when someone calls their stats page.")
+                                   f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
+                                   f"be shown when someone calls their stats page.")
             else:
                 config.append(channel)
                 await hf.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
@@ -594,19 +601,21 @@ class Stats(commands.Cog):
                 msg += f"{channel.mention} ({channel.id})\n"
             await hf.safe_send(ctx, msg)
         else:
-            if re.findall("^<#\d{17,22}>$", flag):
+            if re.findall(r"^<#\d{17,22}>$", flag):
                 flag = flag[2:-1]
             channel = self.bot.get_channel(int(flag))
             if channel:
                 if str(channel.id) in config:
                     config.remove(str(channel.id))
                     await hf.safe_send(ctx,
-                                       f"Removed {channel.mention} from the list of hidden channels. It will now be shown "
-                                       f"when someone calls their stats page.")
+                                       f"Removed {channel.mention} from the list of hidden channels. It will now "
+                                       f"be shown when someone calls their stats page.")
                 else:
                     config.append(str(channel.id))
                     await hf.safe_send(ctx,
-                                       f"Hid {channel.mention}. When someone calls their stats page, it will not be shown.")
+                                       f"Hid {channel.mention}. When someone calls their stats page, "
+                                       f"it will not be shown.")
+
 
 async def setup(bot):
     await bot.add_cog(Stats(bot))
