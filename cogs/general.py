@@ -1335,9 +1335,9 @@ class General(commands.Cog):
 
         You can input something like "January 23rd, 2014", or also the special keyword "Now" or "Today".
         """        
-        date = parse(time_str)
-        if not date.tzinfo:
-            date = date.replace(tzinfo=timezone.utc)
+        date = parse(time_str, settings={'TIMEZONE': 'UTC', 'RETURN_AS_TIMEZONE_AWARE': True})
+        # if not date.tzinfo:
+        #     date = date.replace(tzinfo=timezone.utc)
         if not date:
             await itx.response.send_message("I failed to interpret your date string. Please try again.", 
                                             ephemeral=True)
