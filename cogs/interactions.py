@@ -64,7 +64,7 @@ class Questionnaire(ui.Modal, title='Questionnaire Response'):
     answer = ui.TextInput(label='Description of incident (paragraph field)', style=discord.TextStyle.paragraph)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f'Your report has been sent to the mod team!', ephemeral=True)
+        await interaction.response.send_message('Your report has been sent to the mod team!', ephemeral=True)
 
 
 class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
@@ -76,7 +76,7 @@ class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
                           placeholder=default_reason)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I will attempt to mute the user with the reason you gave.",
+        await interaction.response.send_message("I will attempt to mute the user with the reason you gave.",
                                                 ephemeral=True)
 
 
@@ -90,8 +90,8 @@ class BanModal(ui.Modal, title='Ban Menu'):
                           max_length=512 - len("*by* <@202995638860906496> \n**Reason:** ") - 32)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I've edited the ban reason (check to make sure the reason "
-                                                f"above properly changed).",
+        await interaction.response.send_message("I've edited the ban reason (check to make sure the reason "
+                                                "above properly changed).",
                                                 ephemeral=True)
 
 
@@ -105,7 +105,8 @@ class LogReason(ui.Modal, title='Input Log Reason'):
                           max_length=1000)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I'll attempt to log the message now.", ephemeral=True)
+        await interaction.response.send_message("I'll attempt to log the message now.", ephemeral=True)
+
 
 class PointTransformer(app_commands.Transformer):
     @classmethod
@@ -132,6 +133,8 @@ class Interactions(commands.Cog):
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)
 
+        await self.bot.tree.sync()  # global commands
+
         # Sync context commands in helper_functions()
         await hf.hf_sync()
 
@@ -143,7 +146,7 @@ class Interactions(commands.Cog):
         try:
             await ctx.message.add_reaction("♻")
         except (discord.HTTPException, discord.Forbidden, discord.NotFound):
-            await hf.safe_send(ctx, f"**`interactions: commands synced`**", delete_after=5.0)
+            await hf.safe_send(ctx, "**`interactions: commands synced`**", delete_after=5.0)
 
     @app_commands.command()
     @app_commands.guilds(FEDE_GUILD)
@@ -362,7 +365,7 @@ class Interactions(commands.Cog):
         else:
             from_text = f"{ctx.author.mention} ({ctx.author.name})"
 
-        alarm_emb = discord.Embed(title=f"Staff Ping",
+        alarm_emb = discord.Embed(title="Staff Ping",
                                   description=f"- **From**: {from_text}"
                                               f"\n- **In**: {ctx.channel.mention}",
                                   color=discord.Color(int('FFAA00', 16)),
@@ -709,7 +712,6 @@ class Interactions(commands.Cog):
 
             async def on_submit(submit_self, modal_interaction: discord.Interaction):
                 try:
-                    guild_id = submit_self.answer.value.split('/')[-3]
                     channel_id = submit_self.answer.value.split('/')[-2]
                     message_id = submit_self.answer.value.split('/')[-1]
                     channel = self.bot.get_channel(int(channel_id))
@@ -773,10 +775,11 @@ class Interactions(commands.Cog):
                     new_state = "enabled"
                 else:
                     new_state = "disabled"
-                self.bot.db['voice_lock'][str(interaction.guild.id)]['categories'][str(category.id)] = not previous_state
+                guild_id = str(interaction.guild.id)
+                self.bot.db['voice_lock'][guild_id]['categories'][str(category.id)] = not previous_state
                 s += f"Voice locking for new users in {category.name} is now {new_state}.\n\n"
 
-        s += f"The list of current categories with voice locking enabled is:\n"
+        s += "The list of current categories with voice locking enabled is:\n"
         for category in self.bot.db['voice_lock'][str(interaction.guild.id)]['categories']:
             category = discord.utils.get(interaction.guild.channels, id=int(category))
             if self.bot.db['voice_lock'][str(interaction.guild.id)]['categories'][str(category.id)]:
@@ -858,8 +861,8 @@ class Interactions(commands.Cog):
                 view.on_timeout = on_timeout
 
         except discord.Forbidden:
-            await interaction.response.send_message(f"I failed to attach the role to the user. It seems I can't edit "
-                                                    f"their roles.", ephemeral=True)
+            await interaction.response.send_message("I failed to attach the role to the user. It seems I can't edit "
+                                                    "their roles.", ephemeral=True)
 
     @staticmethod
     async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
@@ -895,7 +898,7 @@ class Interactions(commands.Cog):
 
                 def check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
@@ -924,7 +927,7 @@ class Interactions(commands.Cog):
 
                 def modal_return_check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=20.0, check=modal_return_check)
@@ -990,11 +993,11 @@ class Interactions(commands.Cog):
                 ctx.message = message
                 break
 
-            await button_interaction.response.send_message(f"Will ban and delete messages", ephemeral=True)
+            await button_interaction.response.send_message("Will ban and delete messages", ephemeral=True)
             try:
                 await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣delete {reason}")
             except commands.MissingPermissions:
-                await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
+                await button_interaction.followup.send("You lack the permission to ban this user.", ephemeral=True)
             await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
         async def keep_callback(button_interaction: discord.Interaction):
@@ -1002,11 +1005,11 @@ class Interactions(commands.Cog):
             if button_interaction.user != interaction.user:
                 await button_interaction.response.send_message("Those buttons are not for you!", ephemeral=True)
 
-            await button_interaction.response.send_message(f"Will ban and keep messages", ephemeral=True)
+            await button_interaction.response.send_message("Will ban and keep messages", ephemeral=True)
             try:
                 await ctx.invoke(ban, args=f"{str(author.id)} ⁣⁣keep__ {reason}")
             except commands.MissingPermissions:
-                await button_interaction.followup.send(f"You lack the permission to ban this user.", ephemeral=True)
+                await button_interaction.followup.send("You lack the permission to ban this user.", ephemeral=True)
             await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
         async def cancel_callback(button_interaction: discord.Interaction):
@@ -1028,7 +1031,7 @@ class Interactions(commands.Cog):
                 def modal_return_check(i):
                     """Check to make sure the modal submitted corresponds to the current application"""
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 await ctx.bot.wait_for("interaction", timeout=20.0, check=modal_return_check)
             except asyncio.TimeoutError:
@@ -1069,7 +1072,7 @@ class Interactions(commands.Cog):
 
         def check(i):
             return i.type == discord.InteractionType.modal_submit and \
-                   i.application_id == interaction.application_id
+                i.application_id == interaction.application_id
 
         try:
             await ctx.bot.wait_for("interaction", timeout=60.0, check=check)
@@ -1129,7 +1132,7 @@ class Interactions(commands.Cog):
 
         if url:
             try:
-                filename = url.split("/")[-1]
+                _ = url.split("/")[-1]
             except IndexError:
                 await interaction.response.send_message("I had trouble pulling the filename out of the URL. Make sure "
                                                         "the URL ends in something like .../image.png",
@@ -1149,7 +1152,7 @@ class Interactions(commands.Cog):
             try:
                 cont.seek(0)
                 old_banner = await interaction.guild.banner.to_file(filename="old_banner.png")
-                await interaction.response.send_message(f"Banner changed. Previous banner is attached below:",
+                await interaction.response.send_message("Banner changed. Previous banner is attached below:",
                                                         file=old_banner)
                 await interaction.guild.edit(banner=cont.read())
             except discord.Forbidden:

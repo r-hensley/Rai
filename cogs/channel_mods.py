@@ -1623,7 +1623,7 @@ class ChannelMods(commands.Cog):
                 else:
                     joins.append(None)
             users.append(user)
-            modlogs.append(self.bot.db['modlog'].get(str(guild.id), {}).get(str(user_id), [None]))
+            modlogs.append(self.bot.db['modlog'].get(str(guild.id), {}).get(str(user_id), []))
             creates.append(user.created_at)
             invites.append(join_history.get((str(user.id)), {}).get("invite", None))
 
