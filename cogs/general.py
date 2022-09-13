@@ -1326,9 +1326,12 @@ class General(commands.Cog):
         app_commands.Choice(name='Long Date+Time (Wednesday, June 30, 2021, 9:41 PM)', value='F'),
         app_commands.Choice(name='Relative (2 months ago, in an hour, in five years)', value='R'),
     ])
-    async def time_fmt(self, itx: discord.Interaction, time_str: str, format_option: app_commands.Choice[str]) -> None:
+    async def time_fmt(self, 
+                       itx: discord.Interaction, 
+                       time_str: str, 
+                       format_option: app_commands.Choice[str] = 'f') -> None:
         """
-        Returns a Discord-formatted date string representing the date you input.
+        Returns a special Discord-formatted date string representing the date you input.
 
         You can input something like "January 23rd, 2014", or also the special keyword "Now" or "Today".
         """
@@ -1342,7 +1345,12 @@ class General(commands.Cog):
                                                  ephemeral=True)
                 return
 
-        date_str = f"<t:{int(date.timestamp())}:{format_option.value}>"
+        if type(format_option) == str:
+            format = format_option
+        else:
+            format = format_option.value
+
+        date_str = f"<t:{int(date.timestamp())}:{format}>"
         await itx.response.send_message(date_str, ephemeral=True)
         await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
