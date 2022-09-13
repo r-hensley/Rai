@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, timezone
 import os
 import asyncio
 import re
@@ -6,7 +6,7 @@ from typing import Optional
 from inspect import cleandoc
 from random import choice
 from collections import Counter
-from dateutil.parser import parse, ParserError
+from dateparser import parse
 
 import discord
 from discord.ext import commands
@@ -1331,19 +1331,17 @@ class General(commands.Cog):
                        time_str: str, 
                        format_option: app_commands.Choice[str] = 'f') -> None:
         """
-        Returns a special Discord-formatted date string representing the date you input.
+        Returns a Discord-formatted date string representing the date you input (defaults to UTC).
 
         You can input something like "January 23rd, 2014", or also the special keyword "Now" or "Today".
-        """
-        if time_str.casefold() in ["now", "today"]:
-            date = discord.utils.utcnow()
-        else:
-            try:
-                date = parse(time_str)
-            except ParserError:
-                await itx.ressponse.send_message("I failed to input your date string. Please try again.", 
-                                                 ephemeral=True)
-                return
+        """        
+        date = parse(time_str)
+        if not date.tzinfo:
+            date = date.replace(tzinfo=timezone.utc)
+        if not date:
+            await itx.response.send_message("I failed to interpret your date string. Please try again.", 
+                                            ephemeral=True)
+            return
 
         if type(format_option) == str:
             format = format_option
