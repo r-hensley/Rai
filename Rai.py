@@ -124,6 +124,8 @@ class Rai(Bot):
         if test_channel:
             ctxmsg = await test_channel.send("Almost done!")
             self.ctx = await self.get_context(ctxmsg)
+            sync: commands.Command = self.get_command("sync")
+            await self.ctx.invoke(sync)
         else:
             ctxmsg = self.ctx = None
 
