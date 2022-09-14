@@ -1440,7 +1440,7 @@ class Logger(commands.Cog):
                         reason = entry.reason
 
                         if reason:
-                            if "SELFMUTE" in reason and len(split(reason)) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
+                            if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
                                 return
 
                         if time_left < 70:  # 60 SEC
