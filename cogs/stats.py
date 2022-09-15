@@ -429,7 +429,7 @@ class Stats(commands.Cog):
         if str(ctx.guild.id) not in self.bot.stats:
             return
         config = self.bot.stats[str(ctx.guild.id)]['messages']
-        emojis = {}
+        emojis: dict[str, int] = {}
 
         if args == '-me':
             me = True
@@ -444,14 +444,15 @@ class Stats(commands.Cog):
                 if 'emoji' not in config[date][user_id]:
                     continue
                 for emoji in config[date][user_id]['emoji']:
+                    emoji: str
                     if emoji in emojis:
                         emojis[emoji] += config[date][user_id]['emoji'][emoji]
                     else:
                         emojis[emoji] = config[date][user_id]['emoji'][emoji]
 
-        emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
+        emoji_dict: dict[str, discord.Emoji] = {emoji.name: emoji for emoji in ctx.guild.emojis}
         msg = 'Top Emojis:\n'
-
+        
         if args == '-s':
             for emoji in emojis:
                 if emoji not in emoji_dict:
