@@ -234,7 +234,7 @@ class Background(commands.Cog):
     async def unban_users(self):
         config = self.bot.db['bans']
         for guild_id in config:
-            unbanned_users = []
+            unbanned_users: list[str] = []
             guild_config = config[guild_id]
             try:
                 mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
@@ -242,6 +242,7 @@ class Background(commands.Cog):
                 mod_channel = None
             if 'timed_bans' in guild_config:
                 for member_id in list(guild_config['timed_bans']):
+                    member_id: str
                     unban_time = datetime.strptime(
                         guild_config['timed_bans'][member_id], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                     if unban_time < discord.utils.utcnow():
@@ -258,7 +259,14 @@ class Background(commands.Cog):
                 text_list = []
                 for i in unbanned_users:
                     user = self.bot.get_user(int(i))
+                    if not user:
+                        try:
+                            user = await self.bot.fetch_user(int(i))
+                        except (discord.NotFound, discord.HTTPException):
+                            continue
                     text_list.append(f"{user.mention} ({user.name})")
+                if not text_list:
+                    return  # weird scenario where a user was unbanned but it coudldn't find their account afterwards
                 await hf.safe_send(mod_channel,
                                    embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as "
                                                                    f"the time for their temporary ban has expired",
