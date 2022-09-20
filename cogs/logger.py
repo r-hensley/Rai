@@ -1,5 +1,4 @@
 import aiohttp.client_exceptions
-from cv2 import split
 import discord
 from discord.ext import commands
 import asyncio
