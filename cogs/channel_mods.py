@@ -1440,10 +1440,13 @@ class ChannelMods(commands.Cog):
                 emb.add_field(name="Questions about this mute?",
                               value=f"Please send a message to {modbot.mention}.",
                               inline=False)
+                content = f"Questions → {modbot.mention}"
+            else:
+                content = ""
 
             if not silent:
                 try:
-                    await hf.safe_send(target, f"Questions → {modbot.mention}", embed=emb)
+                    await hf.safe_send(target, content, embed=emb)
                 except discord.Forbidden:
                     await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
                                             "keep them muted but they won't receive the notification for it.")
