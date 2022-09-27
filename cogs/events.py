@@ -94,9 +94,9 @@ class Events(commands.Cog):
             STAFF_ROLE_ID = 642782671109488641
             SESION_MOD_ROLE_ID = 830821949382983751
             if getattr(msg.channel.category, "id", 0) == SESION_CATEGORY_ID:
-                if STAFF_ROLE_ID in msg.content:
+                if str(STAFF_ROLE_ID) in msg.content:
                     ping = f"<@&{SESION_MOD_ROLE_ID}>"
-                elif SESION_MOD_ROLE_ID in msg.content:
+                elif str(SESION_MOD_ROLE_ID) in msg.content:
                     ping = f"<@&{STAFF_ROLE_ID}>"
                 else:
                     return
@@ -111,7 +111,7 @@ class Events(commands.Cog):
             else:
                 await msg.reply(ping)
 
-            if SESION_MOD_ROLE_ID in msg.content:
+            if str(SESION_MOD_ROLE_ID) in msg.content:
                 await mods_ping(msg)
 
         await ping_sesion_mod()
