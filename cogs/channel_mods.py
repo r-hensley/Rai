@@ -304,10 +304,20 @@ class ChannelMods(commands.Cog):
         except discord.Forbidden:
             pass
 
-        try:
-            await to_be_pinned_msg.pin()
-        except discord.Forbidden:
-            await hf.safe_send(ctx, "I lack permission to pin messages in this channel")
+        if to_be_pinned_msg.pinned:
+            if not to_be_pinned_msg.author.bot:
+                await hf.safe_send(ctx, "Unfortunately, this command can only unpin bot messages.", delete_after=5.0)
+                return
+            try:
+                await to_be_pinned_msg.unpin()
+                await hf.safe_send(ctx, "I've unpinned that message.", delete_after=5.0)
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I lack the permission to unpin messages in this channel.", delete_after=5.0)
+        else:
+            try:
+                await to_be_pinned_msg.pin()
+            except discord.Forbidden:
+                await hf.safe_send(ctx, "I lack the permission to pin messages in this channel", delete_after=5.0)
 
     @commands.command()
     async def log(self, ctx, *, args="None"):
