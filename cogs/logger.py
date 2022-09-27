@@ -1483,9 +1483,12 @@ class Logger(commands.Cog):
                 emb.add_field(name="Questions about this mute?",
                               value=f"Please send a message to {modbot.mention}.",
                               inline=False)
+                content = f"Questions → {modbot.mention}"
+            else:
+                content = ""
 
             try:
-                await hf.safe_send(after, f"Questions → {modbot.mention}", embed=emb)
+                await hf.safe_send(after, content, embed=emb)
             except discord.Forbidden:
                 try:
                     await hf.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
