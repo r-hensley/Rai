@@ -86,6 +86,35 @@ class Events(commands.Cog):
             return
 
         ##########################################
+        
+        async def ping_sesion_mod():
+            """When the staff role is pinged on the Spanish server, 
+            this module will ping the Sesion Mod role as well"""
+            SESION_CATEGORY_ID = 362398483174522885
+            STAFF_ROLE_ID = 642782671109488641
+            SESION_MOD_ROLE_ID = 830821949382983751
+            if getattr(msg.channel.category, "id", 0) == SESION_CATEGORY_ID:
+                if STAFF_ROLE_ID in msg.content:
+                    ping = f"<@&{SESION_MOD_ROLE_ID}>"
+                elif SESION_MOD_ROLE_ID in msg.content:
+                    ping = f"<@&{STAFF_ROLE_ID}>"
+                else:
+                    return
+            else:
+                return
+
+            if msg.reference:
+                if type(msg.reference.resolved) == discord.Message:
+                    await msg.reference.resolved.reply(ping)
+                else:
+                    await msg.reply(ping)
+            else:
+                await msg.reply(ping)
+
+            if SESION_MOD_ROLE_ID in msg.content:
+                await mods_ping(msg)
+
+        await ping_sesion_mod()
 
         async def redirect_tatsumaki_commands():
             """Redirect users to use Tatsumaki commands in the thread 
@@ -793,7 +822,7 @@ class Events(commands.Cog):
 
         await smart_welcome(msg)
 
-        async def mods_ping():
+        async def mods_ping(message_in):
             """mods ping on spanish server"""
             if str(msg.guild.id) not in self.bot.db['staff_ping']:
                 return
@@ -811,8 +840,8 @@ class Events(commands.Cog):
             if not staff_role:
                 return
 
-            if f"<@&{staff_role_id}>" in msg.content:
-                edited_msg = re.sub(rf'<?@?&?{str(staff_role_id)}>? ?', '', msg.content)
+            if f"<@&{staff_role_id}>" in message_in.content:
+                edited_msg = re.sub(rf'<?@?&?{str(staff_role_id)}>? ?', '', message_in.content)
             else:
                 return
             user_id_regex = r"<?@?!?(\d{17,22})>? ?"
@@ -824,13 +853,13 @@ class Events(commands.Cog):
             notif = await interactions.staffping_code(ctx=ctx, users=users, reason=edited_msg)
 
             if hasattr(self.bot, 'synced_reactions'):
-                self.bot.synced_reactions.append((notif, msg))
+                self.bot.synced_reactions.append((notif, message_in))
             else:
-                self.bot.synced_reactions = [(notif, msg)]
+                self.bot.synced_reactions = [(notif, message_in)]
 
             return
 
-        await mods_ping()
+        await mods_ping(msg)
 
         # ### super_watch
         async def super_watch():
