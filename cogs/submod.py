@@ -367,7 +367,7 @@ class Submod(commands.Cog):
             # Send notification to warned user if not a log
             if not modlog_entry.silent:
                 try:
-                    await hf.safe_send(user, embed=emb)
+                    await hf.safe_send(user, f"Questions → {modbot.mention}", embed=emb)
                 # if bot fails to send message to user, offer to send warning to a public channel
                 except discord.Forbidden:
                     try:
