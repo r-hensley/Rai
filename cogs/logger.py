@@ -1494,13 +1494,21 @@ class Logger(commands.Cog):
                     pass
 
             emb.set_footer(text=f"Muted by {author.name} ({author.id})")
+            emb.title = "Timeout"
             modlog_channel = self.bot.get_channel(self.bot.db['modlog'][str(guild.id)]['channel'])
             if modlog_channel:
-                notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)
+                notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)                   
                 ctx = await self.bot.get_context(notif_msg)
                 hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
             else:
                 hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
+
+            # send second notification for sesion mods
+            sesion_mod_role = guild.get_role(830821949382983751)
+            if sesion_mod_role in author.roles:
+                sesion_helpers_channel = guild.get_channel(861337623636475944)
+                if sesion_helpers_channel:
+                    await hf.safe_send(sesion_helpers_channel, str(after.id), embed=emb)
 
         await check_timeouts()
 
