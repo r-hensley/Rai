@@ -1485,7 +1485,7 @@ class Logger(commands.Cog):
                               inline=False)
 
             try:
-                await hf.safe_send(after, embed=emb)
+                await hf.safe_send(after, f"Questions → {modbot.mention}"n, embed=emb)
             except discord.Forbidden:
                 try:
                     await hf.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "

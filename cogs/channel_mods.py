@@ -1443,7 +1443,7 @@ class ChannelMods(commands.Cog):
 
             if not silent:
                 try:
-                    await hf.safe_send(target, embed=emb)
+                    await hf.safe_send(target, f"Questions → {modbot.mention}", embed=emb)
                 except discord.Forbidden:
                     await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
                                             "keep them muted but they won't receive the notification for it.")
