@@ -45,6 +45,7 @@ API*
 *.db
 *.sublime*
 *.pyc
+*workspace
 
 # Levenshtein module files
 COPYING
