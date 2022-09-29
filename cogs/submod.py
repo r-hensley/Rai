@@ -433,7 +433,7 @@ class Submod(commands.Cog):
 
         if notif_channel:
             question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
-                                               f"Would you like to send a pubic warning to "
+                                               f"Would you like to send a public warning to "
                                                f"{notif_channel.mention}?")
             await question.add_reaction('✅')
             await question.add_reaction('❌')
