@@ -1361,16 +1361,16 @@ class ChannelMods(commands.Cog):
                 hours = int(length[1])
                 minutes = int(length[2])
                 total_hours = minutes / 60 + hours + days * 24
-                if total_hours > 3:
+                if total_hours > 24:
                     time_string = None  # temporarily set to indefinite mute (triggers next line of code)
 
             # do NOT change this to else, it may have been set to False in the above lines of code
             if not time_string:  # if the channel helper did NOT specify a time for the mute
-                time_arg = '3h'
+                time_arg = '24h'
                 time_string, length = hf.parse_time(time_arg)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
-                                               "hours, so I set the duration of the mute to 3h.")
+                                               "hours, so I set the duration of the mute to 24h.")
 
         silent = False
         if reason:
