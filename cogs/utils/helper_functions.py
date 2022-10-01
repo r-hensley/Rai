@@ -92,7 +92,7 @@ _emoji = re.compile(r'<a?(:[A-Za-z0-9_]+:|#|@|@&)!?[0-9]{17,20}>')
 _lock = asyncio.Lock()
 
 
-def count_messages(member, guild=None) -> int:
+def count_messages(member: discord.Member, guild=None) -> int:
     """Returns an integer of number of messages sent in the last month"""
     msgs = 0
     if not guild:
@@ -102,6 +102,8 @@ def count_messages(member, guild=None) -> int:
         for day in config:
             if str(member.id) in config[day]:
                 user = config[day][str(member.id)]
+                if 'channels' not in user:
+                    continue
                 msgs += sum([user['channels'][c] for c in user['channels']])
         return msgs
     except KeyError:
