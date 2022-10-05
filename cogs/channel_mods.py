@@ -637,7 +637,7 @@ class ChannelMods(commands.Cog):
                 user = await self.bot.fetch_user(int(id_in))
                 user_id = id_in
             except discord.NotFound:
-                user = None
+                user = user_id = None
             except discord.HTTPException:
                 await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
