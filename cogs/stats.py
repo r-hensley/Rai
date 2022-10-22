@@ -20,7 +20,11 @@ class Stats(commands.Cog):
         self.bot = bot
 
     async def cog_check(self, ctx):
-        if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
+        try:
+            category_id = ctx.channel.category.id
+        except AttributeError:
+            return
+        if category_id in [685446008129585176, 685445852009201674]:
             try:
                 await ctx.reply("Please use that command in <#247135634265735168>.")
                 return
