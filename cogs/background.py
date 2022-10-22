@@ -335,7 +335,7 @@ class Background(commands.Cog):
                 try:
                     unmute_time = guild_config[user_id]['time']
                     if type(unmute_time) == int:
-                        unmute_time = datetime.fromtimestamp(unmute_time).replace(tzinfo=timezone.utc)
+                        unmute_time = datetime.fromtimestamp(unmute_time, tz=timezone.utc)
                     else:
                         unmute_time = datetime.strptime(guild_config[user_id]['time'],
                                                         "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
