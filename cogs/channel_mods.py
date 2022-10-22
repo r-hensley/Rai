@@ -90,6 +90,12 @@ class ChannelMods(commands.Cog):
         if hf.helper_check(ctx):
             return True
 
+        # special SP server voice helper role
+        if ctx.guild:
+            voice_helper_role = ctx.guild.get_role(1027428072854671371)
+            if voice_helper_role in ctx.author.roles:
+                return True
+
         # voice mods...
         if ctx.author.id in self.bot.db['voicemod'].get(ctx.guild.id, []):
             # ...can use staffping
