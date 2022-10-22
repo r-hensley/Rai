@@ -56,9 +56,12 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
-        self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
-        self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
-        self.bot.imgc = Image.open(f'{dir_path}/banned_img/3.jpg').convert("RGB")
+        try:
+            self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
+            self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
+            self.bot.imgc = Image.open(f'{dir_path}/banned_img/3.jpg').convert("RGB")
+        except FileNotFoundError:
+            self.bot.imga = self.bot.imgb = self.bot.imgc = None
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
@@ -128,6 +131,9 @@ class Events(commands.Cog):
 
         async def watch_for_banned_images():
             if msg.guild.id != SP_SERVER_ID:
+                return
+
+            if not self.bot.imga or not self.bot.imgb or not self.bot.imgc:
                 return
 
             if msg.attachments:
