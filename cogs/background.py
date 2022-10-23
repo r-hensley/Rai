@@ -22,9 +22,9 @@ class Background(commands.Cog):
             if not task.is_running():
                 task.start()
 
-    # def cog_unload(self):
-    #     for task in self.bot.bg_tasks:
-    #         task.cancel()
+    def cog_unload(self):
+        for task in self.bot.bg_tasks:
+            task.cancel()
 
     async def handle_error(self, error):
         error = getattr(error, 'original', error)
@@ -335,15 +335,15 @@ class Background(commands.Cog):
                 try:
                     unmute_time = guild_config[user_id]['time']
                     if type(unmute_time) == int:
-                        unmute_time = datetime.fromtimestamp(unmute_time, tz=timezone.utc)
+                        unmute_time_obj = datetime.fromtimestamp(unmute_time, tz=timezone.utc)
                     else:
-                        unmute_time = datetime.strptime(guild_config[user_id]['time'],
+                        unmute_time_obj = datetime.strptime(guild_config[user_id]['time'],
                                                         "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 except TypeError as e:
                     print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'], e)
                     del (guild_config[user_id])
                     continue
-                if unmute_time < discord.utils.utcnow():
+                if unmute_time_obj < discord.utils.utcnow():
                     del (guild_config[user_id])
                     unmuted_users.append(user_id)
             if unmuted_users:
