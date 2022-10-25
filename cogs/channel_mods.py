@@ -110,6 +110,10 @@ class ChannelMods(commands.Cog):
             elif isinstance(ctx.channel, discord.VoiceChannel):
                 return True
 
+        # able to use commands (mainly modlog) in staff category in spanish server
+        if ctx.channel.category.id == 817780000807583774:
+            return True
+
     helper = app_commands.Group(name="helper", description="Commands to configure server helpers", guild_ids=[SP_SERV])
 
     @helper.command(name="role")
