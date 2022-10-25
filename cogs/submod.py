@@ -14,6 +14,7 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 SP_SERV_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
+CH_SERV_ID = 266695661670367232
 
 
 class Submod(commands.Cog):
@@ -265,7 +266,7 @@ class Submod(commands.Cog):
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
-                                guild_ids=[SP_SERV_ID])
+                                guild_ids=[SP_SERV_ID, CH_SERV_ID])
 
     @submod.command(name="role")
     @app_commands.default_permissions()
