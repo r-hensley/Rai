@@ -495,6 +495,7 @@ class Submod(commands.Cog):
             channel = ctx.channel
 
         config['warn_notification_channel'] = channel.id
+        await hf.safe_send(ctx, f"Set warning channel for users with DMs disabled to {channel.mention}.")
 
     @commands.command(aliases=["cleanup", "bclr", "bc"])
     @commands.bot_has_permissions(manage_messages=True)
