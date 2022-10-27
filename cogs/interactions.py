@@ -130,7 +130,7 @@ class Interactions(commands.Cog):
         # for guild_id in [FEDE_TESTER_SERVER_ID]:
         # temporarily disable slash commands in fede's test server from disuse
         self.bot.tree.copy_global_to(guild=RY_GUILD)
-        for guild_id in []:
+        for guild_id in []:  # these are synced in hf.hf_sync() command
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)

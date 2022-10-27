@@ -32,6 +32,7 @@ here._loop = None
 
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
+CH_SERV_ID = 266695661670367232
 SP_SERV_GUILD = discord.Object(SP_SERV_ID)
 FEDE_GUILD = discord.Object(941155953682821201)
 RY_SERV = discord.Object(275146036178059265)
@@ -376,12 +377,17 @@ def submod_check(ctx):
         return
     if admin_check(ctx):
         return True
+
+    submod_roles = []
     try:
-        role_id = here.bot.db['submod_role'][str(ctx.guild.id)]['id']
+        for r_id in here.bot.db['submod_role'][str(ctx.guild.id)]['id']:
+            submod_roles.append(ctx.guild.get_role(r_id))
     except KeyError:
         return
-    submod_role = ctx.guild.get_role(role_id)
-    return submod_role in ctx.author.roles
+
+    for role in submod_roles:
+        if role in ctx.author.roles:
+            return True
 
 
 def is_submod():
@@ -1000,6 +1006,12 @@ async def hf_sync():
         await here.bot.tree.sync(guild=RY_SERV)
     except discord.Forbidden:
         print("Failed to sync commands to RY_SERV")
+
+    # ch serv
+    try:
+        await here.bot.tree.sync(guild=discord.Object(CH_SERV_ID))
+    except discord.Forbidden:
+        print("Failed to sync commands to Chinese server")
 
 
 def message_list_to_text(msgs: list[discord.Message], text: str = "") -> str:
