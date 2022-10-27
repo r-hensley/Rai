@@ -266,18 +266,38 @@ class Submod(commands.Cog):
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
-                                guild_ids=[SP_SERV_ID, CH_SERV_ID])
+                                guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265])
 
     @submod.command(name="role")
     @app_commands.default_permissions()
     async def set_submod_role(self, itx: discord.Interaction, *, role: discord.Role):
         """Set the submod role for your server."""
-        config = hf.database_toggle(itx.guild, self.bot.db['submod_role'])
-        if 'enable' in config:
-            del config['enable']
+        config = self.bot.db['submod_role'].setdefault(str(itx.guild.id), {'id': []})
 
-        config['id'] = role.id
-        await itx.response.send_message(f"Set the submod role to {role.name} ({role.id})")
+        await hf.send_to_test_channel(config)
+
+        if not config['id']:
+            config['id'] = []
+
+        if role.id in config['id']:
+            config['id'].remove(role.id)
+            await itx.response.send_message(f"Removed {role.name} ({role.id}) as a submod role.")
+
+        else:
+            config['id'].append(role.id)
+            await itx.response.send_message(f"Added {role.name} ({role.id}) as a submod role")
+
+        # create and send a list of current roles
+        remaining_roles = []
+        for role_id in config['id']:
+            potential_remaining_role = itx.guild.get_role(role_id)
+            if potential_remaining_role:
+                remaining_roles.append(f"{potential_remaining_role.name} ({potential_remaining_role.id})")
+            else:
+                config['id'].remove(role_id)
+        remaining_roles_str = "- " + '\n- '.join(remaining_roles)
+
+        await itx.followup.send(f"Current submod roles are:\n{remaining_roles_str}")
 
     @submod.command(name="channel")
     @app_commands.default_permissions()
