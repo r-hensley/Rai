@@ -92,7 +92,7 @@ class ChannelMods(commands.Cog):
 
         # special SP server voice helper role
         if ctx.guild:
-            voice_helper_role = ctx.guild.get_role(1027428072854671371)
+            voice_helper_role = ctx.guild.get_role(1039366362851721287)
             if voice_helper_role in ctx.author.roles:
                 return True
 
