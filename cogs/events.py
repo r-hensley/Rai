@@ -412,8 +412,49 @@ class Events(commands.Cog):
                     f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
                     f'\n{msg.jump_url}'[:2000])
-
         await mention_ping()
+
+        async def ori_mention_ping():
+            cont = str(msg.content).casefold()
+            ori_id = 581324505331400733
+
+            if msg.author.bot or msg.author.id == ori_id:
+                return
+
+            to_check_words = ['ori', 'fireside', 'oriana']
+
+            try:
+                ori = msg.guild.get_member(ori_id)
+                if not ori:
+                    return
+                try:
+                    if not msg.channel.permissions_for(msg.guild.get_member(ori_id)).read_messages:
+                        return  # I ain't trying to spy on people
+                except discord.ClientException:
+                    # probably a message in a forum channel thread without a parent channel
+                    # breaks since pycord doesn't support forums yet
+                    return
+
+            except AttributeError:
+                pass
+
+            found_word = False
+            ignored_words = []
+            for ignored_word in ignored_words:
+                if ignored_word in cont.casefold():  # why do people say these so often...
+                    cont = re.sub(ignored_word, '', cont, flags=re.IGNORECASE)
+
+            for to_check_word in to_check_words:
+                if re.search(fr"(^| |\.){to_check_word}($|\W)", cont.casefold()):
+                    found_word = True
+
+            if found_word:
+                spam_chan = self.bot.get_channel(1046904828015677460)
+                await spam_chan.send(
+                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'\n{msg.content}'
+                    f'\n{msg.jump_url}'[:2000])
+        await ori_mention_ping()
 
         """Self mute"""
         try:
