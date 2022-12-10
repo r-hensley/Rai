@@ -451,7 +451,7 @@ class Events(commands.Cog):
             if found_word:
                 spam_chan = self.bot.get_channel(1046904828015677460)
                 await spam_chan.send(
-                    f'**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
+                    f'<@{ori_id}>\n**By {msg.author.name} in {msg.channel.mention}** ({msg.channel.name}): '
                     f'\n{msg.content}'
                     f'\n{msg.jump_url}'[:2000])
         await ori_mention_ping()
