@@ -250,7 +250,7 @@ class Background(commands.Cog):
                         member = discord.Object(id=member_id)
                         try:
                             await guild.unban(member, reason="End of timed ban")
-                        except (discord.NotFound, discord.Forbidden):
+                        except (discord.NotFound, discord.Forbidden, AttributeError):
                             pass
                         finally:
                             del config[guild_id]['timed_bans'][member_id]
