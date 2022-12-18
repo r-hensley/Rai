@@ -1962,6 +1962,49 @@ class Events(commands.Cog):
 
         await sp_serv_new_user_voice_lock()
 
+        async def sp_serv_canti_voice_entry_hack_check():
+            joined = after.channel  # True if they joined voice
+            if not joined:
+                return
+
+            # Only function on Spanish server
+            if member.guild.id != SP_SERVER_ID:
+                return
+
+            # watch for users joining full voice rooms
+            if len(after.channel.members) <= after.channel.user_limit:
+                return
+
+            # discord.AuditLogAction.member_move
+            async for log in member.guild.audit_logs(limit=5,
+                                                     user=member,
+                                                     action=discord.AuditLogAction.member_move,
+                                                     after=discord.utils.utcnow() - timedelta(minutes=5),
+                                                     oldest_first=False):
+                if log.extra.channel == after.channel:
+                    staff_channel = self.bot.get_channel(913886469809115206)
+                    emb = hf.red_embed(f"The user {member.mention} ({member.id}) has potentially moved themselves "
+                                       f"into a full channel ({after.channel.mention}). Please check this.")
+                    if before.channel.members:
+                        list_of_before_users = '- ' + '\n -'.join([m.mention for m in before.channel.members])
+                    else:
+                        list_of_before_users = ''
+
+                    if after.channel.members:
+                        list_of_after_users = '- ' + '\n -'.join([m.mention for m in after.channel.members])
+                    else:
+                        list_of_after_users = ''
+                        
+                    emb.add_field(name="Previous Channel",
+                                  value=f"{before.channel.mention} ({len(before.channel.members)}/"
+                                        f"{before.channel.user_limit})\n{list_of_before_users}")
+                    emb.add_field(name="Final Channel",
+                                  value=f"{after.channel.mention} ({len(after.channel.members)}/"
+                                        f"{after.channel.user_limit})\n{list_of_after_users}")
+                    await staff_channel.send(str(member.id), embed=emb)
+                    break
+        await sp_serv_canti_voice_entry_hack_check()
+
     @commands.Cog.listener()
     async def on_command(self, ctx):
         if not ctx.guild:

@@ -372,7 +372,7 @@ def load_stats(bot):
             raise
 
 
-def submod_check(ctx):
+def submod_check(ctx: commands.Context):
     if not ctx.guild:
         return
     if admin_check(ctx):
