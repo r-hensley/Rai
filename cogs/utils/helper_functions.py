@@ -448,8 +448,14 @@ def admin_check(ctx):
 
     try:
         ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
-        mod_role = ctx.guild.get_role(ID)
-        return mod_role in author.roles or ctx.channel.permissions_for(author).administrator
+        if isinstance(ID, list):
+            for i in ID:
+                mod_role = ctx.guild.get_role(i)
+                if mod_role in author.roles or ctx.channel.permissions_for(author).administrator:
+                    return True
+        else:
+            mod_role = ctx.guild.get_role(ID)
+            return mod_role in author.roles or ctx.channel.permissions_for(author).administrator
     except (KeyError, TypeError):
         return ctx.channel.permissions_for(author).administrator
 

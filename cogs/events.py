@@ -881,6 +881,8 @@ class Events(commands.Cog):
             staff_role_id = config.get("role")  # try to get role id from staff_ping db
             if not staff_role_id:  # no entry in staff_ping db
                 staff_role_id = self.bot.db['mod_role'].get(str(msg.guild.id), {}).get("id")
+                if isinstance(staff_role_id, list):
+                    staff_role_id = staff_role_id[0]
             if not staff_role_id:
                 return  # This guild doesn't have a mod role or staff ping role set
             staff_role = msg.guild.get_role(staff_role_id)

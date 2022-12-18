@@ -1211,7 +1211,10 @@ class Admin(commands.Cog):
                     emb.title = "Setting mod role"
                     try:
                         config = self.bot.db['mod_role'][str(ctx.guild.id)]
-                        role = ctx.guild.get_role(config['id'])
+                        if isinstance(config['id'], list):
+                            role = ctx.guild.get_role(config['id'][0])
+                        else:
+                            role = ctx.guild.get_role(config['id'])
                         emb.description = f"Current role is {role.mention} ({role.id})\n" + emb.description
                     except KeyError:
                         emb.description = "No role is currently set\n" + emb.description
