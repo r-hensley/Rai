@@ -547,6 +547,8 @@ class Interactions(commands.Cog):
                 staff_role_id = config.get("role")  # try to get role id from staff_ping db
                 if not staff_role_id:  # no entry in staff_ping db
                     staff_role_id = self.bot.db['mod_role'].get(guild_id, {}).get("id")
+                    if isinstance(staff_role_id, list):
+                        staff_role_id = staff_role_id[0]
         if staff_role_id:
             content = f"<@&{staff_role_id}>"
         msg = await hf.safe_send(mod_channel, content, embed=alarm_emb, view=view)
