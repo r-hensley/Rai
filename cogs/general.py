@@ -584,12 +584,12 @@ class General(commands.Cog):
     @blacklist_check()
     async def global_blacklist(self, ctx):
         """A global blacklist for banning spammers, requires three votes from mods from three different servers"""
-        config = hf.database_toggle(ctx, self.bot.db['global_blacklist'])
+        config = hf.database_toggle(ctx.guild, self.bot.db['global_blacklist'])
         if config['enable']:
             if not ctx.me.guild_permissions.ban_members:
                 await hf.safe_send(ctx,
                                    'I lack the permission to ban members.  Please fix that before enabling this module')
-                hf.database_toggle(ctx, self.bot.db['global_blacklist'])
+                hf.database_toggle(ctx.guild, self.bot.db['global_blacklist'])
                 return
             await hf.safe_send(ctx,
                                "Enabled the global blacklist on this server.  Anyone voted into the blacklist by three "

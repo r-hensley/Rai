@@ -736,7 +736,7 @@ class Admin(commands.Cog):
     @commands.bot_has_permissions(ban_members=True)
     async def auto_bans(self, ctx):
         """Auto bans for amazingsexdating/users who join with invite link names/other spam sites"""
-        config = hf.database_toggle(ctx, self.bot.db['auto_bans'])
+        config = hf.database_toggle(ctx.guild, self.bot.db['auto_bans'])
         if config['enable']:
             await hf.safe_send(ctx,
                                'Enabled the auto bans module.  I will now automatically ban all users who join with '
@@ -759,7 +759,7 @@ class Admin(commands.Cog):
     async def set_mod_role(self, ctx, *, role_name):
         """Set the mod role for your server.  Type the exact name of the role like `;set_mod_role Mods`. \
         To remove the mod role, type `;set_mod_role none`."""
-        config = hf.database_toggle(ctx, self.bot.db['mod_role'])
+        config = hf.database_toggle(ctx.guild, self.bot.db['mod_role'])
         if 'enable' in config:
             del (config['enable'])
         if role_name.casefold() == "none":
