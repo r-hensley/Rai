@@ -832,6 +832,13 @@ class ChannelMods(commands.Cog):
             emb.description += f"\n**`Number of messages M | W`** : {total_msgs_month} | {total_msgs_week}"
             emb.description += f"\n**`Time in voice`** : {voice_time_str}"
 
+            # ### Add sentiment information ###
+            if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
+                user_sentiment = sum(self.bot.db['sentiments'][str(ctx.guild.id)].get(str(member.id), []))
+                if user_sentiment:
+                    user_sentiment = round(user_sentiment, 2)
+                    emb.description += f"\n**`Recent sentiment (10 msgs)`** : {user_sentiment}"
+
         join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
 
         # most invites recorded between june 26, 2021 and july 23, 2022 had a bug that caused them to default to
