@@ -1191,7 +1191,7 @@ class General(commands.Cog):
 
         try:
             await ctx.message.add_reaction("📨")
-        except discord.Forbidden:
+        except (discord.Forbidden, discord.NotFound):
             pass
 
         if hasattr(self.bot, 'synced_reactions'):
