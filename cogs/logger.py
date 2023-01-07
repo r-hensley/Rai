@@ -499,8 +499,9 @@ class Logger(commands.Cog):
         author = message.author
         time_dif = round((discord.utils.utcnow() - message.created_at).total_seconds(), 1)
         jump_url = ''
-        async for msg in message.channel.history(limit=1, before=message):
-            jump_url = msg.jump_url
+        if hasattr(message.channel, "history"):
+            async for msg in message.channel.history(limit=1, before=message):
+                jump_url = msg.jump_url
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
