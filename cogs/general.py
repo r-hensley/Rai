@@ -1005,7 +1005,11 @@ class General(commands.Cog):
         for group in config:
             for role_id in config[group]:
                 if found_role.id == role_id:
-                    await ctx.author.add_roles(found_role)
+                    try:
+                        await ctx.author.add_roles(found_role)
+                    except discord.Forbidden:
+                        await hf.safe_send(ctx, "Sorry, I could not add roles to that user!")
+                        return
                     await hf.safe_send(ctx, embed=hf.green_embed(
                         f"**{str(ctx.author)}** You now have"
                         f" the **{found_role.name}** role."))
