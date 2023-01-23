@@ -983,7 +983,7 @@ class Events(commands.Cog):
         await super_watch()
 
         # ### Lang check: will check if above 3 characters + hardcore, or if above 15 characters + stats
-        async def lang_check():
+        async def lang_check() -> (Optional[str], bool):
             detected_lang = None
             is_hardcore = False
             if str(msg.guild.id) not in self.bot.stats:
@@ -1013,7 +1013,7 @@ class Events(commands.Cog):
                 try:
                     if msg.guild.id == SP_SERVER_ID and msg.channel.id != 817074401680818186:
                         if hasattr(self.bot, 'langdetect'):
-                            detected_lang = hf.detect_language(stripped_msg)
+                            detected_lang: Optional[str] = hf.detect_language(stripped_msg)
                         else:
                             return None, False
                     else:
@@ -1023,6 +1023,8 @@ class Events(commands.Cog):
             return detected_lang, is_hardcore
 
         lang, hardcore = await lang_check()
+        lang: Optional[str]
+        hardcore: bool
 
         """Message counting"""
 
@@ -1328,6 +1330,35 @@ class Events(commands.Cog):
             await msg.channel.purge(limit=50, check=purge_check)
 
         await antispam_check()
+
+        """spanish server language switch"""
+
+        async def spanish_server_language_switch():
+            if not lang:
+                return
+
+            ch = self.bot.get_channel(739127911650557993)
+            if msg.channel != ch:
+                return
+
+            sp_nat_role = msg.guild.get_role(456473070744502273)
+            if sp_nat_role in msg.author.roles:
+                if lang == 'es':
+                    try:
+                        await msg.delete()
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+
+            else:
+                if lang == 'en':
+                    try:
+                        await msg.delete()
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+
+        await spanish_server_language_switch()
+
+
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
