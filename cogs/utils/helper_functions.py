@@ -777,7 +777,7 @@ def _pre_load_language_detection_model():
     here.bot.langdetect = make_set(english, spanish, make_set(english, spanish, make_set(english, spanish)))
 
 
-def detect_language(text):
+def detect_language(text) -> Optional[str]:
     probs = here.bot.langdetect.predict_proba([text])[0]
     if probs[0] > 0.9:
         return 'en'
