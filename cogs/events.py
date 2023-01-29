@@ -1341,7 +1341,7 @@ class Events(commands.Cog):
             if msg.channel != ch:
                 return
 
-            sp_nat_role = msg.guild.get_role(456473070744502273)
+            sp_nat_role = msg.guild.get_role(243854128424550401)
             if sp_nat_role in msg.author.roles:
                 if lang == 'es':
                     try:
