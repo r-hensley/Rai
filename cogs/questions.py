@@ -579,8 +579,14 @@ class Questions(commands.Cog):
         except discord.NotFound:
             if log_message:
                 await log_message.delete()
+            msg = ""
+            author = ctx.guild.get_member(question["author"])
+            if author:
+                msg = f"Original question message for question {number} by {str(author)} not found. Closing question."
+            else:
+                msg = f"Original question message for question {number} not found. Closing question."
             del questions[number]
-            msg = await hf.safe_send(ctx, f"Original question message not found.  Closing question")
+            msg = await hf.safe_send(ctx, msg)
             await asyncio.sleep(5)
 
             try:
@@ -731,6 +737,7 @@ class Questions(commands.Cog):
                 return
 
         first = True
+        deleted_questions = []
         # the ⁣ are invisble tags to help the _list_update function find this embed
         emb = discord.Embed(title=f"⁣List⁣ of open questions (sorted by channel then date):", color=0x707070)
         for channel in config:
@@ -747,6 +754,7 @@ class Questions(commands.Cog):
                 if channel_config:
                     emb.add_field(name=f"⁣**__{'　' * 30}__**⁣",
                                   value=f'**__#{question_channel.name}__**', inline=False)
+
             for question in channel_config.copy():
                 try:
                     if question not in channel_config:  # race conditions failing
@@ -793,9 +801,18 @@ class Questions(commands.Cog):
                     value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice]).replace(";q ", "")
                     emb.add_field(name=f"Question `{question}`", value=value_text)
                 except discord.NotFound:
-                    emb.add_field(name=f"Question `{question}`",
-                                  value="original message not found")
+                    deleted_questions.append(question)
+                    continue
+                    # await ctx.invoke(self.answer, args=question)
+                    # # del(channel_config[question])
+                    # continue
+                    # emb.add_field(name=f"Question `{question}`",
+                    #               value="original message not found")
         await hf.safe_send(target_channel, embed=emb)
+
+        for question in deleted_questions:
+            # author = ctx.guild.get_member(question_data[1]['author'])
+            await ctx.invoke(self.answer, args=question)
 
     @question.command()
     @hf.is_admin()
