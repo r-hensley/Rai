@@ -1241,6 +1241,33 @@ class Events(commands.Cog):
 
         await no_filter_hc()
 
+        """spanish server language switch"""
+
+        async def spanish_server_language_switch():
+            if not lang:
+                return
+
+            ch = self.bot.get_channel(739127911650557993)
+            if msg.channel != ch:
+                return
+
+            sp_nat_role = msg.guild.get_role(243854128424550401)
+            if sp_nat_role in msg.author.roles:
+                if lang == 'es':
+                    try:
+                        await msg.delete()
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+
+            else:
+                if lang == 'en':
+                    try:
+                        await msg.delete()
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+
+        await spanish_server_language_switch()
+
         # ### antispam
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
@@ -1331,32 +1358,8 @@ class Events(commands.Cog):
 
         await antispam_check()
 
-        """spanish server language switch"""
-
-        async def spanish_server_language_switch():
-            if not lang:
-                return
-
-            ch = self.bot.get_channel(739127911650557993)
-            if msg.channel != ch:
-                return
-
-            sp_nat_role = msg.guild.get_role(243854128424550401)
-            if sp_nat_role in msg.author.roles:
-                if lang == 'es':
-                    try:
-                        await msg.delete()
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
-
-            else:
-                if lang == 'en':
-                    try:
-                        await msg.delete()
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
-
-        await spanish_server_language_switch()
+        # WARNING: DONT ADD CODE HERE
+        # The above function has a ten second wait time, so all new code must go above it
 
 
 
