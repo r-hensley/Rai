@@ -83,67 +83,67 @@ class Questions(commands.Cog):
                 pass
             raise
 
-    @commands.Cog.listener()
-    async def on_thread_update(self, before: discord.Thread, after: discord.Thread):
-        try:
-            channel_config = self.bot.db['questions'][str(after.guild.id)][str(after.parent.id)]
-            questions = channel_config['questions']
-        except KeyError:
-            return
-
-        if not channel_config.get('threads', False):
-            return
-
-        is_question = False
-        for question in questions:
-            if questions[question].get('thread', 0) == after.id:
-                is_question = True
-                break
-        if not is_question:
-            return  # this thread is not associated with a question
-
-        # a thread was archived, reopen it if it simply closed due to the auto-archiving date
-        if not before.archived and after.archived:
-            human_closed = False  # True if a human manually archvied the thread
-            async for entry in after.guild.audit_logs(limit=5, oldest_first=False,
-                                                      action=discord.AuditLogAction.thread_update,
-                                                      after=discord.utils.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target.id == after.id:
-                    if entry.user.bot:
-                        return
-                    if entry.after.archived:
-                        human_closed = True
-                    break
-
-            if human_closed:  # a user manually archived the thread ==> close the question
-                try:
-                    last_message = [message async for message in after.history(limit=1)]  # returns a list of length 1
-                    last_message = last_message[0]  # get the first message in it
-                    if not last_message:
-                        raise discord.NotFound
-                except (IndexError, discord.NotFound):
-                    return
-                ctx = await self.bot.get_context(last_message)  # just need a random ctx
-                ctx.message.author = ctx.guild.me  # to get permissions right
-                ctx.message.content = ";q a"
-                await self.answer(ctx, args="")  # close the question
-
-            else:  # the thread was auto-archived, reopen it
-                try:
-                    after = await after.edit(archived=False)
-                except discord.Forbidden:
-                    pass
-
-        # a thread was unarchived, open a question for it
-        elif before.archived and not after.archived:
-            for question in questions:
-                if after.id == questions[question].get('thread', 0):
-                    return  # a question for this thread already exists
-            if after.id == channel_config['log_channel']:
-                return  # the opened thread was the log channel being unarchived
-            opening_message = await after.parent.fetch_message(after.id)
-            ctx = await self.bot.get_context(opening_message)
-            await self.question(ctx, args=opening_message.content)  # open the question
+    # @commands.Cog.listener()
+    # async def on_thread_update(self, before: discord.Thread, after: discord.Thread):
+    #     try:
+    #         channel_config = self.bot.db['questions'][str(after.guild.id)][str(after.parent.id)]
+    #         questions = channel_config['questions']
+    #     except KeyError:
+    #         return
+    #
+    #     if not channel_config.get('threads', False):
+    #         return
+    #
+    #     is_question = False
+    #     for question in questions:
+    #         if questions[question].get('thread', 0) == after.id:
+    #             is_question = True
+    #             break
+    #     if not is_question:
+    #         return  # this thread is not associated with a question
+    #
+    #     # a thread was archived, reopen it if it simply closed due to the auto-archiving date
+    #     if not before.archived and after.archived:
+    #         human_closed = False  # True if a human manually archvied the thread
+    #         async for entry in after.guild.audit_logs(limit=5, oldest_first=False,
+    #                                                   action=discord.AuditLogAction.thread_update,
+    #                                                   after=discord.utils.utcnow() - timedelta(seconds=10)):
+    #             if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target.id == after.id:
+    #                 if entry.user.bot:
+    #                     return
+    #                 if entry.after.archived:
+    #                     human_closed = True
+    #                 break
+    #
+    #         if human_closed:  # a user manually archived the thread ==> close the question
+    #             try:
+    #                 last_message = [message async for message in after.history(limit=1)]  # returns a list of length 1
+    #                 last_message = last_message[0]  # get the first message in it
+    #                 if not last_message:
+    #                     raise discord.NotFound
+    #             except (IndexError, discord.NotFound):
+    #                 return
+    #             ctx = await self.bot.get_context(last_message)  # just need a random ctx
+    #             ctx.message.author = ctx.guild.me  # to get permissions right
+    #             ctx.message.content = ";q a"
+    #             await self.answer(ctx, args="")  # close the question
+    #
+    #         else:  # the thread was auto-archived, reopen it
+    #             try:
+    #                 after = await after.edit(archived=False)
+    #             except discord.Forbidden:
+    #                 pass
+    #
+    #     # a thread was unarchived, open a question for it
+    #     elif before.archived and not after.archived:
+    #         for question in questions:
+    #             if after.id == questions[question].get('thread', 0):
+    #                 return  # a question for this thread already exists
+    #         if after.id == channel_config['log_channel']:
+    #             return  # the opened thread was the log channel being unarchived
+    #         opening_message = await after.parent.fetch_message(after.id)
+    #         ctx = await self.bot.get_context(opening_message)
+    #         await self.question(ctx, args=opening_message.content)  # open the question
 
     def get_color_from_name(self, ctx):
         config = self.bot.db['questions'][str(ctx.channel.guild.id)]
