@@ -1370,9 +1370,12 @@ class Events(commands.Cog):
     async def on_guild_remove(self, guild):
         to_delete = []
         for x in self.bot.db:
-            for key in self.bot.db[x]:
-                if str(guild.id) == key:
-                    to_delete.append((x, key))
+            try:
+                for key in self.bot.db[x]:
+                    if str(guild.id) == key:
+                        to_delete.append((x, key))
+            except TypeError:
+                continue
         for i in to_delete:
             del (self.bot.db[i[0]][i[1]])
 
