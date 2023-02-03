@@ -1247,6 +1247,9 @@ class Events(commands.Cog):
             if not lang:
                 return
 
+            if "*" in msg.content or msg.content.startswith(">"):
+                return  # exempt messages with "*" and quotes
+
             ch = self.bot.get_channel(739127911650557993)
             if msg.channel != ch:
                 return
