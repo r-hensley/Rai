@@ -1223,6 +1223,53 @@ class Interactions(commands.Cog):
         await intr.response.send_message(f"Forwarded {message.jump_url} by {str(message.author)} to "
                                          f"{str(destination_member)}")
 
+    @app_commands.command()
+    @app_commands.guilds(SP_SERVER_ID, JP_SERVER_ID, RY_SERVER_ID)
+    @app_commands.default_permissions()
+    async def invite_all_to_thread(self,
+                      intr: discord.Interaction):
+        """Invites all possible members into a thread from the parent text channel without pinging them."""
+        list_of_users = []
+        if not isinstance(intr.channel, discord.Thread):
+            await intr.response.send_message("You can only use this command in a thread", ephemeral=True)
+            return
+
+        await intr.response.defer(thinking=True)
+
+        for member in intr.channel.parent.members:
+            if member.bot:
+                continue
+            p = intr.channel.permissions_for(member)
+            if p.read_messages:
+                list_of_users.append(member)
+
+        if len(list_of_users) > 30:
+            await intr.followup.send(f"This command would invite {len(list_of_users)}, but I can only invite a "
+                                     f"maximum of 30 users. Sorry!", ephemeral=True)
+            return
+
+        ping_message = "Inviting following users:\n" + ", ".join([u.mention for u in list_of_users])
+        ping_message += "\n***(Since the mentions in this command were edited in, no users were actually pinged)***"
+
+        try:
+            m = await intr.channel.send("Beep")
+        except (discord.Forbidden, discord.HTTPException) as e:
+            await intr.followup.send("Sorry, I'm unable to message in this channel so I couldn't complete the"
+                                     f" command (error: `{e}`)")
+            return
+
+        await m.edit(content=ping_message)
+
+        # for member in list_of_users:
+        #     try:
+        #         await intr.channel.add_user(member)
+        #     except (discord.Forbidden, discord.HTTPException):
+        #         pass
+
+        await intr.followup.send("I've tried to add everyone I can!")
+
+        await asyncio.sleep(10)
+        await m.delete()
 
 async def setup(bot):
     await bot.add_cog(Interactions(bot))
