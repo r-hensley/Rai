@@ -772,6 +772,11 @@ class Owner(commands.Cog):
         os.system("sudo /etc/init.d/networking restart")
         await ctx.message.add_reaction("✅")
 
+    @commands.command()
+    async def raise_error(self, ctx):
+        """Raises an error for testing purposes"""
+        raise Exception
+
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
