@@ -500,8 +500,11 @@ class Logger(commands.Cog):
         time_dif = round((discord.utils.utcnow() - message.created_at).total_seconds(), 1)
         jump_url = ''
         if hasattr(message.channel, "history"):
-            async for msg in message.channel.history(limit=1, before=message):
-                jump_url = msg.jump_url
+            try:
+                async for msg in message.channel.history(limit=1, before=message):
+                    jump_url = msg.jump_url
+            except discord.NotFound:
+                pass  # somehow got discord.errors.NotFound: 404 Not Found (error code: 10003): Unknown Channel
         emb = discord.Embed(
             description=f'**{author.name}#{author.discriminator}** (M{author.id})'
                         f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
