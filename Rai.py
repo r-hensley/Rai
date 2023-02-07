@@ -252,9 +252,9 @@ class Rai(Bot):
                         if not hf.admin_check(ctx):
                             return
 
-            # prevent users from using stats commands in spanish server learning channels, supress warnings
-            if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
-                return
+                # prevent users from using stats commands in spanish server learning channels, supress warnings
+                if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
+                    return
 
             if ctx.command.cog.qualified_name in ['Admin', 'Logger', 'ChannelMods', 'Submod'] and \
                     (str(ctx.guild.id) not in self.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
