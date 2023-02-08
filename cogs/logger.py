@@ -1956,6 +1956,201 @@ class Logger(commands.Cog):
                            icon_url=member.display_avatar.replace(static_format="png").url)
             return emb
 
+    # ############### channel modifications logging #####################
+
+    @commands.group(invoke_without_command=True, name='channels')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def channels(self, ctx):
+        """Logs creation, deletion, and modifications to channels"""
+        result = await self.module_logging(ctx, self.bot.db['channels'])
+        if result == 1:
+            await hf.safe_send(ctx, 'Disabled logging of channel modifications for this server')
+        elif result == 2:
+            await hf.safe_send(ctx, 'Enabled logging of channel modifications for this server')
+        elif result == 3:
+            await hf.safe_send(ctx, 'You have not yet set a channel for channel logging yet. Run `;channels set`')
+        elif result == 4:
+            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;channels set`.  '
+                                    'Then, enable/disable logging by typing `;channels`.')
+
+    @channels.command(name='set')
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def channels_set(self, ctx):
+        result = await self.module_set(ctx, self.bot.db['channels'])
+        if result == 1:
+            await hf.safe_send(ctx, f'Set the channel logging channel as {ctx.channel.name}')
+        elif result == 2:
+            await hf.safe_send(ctx,
+                               f'Enabled channel logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f' logging by typing `;channels`.')
+
+    async def make_channels_embed(self, guild: discord.Guild,
+                                  before: Optional[discord.abc.GuildChannel],
+                                  after: Optional[discord.abc.GuildChannel]):
+        log_channel = self.bot.get_channel(self.bot.db['channels'][str(guild.id)]['channel'])
+        author = "(could not find audit log entry)"
+        audit_entry = None
+
+        if before and not after:  # DELETED
+            color = 0x9C1313  # red
+            action = discord.AuditLogAction.channel_delete
+            channel = before
+            description = f'🗑️ Channel "**{channel.name}**" ({channel.id}) was `deleted`'
+
+        elif not before and after:  # CREATED
+            color = 0x23ddf1  # green
+            action = discord.AuditLogAction.channel_create
+            channel = after
+            description = f'❇️ Channel "**{channel.name}**" ({channel.mention} - {channel.id}) was `created`'
+            # above line includes https://emojipedia.org/variation-selector-16/ to specify emoji presentation
+
+        else:  # MODIFIED
+            color = 0xff8800  # orange
+            action = discord.AuditLogAction.channel_update
+            channel = after
+            description = f'🛠️ Channel "**`{channel.name}`**" ({channel.mention} - {channel.id}) was `modified`\n'
+
+            if before.position != after.position:
+                return  # channel position logs spam the log for many channels in the server
+
+            if before.name != after.name:
+                description += f"\nChanged name: `{before.name}` → `{after.name}`"
+
+            if before.permissions_synced != after.permissions_synced:
+                description += f"\nPermission sync state changed: " \
+                               f"`{before.permissions_synced}` → `{after.permissions_synced}`"
+
+            beforensfw = getattr(before, "nsfw", None)
+            afternsfw = getattr(after, "nsfw", None)
+            if beforensfw != afternsfw:
+                description += f"\nNSFW channel state changed: `{beforensfw}` → `{afternsfw}`"
+
+            beforetopic = getattr(before, "topic", None)
+            aftertopic = getattr(after, "topic", None)
+            if not beforetopic:
+                beforetopic = "[ No Topic Set ]"
+            if not aftertopic:
+                aftertopic = "[ No Topic Set ]"
+            if beforetopic != aftertopic:
+                description += f"\nTopic changed: \nBefore:\n`{beforetopic}`\nAfter:\n`{aftertopic}`"
+
+            beforeslow = getattr(before, "slowmode_delay", None)
+            afterslow = getattr(after, "slowmode_delay", None)
+            if beforeslow != afterslow:
+                description += f"Slowmode delay changed: ``{beforeslow}` → `{afterslow}`"
+
+            # PERMISSIONS CHANGE
+
+            modified_overwrites = {}
+            settings = {True: "✅", False: "❌", None: "⏺️"}
+            blank_overrides = discord.PermissionOverwrite()
+            for target in before.overwrites:
+                old_overwrite = before.overwrites.get(target)
+                new_overwrite = after.overwrites.get(target)
+
+                if target not in after.overwrites:  # removed overwrite
+                    modified_overwrites[target] = {"before": old_overwrite, "after": blank_overrides}
+
+                else:  # modified overwrite
+                    if old_overwrite != new_overwrite:
+                        modified_overwrites[target] = {"before": old_overwrite, "after": new_overwrite}
+
+            for target in after.overwrites:
+                if target not in before.overwrites:  # created overwrite
+                    modified_overwrites[target] = {"before": blank_overrides, "after": after.overwrites[target]}
+
+            if modified_overwrites:
+                for ob, ov in modified_overwrites.items():
+                    # ob (object) is Role, Member, or Object
+                    # ov (overwrites) is a dictionary of {"before": Overwrites, "after": Overwrites}
+                    if isinstance(ob, discord.Role):
+                        description += f"\nPermissions for role {ob.name} ({ob.mention}) modified:"
+                    elif isinstance(ob, discord.Member) or isinstance(ob, discord.User):
+                        description += f"\nPermissions for user {str(ob)} ({ob.mention}) modified:"
+                    else:
+                        description += f"\nPermissions for object {str(ob)} modified:"
+
+                    before_perms: dict[tuple[str, Optional[bool]]] = dict(iter(ov['before']))
+                    after_perms: dict[tuple[str, Optional[bool]]] = dict(iter(ov['after']))
+
+                    for perm in before_perms:
+                        if before_perms[perm] == after_perms[perm]:
+                            continue
+                        description += f"\n - `{perm}`: " \
+                                       f"{settings[before_perms[perm]]} → {settings[after_perms[perm]]}"
+
+        try:
+            async for entry in guild.audit_logs(limit=1, oldest_first=False,
+                                                action=action,
+                                                after=discord.utils.utcnow() - timedelta(seconds=10)):
+                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                    audit_entry = entry
+
+            # if it can't find something for channel_update:
+            if action == discord.AuditLogAction.channel_update and not audit_entry:
+                for action in [discord.AuditLogAction.overwrite_create,
+                               discord.AuditLogAction.overwrite_delete,
+                               discord.AuditLogAction.overwrite_update]:
+                    async for entry in guild.audit_logs(limit=1, oldest_first=False,
+                                                        action=action,
+                                                        after=discord.utils.utcnow() - timedelta(seconds=10)):
+                        if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                            audit_entry = entry
+                            break
+
+        except discord.Forbidden:
+            await log_channel.send('I tried to check the audit log to see who performed the action, '
+                                   'but I lack the permission to view the audit log. ')
+            return
+
+        canti = guild.get_member(309878089746219008)
+        rai = guild.get_member(270366726737231884)
+        if audit_entry.user == canti or \
+                (audit_entry.user == rai and isinstance(channel, (discord.VoiceChannel, discord.StageChannel))):
+            return  # canti makes lots of voice channels so exempt those logs
+            # and on the sp. serv., Rai temporarily blocks new users from joining voice channels when they try
+
+        emb = discord.Embed(
+            description=description,
+            colour=color,
+            timestamp=discord.utils.utcnow(),
+        )
+        
+        if audit_entry:
+            emb.set_footer(text=f"Changed by {str(audit_entry.user)}")
+
+        return emb
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+        config = self.bot.db['channels'].get(str(channel.guild.id))
+        if not config:
+            return
+        embed = await self.make_channels_embed(channel.guild, None, channel)
+        channel = channel.guild.get_channel(config['channel'])
+        if channel and config['enable'] and embed:
+            await hf.safe_send(channel, channel.id, embed=embed)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        config = self.bot.db['channels'].get(str(channel.guild.id))
+        if not config:
+            return
+        embed = await self.make_channels_embed(channel.guild, channel, None)
+        channel = channel.guild.get_channel(config['channel'])
+        if channel and config['enable'] and embed:
+            await hf.safe_send(channel, channel.id, embed=embed)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_update(self, before, after):
+        config = self.bot.db['channels'].get(str(after.guild.id))
+        if not config:
+            return
+        embed = await self.make_channels_embed(after.guild, before, after)
+        channel = after.guild.get_channel(config['channel'])
+        if channel and config['enable'] and embed:
+            await hf.safe_send(channel, channel.id, embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Logger(bot))
