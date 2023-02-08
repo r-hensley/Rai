@@ -95,7 +95,8 @@ class Rai(Bot):
                       'reactionroles': {}, 'pmbot': {}, 'joins': {}, 'timed_voice_role': {}, 'banlog': {},
                       'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
                       'lovehug': {}, 'rawmangas': {}, 'risk': {}, 'guildstats': {}, 'bannedservers': [],
-                      'spvoice': [], 'spam_links': [], 'voice_lock': {}, "helper_role": {}, "helper_channel": {}}
+                      'spvoice': [], 'spam_links': [], 'voice_lock': {}, "helper_role": {}, "helper_channel": {},
+                      'channels': {}}
             # A lot of these are unnecessary now but I'll fix that later when I make a new database
             print("Creating default values for database.")
             json.dump(new_db, db)
