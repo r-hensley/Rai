@@ -2080,11 +2080,12 @@ class Logger(commands.Cog):
                                        f"{settings[before_perms[perm]]} → {settings[after_perms[perm]]}"
 
         try:
-            async for entry in guild.audit_logs(limit=1, oldest_first=False,
+            async for entry in guild.audit_logs(limit=5, oldest_first=False,
                                                 action=action,
                                                 after=discord.utils.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                if entry.target.id == channel.id:
                     audit_entry = entry
+                    break
 
             # if it can't find something for channel_update:
             if action == discord.AuditLogAction.channel_update and not audit_entry:
@@ -2105,10 +2106,11 @@ class Logger(commands.Cog):
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
-        if audit_entry.user == canti or \
-                (audit_entry.user == rai and isinstance(channel, (discord.VoiceChannel, discord.StageChannel))):
-            return  # canti makes lots of voice channels so exempt those logs
-            # and on the sp. serv., Rai temporarily blocks new users from joining voice channels when they try
+        if audit_entry:
+            if audit_entry.user == canti or \
+                    (audit_entry.user == rai and isinstance(channel, (discord.VoiceChannel, discord.StageChannel))):
+                return  # canti makes lots of voice channels so exempt those logs
+                # and on the sp. serv., Rai temporarily blocks new users from joining voice channels when they try
 
         emb = discord.Embed(
             description=description,
