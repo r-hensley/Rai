@@ -2044,9 +2044,19 @@ class Logger(commands.Cog):
             modified_overwrites = {}
             settings = {True: "✅", False: "❌", None: "⏺️"}
             blank_overrides = discord.PermissionOverwrite()
+
             for target in before.overwrites:
-                old_overwrite = before.overwrites.get(target)
-                new_overwrite = after.overwrites.get(target)
+                old_overwrite = before.overwrites.get(target, discord.PermissionOverwrite())
+                new_overwrite = after.overwrites.get(target, discord.PermissionOverwrite())
+
+                assert isinstance(old_overwrite, discord.PermissionOverwrite), f"old_overwrite: {old_overwrite}, " \
+                                                                               f"before: {before}, " \
+                                                                               f"after: {after}"
+                assert isinstance(new_overwrite, discord.PermissionOverwrite), \
+                    f"new_overwrite: {old_overwrite}, before: {before}, after: {after}, " \
+                    f"{isinstance(new_overwrite, discord.PermissionOverwrite)}, " \
+                    f"{isinstance(new_overwrite, discord.permissions.PermissionOverwrite)}," \
+                    f"{type(new_overwrite)}"
 
                 if target not in after.overwrites:  # removed overwrite
                     modified_overwrites[target] = {"before": old_overwrite, "after": blank_overrides}
@@ -2092,7 +2102,9 @@ class Logger(commands.Cog):
                 for action in [discord.AuditLogAction.overwrite_create,
                                discord.AuditLogAction.overwrite_delete,
                                discord.AuditLogAction.overwrite_update]:
-                    async for entry in guild.audit_logs(limit=1, oldest_first=False,
+                    if audit_entry:
+                        break
+                    async for entry in guild.audit_logs(limit=5, oldest_first=False,
                                                         action=action,
                                                         after=discord.utils.utcnow() - timedelta(seconds=10)):
                         if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
@@ -2103,6 +2115,33 @@ class Logger(commands.Cog):
             await log_channel.send('I tried to check the audit log to see who performed the action, '
                                    'but I lack the permission to view the audit log. ')
             return
+
+        if audit_entry.user.id == self.bot.owner_id and 0 == 1:
+            print(audit_entry.target)
+            print("    Before values:")
+            for attr, val in dict(audit_entry.before).items():
+                print(attr, val)
+            if audit_entry.before.deny:
+                print("    Before deny")
+                for i in audit_entry.before.deny:
+                    print(i)
+            if audit_entry.before.allow:
+                print("    Before allow")
+                for i in audit_entry.before.allow:
+                    print(i)
+            print()
+            print("    After values")
+            for attr, val in dict(audit_entry.after).items():
+                print(attr, val)
+            if audit_entry.after.deny:
+                print("    After deny")
+                for i in audit_entry.before.deny:
+                    print(i)
+            if audit_entry.after.allow:
+                print("    After allow")
+                for i in audit_entry.before.allow:
+                    print(i)
+            print()
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
