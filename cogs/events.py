@@ -97,7 +97,7 @@ class Events(commands.Cog):
             instead of the main channel on the Spanish server."""
             GENERAL_BOT_ID = 247135634265735168
             if msg.channel.id == GENERAL_BOT_ID and msg.content.startswith("t!"):
-                await msg.reply("Please use that command in <#1018716355081543701> (https://discord.com/channels/" 
+                await msg.reply("Please use that command in <#1018716355081543701> (https://discord.com/channels/"
                                 "243838819743432704/1018716355081543701/9999916373733613588)")
 
         # await redirect_tatsumaki_commands()
@@ -2061,7 +2061,7 @@ class Events(commands.Cog):
                         list_of_after_users = '- ' + '\n -'.join([m.mention for m in after.channel.members])
                     else:
                         list_of_after_users = ''
-                        
+
                     emb.add_field(name="Previous Channel",
                                   value=f"{before.channel.mention} ({len(before.channel.members)}/"
                                         f"{before.channel.user_limit})\n{list_of_before_users}")
@@ -2085,13 +2085,39 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
-        if thread.owner == 713245294657273856:  # modbot
-            opening_msg = await thread.parent.fetch_message(987069662053416980)
-            user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
-            if user_id:
-                ctx = await self.bot.get_context(opening_msg)
-                modlog: commands.Command = self.bot.get_command("modlog")
-                await ctx.invoke(modlog, id_in=user_id)
+        async def auto_modlog():
+            if thread.owner == 713245294657273856:  # modbot
+                opening_msg = await thread.parent.fetch_message(987069662053416980)
+                user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
+                if user_id:
+                    ctx = await self.bot.get_context(opening_msg)
+                    modlog: commands.Command = self.bot.get_command("modlog")
+                    await ctx.invoke(modlog, id_in=user_id)
+        await auto_modlog()
+
+        async def new_post_info():
+            if not thread.parent.category:
+                return
+
+            # only work in challenges category of spanish server
+            if not thread.parent.category.id == 926269985846866010:
+                return
+
+            if not isinstance(thread.parent, discord.ForumChannel):
+                return
+
+            instructions = ("Hello, you've created a question! Once you've received corrections, please close "
+                            "your question by typing `;done`.\n\n"
+                            "If more than three days have passed and no one has responded to your post, you may "
+                            "ping either `@Spanish Helper`, `@English Helper`, or a country role like `@AskUSA` or "
+                            "`@AskMexico`.")
+
+            if thread.starter_message:
+                await thread.starter_message.reply(instructions)
+            else:
+                await hf.safe_send(thread, instructions)
+
+        await new_post_info()
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):

@@ -1356,6 +1356,23 @@ class General(commands.Cog):
         await itx.response.send_message(date_str, ephemeral=True)
         await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
+    @commands.command(hidden=True)
+    async def done(self, ctx):
+        """Marks a post as done"""
+        if not isinstance(ctx.channel, discord.Thread):
+            return
+
+        if not isinstance(ctx.channel.parent, discord.ForumChannel):
+            return
+
+        for tag in ctx.channel.parent.available_tags:
+            if str(tag.emoji) == "✅":
+                await ctx.channel.add_tags(tag)
+
+        await ctx.message.add_reaction("✅")
+        await ctx.channel.edit(archived=True)
+
+
 
 async def setup(bot):
     await bot.add_cog(General(bot))
