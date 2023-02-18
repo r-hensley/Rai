@@ -2116,32 +2116,32 @@ class Logger(commands.Cog):
                                    'but I lack the permission to view the audit log. ')
             return
 
-        if audit_entry.user.id == self.bot.owner_id and 0 == 1:
-            print(audit_entry.target)
-            print("    Before values:")
-            for attr, val in dict(audit_entry.before).items():
-                print(attr, val)
-            if audit_entry.before.deny:
-                print("    Before deny")
-                for i in audit_entry.before.deny:
-                    print(i)
-            if audit_entry.before.allow:
-                print("    Before allow")
-                for i in audit_entry.before.allow:
-                    print(i)
-            print()
-            print("    After values")
-            for attr, val in dict(audit_entry.after).items():
-                print(attr, val)
-            if audit_entry.after.deny:
-                print("    After deny")
-                for i in audit_entry.before.deny:
-                    print(i)
-            if audit_entry.after.allow:
-                print("    After allow")
-                for i in audit_entry.before.allow:
-                    print(i)
-            print()
+        # if audit_entry.user.id == self.bot.owner_id:
+        #     print(audit_entry.target)
+        #     print("    Before values:")
+        #     for attr, val in dict(audit_entry.before).items():
+        #         print(attr, val)
+        #     if audit_entry.before.deny:
+        #         print("    Before deny")
+        #         for i in audit_entry.before.deny:
+        #             print(i)
+        #     if audit_entry.before.allow:
+        #         print("    Before allow")
+        #         for i in audit_entry.before.allow:
+        #             print(i)
+        #     print()
+        #     print("    After values")
+        #     for attr, val in dict(audit_entry.after).items():
+        #         print(attr, val)
+        #     if audit_entry.after.deny:
+        #         print("    After deny")
+        #         for i in audit_entry.before.deny:
+        #             print(i)
+        #     if audit_entry.after.allow:
+        #         print("    After allow")
+        #         for i in audit_entry.before.allow:
+        #             print(i)
+        #     print()
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
