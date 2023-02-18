@@ -733,6 +733,10 @@ class Events(commands.Cog):
             if not joined:
                 return
 
+            # only work for users that have actually moved channels (not moving someone else then muting themselves)
+            if before.channel == after.channel:
+                return
+
             # Only function on Spanish server
             if member.guild.id != SP_SERVER_ID:
                 return
@@ -745,7 +749,7 @@ class Events(commands.Cog):
             async for log in member.guild.audit_logs(limit=5,
                                                      user=member,
                                                      action=discord.AuditLogAction.member_move,
-                                                     after=discord.utils.utcnow() - timedelta(minutes=5),
+                                                     after=discord.utils.utcnow() - timedelta(seconds=15),
                                                      oldest_first=False):
                 if log.extra.channel == after.channel:
                     staff_channel = self.bot.get_channel(913886469809115206)
