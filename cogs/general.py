@@ -1120,6 +1120,10 @@ class General(commands.Cog):
                                     "command.")
             return
 
+        if ctx.guild.id == JP_SERVER_ID:
+            await hf.safe_send(ctx, "Please Ciri's version of that command in this server: `,selfmute` or `,sm`.")
+            return
+
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
