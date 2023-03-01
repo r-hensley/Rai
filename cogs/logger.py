@@ -1990,6 +1990,7 @@ class Logger(commands.Cog):
         log_channel = self.bot.get_channel(self.bot.db['channels'][str(guild.id)]['channel'])
         author = "(could not find audit log entry)"
         audit_entry = None
+        rai_removing_a_block = False
 
         if before and not after:  # DELETED
             color = 0x9C1313  # red
@@ -2089,7 +2090,14 @@ class Logger(commands.Cog):
                         description += f"\n - `{perm}`: " \
                                        f"{settings[before_perms[perm]]} → {settings[after_perms[perm]]}"
 
+                        # check if it is Rai removing block from user for a channel
+                        if perm == 'connect':
+                            if before_perms[perm] is False and after_perms[perm] is None:
+                                rai_removing_a_block = True
+
+
         try:
+            audit_entry = None
             async for entry in guild.audit_logs(limit=5, oldest_first=False,
                                                 action=action,
                                                 after=discord.utils.utcnow() - timedelta(seconds=10)):
@@ -2106,8 +2114,8 @@ class Logger(commands.Cog):
                         break
                     async for entry in guild.audit_logs(limit=5, oldest_first=False,
                                                         action=action,
-                                                        after=discord.utils.utcnow() - timedelta(seconds=10)):
-                        if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == after:
+                                                        after=discord.utils.utcnow() - timedelta(seconds=30)):
+                        if entry.created_at > discord.utils.utcnow() - timedelta(seconds=30) and entry.target == after:
                             audit_entry = entry
                             break
 
@@ -2150,6 +2158,9 @@ class Logger(commands.Cog):
                     (audit_entry.user == rai and isinstance(channel, (discord.VoiceChannel, discord.StageChannel))):
                 return  # canti makes lots of voice channels so exempt those logs
                 # and on the sp. serv., Rai temporarily blocks new users from joining voice channels when they try
+        else:
+            if rai_removing_a_block:
+                return  # there is some bug where the bot can't find the entry for this in the audit log
 
         emb = discord.Embed(
             description=description,
