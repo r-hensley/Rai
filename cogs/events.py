@@ -802,8 +802,11 @@ class Events(commands.Cog):
             if not thread.parent.category:
                 return
 
-            # only work in challenges category of spanish server
-            if not thread.parent.category.id == 926269985846866010:
+            # only work in challenges and questions categories of spanish server
+            challenge_cat_id = 926269985846866010
+            sp_questions_cat_id = 685445852009201674
+            en_questions_cat_id = 685446008129585176
+            if thread.parent.category.id not in [challenge_cat_id, sp_questions_cat_id, en_questions_cat_id]:
                 return
 
             if not isinstance(thread.parent, discord.ForumChannel):

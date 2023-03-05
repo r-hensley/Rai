@@ -1377,6 +1377,5 @@ class General(commands.Cog):
         await ctx.channel.edit(archived=True)
 
 
-
 async def setup(bot):
     await bot.add_cog(General(bot))
