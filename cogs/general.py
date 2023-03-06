@@ -1374,6 +1374,11 @@ class General(commands.Cog):
                 await ctx.channel.add_tags(tag)
 
         await ctx.message.add_reaction("✅")
+        # temporarily lock for one minute to prevent OP from accidentally opening their closed thread
+        await ctx.channel.edit(archived=True, locked=True)
+
+        await asyncio.sleep(60)
+        await ctx.channel.edit(archived=False, locked=False)
         await ctx.channel.edit(archived=True)
 
 
