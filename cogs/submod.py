@@ -399,6 +399,8 @@ class Submod(commands.Cog):
                         await self.attempt_public_warn(ctx, user, emb)
                     except discord.Forbidden:
                         continue  # failure in above command
+                    except asyncio.TimeoutError:
+                        return
                 except discord.HTTPException:
                     await hf.safe_send(ctx, f"I cannot send messages to {user.mention}.")
                     continue
@@ -468,7 +470,7 @@ class Submod(commands.Cog):
                                                                      timeout=10)
             except asyncio.TimeoutError:
                 await hf.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
-                return
+                raise
             else:
                 if str(reaction_added) == '✅':
                     try:
