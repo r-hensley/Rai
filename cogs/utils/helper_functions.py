@@ -165,7 +165,7 @@ def grey_embed(text):
 
 
 async def safe_send(destination,
-                    content: str = None, *,
+                    content='', *,
                     embed: discord.Embed = None,
                     embeds: list[discord.Embed] = None,
                     delete_after: float = None,
@@ -179,6 +179,11 @@ async def safe_send(destination,
             raise SyntaxError("The content you tried to send in the safe_send() function was None")
         else:
             raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
+
+    try:
+        content = str(content)
+    except TypeError:
+        raise TypeError("You tried to pass something in as content to safe_send that can't be converted to a string")
 
     perms_set = perms = False
     if isinstance(destination, commands.Context):
