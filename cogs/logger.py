@@ -323,8 +323,8 @@ class Logger(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-                forty_eight_hours_in_seconds = 60 * 60 * 48
-                if (discord.utils.utcnow() - member.created_at).total_seconds() < forty_eight_hours_in_seconds:
+                four_hours_in_seconds = 60 * 60 * 4
+                if (discord.utils.utcnow() - member.created_at).total_seconds() < four_hours_in_seconds:
                     emb.description += "\n(Newly created account joining voice):"
                     emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
                     emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
