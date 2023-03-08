@@ -806,17 +806,23 @@ class Events(commands.Cog):
             challenge_cat_id = 926269985846866010
             sp_questions_cat_id = 685445852009201674
             en_questions_cat_id = 685446008129585176
-            if thread.parent.category.id not in [challenge_cat_id, sp_questions_cat_id, en_questions_cat_id]:
+            jpserv_jp_questions = 360571119150956544
+            jpserv_eng_questions = 360570891459100672
+            if thread.parent.category.id not in [challenge_cat_id, sp_questions_cat_id, en_questions_cat_id,
+                                                 jpserv_jp_questions, jpserv_eng_questions]:
                 return
 
             if not isinstance(thread.parent, discord.ForumChannel):
                 return
 
-            instructions = ("Hello, you've created a question! Once you've received corrections, please close "
-                            "your question by typing `;done`.\n\n"
-                            "If more than three days have passed and no one has responded to your post, you may "
-                            "ping either `@Spanish Helper`, `@English Helper`, or a country role like `@AskUSA` or "
-                            "`@AskMexico`.")
+            instructions = ("Hello, you've created a question! Once you've received a response you're satisfied with, "
+                            "please close your question by typing `;done`.")
+
+            addition = ("\n\nIf more than three days have passed and no one has responded to your post, you may "
+                        "ping either `@Spanish Helper`, `@English Helper`, or a country role like `@AskUSA` or "
+                        "`@AskMexico`.")
+            if thread.guild.id == SP_SERVER_ID:
+                instructions += addition
 
             if thread.starter_message:
                 await thread.starter_message.reply(instructions)
