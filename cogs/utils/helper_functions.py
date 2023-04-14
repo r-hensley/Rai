@@ -451,6 +451,12 @@ def admin_check(ctx):
     if not ctx.guild:
         return
 
+    # allow retired mods on Spanish server to use Rai commands
+    if ctx.guild.id == SP_SERV_ID:
+        retired_mod_role = ctx.guild.get_role(1014256322436415580)
+        if retired_mod_role in ctx.author.roles:
+            return True
+
     try:
         ID = here.bot.db['mod_role'][str(ctx.guild.id)]['id']
         if isinstance(ID, list):
