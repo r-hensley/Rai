@@ -824,6 +824,7 @@ class Events(commands.Cog):
             if thread.guild.id == SP_SERVER_ID:
                 instructions += addition
 
+            await asyncio.sleep(2)  # give time for discord to process thread starter message
             if thread.starter_message:
                 await thread.starter_message.reply(instructions)
             else:
