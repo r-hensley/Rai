@@ -1108,6 +1108,8 @@ class Events(commands.Cog):
 
             new_word = msg.content.split('\n')[0].casefold()
             new_word = new_word.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
+            new_word = new_word.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o")\
+                .replace("ú", "u")
 
             if self.bot.last_wordsnake_word:
                 last_word = self.bot.last_wordsnake_word
