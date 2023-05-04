@@ -13,7 +13,7 @@ import imagehash
 import discord
 from Levenshtein import distance as LDist
 from discord.ext import commands
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+# from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from .utils import helper_functions as hf
 from .utils.timeutil import format_interval
@@ -57,7 +57,7 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
-        self.sid = SentimentIntensityAnalyzer()
+        # self.sid = SentimentIntensityAnalyzer()
         try:
             self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
             self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
@@ -1088,28 +1088,89 @@ class Events(commands.Cog):
         #
         # # ###############################################
 
-        # ### Vader Sentiment Analysis
-        async def vader_sentiment_analysis():
+        async def wordsnake_channel():
+            if msg.channel.id != 1089515759593603173:
+                return
+
+            if not hasattr(self.bot, 'last_wordsnake_word'):
+                self.bot.last_wordsnake_word = None
+
             if not msg.content:
                 return
 
-            if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
-                return
+            def add_word_to_database(word_to_add):
+                if 'wordsnake' not in self.bot.db:
+                    self.bot.db['wordsnake'] = {word_to_add: 1}
+                else:
+                    self.bot.db['wordsnake'][word_to_add] = self.bot.db['wordsnake'].setdefault(word_to_add, 0) + 1
 
-            sentiment = self.sid.polarity_scores(msg.content)['compound']
-            if 'sentiments' not in self.bot.db:
-                self.bot.db['sentiments'] = {}
+                return self.bot.db['wordsnake'][word_to_add]
 
-            if str(msg.guild.id) not in self.bot.db['sentiments']:
-                self.bot.db['sentiments'][str(msg.guild.id)] = {}
-            config = self.bot.db['sentiments'][str(msg.guild.id)]
+            new_word = msg.content.split('\n')[0].casefold()
+            new_word = new_word.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
 
-            if str(msg.author.id) not in config:
-                config[str(msg.author.id)] = [sentiment]
-            else:
-                config[str(msg.author.id)] = config[str(msg.author.id)][-9:]
-                config[str(msg.author.id)].append(sentiment)
-        await vader_sentiment_analysis()
+            if self.bot.last_wordsnake_word:
+                last_word = self.bot.last_wordsnake_word
+                if new_word[0] == last_word[-1]:
+                    number_of_times_used = add_word_to_database(new_word)
+                    if number_of_times_used == 1:
+                        emoji = '🌟'
+                    # elif number_of_times_used == 2:
+                    #     emoji = '⭐'
+                    else:
+                        emoji = None
+
+                    if emoji:
+                        try:
+                            await msg.add_reaction(emoji)
+                        except (discord.Forbidden, discord.HTTPException):
+                            pass
+                else:
+                    try:
+                        await msg.delete()
+                        await msg.channel.send(f"Please send a word starting with the letter `{last_word[-1]}`.\n"
+                                               f"The bot will count whatever is on the first *line* of the previous "
+                                               f"message as the word. Anything past the first line is ignored. A "
+                                               f"message with a 🌟 reaction means it has never been used in this "
+                                               f"channel before.")
+                        instructions = ("You have to create a word starting with the last letter of the previous word."
+                                        "\n→ e.g.: dat**a**, **a**moun**t**, **t**omat**o**, **o**wn ..."
+                                        "\n・You can use either English or Spanish words"
+                                        "\n\nTienes que crear una palabra que empiece con la última letra de la "
+                                        "palabra anterior"
+                                        "\n→ p.ej: dad**o**, **o**le**r**, **r**atón, **n**ariz ..."
+                                        "\n・Participa usando palabras en inglés, o en español")
+                        await msg.author.send(instructions)
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+                    return
+
+            self.bot.last_wordsnake_word = new_word
+
+        await wordsnake_channel()
+
+        # # ### Vader Sentiment Analysis
+        # async def vader_sentiment_analysis():
+        #     if not msg.content:
+        #         return
+        #
+        #     if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
+        #         return
+        #
+        #     sentiment = self.sid.polarity_scores(msg.content)['compound']
+        #     if 'sentiments' not in self.bot.db:
+        #         self.bot.db['sentiments'] = {}
+        #
+        #     if str(msg.guild.id) not in self.bot.db['sentiments']:
+        #         self.bot.db['sentiments'][str(msg.guild.id)] = {}
+        #     config = self.bot.db['sentiments'][str(msg.guild.id)]
+        #
+        #     if str(msg.author.id) not in config:
+        #         config[str(msg.author.id)] = [sentiment]
+        #     else:
+        #         config[str(msg.author.id)] = config[str(msg.author.id)][-9:]
+        #         config[str(msg.author.id)].append(sentiment)
+        # await vader_sentiment_analysis()
 
         # ### guild stats
         def guild_stats():
