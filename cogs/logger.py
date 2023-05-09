@@ -1513,9 +1513,10 @@ class Logger(commands.Cog):
             # send second notification for sesion mods
             sesion_mod_role = guild.get_role(830821949382983751)
             if sesion_mod_role in author.roles:
-                sesion_helpers_channel = guild.get_channel(861337623636475944)
-                if sesion_helpers_channel:
-                    await hf.safe_send(sesion_helpers_channel, str(after.id), embed=emb)
+                if author.top_role == sesion_mod_role:
+                    sesion_helpers_channel = guild.get_channel(861337623636475944)
+                    if sesion_helpers_channel:
+                        await hf.safe_send(sesion_helpers_channel, str(after.id), embed=emb)
 
         await check_timeouts()
 
