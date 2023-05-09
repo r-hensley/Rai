@@ -1085,10 +1085,10 @@ class Interactions(commands.Cog):
             # Replace [] with () to guarantee the markdown hyperlink works
             content = "> " + message.content
             content = content.replace("\n", "\n> ").replace("[", "(").replace("]", ")")
-            text = f"{message.author.id} Logging following message: \n[{content[:200]}]({message.jump_url})"
+            text = f"{message.author.id} Logging following message: \n{content[:200]}"
             if len(message.content) > 200:
                 text += "..."
-            text += f"{reason}"
+            text += f"\n{reason}"
 
             # add invisible characters to beginning of reason to mark ephemeral for log command
             invisible_space = "⁣⁣"
