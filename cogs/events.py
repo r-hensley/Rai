@@ -666,6 +666,7 @@ class Events(commands.Cog):
             if (discord.utils.utcnow() - member.created_at).total_seconds() > hours_for_new_users * 60 * 60:
                 # If user has been in the server for more than three hours, let them into voice
                 hours_for_users = config.get('hours_for_users', 3)
+                time = hours_for_users
                 if (discord.utils.utcnow() - member.joined_at).total_seconds() > hours_for_users * 60 * 60:
                     return
 
@@ -673,6 +674,8 @@ class Events(commands.Cog):
                 messages_for_users = config.get('messages_for_users', 50)
                 if hf.count_messages(member) > messages_for_users:
                     return
+            else:
+                time = hours_for_new_users
 
             # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
 
@@ -684,15 +687,15 @@ class Events(commands.Cog):
                 return
 
             t = "You cannot join the voice channels on this server yet. We require the users to have been on the " \
-                "server for at least three hours before they can join a voice channel. " \
+                f"server for at least {str(time)} hours before they can join a voice channel. " \
                 "Until then, please enjoy our other channels. Note, if you are a member that has been " \
                 "in our server before and you just rejoined, " \
-                "message <@713245294657273856> to gain special permission to join the voice channels." \
+                "then you can message <@713245294657273856> to gain special permission to join the voice channels." \
                 "\n\n" \
                 "Todavía no puedes unirte a los canales de voz de este servidor. Requerimos que los usuarios " \
-                "lleven al menos tres horas en el servidor antes de poder unirse a un canal de voz. Mientras tanto, " \
+                f"lleven al menos {time} horas en el servidor antes de poder unirse a un canal de voz. Mientras tanto, " \
                 "por favor, disfruta de nuestros otros canales. No obstante, si eres un miembro que ya ha " \
-                "estado en nuestro servidor y acabas de unirte nuevamente, envía un mensaje a " \
+                "estado en nuestro servidor y acabas de unirte nuevamente, puedes enviar un mensaje a " \
                 "<@713245294657273856> para obtener un permiso especial para unirte a los canales de voz. "
             try:
                 await hf.safe_send(member, t)
