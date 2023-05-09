@@ -1504,8 +1504,14 @@ class Logger(commands.Cog):
             emb.title = "Timeout"
             modlog_channel = self.bot.get_channel(self.bot.db['modlog'][str(guild.id)]['channel'])
             if modlog_channel:
-                notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)                   
-                ctx = await self.bot.get_context(notif_msg)
+                if guild.id == SPAN_SERV_ID:
+                    incidents_channel = guild.get_channel(808077477703712788)
+                    notif_msg = await hf.safe_send(incidents_channel, str(after.id), embed=emb)
+                    ctx = await self.bot.get_context(notif_msg)
+                else:
+                    notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)
+                    ctx = await self.bot.get_context(notif_msg)
+
                 hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
             else:
                 hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
