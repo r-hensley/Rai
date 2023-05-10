@@ -1114,6 +1114,12 @@ class Events(commands.Cog):
             new_word = new_word.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o")\
                 .replace("ú", "u")
 
+            while new_word.endswith(" "):
+                new_word = new_word[:-1]
+
+            while new_word.startswith(" "):
+                new_word = new_word[1:]
+
             if self.bot.last_wordsnake_word:
                 last_word = self.bot.last_wordsnake_word
                 if new_word[0] == last_word[-1]:
