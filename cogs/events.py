@@ -811,8 +811,9 @@ class Events(commands.Cog):
             en_questions_cat_id = 685446008129585176
             jpserv_jp_questions = 360571119150956544
             jpserv_eng_questions = 360570891459100672
+            jpserv_correct_me = 1090095564374417490
             if thread.parent.category.id not in [challenge_cat_id, sp_questions_cat_id, en_questions_cat_id,
-                                                 jpserv_jp_questions, jpserv_eng_questions]:
+                                                 jpserv_jp_questions, jpserv_eng_questions, jpserv_correct_me]:
                 return
 
             if not isinstance(thread.parent, discord.ForumChannel):
