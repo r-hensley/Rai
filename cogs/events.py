@@ -1114,6 +1114,7 @@ class Events(commands.Cog):
             new_word = new_word.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
             new_word = new_word.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o")\
                 .replace("ú", "u")
+            new_word = hf.rem_emoji_url(new_word)
 
             while new_word.endswith(" "):
                 new_word = new_word[:-1]
@@ -1140,11 +1141,7 @@ class Events(commands.Cog):
                 else:
                     try:
                         await msg.delete()
-                        await msg.channel.send(f"Please send a word starting with the letter `{last_word[-1]}`.\n"
-                                               f"The bot will count whatever is on the first *line* of the previous "
-                                               f"message as the word. Anything past the first line is ignored. A "
-                                               f"message with a 🌟 reaction means it has never been used in this "
-                                               f"channel before.")
+                        await msg.channel.send(f"Please send a word starting with the letter `{last_word[-1]}`.")
                         instructions = ("You have to create a word starting with the last letter of the previous word."
                                         "\n→ e.g.: dat**a**, **a**moun**t**, **t**omat**o**, **o**wn ..."
                                         "\n・You can use either English or Spanish words"
