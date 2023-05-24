@@ -44,7 +44,10 @@ def fe_check(ctx):
     role_ids = [role.id for role in ctx.author.roles]
     lower_fluent_english = 241997079168155649
     native_japanese = 196765998706196480
+    fluent_japanese = 270391106955509770
     if native_japanese in role_ids and lower_fluent_english in role_ids:
+        return True
+    if fluent_japanese in role_ids and lower_fluent_english in role_ids:
         return True
 
 
@@ -162,7 +165,7 @@ class General(commands.Cog):
     @commands.command()
     @commands.check(fe_check)
     async def fe(self, ctx):
-        """If you have both fluent English and native Japanese tags, type this command
+        """If you have both fluent English and native or fluent Japanese tags, type this command
         to swap out the color in your name between blue and green."""
         upper_fluent_english = ctx.guild.get_role(820133363700596756)
 
