@@ -1493,7 +1493,7 @@ class Questions(commands.Cog):
             await msg.delete()
 
             try:
-                await ctx.message.delete
+                await ctx.message.delete()
             except discord.Forbidden:
                 pass
 
