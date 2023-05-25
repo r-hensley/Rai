@@ -1961,6 +1961,25 @@ class Events(commands.Cog):
             today[author].setdefault('channels', {})
             today[author]['channels'][channel] = today[author]['channels'].get(channel, 0) + 1
 
+            # activity score
+            # if "activity" not in config:
+            #     config['activity'] = {date_str: {}}
+            #
+            # activity: dict = config['activity'].setdefault(date_str, {})
+            today[author].setdefault('activity', {})
+
+            if not hasattr(self.bot, "last_message"):
+                self.bot.last_message = {}
+            if author not in self.bot.last_message:
+                self.bot.last_message[author] = {}
+            last_message_timestamp = self.bot.last_message[author].setdefault(channel, 0)
+            utcnow_timestamp = discord.utils.utcnow().timestamp()
+            # if msg.author.id == self.bot.owner_id:
+            #     await hf.send_to_test_channel(last_message_timestamp, utcnow_timestamp, author, channel)
+            if utcnow_timestamp - last_message_timestamp > 20:
+                today[author]['activity'][channel] = today[author]['activity'].get(channel, 0) + 10
+                self.bot.last_message[author][channel] = utcnow_timestamp
+
             # emojis
             emojis = re.findall(r':([A-Za-z0-9_]+):', msg.content)
             for character in msg.content:

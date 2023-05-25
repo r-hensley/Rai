@@ -145,6 +145,7 @@ class Stats(commands.Cog):
         lang_count = {}
         total_msgs_month = 0
         total_msgs_week = 0
+        total_activity = hf.count_activity(ctx.author)
         for day in config:
             if str(member_id) in config[day]:
                 user = config[day][str(member_id)]
@@ -188,6 +189,8 @@ class Stats(commands.Cog):
             emb.timestamp = member.joined_at
         emb.add_field(name="Messages sent M | W",
                       value=f"{total_msgs_month} | {total_msgs_week}")
+        emb.add_field(name="Activity score",
+                      value=f"{total_activity} ([?](https://pastebin.com/raw/07xKpDpy))")
 
         # ### Find top 3 most active channels ###
         good_channels = 0
