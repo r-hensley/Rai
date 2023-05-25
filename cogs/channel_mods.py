@@ -676,11 +676,10 @@ class ChannelMods(commands.Cog):
 
             # Check DB for mute entry
             muted = False
-            unmute_date: str  # unmute_date looks like "2021/06/26 23:24 UTC"
-            if unmute_date_str := self.bot.db['mutes'] \
-                    .get(str(ctx.guild.id), {}) \
-                    .get('timed_mutes', {}) \
-                    .get(user_id, None):
+            unmute_date: datetime.datetime
+            unmute_date_str: str   # unmute_date_str looks like "2021/06/26 23:24 UTC"
+            guild_id = str(ctx.guild.id)
+            if unmute_date_str := self.bot.db['mutes'].get(guild_id, {}).get('timed_mutes', {}).get(user_id, ""):
                 muted = True
                 unmute_date = hf.convert_to_datetime(unmute_date_str)
             else:
@@ -932,7 +931,17 @@ class ChannelMods(commands.Cog):
                 first_embed = emb.copy()
                 emb.clear_fields()
 
-            emb.add_field(name=name, value=value[:1024], inline=False)
+            if len(value) <= 1024:
+                emb.add_field(name=name, value=value[:1024], inline=False)
+            else:
+                emb.add_field(name=name, value=value[:1021] + "...", inline=False)
+                emb.add_field(name=name + "(cont.)", value="..." + value[1021:], inline=False)
+
+            # if there are more than 25 fields (the max), remove extra
+            extra_fields = len(emb.fields) - 25
+            if extra_fields > 0:
+                for i in range(extra_fields):
+                    emb.remove_field(i)
 
         #
         #
