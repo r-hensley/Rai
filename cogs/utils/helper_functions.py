@@ -111,6 +111,24 @@ def count_messages(member: discord.Member, guild=None) -> int:
         return 0
 
 
+def count_activity(member: discord.Member, guild=None) -> int:
+    """Returns an integer value for activity in a server in the last month"""
+    activity_score = 0
+    if not guild:
+        guild = member.guild
+    try:
+        config = here.bot.stats[str(guild.id)]['messages']
+        for day in config:
+            if str(member.id) in config[day]:
+                user = config[day][str(member.id)]
+                if 'activity' not in user:
+                    continue
+                activity_score += sum([user['activity'][c] for c in user['activity']])
+        return activity_score
+    except KeyError:
+        return 0
+
+
 def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) -> int:
     """Returns number of seconds a user has been in voice"""
     if isinstance(guild_id, discord.Guild):
