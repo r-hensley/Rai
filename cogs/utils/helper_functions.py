@@ -199,7 +199,8 @@ async def safe_send(destination,
             raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
 
     try:
-        content = str(content)
+        if content is not None:
+            content = str(content)
     except TypeError:
         raise TypeError("You tried to pass something in as content to safe_send that can't be converted to a string")
 
