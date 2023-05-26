@@ -313,11 +313,17 @@ class Stats(commands.Cog):
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
                             timestamp=discord.utils.utcnow())
+
+        if "Activity Score" in title:
+            emb.set_footer(text="Try `;lb` or `;chlb` for the message count leaderboard")
+        else:
+            emb.set_footer(text="Try `;alb` or `;achlb` for the activity score leaderboard")
+
         if channel_in:
             if isinstance(channel_in, list):
-                emb.title = "Leaderboard for #" + ', #'.join([c.name for c in channel_in])
+                emb.title += " for #" + ', #'.join([c.name for c in channel_in])
             else:
-                emb.title = f"Leaderboard for #{channel_in.name}"
+                emb.title += " for #{channel_in.name}"
         number_of_users_found = 0
         found_yourself = False
         for i in range(len(sorted_dict)):
@@ -338,53 +344,27 @@ class Stats(commands.Cog):
                 break
         return emb
 
-    async def make_lb(self, ctx, channels_in):
+    async def make_lb(self, ctx, channels_in, db_target='channels'):
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
             return
         msg_count = {}
-        if isinstance(channels_in, list):
-            channel_ids = [c.id for c in channels_in]
-        for day in config:
-            for user in config[day]:
-                if 'channels' not in config[day][user]:
-                    continue
-                for channel in config[day][user]['channels']:
-                    if channels_in:
-                        if int(channel) not in channel_ids:
-                            continue
-                    try:
-                        msg_count[user] += config[day][user]['channels'][channel]
-                    except KeyError:
-                        msg_count[user] = config[day][user]['channels'][channel]
-        try:
-            await hf.safe_send(ctx,
-                               embed=self.make_leaderboard_embed(ctx, channels_in, msg_count, "Messages Leaderboard"))
-        except discord.Forbidden:
-            try:
-                await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
-            except discord.Forbidden:
-                pass
 
-    @commands.command()
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def lb(self, ctx):
-        """Shows a leaderboard of the top 25 most active users this month"""
-        await self.make_lb(ctx, False)
-
-    @commands.command()
-    @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def chlb(self, ctx, *channels):
-        if not channels:
+        # if channels_in is passed, calculate the proper list of channels:
+        # if it comes from ;lb, it will be "False"
+        # if it comes from ;chlb, it will be a (possibly empty) tuple of channel link strings
+        if channels_in is False:  # came from ;lb, take all channels
+            channel_obs = []
+        elif not channels_in:  # came from ;chlb but no channel specification, take ctx as specified channel
             if isinstance(ctx.channel, discord.Thread):
                 channel_obs = [ctx.channel.parent]
             else:
                 channel_obs = [ctx.channel]
-        else:
+        else:  # came from ;chlb with channel specification, take specified channels
             channel_ids = []
             channel_obs = []
-            for channel in channels:
+            for channel in channels_in:
                 channel_ids.append(channel[2:-1])
             for channel_id in channel_ids:
                 try:
@@ -402,10 +382,66 @@ class Stats(commands.Cog):
                                        "(e.g. `;chlb #general`), or if you just type `;chlb` "
                                        "it will show the leaderboard for the current channel.")
                     return
+            if not channel_obs:
+                await hf.safe_send(ctx, "I couldn't find any valid channels.")
+                return
+
         if channel_obs:
-            await self.make_lb(ctx, channel_obs)
+            channel_ids = [c.id for c in channel_obs]
         else:
-            await hf.safe_send(ctx, "I couldn't find any valid channels.")
+            channel_ids = []
+        for day in config:
+            for user in config[day]:
+                if db_target not in config[day][user]:
+                    continue
+                for channel in config[day][user][db_target]:
+                    if channel_obs:
+                        if int(channel) not in channel_ids:
+                            continue
+                    try:
+                        msg_count[user] += config[day][user][db_target][channel]
+                    except KeyError:
+                        msg_count[user] = config[day][user][db_target][channel]
+        try:
+            if db_target == 'channels':
+                title = "Messages Leaderboard"
+            else:
+                title = "Activity Score Leaderboard"
+            await hf.safe_send(ctx,
+                               embed=self.make_leaderboard_embed(ctx, channel_obs, msg_count, title))
+        except discord.Forbidden:
+            try:
+                await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
+            except discord.Forbidden:
+                pass
+
+    @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def lb(self, ctx, *channels):
+        """Shows a leaderboard of the top 25 most active users this month"""
+        if channels:
+            await self.make_lb(ctx, channels)
+        else:
+            await self.make_lb(ctx, False)
+
+    @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def alb(self, ctx, *channels):
+        """Shows a leaderboard of the users with the top 25 highest activity scores"""
+        if channels:
+            await self.make_lb(ctx, channels, "activity")
+        else:
+            await self.make_lb(ctx, False, "activity")
+
+    @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def chlb(self, ctx, *channels):
+        await self.make_lb(ctx, channels)
+
+    @commands.command()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def achlb(self, ctx, *channels):
+        await self.make_lb(ctx, channels, "activity")
 
     @commands.command(aliases=['vclb', 'vlb', 'voicechat'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
