@@ -145,7 +145,7 @@ class Stats(commands.Cog):
         lang_count = {}
         total_msgs_month = 0
         total_msgs_week = 0
-        total_activity = hf.count_activity(ctx.author)
+        total_activity = hf.count_activity(member)
         for day in config:
             if str(member_id) in config[day]:
                 user = config[day][str(member_id)]
