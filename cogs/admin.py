@@ -1,7 +1,7 @@
 import asyncio
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sre_constants import error as sre_constants_error
 from typing import Optional, List
 
@@ -747,7 +747,10 @@ class Admin(commands.Cog):
             else:
                 user = await hf.member_converter(ctx, args[0])
                 if not user:
-                    return
+                    user = await self.bot.fetch_user(args[0])
+                    if not user:
+                        await hf.safe_send(ctx, f"I could not find the user you tried to specify ({args[0]}).")
+                        return
             try:
                 msg = await ctx.channel.fetch_message(args[1])
             except discord.NotFound:  # invalid message ID given
@@ -764,7 +767,7 @@ class Admin(commands.Cog):
             if not user and not msg:
                 await ctx.channel.purge(limit=int(num))
             if user and not msg:
-                await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user)
+                await ctx.channel.purge(limit=int(num), check=lambda m: m.author.id == user.id)
             if not user and msg:
                 await ctx.channel.purge(limit=int(num), after=msg)
                 try:
@@ -772,7 +775,7 @@ class Admin(commands.Cog):
                 except (discord.NotFound, discord.Forbidden):
                     pass
             if user and msg:
-                await ctx.channel.purge(limit=int(num), check=lambda m: m.author == user, after=msg)
+                await ctx.channel.purge(limit=int(num), check=lambda m: m.author.id == user.id, after=msg)
                 try:
                     await msg.delete()
                 except (discord.NotFound, discord.Forbidden):
