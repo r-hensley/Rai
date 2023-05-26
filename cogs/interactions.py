@@ -539,6 +539,7 @@ class Interactions(commands.Cog):
             return  # this guild does not have any kind of mod channel configured
 
         # Send notification to a mod channel
+        # if it came from a slash command, insert a ping to staff here
         content = None
         staff_role_id = ""
         if slash:
