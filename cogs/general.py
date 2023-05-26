@@ -186,6 +186,21 @@ class General(commands.Cog):
         await ctx.message.add_reaction('✅')
 
     @commands.command()
+    @commands.check(lambda ctx: ctx.author.id in [681266267763769377, 202995638860906496])
+    async def callao(self, ctx: commands.Context):
+        if not ctx.message.reference:
+            return
+
+        if not ctx.message.reference.cached_message:
+            return
+
+        try:
+            await ctx.message.reference.cached_message.author.timeout(timedelta(seconds=5), reason="RAI_SELFMUTE")
+            await ctx.message.reference.cached_message.reply("You callao!")
+        except (discord.Forbidden, discord.HTTPException):
+            await ctx.message.reply("Sorry, that user was too strong for me :(")
+
+    @commands.command()
     @commands.check(lambda ctx: ctx.guild.id == 759132637414817822 if ctx.guild else False)
     async def risk(self, ctx):
         """Typing this command will sub you to pings for when it's your turn."""
