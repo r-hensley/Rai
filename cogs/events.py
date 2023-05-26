@@ -1908,6 +1908,9 @@ class Events(commands.Cog):
         #                   'channels': {
         #                     channel id: str: 30,
         #                     channel id: str: 20}
+        #                   'activity': {
+        #                     channel id: str: 30,
+        #                     channel id: str: 20}
         #                 user_id2:
         #                   emoji: {emoji1: 1, emoji2: 3},
         #                   lang: {'eng': 25, 'sp': 30},
@@ -1976,8 +1979,8 @@ class Events(commands.Cog):
             utcnow_timestamp = discord.utils.utcnow().timestamp()
             # if msg.author.id == self.bot.owner_id:
             #     await hf.send_to_test_channel(last_message_timestamp, utcnow_timestamp, author, channel)
-            if utcnow_timestamp - last_message_timestamp > 20:
-                today[author]['activity'][channel] = today[author]['activity'].get(channel, 0) + 10
+            if utcnow_timestamp - last_message_timestamp > 60:
+                today[author]['activity'][channel] = today[author]['activity'].get(channel, 0) + 5
                 self.bot.last_message[author][channel] = utcnow_timestamp
 
             # emojis
