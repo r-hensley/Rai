@@ -1518,8 +1518,14 @@ class ChannelMods(commands.Cog):
                 reason_field = reason
             else:
                 reason_field = "(No given reason)"
-            emb.add_field(name="Reason", value=reason_field,
-                          inline=False)
+            if len(reason_field) <= 1024:
+                emb.add_field(name="Reason", value=reason_field,
+                              inline=False)
+            else:
+                emb.add_field(name="Reason", value=reason_field[:1021] + "...",
+                              inline=False)
+                emb.add_field(name="Reason (cont.)", value="..." + reason_field[1021:],
+                              inline=False)
 
             if ctx.message:
                 emb.add_field(name="Jump URL", value=ctx.message.jump_url,
