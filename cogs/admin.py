@@ -650,6 +650,57 @@ class Admin(commands.Cog):
                 guild_config['message'] = msg.id
                 await msg.add_reaction('✅')
 
+    @commands.command()
+    @commands.bot_has_permissions(manage_messages=True)
+    async def clearall(self, ctx: commands.Context, target_in: str, time_in: str = '1h'):
+        """Deletes all messages matching a user or ID in all channels from the last hour.
+        Usage: `;clearall <ID> [time]"""
+        target_id = int(re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
+        time = hf.parse_time(time_in)[1]  # gives list of integers: [days, hours, minutes]
+        if not time:
+            await hf.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")
+            return
+        time = timedelta(days=time[0], hours=time[1], minutes=time[2])
+
+        to_prune_channels = []
+        cached_messages = list(self.bot.cached_messages).copy()[::-1]
+        utcnow = discord.utils.utcnow()
+        for msg in cached_messages:
+            # stop going through list of cached messages when you've gone past "time" specification, default 1h
+            if (utcnow - msg.created_at) > time:
+                break
+
+            if not msg.guild:
+                continue
+
+            if msg.guild.id != ctx.guild.id:
+                continue
+
+            if msg.author.id != target_id:
+                continue
+
+            if msg.channel not in to_prune_channels:
+                to_prune_channels.append(msg.channel)
+
+        deleted_messages: list[discord.Message] = []
+        for channel in to_prune_channels:
+            msgs = await channel.purge(limit=1000, check=lambda m: m.author.id == target_id, after=utcnow - time)
+            deleted_messages += msgs
+
+        deleted_messages.sort(key=lambda m: m.created_at)
+
+        deleted_message_logging_channel_id = self.bot.db['deletes'].get(str(ctx.guild.id), {}).get('channel', 0)
+        deleted_message_logging_channel = ctx.guild.get_channel_or_thread(deleted_message_logging_channel_id)
+        if deleted_message_logging_channel:
+            await hf.safe_send(ctx, f"Deleted all messages from {target_in}. A log of the deleted messages will go to "
+                               f"{deleted_message_logging_channel.mention}. You can find it by searching the discord "
+                               f"search bar for 'M{target_id}'.")
+        else:
+            deleted_messages_text = hf.message_list_to_text(deleted_messages)
+            deleted_messages_file = hf.text_to_file(deleted_messages_text, f"deleted_messages_M{target_id}.txt")
+
+            await hf.safe_send(ctx, "Deleted messages attached in below file", file=deleted_messages_file)
+
     @commands.command(aliases=['purge', 'prune'])
     @commands.bot_has_permissions(manage_messages=True)
     async def clear(self, ctx, num=None, *args):
