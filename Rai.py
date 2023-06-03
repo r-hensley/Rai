@@ -157,6 +157,8 @@ class Rai(Bot):
         hf.load_db(self)
         hf.load_stats(self)
 
+        print("test")
+
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions', 'cogs.database', 'cogs.clubs']
@@ -172,7 +174,7 @@ class Rai(Bot):
 
         # sqdb = Database(self)
         sqdb: Union[Database, commands.Cog] = self.get_cog("Database")
-        await sqdb.initialize()
+        await sqdb.open_db()
 
         hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 
