@@ -40,7 +40,7 @@ class Clubs(commands.Cog):
                                 "FOREIGN KEY (club_id) REFERENCES clubs (id),"
                                 "UNIQUE (club_id, member_id))")
 
-    @commands.command()
+    @commands.command(aliases=['parties'])
     async def clubs(self, ctx):
         await self.create_clubs_table()
 
@@ -56,7 +56,7 @@ class Clubs(commands.Cog):
             text += f" ({count} members)\n"
         await ctx.send(text)
 
-    @commands.command()
+    @commands.command(aliases=['createparty'])
     @commands.check(club_owners)
     async def createclub(self, ctx: commands.Context, *, club_name: str):
         await self.create_clubs_table()
