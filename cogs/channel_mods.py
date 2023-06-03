@@ -836,7 +836,7 @@ class ChannelMods(commands.Cog):
                 user_sentiment = sum(self.bot.db['sentiments'][str(ctx.guild.id)].get(str(member.id), []))
                 if user_sentiment:
                     user_sentiment = round(user_sentiment, 2)
-                    emb.description += f"\n**`Recent sentiment (10 msgs)`** : {user_sentiment}"
+                    emb.description += f"\n**`Recent sentiment (1000 msgs)`** : {user_sentiment}"
 
         join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
 

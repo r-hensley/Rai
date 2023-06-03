@@ -13,7 +13,7 @@ import imagehash
 import discord
 from Levenshtein import distance as LDist
 from discord.ext import commands
-# from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from .utils import helper_functions as hf
 from .utils.timeutil import format_interval
@@ -57,7 +57,7 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
-        # self.sid = SentimentIntensityAnalyzer()
+        self.sid = SentimentIntensityAnalyzer()
         try:
             self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
             self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
@@ -1158,28 +1158,28 @@ class Events(commands.Cog):
 
         await wordsnake_channel()
 
-        # # ### Vader Sentiment Analysis
-        # async def vader_sentiment_analysis():
-        #     if not msg.content:
-        #         return
-        #
-        #     if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
-        #         return
-        #
-        #     sentiment = self.sid.polarity_scores(msg.content)['compound']
-        #     if 'sentiments' not in self.bot.db:
-        #         self.bot.db['sentiments'] = {}
-        #
-        #     if str(msg.guild.id) not in self.bot.db['sentiments']:
-        #         self.bot.db['sentiments'][str(msg.guild.id)] = {}
-        #     config = self.bot.db['sentiments'][str(msg.guild.id)]
-        #
-        #     if str(msg.author.id) not in config:
-        #         config[str(msg.author.id)] = [sentiment]
-        #     else:
-        #         config[str(msg.author.id)] = config[str(msg.author.id)][-9:]
-        #         config[str(msg.author.id)].append(sentiment)
-        # await vader_sentiment_analysis()
+        # ### Vader Sentiment Analysis
+        async def vader_sentiment_analysis():
+            if not msg.content:
+                return
+
+            if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
+                return
+
+            sentiment = self.sid.polarity_scores(msg.content)['compound']
+            if 'sentiments' not in self.bot.db:
+                self.bot.db['sentiments'] = {}
+
+            if str(msg.guild.id) not in self.bot.db['sentiments']:
+                self.bot.db['sentiments'][str(msg.guild.id)] = {}
+            config = self.bot.db['sentiments'][str(msg.guild.id)]
+
+            if str(msg.author.id) not in config:
+                config[str(msg.author.id)] = [sentiment]
+            else:
+                config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
+                config[str(msg.author.id)].append(sentiment)
+        await vader_sentiment_analysis()
 
         # ### guild stats
         def guild_stats():
