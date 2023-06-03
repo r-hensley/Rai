@@ -1399,6 +1399,25 @@ class General(commands.Cog):
         await ctx.channel.edit(archived=False, locked=False)
         await ctx.channel.edit(archived=True)
 
+    @commands.command()
+    async def sentiment(self, ctx):
+        """Check your sentiment score in the server.
+
+        For info about sentiment scores, see [this page](https://medium.com/@piocalderon\
+        /vader-sentiment-analysis-explained-f1c4f9101cd9)
+
+        For a tool to test your own messages, try [this](https://monkeylearn.com/sentiment-analysis-online/)."""
+        user_sentiment = 0
+        if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
+            user_sentiment = sum(self.bot.db['sentiments'][str(ctx.guild.id)].get(str(ctx.author.id), []))
+            if user_sentiment:
+                user_sentiment = round(user_sentiment, 2)
+
+        if not user_sentiment:
+            await hf.safe_send(ctx, "For some reason I couldn't find a sentiment rating for you.")
+        else:
+            await hf.safe_send(ctx, f"Your current sentiment rating (last 1000 messages average) is {user_sentiment}.")
+
 
 async def setup(bot):
     await bot.add_cog(General(bot))
