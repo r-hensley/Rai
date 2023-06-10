@@ -107,12 +107,11 @@ class Clubs(commands.Cog):
 
         list_of_clubs = await self.sqdb.fetchrow("SELECT owner_id, name, guild_id FROM clubs")
         for (owner_id, name, guild_id) in list_of_clubs:
-            if not club_owners(ctx) or owner_id == ctx.author.id:
-                await ctx.send("You must be a moderator or the club's owner in order to give this club away.")
-                return
-
             if name.casefold() == club_name.casefold() and guild_id == ctx.guild.id:
                 to_give_id = user_id
+                if not club_owners(ctx) or owner_id == ctx.author.id:
+                    await ctx.send("You must be a moderator or the club's owner in order to give this club away.")
+                    return
                 
         if not to_give_id:
             await ctx.send("I could not find the club you are trying to transfer. Please try again.")
