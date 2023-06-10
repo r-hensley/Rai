@@ -109,7 +109,7 @@ class Clubs(commands.Cog):
         for (owner_id, name, guild_id) in list_of_clubs:
             if name.casefold() == club_name.casefold() and guild_id == ctx.guild.id:
                 to_give_id = user_id
-                if not club_owners(ctx) or owner_id == ctx.author.id:
+                if not club_owners(ctx) or owner_id != ctx.author.id:
                     await ctx.send("You must be a moderator or the club's owner in order to give this club away.")
                     return
                 
