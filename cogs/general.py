@@ -1379,12 +1379,17 @@ class General(commands.Cog):
         await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
     @commands.command(hidden=True)
-    async def done(self, ctx):
+    async def done(self, ctx: commands.Context):
         """Marks a post as done"""
         if not isinstance(ctx.channel, discord.Thread):
             return
 
         if not isinstance(ctx.channel.parent, discord.ForumChannel):
+            return
+
+        if len(ctx.channel.applied_tags or []) == 5:
+            await ctx.message.reply("This post has five tags already. Please remove one tag then try "
+                                    "to type `;done` again.")
             return
 
         for tag in ctx.channel.parent.available_tags:
