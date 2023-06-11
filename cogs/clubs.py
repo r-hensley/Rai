@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 import aiosqlite
@@ -20,11 +21,10 @@ class Clubs(commands.Cog):
         self.bot = bot
         self.sqdb: Optional[Database] = self.bot.get_cog("Database")
 
-    # @commands.Cog.listener()
-    # async def on_ready(self):
-    #     self.sqdb =
-
     async def create_clubs_table(self):
+        # Idk if it's necessary to do this or if there's a better way but I run this at the beginning
+        # of all my club commands to make sure the tables exist, mainly for people running newly
+        # forked copies of Rai
         await self.sqdb.execute("CREATE TABLE IF NOT EXISTS clubs "
                                 "(id INTEGER PRIMARY KEY, "
                                 "name TEXT, "
@@ -42,6 +42,12 @@ class Clubs(commands.Cog):
 
     @commands.command(aliases=['parties'])
     async def clubs(self, ctx):
+        """Returns a list of clubs. Related ommands:
+
+        `;joinclub <club-name>` - Joins a club
+        `;createclub <club-name>` - Creates a club (ask mods for help)
+        `;giveclub <recipient-id> <club-name>` - Gives a club you own to someone else
+        `;changeclub <club-name>` - Change the name of a club you own, it'll ask you later for a new name"""
         await self.create_clubs_table()
 
         list_of_clubs = await self.sqdb.fetchrow(f"SELECT id, name FROM clubs WHERE guild_id = {ctx.guild.id}")
@@ -59,7 +65,12 @@ class Clubs(commands.Cog):
     @commands.command(aliases=['createparty'])
     @commands.check(club_owners)
     async def createclub(self, ctx: commands.Context, *, club_name: str):
+        """Creates a club. Type the name of your club afterwards like
+        `;createclub my club`"""
         await self.create_clubs_table()
+        if len(club_name) > 32:
+            await hf.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
+            return
         query = "INSERT INTO clubs (name, guild_id, created_at, owner_id) VALUES (?, ?, ?, ?)"
         parameters = (club_name, ctx.guild.id, ctx.message.created_at, ctx.author.id)
         try:
@@ -71,6 +82,7 @@ class Clubs(commands.Cog):
 
     @commands.command(aliases=['joinparty'])
     async def joinclub(self, ctx: commands.Context, *, club_name: str):
+        """Joins a club. Type the name of the club like `;joinclub <club-name>`."""
         await self.create_clubs_table()
 
         to_join_id = None
@@ -94,6 +106,10 @@ class Clubs(commands.Cog):
 
     @commands.command(aliases=['giveparty'])
     async def giveclub(self, ctx: commands.Context, user_id, *, club_name: str):
+        """Gives ownership of a club to another user.
+
+        Use: `;giveclub <recipient-id> <club-name>`.
+        Example: `;giveclub 414873201349361664 my club`"""
         await self.create_clubs_table()
 
         try:
@@ -108,12 +124,11 @@ class Clubs(commands.Cog):
         for (owner_id, name, guild_id) in list_of_clubs:
             if name.casefold() == club_name.casefold() and guild_id == ctx.guild.id:
                 to_give_id = user_id
-                print(club_owners(ctx), owner_id, ctx.author.id)
                 if not club_owners(ctx) and owner_id != ctx.author.id:
                     await hf.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
                                             "this club away.")
                     return
-                
+
         if not to_give_id:
             await hf.safe_send(ctx, "I could not find the club you are trying to transfer. Please try again.")
             return
@@ -122,19 +137,63 @@ class Clubs(commands.Cog):
             await hf.safe_send(ctx, f"A user could not be found with the ID: {user_id}; Please try again.")
             return
 
-        query = f"UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
-        parameters = (to_give_id, club_name, ctx.guild.id)
+        query = f"UPDATE clubs SET owner_id = ? WHERE name = '{club_name}' AND guild_id = {ctx.guild.id}"
+        parameters = (to_give_id,)
         try:
             await self.sqdb.execute(query, parameters)
-            await ctx.message.add_reaction("✅")
         except aiosqlite.IntegrityError:
             await hf.safe_send(ctx, f"User (ID: {to_give_id}) already owns club: {club_name}.")
             return
+        else:
+            await ctx.message.add_reaction("✅")
+
+    @commands.command(aliases=['changeparty', 'partyname'])
+    async def changeclub(self, ctx: commands.Context, *, club_name):
+        """Change the name of your club. Start by just inputting the name of the club you want to change"""
+        clubs = await self.sqdb.fetchrow("SELECT name, owner_id FROM clubs")
+        old_name = None
+        for (name, owner_id) in clubs:
+            if not (name == club_name and owner_id == ctx.author.id) and not club_owners(ctx):
+                await hf.safe_send(ctx, "You need to be the owner of a party to change the name of it.")
+                return
+            else:
+                old_name = name
+
+        if not old_name:
+            await hf.safe_send(ctx, "Either I couldn't find your club or there are no clubs!")
+            return
+
+        await hf.safe_send(ctx, "Please input the new name for your club")
+        try:
+            new_name_msg = await self.bot.wait_for("message", timeout = 30.0,
+                                                   check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+        except asyncio.TimeoutError:
+            await hf.safe_send(ctx, "Request timed out. Please start again.")
+            return
+
+        new_name = new_name_msg.content
+        if not new_name:
+            await hf.safe_send(ctx, "I couldn't find what new name you wanted to set. Please try again.")
+            return
+
+        if len(new_name) > 32:
+            await hf.safe_send(ctx, "Please choose a shorter club name")
+            return
+
+        query = f"UPDATE clubs SET name = ? WHERE name = '{old_name}' AND guild_id = {ctx.guild.id}"
+        parameters = (new_name,)
+        try:
+            await self.sqdb.execute(query, parameters)
+        except aiosqlite.IntegrityError:
+            await hf.safe_send(ctx, f"Error updating database.")
+            return
+        else:
+            await new_name_msg.add_reaction("✅")
 
     # @commands.command()
-    # async def changeclub(self, ctx: commands.Context, *, club_name):
-    #     """Change the name of your club. Start by just inputting the name of the club you want to change"""
-    #     club = await self.sqdb.fetchrow("SELECT name, owner_id FROM clubs")
+    # async def clubmembers(self, ctx, *, club_name):
+    #     """List members in a club"""
+    #     # maybe use this? https://gist.github.com/InterStella0/454cc51e05e60e63b81ea2e8490ef140
 
 
 async def setup(bot):
