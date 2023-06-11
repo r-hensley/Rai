@@ -182,7 +182,7 @@ def grey_embed(text):
     return discord.Embed(description=text, color=0x848A84)
 
 
-async def safe_send(destination,
+async def safe_send(destination: Union[commands.Context, discord.abc.Messageable],
                     content='', *,
                     embed: discord.Embed = None,
                     embeds: list[discord.Embed] = None,
