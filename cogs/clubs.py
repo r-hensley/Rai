@@ -93,42 +93,43 @@ class Clubs(commands.Cog):
             return
 
     @commands.command(aliases=['giveparty'])
-    async def giveclub(self, ctx: commands.Context, *, args: str):
+    async def giveclub(self, ctx: commands.Context, user_id, *, club_name: str):
         await self.create_clubs_table()
 
-        to_give_id = None
-        user_id = None 
-        club_name = " ".join(args.split(' ')[1:])
-
         try:
-            user_id = int(args.split(' ')[0])
+            user_id = int(user_id)
         except ValueError:
-            await ctx.send("Please send the command in this format: `giveclub <recipient-id> <club name>`. Example: `;giveclub 1234567890 example club`")
+            await hf.safe_send(ctx, "Please send the command in this format: `giveclub <recipient-id> <club name>`. "
+                                    "Example: `;giveclub 1234567890 example club`")
+            return
 
+        to_give_id = None
         list_of_clubs = await self.sqdb.fetchrow("SELECT owner_id, name, guild_id FROM clubs")
         for (owner_id, name, guild_id) in list_of_clubs:
             if name.casefold() == club_name.casefold() and guild_id == ctx.guild.id:
                 to_give_id = user_id
-                if not club_owners(ctx) or owner_id != ctx.author.id:
-                    await ctx.send("You must be a moderator or the club's owner in order to give this club away.")
+                print(club_owners(ctx), owner_id, ctx.author.id)
+                if not club_owners(ctx) and owner_id != ctx.author.id:
+                    await hf.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
+                                            "this club away.")
                     return
                 
         if not to_give_id:
-            await ctx.send("I could not find the club you are trying to transfer. Please try again.")
+            await hf.safe_send(ctx, "I could not find the club you are trying to transfer. Please try again.")
             return
 
         if not ctx.guild.get_member(user_id):
-            ctx.send(f"A user could not be found with the ID: {user_id}; Please try again.")
+            await hf.safe_send(ctx, f"A user could not be found with the ID: {user_id}; Please try again.")
             return
 
-        query = f"UPDATE clubs SET owner_id = {to_give_id} WHERE name = '{club_name}' AND guild_id = {ctx.guild.id}"
+        query = f"UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
+        parameters = (to_give_id, club_name, ctx.guild.id)
         try:
-            await self.sqdb.execute(query)
+            await self.sqdb.execute(query, parameters)
             await ctx.message.add_reaction("✅")
         except aiosqlite.IntegrityError:
-            await ctx.send(f"User (ID: {to_give_id}) already owns club: {club_name}.")
+            await hf.safe_send(ctx, f"User (ID: {to_give_id}) already owns club: {club_name}.")
             return
-        
 
     # @commands.command()
     # async def changeclub(self, ctx: commands.Context, *, club_name):
