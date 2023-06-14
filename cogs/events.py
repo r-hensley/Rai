@@ -3,6 +3,7 @@ import io
 import os
 import re
 import string
+# import sys
 import urllib
 from datetime import timedelta, datetime
 from typing import Optional
@@ -64,6 +65,23 @@ class Events(commands.Cog):
             self.bot.imgc = Image.open(f'{dir_path}/banned_img/3.jpg').convert("RGB")
         except FileNotFoundError:
             self.bot.imga = self.bot.imgb = self.bot.imgc = None
+
+    # for debugging infinite loops/crashes etc
+    #     @self.bot.event
+    #     async def on_message(msg: discord.Message):
+    #         if msg.content.startswith(";"):
+    #             print(f"[{msg.created_at}] - Command {msg.content} by {msg.author} in {msg.channel}")
+    #             # sys.stderr.flush()
+    #             sys.stdout.flush()
+    #
+    #         await self.bot.process_commands(msg)
+    #
+    # @commands.Cog.listener()
+    # async def on_socket_event_type(self, event_type):
+    #     if event_type not in ["MESSAGE_CREATE", "TYPING_START", "GUILD_MEMBER_UPDATE", "MESSAGE_UPDATE"]:
+    #         print(f"[{discord.utils.utcnow()}] - Event: {event_type}")
+    #         # sys.stderr.flush()
+    #         sys.stdout.flush()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):

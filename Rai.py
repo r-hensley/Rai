@@ -140,7 +140,7 @@ class Rai(Bot):
             print('Failed to load extension cogs.background.', file=sys.stderr)
             traceback.print_exc()
 
-        print("Bot loaded")
+        print(f"Bot loaded (discord.py version {discord.__version__})")
 
         t_finish = datetime.now()
 
