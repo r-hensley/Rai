@@ -676,7 +676,7 @@ class ChannelMods(commands.Cog):
 
             # Check DB for mute entry
             muted = False
-            unmute_date: datetime.datetime
+            unmute_date: Optional[datetime]
             unmute_date_str: str   # unmute_date_str looks like "2021/06/26 23:24 UTC"
             guild_id = str(ctx.guild.id)
             if unmute_date_str := self.bot.db['mutes'].get(guild_id, {}).get('timed_mutes', {}).get(user_id, ""):
@@ -921,9 +921,15 @@ class ChannelMods(commands.Cog):
 
         first_embed = None  # only to be used if the first embed goes over 6000 characters
         for entry in config[-25:]:
-            name = f"{config.index(entry) + 1}) {entry['type']}"
+            name = f"{config.index(entry) + 1}) "
             if entry['silent']:
-                name += " (silent)"
+                if entry['type'] == "Warning":
+                    name += f"Silent Log"
+                else:
+                    name += f"{entry['type']} (silent)"
+            else:
+                name += entry['type']
+
             incident_time = hf.convert_to_datetime(entry['date'])
             value = f"<t:{int(incident_time.timestamp())}:f>\n"
             if entry['length']:
