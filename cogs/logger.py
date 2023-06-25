@@ -1674,7 +1674,7 @@ class Logger(commands.Cog):
             await hf.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                     f' logging by typing `;ban_logging`.')
 
-    async def make_ban_embed(self, guild, member):
+    async def make_ban_embed(self, guild: discord.Guild, member: discord.User):
         ban_entry = None
         reason = "(could not find audit log entry)"
         by = None
@@ -1772,7 +1772,7 @@ class Logger(commands.Cog):
             if not by.bot:
                 emb.description += f"__Admin__: [{str(by)}](https://rai/admin-id-is-A{by.id})\n"
 
-        messages_in_guild = hf.count_messages(member, guild)
+        messages_in_guild = hf.count_messages(member.id, guild)
         if messages_in_guild:
             emb.set_footer(text=f"Messages: {messages_in_guild}\n",
                            icon_url=member.display_avatar.replace(static_format="png").url)

@@ -690,7 +690,7 @@ class Events(commands.Cog):
 
                 # If user has more than 100 messages in the last month, let them into voice
                 messages_for_users = config.get('messages_for_users', 50)
-                if hf.count_messages(member) > messages_for_users:
+                if hf.count_messages(member.id, member.guild) > messages_for_users:
                     return
             else:
                 time = hours_for_new_users
@@ -1468,7 +1468,7 @@ class Events(commands.Cog):
                 # AttributeError: 'User' object has no attribute '_roles'
 
             try:
-                number_of_messages = hf.count_messages(msg.author)
+                number_of_messages = hf.count_messages(msg.author.id, msg.guild)
             except AttributeError:  # AttributeError: 'User' object has no attribute 'guild'
                 return
             messages = (number_of_messages < 50)  # only potentially ban users who are inactive to avoid false positives
@@ -1822,7 +1822,7 @@ class Events(commands.Cog):
             if str(msg.author.id) in config['users'] or mentioned:
                 desc = "❗ "
                 which = 'sw'
-            elif hf.count_messages(msg.author) < 10 and config.get('enable', None):
+            elif hf.count_messages(msg.author.id, msg.guild) < 10 and config.get('enable', None):
                 minutes_ago_created = int(((discord.utils.utcnow() - msg.author.created_at).total_seconds()) // 60)
                 if minutes_ago_created > 60 or msg.channel.id == SP_SERVER_ID:
                     return
