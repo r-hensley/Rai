@@ -388,13 +388,14 @@ class Submod(commands.Cog):
 
             # Add default prompt to go to modbot for questions about the warning
             modbot = ctx.guild.get_member(713245294657273856)
-            if modbot:
-                emb.add_field(name="Questions about this warning?",
-                              value=f"Please send a message to {modbot.mention}.",
-                              inline=False)
-                content = f"Questions → {modbot.mention}"
-            else:
-                content = ""
+            if not modlog_entry.silent:
+                if modbot:
+                    emb.add_field(name="Questions about this warning?",
+                                  value=f"Please send a message to {modbot.mention}.",
+                                  inline=False)
+                    content = f"Questions → {modbot.mention}"
+                else:
+                    content = ""
 
             # Send notification to warned user if not a log
             if not modlog_entry.silent:
