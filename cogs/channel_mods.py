@@ -874,7 +874,7 @@ class ChannelMods(commands.Cog):
 
                     if invite_creator_user:
                         invite_author_str = \
-                            f"by {invite_creator_user.name}#{invite_creator_user.discriminator} " \
+                            f"by {str(invite_creator_user)} " \
                             f"([ID](https://rai/inviter-id-is-I{invite_creator_id}))"
                     else:
                         invite_author_str = "by unknown user"
@@ -1618,7 +1618,7 @@ class ChannelMods(commands.Cog):
                     await hf.safe_send(ctx, "I failed to remove the timeout from the user.")
 
         if ctx.author != ctx.bot.user:
-            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+            emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
                                 color=discord.Color(int('00ffaa', 16)))
             await hf.safe_send(ctx, embed=emb)
 
