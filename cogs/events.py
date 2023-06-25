@@ -1179,29 +1179,6 @@ class Events(commands.Cog):
 
         await wordsnake_channel()
 
-        # ### Vader Sentiment Analysis
-        async def vader_sentiment_analysis():
-            if not msg.content:
-                return
-
-            if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
-                return
-
-            sentiment = self.sid.polarity_scores(msg.content)['compound']
-            if 'sentiments' not in self.bot.db:
-                self.bot.db['sentiments'] = {}
-
-            if str(msg.guild.id) not in self.bot.db['sentiments']:
-                self.bot.db['sentiments'][str(msg.guild.id)] = {}
-            config = self.bot.db['sentiments'][str(msg.guild.id)]
-
-            if str(msg.author.id) not in config:
-                config[str(msg.author.id)] = [sentiment]
-            else:
-                config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
-                config[str(msg.author.id)].append(sentiment)
-        await vader_sentiment_analysis()
-
         # ### guild stats
         def guild_stats():
             config: dict = self.bot.db['guildstats']
@@ -1913,8 +1890,35 @@ class Events(commands.Cog):
             return detected_lang, is_hardcore
 
         lang, hardcore = await lang_check()
-        lang: Optional[str]
+        lang: Optional[str]  # en, sp, None
         hardcore: bool
+
+        # ### Vader Sentiment Analysis
+        async def vader_sentiment_analysis():
+            if not msg.content:
+                return
+
+            if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
+                return
+
+            if lang != 'en':
+                return
+
+            sentiment = self.sid.polarity_scores(msg.content)['compound']
+            if 'sentiments' not in self.bot.db:
+                self.bot.db['sentiments'] = {}
+
+            if str(msg.guild.id) not in self.bot.db['sentiments']:
+                self.bot.db['sentiments'][str(msg.guild.id)] = {}
+            config = self.bot.db['sentiments'][str(msg.guild.id)]
+
+            if str(msg.author.id) not in config:
+                config[str(msg.author.id)] = [sentiment]
+            else:
+                config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
+                config[str(msg.author.id)].append(sentiment)
+
+        await vader_sentiment_analysis()
 
         """Message counting"""
 
@@ -1925,7 +1929,7 @@ class Events(commands.Cog):
         #             {20200403:
         #                 {user id: str:
         #                   'emoji': {emoji1: 1, emoji2: 3},
-        #                   'lang': {'eng': 25, 'sp': 30},
+        #                   'lang': {'en': 25, 'sp': 30},
         #                   'channels': {
         #                     channel id: str: 30,
         #                     channel id: str: 20}
@@ -1934,7 +1938,7 @@ class Events(commands.Cog):
         #                     channel id: str: 20}
         #                 user_id2:
         #                   emoji: {emoji1: 1, emoji2: 3},
-        #                   lang: {'eng': 25, 'sp': 30},
+        #                   lang: {'en': 25, 'sp': 30},
         #                   channels: {
         #                     channel1: 40,
         #                     channel2: 10}
@@ -1942,13 +1946,13 @@ class Events(commands.Cog):
         #             20200404:
         #                 {user_id1:
         #                   emoji: {emoji1: 1, emoji2: 3},
-        #                   lang: {'eng': 25, 'sp': 30},
+        #                   lang: {'en': 25, 'sp': 30},
         #                   channels: {
         #                     channel1: 30,
         #                     channel2: 20}
         #                 user_id2:
         #                   emoji: {emoji1: 1, emoji2: 3},
-        #                   lang: {'eng': 25, 'sp': 30},
+        #                   lang: {'en': 25, 'sp': 30},
         #                   channels: {
         #                     channel1: 40,
         #                     channel2: 10}
