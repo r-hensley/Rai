@@ -2087,9 +2087,9 @@ class Events(commands.Cog):
             learning_eng = msg.guild.get_role(247021017740869632)
             learning_sp = msg.guild.get_role(297415063302832128)
             if learning_sp in msg.author.roles:
-                delete = "spanish"
-            elif learning_eng in msg.author.roles:
                 delete = "english"
+            elif learning_eng in msg.author.roles:
+                delete = "spanish"
             else:
                 eng_native = msg.guild.get_role(243853718758359040)
                 oth_native = msg.guild.get_role(247020385730691073)
