@@ -661,6 +661,85 @@ class Stats(commands.Cog):
                                        f"Hid {channel.mention}. When someone calls their stats page, "
                                        f"it will not be shown.")
 
+    @commands.command()
+    async def sentiment(self, ctx, user_id: str = None):
+        """Check your sentiment score in the server.
+
+        For info about sentiment scores, see [this page](https://medium.com/@piocalderon
+        /vader-sentiment-analysis-explained-f1c4f9101cd9)
+
+        For a tool to test your own messages, try [this](https://monkeylearn.com/sentiment-analysis-online/)."""
+        user_sentiment = 0
+        if not user_id:
+            user_id = str(ctx.author.id)
+            user = ctx.author
+        else:
+            user = await hf.user_converter(ctx, user_id)
+            if user:
+                user_id = str(user.id)
+            else:
+                await hf.safe_reply(ctx.message, "I could not find the user you tried to specify.")
+                return
+
+        if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
+            user_sentiment = self.bot.db['sentiments'][str(ctx.guild.id)].get(user_id, [])
+            len_user_sentiment = len(user_sentiment)
+            if user_sentiment:
+                user_sentiment = round(sum(user_sentiment) * 1000 / len_user_sentiment, 2)
+        else:
+            return
+
+        if not user_sentiment:
+            await hf.safe_send(ctx, "For some reason I couldn't find a sentiment rating for that user.")
+        else:
+            if len_user_sentiment == 1000:
+                reply_text = f"{str(user)}'s current sentiment rating (last 1000 messages) " \
+                             f"is **{user_sentiment}**." \
+                             f"\n([What is a 'sentiment rating'?]" \
+                             f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
+            else:
+                reply_text = f"{str(user)}'s current sentiment rating ({len_user_sentiment} scaled up " \
+                             f"to 1000 messages) is **{user_sentiment}**." \
+                             f"\n([What is a 'sentiment rating'?]" \
+                             f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
+            await hf.safe_reply(ctx.message, embed=hf.green_embed(reply_text))
+
+    @commands.command(aliases=['slb'])
+    async def sentiment_leaderboard(self, ctx, negative=None):
+        """Returns a leaderboard of the most positive users in the
+         server among those that have at least 1000 messages."""
+        # give admins ability to pull most *negative* users
+        reverse = True
+        if negative in ['negative', 'neg']:
+            if hf.admin_check(ctx):
+                reverse = False
+
+        user_sentiments = []
+        sentiments_dict = self.bot.db['sentiments'][str(ctx.guild.id)]
+        for user_id in sentiments_dict:
+            user_sentiment = sentiments_dict[user_id]
+            if len(user_sentiment) == 1000:
+                user = await hf.member_converter(ctx, user_id)
+                if not user:
+                    continue
+                user_sentiments.append((user, round(sum(user_sentiment), 2)))
+
+        user_sentiments.sort(key=lambda x: x[1], reverse=reverse)
+        user_sentiments = user_sentiments[:25]
+
+        if reverse:
+            des = "Users with highest sentiment rating (most positive users)"
+        else:
+            des = "Users with lowest sentiment rating (most negative users)"
+
+        emb = hf.green_embed(des)
+        pos = 1
+        for user in user_sentiments:
+            emb.add_field(name=f"{pos}) {str(user[0])}", value=user[1])
+            pos += 1
+
+        await hf.safe_reply(ctx.message, embed=emb)
+
 
 async def setup(bot):
     await bot.add_cog(Stats(bot))

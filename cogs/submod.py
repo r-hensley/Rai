@@ -284,8 +284,6 @@ class Submod(commands.Cog):
         """Set the submod role for your server."""
         config = self.bot.db['submod_role'].setdefault(str(itx.guild.id), {'id': []})
 
-        await hf.send_to_test_channel(config)
-
         if not config['id']:
             config['id'] = []
 
