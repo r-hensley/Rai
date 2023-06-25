@@ -1134,6 +1134,9 @@ class Events(commands.Cog):
                 .replace("ú", "u")
             new_word = hf.rem_emoji_url(new_word)
 
+            if not new_word:
+                return
+
             while new_word.endswith(" "):
                 new_word = new_word[:-1]
 
