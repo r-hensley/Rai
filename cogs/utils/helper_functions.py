@@ -244,6 +244,13 @@ async def safe_send(destination: Union[commands.Context, discord.abc.Messageable
         raise
 
 
+async def safe_reply(message: discord.Message, content="", embed=None):
+    try:
+        await message.reply(content, embed=embed)
+    except discord.HTTPException:
+        await safe_send(message.channel, content, embed=embed)
+
+
 def parse_time(time: str) -> Tuple[str, list[int]]:
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
@@ -283,7 +290,7 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
     return time_string, length
 
 
-async def member_converter(ctx, user_in) -> Optional[discord.Member]:
+async def member_converter(ctx: commands.Context, user_in: str) -> Optional[discord.Member]:
     # check for an ID
     user_id = re.findall(r"(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
