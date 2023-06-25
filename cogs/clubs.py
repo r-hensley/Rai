@@ -80,6 +80,30 @@ class Clubs(commands.Cog):
             await ctx.send("There is already a club with that name here, please choose a new name.")
             return
 
+    @commands.command(aliases=['deleteparty'])
+    @hf.is_admin()
+    async def deleteclub(self, ctx: commands.Context, *, club_name: str):
+        """Deletes a club. Type the name of your club afterwards like
+        `;deleteclub my club`"""
+        await self.create_clubs_table()
+        if len(club_name) > 32:
+            await hf.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
+            return
+        query1 = f"SELECT name FROM clubs WHERE name = ?"
+        query2 = f"DELETE FROM clubs WHERE name = ? and guild_id = {ctx.guild.id}"
+        parameters = club_name
+
+        try:
+            current_clubs = await self.sqdb.fetchrow(query1, parameters)
+            if not current_clubs:
+                await hf.safe_send(ctx, "I couldn't find a club with that name, please try again.")
+                return
+            await self.sqdb.execute(query2, parameters)
+            await ctx.message.add_reaction("✅")
+        except aiosqlite.IntegrityError as e:
+            await ctx.send(f"Error: {e}")
+            return
+
     @commands.command(aliases=['joinparty'])
     async def joinclub(self, ctx: commands.Context, *, club_name: str):
         """Joins a club. Type the name of the club like `;joinclub <club-name>`."""
