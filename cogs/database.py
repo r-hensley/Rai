@@ -25,14 +25,18 @@ class Database(commands.Cog):
 
     @commands.is_owner()
     @commands.command()
-    async def sql(self, ctx, *, user_input):
+    async def sql(self, ctx, *, user_input: str):
         query = user_input.split("\n")
         parameters = None
         if len(query) > 1:
             parameters = query[1].replace(", ", ",").split(",")
         query = query[0]
         try:
-            await self.execute(query, parameters)
+            if query.casefold().startswith("select"):
+                r = await self.fetchrow(query, parameters)
+                await ctx.message.reply(r)
+            else:
+                await self.execute(query, parameters)
         except Exception as e:
             await ctx.send(f"Error: {e}")
             await self.db.commit()
@@ -40,11 +44,16 @@ class Database(commands.Cog):
             await ctx.message.add_reaction("✅")
 
     async def execute(self, query: str, parameters: Optional[Iterable] = None):
+        if parameters and type(parameters) is not tuple:
+            parameters = (parameters,)
         await self.open_db()
-        await self.cursor.execute(query, parameters)
+        r = await self.cursor.execute(query, parameters)
         await self.db.commit()
+        return r
 
     async def fetchrow(self, query: str, parameters: Optional[Iterable] = None):
+        if parameters and type(parameters) is not tuple:
+            parameters = (parameters,)
         await self.open_db()
         await self.cursor.execute(query, parameters)
         result = await self.cursor.fetchall()
