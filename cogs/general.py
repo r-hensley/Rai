@@ -278,7 +278,7 @@ class General(commands.Cog):
                             color=0x00FF00)
         members = sorted(role.members, key=lambda m: m.name.casefold())
         for member in members:
-            new_desc = emb.description + f"{member.name}#{member.discriminator}\n"
+            new_desc = emb.description + f"{str(member)}\n"
             if len(new_desc) < 2045:
                 emb.description = new_desc
             else:
@@ -565,7 +565,7 @@ class General(commands.Cog):
             em.add_field(name="Explicit Content Filter", value=guild.explicit_content_filter)
 
         if guild.id not in [JP_SERVER_ID, SP_SERVER_ID]:
-            em.add_field(name="Server owner", value=f"{guild.owner.name}#{guild.owner.discriminator}")
+            em.add_field(name="Server owner", value=f"{str(guild.owner)}")
 
         # count top 6 member roles
         if len(guild.members) < 60000:
@@ -1116,7 +1116,7 @@ class General(commands.Cog):
             del config['timed_mutes'][str(target_id)]
 
         if ctx.author != ctx.bot.user:
-            emb = discord.Embed(description=f"**{target.name}#{target.discriminator}** has been unmuted.",
+            emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
                                 color=discord.Color(int('00ffaa', 16)))
             await hf.safe_send(ctx, embed=emb)
 

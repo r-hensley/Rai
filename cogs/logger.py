@@ -209,7 +209,7 @@ class Logger(commands.Cog):
 
         # joins voice ➡️ 3B88C3
         if not before.channel and after.channel:
-            description = f"➡️ **{member.name}#{member.discriminator}** has `joined` **#{after.channel.name}**."
+            description = f"➡️ **{str(member)}** has `joined` **#{after.channel.name}**."
             color = 0x3B88C3
             footer_text = "Voice Join"
             if after.channel.guild.id == 243838819743432704:
@@ -220,7 +220,7 @@ class Logger(commands.Cog):
 
         # leave voice  DD2E44
         elif before.channel and not after.channel:
-            description = f"❌ **{member.name}#{member.discriminator}** has `left` **#{before.channel.name}**."
+            description = f"❌ **{str(member)}** has `left` **#{before.channel.name}**."
             color = 0xDD2E44
             footer_text = "Voice Leave"
             if before.channel.guild.id == 243838819743432704:
@@ -231,7 +231,7 @@ class Logger(commands.Cog):
 
         # switch channel 🔄️ 3B88C3
         elif before.channel and after.channel and before.channel != after.channel:
-            description = f"🔄 **{member.name}#{member.discriminator}** has `switched` from " \
+            description = f"🔄 **{str(member)}** has `switched` from " \
                           f"**#{before.channel.name}** to **#{after.channel.name}**."
             color = 0x3B88C3
             footer_text = "Voice Switch"
@@ -250,25 +250,25 @@ class Logger(commands.Cog):
 
         # start self_stream 📳 F4900C
         elif not before.self_stream and after.self_stream:
-            description = f"📳 **{member.name}#{member.discriminator}** has went LIVE and started streaming."
+            description = f"📳 **{str(member)}** has went LIVE and started streaming."
             color = 0xF4900C
             footer_text = "Stream Start"
 
         # stop self_stream 🔇 CCD6DD
         elif before.self_stream and not after.self_stream:
-            description = f"🔇 **{member.name}#{member.discriminator}** has stopped streaming."
+            description = f"🔇 **{str(member)}** has stopped streaming."
             color = 0xCCD6DD
             footer_text = "Stream Stop"
 
         # start self_video 📳 F4900C
         elif not before.self_video and after.self_video:
-            description = f"**{member.name}#{member.discriminator}** has turned on their camera."
+            description = f"**{str(member)}** has turned on their camera."
             color = 0xF4900C
             footer_text = "Video Start"
 
         # stop self_video 🔇 CCD6DD
         elif before.self_video and not after.self_video:
-            description = f"🔇 **{member.name}#{member.discriminator}** has turned off their camera."
+            description = f"🔇 **{str(member)}** has turned off their camera."
             color = 0xCCD6DD
             footer_text = "Video Stop"
 
@@ -408,7 +408,7 @@ class Logger(commands.Cog):
         author = before.author
         time_dif = round((discord.utils.utcnow() - before.created_at).total_seconds(), 1)
         emb = discord.Embed(
-            description=f'**{author.name}#{author.discriminator}** (M{author.id})'
+            description=f'**{str(author)}** (M{author.id})'
                         f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
                         f'(https://en.wikipedia.org/wiki/Levenshtein_distance) - ([Jump URL]({after.jump_url}))',
             colour=0xFF9933,
@@ -506,7 +506,7 @@ class Logger(commands.Cog):
             except discord.NotFound:
                 pass  # somehow got discord.errors.NotFound: 404 Not Found (error code: 10003): Unknown Channel
         emb = discord.Embed(
-            description=f'**{author.name}#{author.discriminator}** (M{author.id})'
+            description=f'**{str(author)}** (M{author.id})'
                         f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
             colour=0xDB3C3C,
             timestamp=discord.utils.utcnow()
@@ -721,7 +721,7 @@ class Logger(commands.Cog):
             time_str = ''
 
         emb = discord.Embed(
-            description=f":inbox_tray: **[{member.name}#{member.discriminator}](https://rai/user-id-is-J{member.id})** "
+            description=f":inbox_tray: **[{str(member)}](https://rai/user-id-is-J{member.id})** "
                         f"has `joined`. ({member.mention}){time_str}",
             colour=0x7BA600,
             timestamp=discord.utils.utcnow()
@@ -746,7 +746,7 @@ class Logger(commands.Cog):
 
             field_value = f"`{invite.code}`"
             if invite.inviter:
-                field_value += f" by {invite.inviter.name}#{invite.inviter.discriminator} " \
+                field_value += f" by {str(invite.inviter)} " \
                                f"([ID](https://rai/inviter-id-is-I{invite.inviter.id}))"
             field_value += f" ({invite.uses}{max_uses} uses"  # add a final ')' below
             if invite.created_at:
@@ -1241,7 +1241,7 @@ class Logger(commands.Cog):
     def make_leave_embed(member):
         emb = discord.Embed(
             description=''
-                        f":outbox_tray: **[{member.name}#{member.discriminator}](https://rai/user-id-is-J{member.id})**"
+                        f":outbox_tray: **[{str(member)}](https://rai/user-id-is-J{member.id})**"
                         f" has `left` the server. ({member.mention})",
             colour=0xD12B2B,
             timestamp=discord.utils.utcnow()
@@ -1358,14 +1358,22 @@ class Logger(commands.Cog):
     def make_nickname_embed(before, after):
         emb = discord.Embed(timestamp=discord.utils.utcnow())
         emb.set_footer(
-            text=f'{after.name}#{before.discriminator} (N{before.id})',
+            text=f'{str(after)} (N{before.id})',
             icon_url=before.display_avatar.replace(static_format="png").url
         )
         return emb
 
     @commands.Cog.listener()
-    async def on_user_update(self, before, after):
-        if before.name == after.name:
+    async def on_user_update(self, before: discord.User, after: discord.User):
+        if before.name != after.name:
+            updated_attr = '__username__'
+            before_name = before.name
+            after_name = after.name
+        elif before.global_name != after.global_name:
+            updated_attr = '__global display name__'
+            before_name = before.global_name
+            after_name = after.global_name
+        else:
             return
 
         for g in self.bot.guilds:
@@ -1380,8 +1388,10 @@ class Logger(commands.Cog):
                 continue
 
             emb = self.make_nickname_embed(before, after)
-            emb.description = f"**{before.name}#{before.discriminator}**'s username was set to " \
-                              f"**{after.name}#{after.discriminator}**"
+            if not before_name:
+                emb.description = f"**{str(after)}** set their {updated_attr} to **{after_name}**"
+            else:
+                emb.description = f"**{before_name}**'s {updated_attr} was changed to **{after_name}**"
             emb.colour = 0xFF8800
             try:
                 await hf.safe_send(channel, embed=emb)
@@ -1405,11 +1415,11 @@ class Logger(commands.Cog):
             emb.colour = 0xFFA500
 
             if before.nick and not after.nick:  # nickname removed
-                emb.description = f"**{before.nick}**'s nickname was **removed**"
+                emb.description = f"**{before.nick}**'s __server nickname__ was **removed**"
             elif not before.nick and after.nick:  # nickname added
-                emb.description = f"**{before.name}#{before.discriminator}**'s nickname was set to **{after.nick}**"
+                emb.description = f"**{str(before)}**'s __server nickname__ was set to **{after.nick}**"
             elif before.nick and after.nick:  # nickname changed
-                emb.description = f"**{before.nick}**'s nickname was changed to **{after.nick}**"
+                emb.description = f"**{before.nick}**'s __server nickname__ was changed to **{after.nick}**"
             try:
                 await hf.safe_send(channel, embed=emb)
             except discord.Forbidden:
@@ -1585,7 +1595,7 @@ class Logger(commands.Cog):
     def make_reaction_embed(emoji, member, message, message_id, channel):
         jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{message_id}"
         emb = discord.Embed(
-            description=f"**{member.name}#{member.discriminator}** (R{member.id}) "
+            description=f"**{str(member)}** (R{member.id}) "
                         f" removed a reaction. ([Jump URL]({jump_url}))",
             colour=0xD12B2B,
             timestamp=discord.utils.utcnow()
@@ -1696,10 +1706,10 @@ class Logger(commands.Cog):
             reason = reason.replace('⠀', '').replace('-c', '')
             emb.description = '⠀'
         if reason.startswith('*by* '):
-            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n' \
+            emb.description += f'❌ **{str(member)}** was `banned` ({member.id})\n\n' \
                                f'{reason}'
         else:
-            emb.description += f'❌ **{member.name}#{member.discriminator}** was `banned` ({member.id})\n\n'
+            emb.description += f'❌ **{str(member)}** was `banned` ({member.id})\n\n'
             if by:
                 emb.description += f'*by* {by.name}\n'
             emb.description += f'**Reason**: {reason}'
@@ -1866,7 +1876,7 @@ class Logger(commands.Cog):
     @staticmethod
     def make_unban_embed(user):
         emb = discord.Embed(
-            description=f'❕ **{user.name}#{user.discriminator}** was `unbanned` ({user.id})',
+            description=f'❕ **{str(user)}** was `unbanned` ({user.id})',
             colour=0x7F8C8D,
             timestamp=discord.utils.utcnow()
         )
@@ -1954,7 +1964,7 @@ class Logger(commands.Cog):
         if emb:
             hf.add_to_modlog(None, [member, member.guild], 'Kick', reason, False, None)
             emb = discord.Embed(
-                description=f'❌ **{member.name}#{member.discriminator}** was `kicked` ({member.id})\n\n'
+                description=f'❌ **{str(member)}** was `kicked` ({member.id})\n\n'
                             f'*by* {kick_entry.user.mention}\n**Reason**: {reason}',
                 colour=0x4C4C4C,
                 timestamp=discord.utils.utcnow()

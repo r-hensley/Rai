@@ -953,7 +953,7 @@ class Questions(commands.Cog):
 
         emb: discord.Embed = log_message.embeds[0]
         value_text = f"⁣⁣⁣\n[Jump URL]({ctx.message.jump_url})"
-        emb.add_field(name=f"Response by {ctx.author.name}#{ctx.author.discriminator}",
+        emb.add_field(name=f"Response by {str(ctx.author)}",
                       value=value_text.replace('⁣⁣⁣', response[:1024 - len(value_text)]))
         await log_message.edit(embed=emb)
         config['questions'][index].setdefault('responses', []).append(ctx.message.jump_url)

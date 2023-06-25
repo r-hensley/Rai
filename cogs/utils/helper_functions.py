@@ -1053,7 +1053,7 @@ async def hf_sync():
 def message_list_to_text(msgs: list[discord.Message], text: str = "") -> str:
     for msg in msgs:
         date = msg.created_at.strftime("%d/%m/%y %H:%M:%S")
-        author = f"{msg.author.name}#{msg.author.discriminator} ({msg.author.id})"
+        author = f"{str(msg.author)} ({msg.author.id})"
         if msg.content:
             text += f"({date}) - {author} || {msg.content}\n"
         for embed in msg.embeds:

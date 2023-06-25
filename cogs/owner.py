@@ -578,7 +578,7 @@ class Owner(commands.Cog):
     async def on_guild_join(self, guild):
         msg = f"""__New guild__
         **Name:** {guild.name}
-        **Owner:** {guild.owner.mention} ({guild.owner.name}#{guild.owner.discriminator}))
+        **Owner:** {guild.owner.mention} ({str(guild.owner)}))
         **Members:** {guild.member_count}
         **Channels:** {len(guild.text_channels)} text / {len(guild.voice_channels)} voice"""
         # for channel in guild.text_channels:

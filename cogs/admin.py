@@ -998,7 +998,7 @@ class Admin(commands.Cog):
         for ID in config['users']:
             member = ctx.guild.get_member(ID)
             if member:
-                string += f"{member.mention} `({member.name}#{member.discriminator} {member.id})`\n"
+                string += f"{member.mention} `({str(member)} {member.id})`\n"
             else:
                 string += f"{ID}\n"
         try:
@@ -1922,11 +1922,11 @@ class Admin(commands.Cog):
             config[group] = []
         for config_group in config:
             if role.id in config[config_group]:
-                await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+                await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** Role "
                                                            f"**{role.name}** is already in the list."))
                 return
         config[group].append(role.id)
-        await hf.safe_send(ctx, embed=hf.green_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+        await hf.safe_send(ctx, embed=hf.green_embed(f"**{str(ctx.author)}** Role "
                                                      f"**{role.name}** has been added to the list in group "
                                                      f"**{group}**."))
 
@@ -1944,7 +1944,7 @@ class Admin(commands.Cog):
         for group in config:
             if role.id in config[group]:
                 config[group].remove(role.id)
-                await hf.safe_send(ctx, embed=hf.red_embed(f"**{ctx.author.name}#{ctx.author.discriminator}** Role "
+                await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** Role "
                                                            f"**{role.name}** has been removed from the list."))
 
     @commands.command()
