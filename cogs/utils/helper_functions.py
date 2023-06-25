@@ -318,6 +318,24 @@ async def member_converter(ctx, user_in) -> Optional[discord.Member]:
     return None
 
 
+async def user_converter(ctx: commands.Context, user_in: str) -> Union[None, discord.User, discord.Member]:
+    # try member_converter
+    member = await member_converter(ctx, user_in)
+    if member:
+        return member
+    else:
+        try:
+            user_id = re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1)
+            user_id = int(user_id)
+        except ValueError:
+            return
+        else:
+            try:
+                await ctx.bot.fetch_user(user_id)
+            except (discord.NotFound, discord.HTTPException):
+                return
+
+
 def _predump_json():
     db_copy = deepcopy(here.bot.db)
     stats_copy = deepcopy(here.bot.stats)
