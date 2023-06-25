@@ -108,25 +108,31 @@ class Stats(commands.Cog):
     @commands.command(aliases=['u'])
     @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def user(self, ctx, *, member: str = None, post_embed=True):
+    async def user(self, ctx, *, member_in: str = None, post_embed=True):
         """Gives info about a user.  Leave the member field blank to get info about yourself."""
-        if not member:
+        if not member_in:
             member = ctx.author
-            member_id = ctx.author.id
+            user_id = ctx.author.id
+            user_name = ctx.author.name
         else:
-            if re.findall(r"[JIMVN]\d{17,22}", member):
-                member = re.sub('[JIMVN]', '', member)
-            member_id = member
-            member = await hf.member_converter(ctx, member)
+            # remove prefix from IDs like J414873201349361664 or M202995638860906496
+            if re.findall(r"[JIMVN]\d{17,22}", member_in):
+                member_in = re.sub('[JIMVN]', '', member_in)
+
+            # try to convert the ID to a user or member
+            member = await hf.member_converter(ctx, member_in)
             if member:
-                member_id = member.id
+                user = member
             else:
-                try:
-                    user = await self.bot.fetch_user(member_id)
-                    user_name = user.name
-                except (discord.NotFound, discord.HTTPException):
-                    await hf.safe_send(ctx, "I couldn't find the user.")
-                    return
+                user = await hf.user_converter(ctx, member_in)
+
+            if user:
+                user_name = user.name
+                user_id = user.id
+            else:
+                await hf.safe_send(ctx, "I couldn't find the user.")
+                return
+
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
@@ -145,10 +151,10 @@ class Stats(commands.Cog):
         lang_count = {}
         total_msgs_month = 0
         total_msgs_week = 0
-        total_activity = hf.count_activity(member)
+        total_activity = hf.count_activity(user_id, ctx.guild)
         for day in config:
-            if str(member_id) in config[day]:
-                user = config[day][str(member_id)]
+            if str(user_id) in config[day]:
+                user = config[day][str(user_id)]
                 if 'channels' not in user:
                     continue
                 for channel in user['channels']:
@@ -181,7 +187,7 @@ class Stats(commands.Cog):
             if member.nick:
                 title += f" ({member.nick})"
         else:
-            title = f'Usage stats for {member_id} ({user_name}) (user left server)'
+            title = f'Usage stats for {user_id} ({user_name}) (user left server)'
         emb = discord.Embed(title=title,
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)))
@@ -229,7 +235,7 @@ class Stats(commands.Cog):
                           value=f"{channeltext}")
 
         # ### Calculate voice time / Add field to embed ###
-        voice_time: int = hf.calculate_voice_time(member_id, ctx.guild.id)  # number of minutes
+        voice_time: int = hf.calculate_voice_time(user_id, ctx.guild.id)  # number of minutes
         if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=format_interval(voice_time))
@@ -245,7 +251,7 @@ class Stats(commands.Cog):
                     emb.title += f" ({member.nick})"
                 emb.timestamp = member.joined_at
             else:
-                emb.title += f"Usage stats for {member_id} {user_name} (this user was not found)"
+                emb.title += f"Usage stats for {user_id} {user_name} (this user was not found)"
 
         # ### Add emojis field ###
         if sorted_emojis:
@@ -674,7 +680,9 @@ class Stats(commands.Cog):
             user_id = str(ctx.author.id)
             user = ctx.author
         else:
-            user = await hf.user_converter(ctx, user_id)
+            user = await hf.member_converter(ctx, user_id)
+            if not user:
+                user = await hf.user_converter(ctx, user_id)
             if user:
                 user_id = str(user.id)
             else:

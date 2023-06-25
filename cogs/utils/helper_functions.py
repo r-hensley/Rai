@@ -93,16 +93,14 @@ _emoji = re.compile(r'<a?(:[A-Za-z0-9_]+:|#|@|@&)!?[0-9]{17,20}>')
 _lock = asyncio.Lock()
 
 
-def count_messages(member: discord.Member, guild=None) -> int:
+def count_messages(member_id: int, guild: discord.Guild) -> int:
     """Returns an integer of number of messages sent in the last month"""
     msgs = 0
-    if not guild:
-        guild = member.guild
     try:
         config = here.bot.stats[str(guild.id)]['messages']
         for day in config:
-            if str(member.id) in config[day]:
-                user = config[day][str(member.id)]
+            if str(member_id) in config[day]:
+                user = config[day][str(member_id)]
                 if 'channels' not in user:
                     continue
                 msgs += sum([user['channels'][c] for c in user['channels']])
@@ -111,16 +109,14 @@ def count_messages(member: discord.Member, guild=None) -> int:
         return 0
 
 
-def count_activity(member: discord.Member, guild=None) -> int:
+def count_activity(member_id: int, guild: discord.Guild) -> int:
     """Returns an integer value for activity in a server in the last month"""
     activity_score = 0
-    if not guild:
-        guild = member.guild
     try:
         config = here.bot.stats[str(guild.id)]['messages']
         for day in config:
-            if str(member.id) in config[day]:
-                user = config[day][str(member.id)]
+            if str(member_id) in config[day]:
+                user = config[day][str(member_id)]
                 if 'activity' not in user:
                     continue
                 activity_score += sum([user['activity'][c] for c in user['activity']])
@@ -290,8 +286,10 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
     return time_string, length
 
 
-async def member_converter(ctx: commands.Context, user_in: str) -> Optional[discord.Member]:
+async def member_converter(ctx: commands.Context, user_in: Union[str, int]) -> Optional[discord.Member]:
     # check for an ID
+    if isinstance(user_in, int):
+        user_in = str(user_in)
     user_id = re.findall(r"(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
     if user_id:
         user_id = user_id[0].replace('<@', '').replace('>', '').replace('!', '')
@@ -325,22 +323,21 @@ async def member_converter(ctx: commands.Context, user_in: str) -> Optional[disc
     return None
 
 
-async def user_converter(ctx: commands.Context, user_in: str) -> Union[None, discord.User, discord.Member]:
-    # try member_converter
-    member = await member_converter(ctx, user_in)
-    if member:
-        return member
+async def user_converter(ctx: commands.Context, user_in: Union[str, int]) -> Union[None, discord.User, discord.Member]:
+    """Doesn't convert to a member first, try doing hf.member_converter() before hf.user_converter()."""
+    if isinstance(user_in, int):
+        user_in = str(user_in)
+    try:
+        user_id = re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1)
+        user_id = int(user_id)
+    except ValueError:
+        return
     else:
         try:
-            user_id = re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1)
-            user_id = int(user_id)
-        except ValueError:
+            user = await ctx.bot.fetch_user(user_id)
+            return user
+        except (discord.NotFound, discord.HTTPException):
             return
-        else:
-            try:
-                await ctx.bot.fetch_user(user_id)
-            except (discord.NotFound, discord.HTTPException):
-                return
 
 
 def _predump_json():
