@@ -153,11 +153,11 @@ class Clubs(commands.Cog):
         clubs = await self.sqdb.fetchrow("SELECT name, owner_id FROM clubs")
         old_name = None
         for (name, owner_id) in clubs:
-            if not (name == club_name and owner_id == ctx.author.id) and not club_owners(ctx):
-                await hf.safe_send(ctx, "You need to be the owner of a party to change the name of it.")
-                return
-            else:
+            if name.casefold() == club_name.casefold() and (owner_id == ctx.author.id or club_owners(ctx)):
                 old_name = name
+        if not old_name:
+            await hf.safe_send(ctx, "You need to be the owner of a party to change the name of it.")
+            return
 
         if not old_name:
             await hf.safe_send(ctx, "Either I couldn't find your club or there are no clubs!")
@@ -165,7 +165,7 @@ class Clubs(commands.Cog):
 
         await hf.safe_send(ctx, "Please input the new name for your club")
         try:
-            new_name_msg = await self.bot.wait_for("message", timeout = 30.0,
+            new_name_msg = await self.bot.wait_for("message", timeout=30.0,
                                                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
         except asyncio.TimeoutError:
             await hf.safe_send(ctx, "Request timed out. Please start again.")
@@ -176,6 +176,11 @@ class Clubs(commands.Cog):
             await hf.safe_send(ctx, "I couldn't find what new name you wanted to set. Please try again.")
             return
 
+        for (name, owner_id) in clubs:
+            if name == new_name:
+                await hf.safe_send(ctx, "There already exists a club with that name. Please choose a new name.")
+                return
+
         if len(new_name) > 32:
             await hf.safe_send(ctx, "Please choose a shorter club name")
             return
@@ -184,8 +189,8 @@ class Clubs(commands.Cog):
         parameters = (new_name,)
         try:
             await self.sqdb.execute(query, parameters)
-        except aiosqlite.IntegrityError:
-            await hf.safe_send(ctx, f"Error updating database.")
+        except aiosqlite.IntegrityError as e:
+            await hf.safe_send(ctx, f"Error updating database: {e}")
             return
         else:
             await new_name_msg.add_reaction("✅")
