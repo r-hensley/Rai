@@ -692,9 +692,7 @@ class Admin(commands.Cog):
         deleted_message_logging_channel_id = self.bot.db['deletes'].get(str(ctx.guild.id), {}).get('channel', 0)
         deleted_message_logging_channel = ctx.guild.get_channel_or_thread(deleted_message_logging_channel_id)
         if deleted_message_logging_channel:
-            await hf.safe_send(ctx, f"Deleted all messages from {target_in}. A log of the deleted messages will go to "
-                               f"{deleted_message_logging_channel.mention}. You can find it by searching the discord "
-                               f"search bar for 'M{target_id}'.")
+            await hf.safe_send(ctx, f"Deleted all messages from {target_in}.")
         else:
             deleted_messages_text = hf.message_list_to_text(deleted_messages)
             deleted_messages_file = hf.text_to_file(deleted_messages_text, f"deleted_messages_M{target_id}.txt")
