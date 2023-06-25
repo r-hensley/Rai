@@ -18,7 +18,7 @@ class Database(commands.Cog):
         await self.open_db()
 
     async def open_db(self):
-        if not self.db:
+        if not self.db or not self.db.is_alive():
             self.db = await aiosqlite.connect(f"{dir_path}/database.db")
         if not self.cursor:
             self.cursor: aiosqlite.Cursor = await self.db.cursor()
@@ -26,14 +26,16 @@ class Database(commands.Cog):
     @commands.is_owner()
     @commands.command()
     async def sql(self, ctx, *, user_input):
-        await self.open_db()
         query = user_input.split("\n")
-        parameters = query[1].replace(", ", ",").split(",")
+        parameters = None
+        if len(query) > 1:
+            parameters = query[1].replace(", ", ",").split(",")
         query = query[0]
         try:
             await self.execute(query, parameters)
         except Exception as e:
             await ctx.send(f"Error: {e}")
+            await self.db.commit()
         else:
             await ctx.message.add_reaction("✅")
 
