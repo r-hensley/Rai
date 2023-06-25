@@ -2086,7 +2086,20 @@ class Events(commands.Cog):
                 return
             learning_eng = msg.guild.get_role(247021017740869632)
             learning_sp = msg.guild.get_role(297415063302832128)
-            if learning_eng in msg.author.roles:  # learning English, delete all Spanish
+            if learning_sp in msg.author.roles:
+                delete = "spanish"
+            elif learning_eng in msg.author.roles:
+                delete = "english"
+            else:
+                eng_native = msg.guild.get_role(243853718758359040)
+                oth_native = msg.guild.get_role(247020385730691073)
+
+                if eng_native or oth_native in msg.author.roles:
+                    delete = 'english'
+                else:
+                    delete = 'spanish'
+
+            if delete == 'spanish':  # learning English, delete all Spanish
                 if lang == 'es':
                     try:
                         await msg.delete()
@@ -2094,7 +2107,7 @@ class Events(commands.Cog):
                         return
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
-            elif learning_sp in msg.author.roles:  # learning Spanish, delete all English
+            else:  # learning Spanish, delete all English
                 if 'holi' in msg.content.casefold():
                     return
                 if lang == 'en':
@@ -2104,15 +2117,6 @@ class Events(commands.Cog):
                         return
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
-            else:
-                try:
-                    await msg.author.send("You have hardcore enabled but you don't have the proper "
-                                          "learning role.  Please attach either 'Learning Spanish' or "
-                                          "'Learning English' to properly use hardcore mode, or take "
-                                          "off hardcore mode using the reactions in the server rules "
-                                          "page")
-                except discord.Forbidden:
-                    pass
 
         await spanish_server_hardcore()
 
