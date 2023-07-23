@@ -28,6 +28,8 @@ FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
 SP_GUILD = discord.Object(id=SP_SERVER_ID)
 
 
+
+
 # @app_commands.describe(): add a description to a parameter when the user is inputting it
 # @app_commands.rename():  rename a parameter after it's been defined by the function
 # app_commands.context_menu() doesn't work in cogs!
