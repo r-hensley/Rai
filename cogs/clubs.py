@@ -55,10 +55,12 @@ class Clubs(commands.Cog):
         for club in list_of_clubs:
             count = (await self.sqdb.fetchrow(f"SELECT COUNT(*) FROM club_members WHERE club_id = {club[0]}"))[0][0]
             owner = (await self.sqdb.fetchrow(f"SELECT owner_id FROM clubs WHERE id = {club[0]}"))[0][0]
-            text += f"・{club[1]}"
+            club_name = club[1].replace("*", r"\*").replace("_", r"\_")
+            text += f"・{club_name}"
             owner = ctx.guild.get_member(owner)
             if owner:
-                text += f", led by {owner.name}"
+                club_owner = owner.name.replace("*", r"\*").replace("_", r"\_")
+                text += f", led by {club_owner}"
             text += f" ({count} members)\n"
         await ctx.send(text)
 
