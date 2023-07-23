@@ -1360,7 +1360,7 @@ class General(commands.Cog):
         Returns a Discord-formatted date string representing the date you input (defaults to UTC).
 
         You can input something like "January 23rd, 2014", or also the special keyword "Now" or "Today".
-        """        
+        """
         date = parse(time_str, settings={'TIMEZONE': 'UTC', 'RETURN_AS_TIMEZONE_AWARE': True})
         # if not date.tzinfo:
         #     date = date.replace(tzinfo=timezone.utc)
