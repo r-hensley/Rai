@@ -1065,6 +1065,8 @@ class Events(commands.Cog):
                 def ciri_check(_m: discord.Message) -> bool:
                     if _m.embeds:
                         e = _m.embeds[0]
+                        if not e.description:
+                            return  # or else error in next line
                         if 'Banned' in e.description or "Cancelled" in e.description:
                             return _m.author.id == ciri_id and _m.channel == msg.channel and not e.title
 
