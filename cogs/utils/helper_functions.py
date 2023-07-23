@@ -328,9 +328,8 @@ async def user_converter(ctx: commands.Context, user_in: Union[str, int]) -> Uni
     if isinstance(user_in, int):
         user_in = str(user_in)
     try:
-        user_id = re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1)
-        user_id = int(user_id)
-    except ValueError:
+        user_id = int(re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1))
+    except (AttributeError, ValueError):
         return
     else:
         try:
