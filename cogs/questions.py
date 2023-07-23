@@ -707,10 +707,10 @@ class Questions(commands.Cog):
     @question.command(name='list')
     async def question_list(self, ctx, target_channel=None):
         """Shows a list of currently open questions"""
+        question_channel = ctx.channel
         if isinstance(ctx.channel, discord.Thread):
-            question_channel = ctx.channel.parent
-        else:
-            question_channel = ctx.channel
+            if not isinstance(ctx.channel.parent, discord.ForumChannel):  # bug if someone calls ;q from inside forum
+                question_channel = ctx.channel.parent
 
         if not target_channel:
             target_channel = question_channel
