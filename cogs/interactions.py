@@ -197,7 +197,7 @@ class Interactions(commands.Cog):
     @fruits_app_command.autocomplete('fruits')
     async def fruits_autocomplete(
             self,
-            interaction: discord.Interaction,
+            _,
             current: str,
     ) -> List[app_commands.Choice[str]]:
         fruits = ['Banana', 'Pineapple', 'Apple', 'Watermelon', 'Melon', 'Cherry']
@@ -379,7 +379,7 @@ class Interactions(commands.Cog):
         if user_id_str:
             alarm_emb.description += f"\n- **Reported Users**: {user_id_str}"
         if ref_msg:
-            alarm_emb.add_field(name="Reported message content", value=ref_msg.content)
+            alarm_emb.add_field(name="Reported message content", value=ref_msg.content[:1024])
 
         button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
 
@@ -514,7 +514,6 @@ class Interactions(commands.Cog):
             mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
             if not mod_channel:
                 del self.bot.db['staff_ping'][guild_id]['channel']
-                mod_channel_id = None
                 # guild had a staff ping channel once but it seems it has been deleted
 
         # Failed to find a staffping channel, search for a submod channel next
@@ -532,7 +531,6 @@ class Interactions(commands.Cog):
             mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
             if not mod_channel:
                 del self.bot.db['mod_channel'][guild_id]
-                mod_channel_id = None
                 # guild had a mod channel once but it seems it has been deleted
 
         if not mod_channel:
@@ -635,7 +633,7 @@ class Interactions(commands.Cog):
             """
             await self.edit_embed(button_interaction, msg=None)
 
-        async def exit_menu_button_callback(button_interaction: discord.Interaction):
+        async def exit_menu_button_callback(_):
             """
             Delete config menu
             """
@@ -903,7 +901,7 @@ class Interactions(commands.Cog):
 
                 def check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                        i.application_id == interaction.application_id
+                           i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
@@ -932,7 +930,7 @@ class Interactions(commands.Cog):
 
                 def modal_return_check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                        i.application_id == interaction.application_id
+                           i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=20.0, check=modal_return_check)
@@ -1036,7 +1034,7 @@ class Interactions(commands.Cog):
                 def modal_return_check(i):
                     """Check to make sure the modal submitted corresponds to the current application"""
                     return i.type == discord.InteractionType.modal_submit and \
-                        i.application_id == interaction.application_id
+                           i.application_id == interaction.application_id
 
                 await ctx.bot.wait_for("interaction", timeout=20.0, check=modal_return_check)
             except asyncio.TimeoutError:
@@ -1077,7 +1075,7 @@ class Interactions(commands.Cog):
 
         def check(i):
             return i.type == discord.InteractionType.modal_submit and \
-                i.application_id == interaction.application_id
+                   i.application_id == interaction.application_id
 
         try:
             await ctx.bot.wait_for("interaction", timeout=60.0, check=check)
@@ -1228,7 +1226,7 @@ class Interactions(commands.Cog):
     @app_commands.guilds(SP_SERVER_ID, JP_SERVER_ID, RY_SERVER_ID)
     @app_commands.default_permissions()
     async def invite_all_to_thread(self,
-                      intr: discord.Interaction):
+                                   intr: discord.Interaction):
         """Invites all possible members into a thread from the parent text channel without pinging them."""
         list_of_users = []
         if not isinstance(intr.channel, discord.Thread):
@@ -1271,6 +1269,7 @@ class Interactions(commands.Cog):
 
         await asyncio.sleep(10)
         await m.delete()
+
 
 async def setup(bot):
     await bot.add_cog(Interactions(bot))
