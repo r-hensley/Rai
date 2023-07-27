@@ -1391,7 +1391,8 @@ class Questions(commands.Cog):
                               "Handbook of Japanese Grammar": "HoJG",
                               "どんなときどう使う 日本語表現文型辞典": "表現文型辞典"}
 
-        html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        # html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await aiohttp_get(ctx, 'https://djtguide.github.io/grammar/masterreference.html')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1519,6 +1520,143 @@ class Questions(commands.Cog):
             else:
                 # index has already been incremented by 1 from previous iteration even if this iteration couldn't fit
                 # so i need to subtract 1 from the below calculation
+                desc += f"(+ {total_length - (index - 1)} others...)"
+                break
+        emb.description = desc
+        msg = await hf.safe_send(ctx, embed=emb)
+        await wait_for_delete(msg)
+
+    @commands.command(aliases=['bp'])
+    async def bunpro(self, ctx, search):
+        """Search the grammar database at [bunpro](https://bunpro.jp/grammar_points).
+        Use: `;bunpro/;bp <search term>`.
+        """
+
+        if not search:
+            # await hf.safe_send(ctx, "You have to input a search term!")
+            return
+
+        # html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
+
+        soup = BeautifulSoup(html, 'html.parser')
+
+        def fancyfind(tag):
+            if 'class' not in tag.attrs:
+                return
+
+            if not tag['class'][0] == 'lessons-tile_gp':
+                return
+
+            return True
+
+        results = soup.find_all(fancyfind)
+        grammar_points = []
+        for result in results:
+            link = explanation = jlpt_level = ''
+
+            # get jlpt level
+            for class_ in result['class']:
+                if class_.startswith('search-option--jlpt_'):  # ...--jlpt_N5, N4, etc
+                    jlpt_level = class_[20:]  # take just "N5" part at end of class title
+
+            # get url link and explanation text
+            for content in result.contents:
+                if content.name == 'a':
+                    link = "https://bunpro.jp/" + content['href']
+                    explanation = content['title']
+
+            # get japanese_title and english_title
+            bad_split = result.text.split('\n')  # result looks like '\n\n\n\n\nだ\nTo be\n\n\n\n\n\n\n\n'
+            good_split = [i for i in bad_split if i]  # bad_split looks like ['', '', 'だ', 'To be', '', '', '']
+            japanese_title = good_split[0]  # "だ"
+            english_title = good_split[1]  # "To be"
+
+            grammar_points.append((japanese_title, english_title, jlpt_level, link, explanation))
+
+        def standardize_formatting(input_text):
+            output_text = input_text.replace("＋", "+")
+            output_text = output_text.replace("～", "~")
+            output_text = output_text.replace("（", "(")
+            output_text = output_text.replace("）", ")")
+            output_text = output_text.replace("　", " ")
+            return output_text
+
+        exacts = []
+        almost = []
+        contains = []
+        formatted_search = standardize_formatting(search)
+        print('formatted_search:', formatted_search)
+        for entry in grammar_points:  # (japanese_title, english_title, jlpt_level, link, explanation)
+            formatted_entry = [standardize_formatting(i) for i in entry]
+            if formatted_search in formatted_entry:
+                exacts.append(entry)
+            else:
+                for entry_part in formatted_entry:
+                    if len(formatted_search) >= 2 and LDist(formatted_search, entry_part) <= len(formatted_search) // 3:
+                        almost.append(entry)
+                    elif formatted_search in entry_part:
+                        contains.append(entry)
+
+        def min_dist(grammar_point) -> int:
+            distances = []
+            formatted_entry = [standardize_formatting(i) for i in grammar_point]
+            for grammar_part in formatted_entry[:2]:
+                distance = LDist(formatted_search, grammar_part)
+                distances.append(distance)
+                print(distance, grammar_part, formatted_search)
+
+            return min(distances)
+
+        # sort the items in "contains" list by the distance from the search term
+        # the terms closest to the search term will appear first
+        contains = sorted(contains, key=min_dist)
+
+        async def wait_for_delete(msg):
+            await msg.add_reaction('🗑️')
+            try:
+                await self.bot.wait_for('reaction_add', timeout=15.0,
+                                        check=lambda r, m: str(r.emoji) == '🗑️' and m == ctx.author)
+            except asyncio.TimeoutError:
+                try:
+                    await msg.clear_reactions()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+                return
+            await msg.delete()
+
+            try:
+                await ctx.message.delete()
+            except discord.Forbidden:
+                pass
+
+        if not (exacts or almost or contains):
+            msg = await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find any results for your search term."))
+            await wait_for_delete(msg)
+            return
+        emb = discord.Embed(title="Bunpro Grammar Search", color=0x00FF00)
+        desc = 'These are pulled from [this page](https://bunpro.jp/grammar_points). ' \
+               'If you save the link, \nyou can do your own seaches in the future.\n\n'
+        index = 1
+        # Add in these "middle" elements to mark where in the list there should be dividers added
+        total_length = len(exacts + almost + contains)
+        # noinspection PyTypeChecker
+        # above noinspection setting is because pycharm isn't happy putting ['middle'] into ['a', 'b', ...]
+        list_with_middles = exacts + ['middle'] + almost + ['middle'] + contains
+        for entry in list_with_middles:
+            # entry = (japanese_title, english_title, jlpt_level, link, explanation)
+            if entry == 'middle':
+                if desc[-7:] != "～～～～～～\n":
+                    desc += "～～～～～～\n"
+                continue
+            link_text = f"{entry[0]} - {entry[1]}"[:40]
+            addition = f"{index}) [{link_text}]({entry[3]}) ({entry[2]})\n"
+            if len(desc + addition) < 2028:
+                desc += addition
+                index += 1
+            else:
+                # index has already been incremented by 1 from previous iteration even if this iteration couldn't fit
+                # so I need to subtract 1 from the below calculation
                 desc += f"(+ {total_length - (index - 1)} others...)"
                 break
         emb.description = desc
