@@ -145,35 +145,9 @@ class Stats(commands.Cog):
                 member.joined_at = datetime.fromtimestamp(actual_joined_timestamp, tz=timezone.utc)
 
         # ### Collect all the data from the database ###
-        emoji_dict = {emoji.name: emoji for emoji in ctx.guild.emojis}
-        message_count = {}
-        emoji_count = {}
-        lang_count = {}
-        total_msgs_month = 0
-        total_msgs_week = 0
         total_activity = hf.count_activity(user_id, ctx.guild)
-        for day in config:
-            if str(user_id) in config[day]:
-                user = config[day][str(user_id)]
-                if 'channels' not in user:
-                    continue
-                for channel in user['channels']:
-                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
-                    days_ago = (discord.utils.utcnow() -
-                                datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
-                    if days_ago <= 7:
-                        total_msgs_week += user['channels'][channel]
-                    total_msgs_month += user['channels'][channel]
-                if 'emoji' in user:
-                    for emoji in user['emoji']:
-                        if emoji in emoji_dict:
-                            name = emoji_dict[emoji]
-                        else:
-                            name = emoji
-                        emoji_count[name] = emoji_count.get(name, 0) + user['emoji'][emoji]
-                if 'lang' in user:
-                    for lang in user['lang']:
-                        lang_count[lang] = lang_count.get(lang, 0) + user['lang'][lang]
+        total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count = \
+            hf.get_stats_per_channel(member.id, member.guild)
 
         # ### Sort the data ###
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
@@ -217,19 +191,24 @@ class Stats(commands.Cog):
                 break
 
         # ### Format top 3 channels text field / Add field to embed ###
+        def format_channel(number):
+            channel_id = sorted_msgs[number][0]
+            message_percentage = round(100 * sorted_msgs[number][1] / total_msgs_month, 2)
+            if channel_id == '0':  # category for all deleted channels
+                text = f"**#Deleted Channels**: {message_percentage}%⠀\n"
+            else:
+                channel = ctx.guild.get_channel_or_thread(int(channel_id))
+                text = f"**#{channel.name}**: {message_percentage}%⠀\n"
+            return text
+
         channeltext = ''
         try:
-            channel1 = (self.bot.get_channel(int(sorted_msgs[0][0])),
-                        round(100 * sorted_msgs[0][1] / total_msgs_month, 2))
-            channeltext += f"**#{channel1[0]}**: {channel1[1]}%⠀\n"
-            channel2 = (self.bot.get_channel(int(sorted_msgs[1][0])),
-                        round(100 * sorted_msgs[1][1] / total_msgs_month, 2))
-            channeltext += f"**#{channel2[0]}**: {channel2[1]}%⠀\n"
-            channel3 = (self.bot.get_channel(int(sorted_msgs[2][0])),
-                        round(100 * sorted_msgs[2][1] / total_msgs_month, 2))
-            channeltext += f"**#{channel3[0]}**: {channel3[1]}%⠀\n"
+            channeltext += format_channel(0)
+            channeltext += format_channel(1)
+            channeltext += format_channel(2)
         except IndexError:  # will stop automatically if there's not three channels in the list
             pass
+
         if channeltext:
             emb.add_field(name="Top Channels:",
                           value=f"{channeltext}")

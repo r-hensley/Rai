@@ -109,6 +109,66 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
         return 0
 
 
+def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: str = '') -> dict[int: int]:
+    """Queries bot stats database and arranges relevant data for a user per channel in a guild
+
+    Pass "messages", "emoji", or "lang" into "desired_stat" to get a specific stat.
+    Else, returns (total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count)"""
+    try:
+        config = here.bot.stats[str(guild.id)]['messages']
+    except KeyError:
+        return
+
+    # ### Collect all the data from the database ###
+    emoji_dict = {emoji.name: emoji for emoji in guild.emojis}
+    message_count = {}
+    emoji_count = {}
+    lang_count = {}
+    total_msgs_month = 0
+    total_msgs_week = 0
+    for day in config:
+        if str(member_id) in config[day]:
+            user = config[day][str(member_id)]
+
+            if 'channels' not in user:
+                continue
+            for channel in user['channels']:
+                channel: str
+                guild_channel = guild.get_channel_or_thread(int(channel))
+                if guild_channel:
+                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
+                else:
+                    # for channels that don't exist anymore, assign them all to a "0" channel to be grouped later
+                    message_count['0'] = message_count.get('0', 0) + user['channels'][channel]
+
+                days_ago = (discord.utils.utcnow() -
+                            datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                if days_ago <= 7:
+                    total_msgs_week += user['channels'][channel]
+                total_msgs_month += user['channels'][channel]
+
+            if 'emoji' in user:
+                for emoji in user['emoji']:
+                    if emoji in emoji_dict:
+                        name = emoji_dict[emoji]
+                    else:
+                        name = emoji
+                    emoji_count[name] = emoji_count.get(name, 0) + user['emoji'][emoji]
+
+            if 'lang' in user:
+                for lang in user['lang']:
+                    lang_count[lang] = lang_count.get(lang, 0) + user['lang'][lang]
+
+    if desired_stat.startswith('message'):
+        return total_msgs_month, total_msgs_week, message_count
+    elif desired_stat.startswith('emoji'):
+        return emoji_count
+    elif desired_stat.startswith('lang'):
+        return lang_count
+    else:
+        return total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count
+
+
 def count_activity(member_id: int, guild: discord.Guild) -> int:
     """Returns an integer value for activity in a server in the last month"""
     activity_score = 0
