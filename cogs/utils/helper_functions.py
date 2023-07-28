@@ -147,29 +147,18 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
         day: datetime
         next_day: datetime = day + one_day
         infinite_loop_avoidance_counter = 0
-        # print()
-        # print("start filling days", '\n', day.strftime("%m%d"), '\n', next_day.strftime("%m%d"), '\n',
-        #       [i.strftime("%m%d") for i in days])
         while next_day not in days and next_day <= last_day:
-            # print("next_day", next_day.strftime("%m%d"), "last_day", last_day.strftime("%m%d"),
-            #       "less than?", next_day <= last_day)
             days[next_day] = 0
             next_day = next_day + one_day
             infinite_loop_avoidance_counter += 1
-            # print()
-            # print()
-            # print("\nnew loop /", last_day.strftime("%m%d"))
-            # print(next_day.strftime("%m%d"), '\n', [i.strftime("%m%d") for i in days])
             if infinite_loop_avoidance_counter > 50:
                 raise ValueError("This code has somehow entered an infinite loop")
 
-    print("final result", [i.strftime("%m%d") for i in days])
     # noinspection PyTypeChecker
     # below operation for some reason thinks it returns list[datetime], but it's like [(datetime, int), (datetime, int)]
     days_list: list[tuple[datetime, int]] = list(days.items())
     days_list = sorted(days_list, key=lambda i: i[0])
     days = dict(days_list)
-    print('after sorting', [i.strftime("%m%d") for i in days])
     return days
 
 
