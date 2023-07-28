@@ -774,7 +774,6 @@ class Stats(commands.Cog):
 
         for i, color in color_settings:
             plt.setp(ax.get_yticklabels()[i], color=color)
-        # plt.gca().get_yticklabels()[1].set_color('red')
 
         with io.BytesIO() as plotIm:
             plt.savefig(plotIm, format='png')
