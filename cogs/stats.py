@@ -1,9 +1,12 @@
+import io
+
 import discord
 from discord.ext import commands
 
+import re
 from .utils import helper_functions as hf
 from datetime import datetime, timedelta, timezone
-import re
+import matplotlib.pyplot as plt
 
 import os
 
@@ -726,6 +729,57 @@ class Stats(commands.Cog):
             pos += 1
 
         await hf.safe_reply(ctx.message, embed=emb)
+
+    @commands.command(aliases=['ac'])
+    async def activity(self, ctx, user_in: str = None):
+        if not user_in:
+            user = ctx.author
+        else:
+            user = await hf.member_converter(ctx, user_in)
+            if not user:
+                user = await hf.user_converter(ctx, user_in)
+                if not user:
+                    await hf.safe_reply(ctx, "I couldn't find a user corresponding to the one you searched for.")
+                    return
+
+        assert user is not None, "Code failed to find user and advanced wrongly to this stage"
+
+        fig, ax = plt.subplots()
+
+        msgs_per_day: dict[datetime, int] = hf.get_messages_per_day(user.id, ctx.guild)
+        if not msgs_per_day:
+            await hf.safe_reply(ctx, "The user you specified has no activity in the last month.")
+            return
+
+        day_objects = sorted(list(msgs_per_day.keys()))
+        day_strings = [datetime.strftime(i, "%b %d") for i in msgs_per_day]
+        day_numbers = list(msgs_per_day.values())
+
+        ax.barh(day_strings, day_numbers)
+        ax.invert_yaxis()  # labels read top-to-bottom
+        ax.set_xlabel('Messages per day (red days are weekends)')
+        start_year = day_objects[0].year
+        end_year = day_objects[-1].year
+        title_line_1 = f'Messages per day from {start_year}-{day_strings[0]} to {end_year}-{day_strings[-1]}'
+        title_line_2 = f"{str(user)} - Average per day: {round(sum(day_numbers)/len(day_numbers), 1)}"
+        ax.set_title(f"{title_line_1}\n{title_line_2}")
+
+        # set colors for y-tick marks based on day of the week
+        color_settings = []
+        for i, day in enumerate(day_objects):
+            if day.weekday() > 4:  # saturday or sunday
+                color_settings.append((i, 'red'))
+            else:
+                color_settings.append((i, 'blue'))
+
+        for i, color in color_settings:
+            plt.setp(ax.get_yticklabels()[i], color=color)
+        # plt.gca().get_yticklabels()[1].set_color('red')
+
+        with io.BytesIO() as plotIm:
+            plt.savefig(plotIm, format='png')
+            plotIm.seek(0)
+            await hf.safe_send(ctx, file=discord.File(plotIm, 'plot.png'))
 
 
 async def setup(bot):

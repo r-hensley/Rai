@@ -109,6 +109,70 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
         return 0
 
 
+def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime, int]:
+    days: dict[datetime, int] = {}
+    first_day: Optional[datetime] = None
+    last_day: Optional[datetime] = None
+    try:
+        config = here.bot.stats[str(guild.id)]['messages']
+        for day_str in config:  # day looks like yyyymmdd: 20230401
+            day_str: str
+            date: datetime = datetime.strptime(day_str, "%Y%m%d")
+            if not first_day:
+                first_day = date
+            last_day = date
+            days[date] = 0
+            if str(member_id) in config[day_str]:
+                user = config[day_str][str(member_id)]
+                if 'channels' not in user:
+                    continue
+                days[date] += sum([user['channels'][c] for c in user['channels']])
+    except KeyError:
+        return {}
+
+    if len(days) == 0:
+        return {}
+
+    if len(days) == 1:
+        the_single_day: datetime = list(days.keys())[0]
+        twentynine_days_before: datetime = the_single_day - timedelta(days=29)
+        first_day: datetime = twentynine_days_before
+        days[twentynine_days_before] = 0
+
+    assert first_day != last_day, "The first day and last day in this code should never be equal"
+    assert last_day > first_day, "The last day here should always be greater than the first day"
+    assert first_day + timedelta(days=31) > last_day, "There are more than 31 days separating first and last day"
+    one_day = timedelta(days=1)
+    for day in days.copy():
+        day: datetime
+        next_day: datetime = day + one_day
+        infinite_loop_avoidance_counter = 0
+        # print()
+        # print("start filling days", '\n', day.strftime("%m%d"), '\n', next_day.strftime("%m%d"), '\n',
+        #       [i.strftime("%m%d") for i in days])
+        while next_day not in days and next_day <= last_day:
+            # print("next_day", next_day.strftime("%m%d"), "last_day", last_day.strftime("%m%d"),
+            #       "less than?", next_day <= last_day)
+            days[next_day] = 0
+            next_day = next_day + one_day
+            infinite_loop_avoidance_counter += 1
+            # print()
+            # print()
+            # print("\nnew loop /", last_day.strftime("%m%d"))
+            # print(next_day.strftime("%m%d"), '\n', [i.strftime("%m%d") for i in days])
+            if infinite_loop_avoidance_counter > 50:
+                raise ValueError("This code has somehow entered an infinite loop")
+
+    print("final result", [i.strftime("%m%d") for i in days])
+    # noinspection PyTypeChecker
+    # below operation for some reason thinks it returns list[datetime], but it's like [(datetime, int), (datetime, int)]
+    days_list: list[tuple[datetime, int]] = list(days.items())
+    days_list = sorted(days_list, key=lambda i: i[0])
+    days = dict(days_list)
+    print('after sorting', [i.strftime("%m%d") for i in days])
+    return days
+
+
 def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: str = '') -> dict[int: int]:
     """Queries bot stats database and arranges relevant data for a user per channel in a guild
 
