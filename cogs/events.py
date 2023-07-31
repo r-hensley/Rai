@@ -1,23 +1,18 @@
 import asyncio
-import io
 import os
 import re
 import string
-# import sys
 import urllib
 from datetime import timedelta, datetime
 from typing import Optional
 from urllib.error import HTTPError
-from PIL import Image, ImageFilter, UnidentifiedImageError
-import imagehash
 
 import discord
-from Levenshtein import distance as LDist
 from discord.ext import commands
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+from .database import Database
 from .utils import helper_functions as hf
-from .utils.timeutil import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -38,20 +33,6 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
-def compare_images(img2, img1):
-    if img1.width < img2.width:
-        img2 = img2.resize((img1.width, img1.height))
-    else:
-        img1 = img1.resize((img2.width, img2.height))
-    img1 = img1.filter(ImageFilter.BoxBlur(radius=3))
-    img2 = img2.filter(ImageFilter.BoxBlur(radius=3))
-    phashvalue = imagehash.phash(img1) - imagehash.phash(img2)
-    ahashvalue = imagehash.average_hash(img1) - imagehash.average_hash(img2)
-
-    totalaccuracy = phashvalue + ahashvalue
-    return totalaccuracy
-
-
 class Events(commands.Cog):
     """This module contains event listeners not in logger.py"""
 
@@ -59,12 +40,7 @@ class Events(commands.Cog):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
-        try:
-            self.bot.imga = Image.open(f'{dir_path}/banned_img/1.jpg').convert("RGB")
-            self.bot.imgb = Image.open(f'{dir_path}/banned_img/2.jpg').convert("RGB")
-            self.bot.imgc = Image.open(f'{dir_path}/banned_img/3.jpg').convert("RGB")
-        except FileNotFoundError:
-            self.bot.imga = self.bot.imgb = self.bot.imgc = None
+        self.sqdb: Optional[Database] = self.bot.get_cog("Database")
 
     # for debugging infinite loops/crashes etc
     #     @self.bot.event
@@ -913,52 +889,6 @@ class Events(commands.Cog):
 
         ##########################################
 
-        async def redirect_tatsumaki_commands():
-            """Redirect users to use Tatsumaki commands in the thread
-            instead of the main channel on the Spanish server."""
-            GENERAL_BOT_ID = 247135634265735168
-            if msg.channel.id == GENERAL_BOT_ID and msg.content.startswith("t!"):
-                await msg.reply("Please use that command in <#1018716355081543701> (https://discord.com/channels/"
-                                "243838819743432704/1018716355081543701/9999916373733613588)")
-
-        # await redirect_tatsumaki_commands()
-
-        async def watch_for_banned_images():
-            if msg.guild.id != SP_SERVER_ID:
-                return
-
-            if not self.bot.imga or not self.bot.imgb or not self.bot.imgc:
-                return
-
-            if msg.attachments:
-                for attachment in msg.attachments:
-                    if attachment.filename.split('.')[-1].casefold() in ['jpg', 'jpeg', 'png', 'gif',
-                                                                         'apng', 'tiff', 'mov', 'mp4']:
-                        data = io.BytesIO()
-                        await attachment.save(data)
-                        try:
-                            img2 = Image.open(data).convert("RGB")
-                        except UnidentifiedImageError:
-                            return
-
-                        results = [compare_images(img2, self.bot.imga),
-                                   compare_images(img2, self.bot.imgb),
-                                   compare_images(img2, self.bot.imgc)]
-                        for result in results:
-                            if result < 10:
-                                mod_channel = self.bot.get_channel(296013414755598346)
-                                x = await mod_channel.send("@here Check for a potential leaked image of Ori here "
-                                                           f"posted by {msg.author.mention}.\n"
-                                                           f"I've tested this a bunch but it's possible that there's an"
-                                                           f" error causing false positives. If Rai is spamming this "
-                                                           f"channel, please remove its permission to message in this "
-                                                           f"channel until I wake up.")
-                                await hf.send_attachments_to_thread_on_message(x, msg)
-                                await msg.delete()
-                                return
-
-        await watch_for_banned_images()
-
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
@@ -1011,20 +941,6 @@ class Events(commands.Cog):
                     await ctx.invoke(modlog, id_in=str(user.id))
 
         await post_modlog_in_reports()
-
-        # ### BurdBot's window to open questions in #audio_of_the_week
-        async def burdbot_window():
-            if msg.channel.id != 620997764524015647:  # aotw_feedback
-                return
-            if msg.author.id != 720900750724825138:  # burdbot
-                return
-            if not msg.attachments:
-                return
-            if "AOTW recording" in msg.content:
-                question: commands.Command = self.bot.get_command("question")
-                await ctx.invoke(question, args=msg.content)
-
-        await burdbot_window()
 
         # ### Replace tatsumaki/nadeko serverinfo posts
         async def replace_tatsumaki_posts():
@@ -1194,6 +1110,9 @@ class Events(commands.Cog):
 
         # automatic word filter
         async def wordfilter():
+            """
+            This catches new users based on admin-set commands in the ;wordfilter command.
+            """
             if not msg.guild.me.guild_permissions.ban_members:
                 return
             if str(msg.guild.id) not in self.bot.db['wordfilter']:
@@ -1341,7 +1260,7 @@ class Events(commands.Cog):
         except AttributeError:
             pass
 
-        """check for servers of banned IDs"""
+        """check for mutual servers of banned users"""
 
         async def check_guilds():
             if msg.guild.id == MODCHAT_SERVER_ID:
@@ -1398,7 +1317,7 @@ class Events(commands.Cog):
 
                     try:
                         await asyncio.sleep(3)
-                        await msg.author.ban(reason=f"__Reason__: Automatic ban: Chinese banned words spam\n"
+                        await msg.author.ban(reason=f"Automatic ban: Chinese banned words spam\n"
                                                     f"{msg.content[:100]}", delete_message_days=1)
                     except discord.Forbidden:
                         await hf.safe_send(mod_channel,
@@ -1413,326 +1332,114 @@ class Events(commands.Cog):
 
         await chinese_server_banned_words()
 
-        # ### bans accounts that have been in the server for a while but got hacked so started spamming
-        async def hacked_account_ban():
-            # discord.gift is a legit url
-            """
-            ["freenitros", 'discord nitro for free', 'airdrop discord nitro', 'nitro from steam',
-             "hi, i'm tired of csgo, i'm ieaving", 'fuck this trash caiied CS:GO, deieted',
-             'nitro distribution', 'Discord Nitro free', "steam gived nitro"
-             "take nitro faster, it's aiready running out", "free discord nitro airdrop",
-             'discord.ciick', 'discordgiveaway', 'Free Discord Nitro AirDrop',
-             'discordnitro', 'discordairdrop', 'discordgift', 'giftdiscord',
-             'discord.oniine', 'bit.do/randomgift', 'nitrodiscord', 'steamnitro'
-             'discordrgift.com', 'discord-gift.com', 'discord-gifte.com',
-             'stmeacomunnitty.ru', 'steamcommrnunity.com', 'stearncornmnuity', 'rustiic.com']
-            """
-            links = self.bot.db['spam_links']
-            # there are some words spelled with "i" instead of "l" in here, that's because I replace all l with i
-            # because of spammers who try to write dlscord.com with an l
-
-            if "giphy" in msg.content or "tenor" in msg.content:
-                return  # Exempt these sites
-
-            everyone = "@everyone" in msg.content  # only ban if they ping everyone
-
-            try:
-                if msg.guild.id == SP_SERVER_ID:
-                    if msg.guild.get_channel_or_thread(838403437971767346).permissions_for(msg.author).read_messages:
-                        return  # exempt all people in staff channel
-
-                elif msg.guild.id == JP_SERVER_ID:
-                    return  # Don't do Japanese server, Cirilla is working there
-                    # if msg.guild.get_channel_or_thread(277384105245802497).permissions_for(msg.author).read_messages:
-                    #     return  # exempt all people in everything_will_be_fine channel
-
-                elif msg.guild.id == CH_SERVER_ID:
-                    if msg.guild.get_channel_or_thread(267784908531957770).permissions_for(msg.author).read_messages:
-                        return  # exempt all people in #bot-dev channel
-
-                elif msg.guild.id in [477628709378195456,  # español e ingles (yoshi)
-                                      472283823955116032,  # nyaa langs (naru)
-                                      320439136236601344,  # /r/ChineseLanguages
-                                      116379774825267202,  # nihongo to eigo
-                                      484840490651353119,  # go! billy korean
-                                      541522953423290370,  # /r/korean
-                                      234492134806257665,  # let's learn korean
-                                      275146036178059265]:  # test server
-                    # 541500177018650641,  # german/english learning server (michdi)
-                    pass
-
-                else:
-                    return  # this module only works for spanish/japanese/chinese server
-
-            except AttributeError:
-                return
-                # permissions_for(msg.author).read_messages -->
-                # AttributeError: 'User' object has no attribute '_roles'
-
-            try:
-                number_of_messages = hf.count_messages(msg.author.id, msg.guild)
-            except AttributeError:  # AttributeError: 'User' object has no attribute 'guild'
-                return
-            messages = (number_of_messages < 50)  # only potentially ban users who are inactive to avoid false positives
-
-            # # Force a ban for users with a URL + "nitro" in their message and under 10 messages in the last month
-            # url_regex = r"https:\/\/(?!(discord|discordapp|discordstatus)\.)[a-zA-Z0-9_\-\.]*\.(com|gift|xyz|ru)"
-            # if number_of_messages < 10 or (number_of_messages < 100 and "@everyone" in msg.content):
-            #     if re.findall(url_regex, msg.content.casefold()):
-            #         if "nitro" in msg.content.casefold() or "Whо is first?" in msg.content.casefold():
-            #             if msg.guild.id == SP_SERVER_ID:  # for now, only on Spanish server to test
-            #                 everyone = messages = True
-
-            # edit out typical modifications to the URLs to standardized urls for more generality
-            msg_content = msg.content.casefold().replace('cll', 'd').replace('cl', 'd').replace('l', 'i')
-            msg_content = msg_content.replace('crd', 'rd').replace('-', '').replace('discod', 'discord')
-            msg_content = msg_content.replace('rcd', 'rd').replace("niitro", "nitro").replace("rid", "rd")
-            msg_content = msg_content.replace('ff', 'f').replace('cords', 'cord')
-
-            for link in links:
-                if re.findall(link, msg_content):
-                    try:
-                        await msg.delete()
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
-                    cont = msg.content.replace('http', 'http ')  # break links
-
-                    # a temporary list to prevent the spamming of multiple embeds and bans, dels at end of function
-                    if not hasattr(self.bot, "spammer_mute"):
-                        self.bot.spammer_mute = []  # a temporary list
-
-                    if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
-                        try:
-                            await msg.delete()
-                        except (discord.Forbidden, discord.NotFound):
-                            pass
-                        return
-                    else:
-                        self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
-
-                    if msg.guild.id == SP_SERVER_ID:
-                        mod_channel = msg.guild.get_channel_or_thread(297877202538594304)  # incidents channel
-                    elif msg.guild.id == JP_SERVER_ID:  # JP_SERVER_ID
-                        mod_channel = msg.guild.get_channel_or_thread(755269708579733626)  # anything_goes_tho
-                    else:
-                        mod_channel = msg.guild.get_channel_or_thread(self.bot.db['mod_channel'][str(msg.guild.id)])
-
-                    if everyone and messages:  # ban
-                        try:
-                            await msg.author.ban(reason=f"Potential spam link: {cont}"[:512], delete_message_days=1)
-                        except discord.Forbidden:
-                            try:
-                                self.bot.spammer_mute.remove(spammer_mute_entry)
-                            except ValueError:
-                                pass
-                            return
-                        await mod_channel.send(embed=hf.red_embed(f"Banned user {msg.author} ({msg.author.id}) for "
-                                                                  f"potential  spam link:\n```{cont}```"))
-                    elif messages:  # mute
-                        ctx.author = ctx.guild.me
-                        mute_command: commands.Command = self.bot.get_command('mute')
-                        await ctx.invoke(mute_command,
-                                         args=f"1h {str(msg.author.id)} "
-                                              f"Inactive user sending Nitro spam-like message (please confirm)"
-                                              f"\n```{cont}```")
-                        await mod_channel.send(f"(@here) {msg.author.mention}",
-                                               embed=hf.red_embed(f"🔇❓**MUTED** user {msg.author} ({msg.author.id}) "
-                                                                  f"for potential spam link, [please confirm "
-                                                                  f"the content]({msg.jump_url}) and possibly ban:"
-                                                                  f"\n```{cont}```"))
-
-                    else:  # notify
-                        await mod_channel.send(f"(@here) {msg.author.mention}",
-                                               embed=hf.red_embed(f"❓The active user {msg.author} ({msg.author.id}) "
-                                                                  f"sent a potential spam link, please confirm "
-                                                                  f"the content and possibly ban:\n```{cont}```"))
-
-                    # remove from temporary list after all actions done
-                    try:
-                        self.bot.spammer_mute.remove(spammer_mute_entry)
-                    except ValueError:
-                        pass
-                    return
-
-        try:
-            await hacked_account_ban()
-        except Exception:
-            if hasattr(self.bot, "spammer_mute"):
-                try:
-                    self.bot.spammer_mute.remove((msg.guild.id, msg.author.id))
-                except ValueError:
-                    pass
-            raise
-
-        # ### bans accounts that spam right after having joined the server
-        async def spam_account_bans():
-            words = ['amazingsexdating', 'bestdatingforall', 'nakedphotos.club', 'privatepage.vip', 'viewc.site',
-                     'libra-sale.io', 'ethway.io', 'omg-airdrop', 'linkairdrop', "Airdrop Time!", "freenitros.ru/",
-                     'discorcl.click/', 'discord-giveaway.com/', 'bit.do/randomgift', 'stmeacomunnitty.ru',
-                     'discordrgift.com', 'discordc.gift', 'discord-gifte.com'
-                                                          'Discord Nitro for Free', 'AIRDROP DISCORD NITRO']
-            if "@everyone" not in msg.content:
-                return
-            try:
-                for word in words:
-                    if word in msg.content:
-                        time_ago = discord.utils.utcnow() - msg.author.joined_at
-                        msg_text = f"Bot spam message in [{msg.guild.name}] - [{msg.channel.name}] by " \
-                                   f"{msg.author.name} (joined {time_ago.seconds // 3600}h " \
-                                   f"{time_ago.seconds % 3600 // 60}m ago [{time_ago}])```{msg.content}```"
-                        await self.bot.get_user(self.bot.owner_id).send(msg_text)
-                        if str(msg.author.guild.id) not in self.bot.db['auto_bans']:
-                            return
-                        if self.bot.db['auto_bans'][str(msg.author.guild.id)]['enable']:
-                            if time_ago < timedelta(minutes=20) or \
-                                    (msg.channel.id == 559291089018814464 and time_ago < timedelta(hours=5)):
-                                if msg.author.id in [202995638860906496, 414873201349361664]:
-                                    return
-                                try:
-                                    await msg.author.ban(reason=f'For posting spam link: {msg.content}'[:512],
-                                                         delete_message_days=1)
-                                except discord.Forbidden:
-                                    return
-                                self.bot.db['global_blacklist']['blacklist'].append(msg.author.id)
-                                channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-                                emb = hf.red_embed(f"{msg.author.id} (automatic addition)")
-                                emb.add_field(name="Reason", value=msg.content)
-                                await hf.safe_send(channel, embed=emb)
-                                created_ago = discord.utils.utcnow() - msg.author.created_at
-                                joined_ago = discord.utils.utcnow() - msg.author.joined_at
-                                message = f"**Banned a user for posting a {word} link.**" \
-                                          f"\n**ID:** {msg.author.id}" \
-                                          f"\n**Server:** {msg.author.guild.name}" \
-                                          f"\n**Name:** {msg.author.name} {msg.author.mention}" \
-                                          f"\n**Account creation:** {msg.author.created_at} " \
-                                          f"({format_interval(created_ago, show_minutes=False)} ago)" \
-                                          f"\n**Server join:** {msg.author.joined_at} " \
-                                          f"({format_interval(joined_ago, show_minutes=False)} ago)" \
-                                          f"\n**Message:** {msg.content}"
-                                emb2 = hf.red_embed(message)
-                                emb2.color = discord.Color(int('000000', 16))
-                                await self.bot.get_channel(BANS_CHANNEL_ID).send(embed=emb2)
-                                if str(msg.guild.id) in self.bot.db['bans']:
-                                    if self.bot.db['bans'][str(msg.guild.id)]['channel']:
-                                        channel_id = self.bot.db['bans'][str(msg.guild.id)]['channel']
-                                        await self.bot.get_channel(channel_id).send(embed=emb2)
-                                return
-
-            except KeyError:
-                pass
-            except AttributeError:
-                pass
-
-        await spam_account_bans()
-
-        """spanish server welcome channel module"""
-
-        async def smart_welcome(msg):
-            if msg.channel.id != SP_SERVER_ID:
-                return
-            content = re.sub('> .*\n', '', msg.content.casefold())  # remove quotes in case the user quotes bot
-            content = content.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
-            for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
-                if content == word:
-                    return  # ignore messages that are just these single words
-            if msg.content == '<@270366726737231884>':  # ping to Rai
-                return  # ignore pings to Rai
-            english_role = msg.guild.get_role(243853718758359040)
-            spanish_role = msg.guild.get_role(243854128424550401)
-            other_role = msg.guild.get_role(247020385730691073)
-            category_roles = [msg.guild.get_role(802629332425375794),
-                              msg.guild.get_role(802657919400804412),
-                              msg.guild.get_role(1002681814734880899)]
-            for role in category_roles:
-                if not role:
-                    category_roles.remove(role)
-            for role in [english_role, spanish_role, other_role]:
-                if role in msg.author.roles:
-                    return  # ignore messages by users with tags already
-            if discord.utils.utcnow() - msg.author.joined_at < timedelta(seconds=3):
-                return
-
-            english = ['english', 'inglés', 'anglohablante', 'angloparlante']
-            spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante', 'castellano']
-            other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
-                     'brazil', 'portuguesa', 'brazilian']
-            both = ['both', 'ambos', 'los dos']
-            txt1 = ''
-            language_score = {'english': 0, 'spanish': 0, 'other': 0, 'both': 0}  # eng, sp, other, both
-            split = content.split()
-
-            def check_language(language, index):
-                skip_next_word = False  # just defining the variable
-                for language_word in language:  # language = one of the four word lists above
-                    for content_word in split:  # content_word = the words in their message
-                        if len(content_word) <= 3:
-                            continue  # skip words three letters or less
-                        if content_word in ['there']:
-                            continue  # this triggers the word "other" so I skip it
-                        if skip_next_word:  # if i marked this true from a previous loop...
-                            skip_next_word = False  # ...first, reset it to false...
-                            continue  # then skip this word
-                        if content_word.startswith("learn") or content_word.startswith('aprend') \
-                                or content_word.startswith('estud') or content_word.startswith('stud') or \
-                                content_word.startswith('fluent'):
-                            skip_next_word = True  # if they say any of these words, skip the *next* word
-                            continue  # example: "I'm learning English, but native Spanish", skip "English"
-                        if LDist(language_word, content_word) < 3:
-                            language_score[language[0]] += 1
-
-            check_language(english, 0)  # run the function I just defined four times, once for each of these lists
-            check_language(spanish, 1)
-            check_language(other, 2)
-            check_language(both, 3)
-
-            num_of_hits = 0
-            for lang in language_score:
-                if language_score[lang]:  # will add 1 if there's any value in that dictionary entry
-                    num_of_hits += 1  # so "english spanish" gives 2, but "english english" gives 1
-
-            if num_of_hits != 1:  # the bot found more than one language statement in their message, so ask again
-                await msg.channel.send(f"{msg.author.mention}\n"
-                                       f"Hello! Welcome to the server!          Is your **native language**: "
-                                       f"__English__, __Spanish__, __both__, or __neither__?\n"
-                                       f"¡Hola! ¡Bienvenido(a) al servidor!    ¿Tu **idioma materno** es: "
-                                       f"__el inglés__, __el español__, __ambos__ u __otro__?")
-                return
-
-            if msg.content.startswith(';') or msg.content.startswith('.'):
-                return
-
-            if language_score['english']:
-                txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
-                try:
-                    await msg.author.add_roles(english_role, *category_roles)
-                except discord.NotFound:
-                    return
-            if language_score['spanish']:
-                txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
-                try:
-                    await msg.author.add_roles(spanish_role, *category_roles)
-                except discord.NotFound:
-                    return
-            if language_score['other']:
-                txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
-                try:
-                    await msg.author.add_roles(other_role, *category_roles)
-                except discord.NotFound:
-                    return
-            if language_score['both']:
-                txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
-                try:
-                    await msg.author.add_roles(english_role, spanish_role, *category_roles)
-                except discord.NotFound:
-                    return
-
-                    #  "You can add more roles in <#703075065016877066>:\n" \
-                #  "Puedes añadirte más en <#703075065016877066>:\n\n" \
-            txt2 = "Before using the server, please read the rules in <#243859172268048385>.\n" \
-                   "Antes de usar el servidor, por favor lee las reglas en <#243859172268048385>."
-            await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
-
-        await smart_welcome(msg)
+        # """spanish server welcome channel module"""
+        #
+        # async def smart_welcome(msg):
+        #     if msg.channel.id != SP_SERVER_ID:
+        #         return
+        #     content = re.sub('> .*\n', '', msg.content.casefold())  # remove quotes in case the user quotes bot
+        #     content = content.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
+        #     for word in ['hello', 'hi', 'hola', 'thanks', 'gracias']:
+        #         if content == word:
+        #             return  # ignore messages that are just these single words
+        #     if msg.content == '<@270366726737231884>':  # ping to Rai
+        #         return  # ignore pings to Rai
+        #     english_role = msg.guild.get_role(243853718758359040)
+        #     spanish_role = msg.guild.get_role(243854128424550401)
+        #     other_role = msg.guild.get_role(247020385730691073)
+        #     category_roles = [msg.guild.get_role(802629332425375794),
+        #                       msg.guild.get_role(802657919400804412),
+        #                       msg.guild.get_role(1002681814734880899)]
+        #     for role in category_roles:
+        #         if not role:
+        #             category_roles.remove(role)
+        #     for role in [english_role, spanish_role, other_role]:
+        #         if role in msg.author.roles:
+        #             return  # ignore messages by users with tags already
+        #     if discord.utils.utcnow() - msg.author.joined_at < timedelta(seconds=3):
+        #         return
+        #
+        #     english = ['english', 'inglés', 'anglohablante', 'angloparlante']
+        #     spanish = ['spanish', 'español', 'hispanohablante', 'hispanoparlante', 'castellano']
+        #     other = ['other', 'neither', 'otro', 'otra', 'arabic', 'french', 'árabe', 'francés', 'portuguese',
+        #              'brazil', 'portuguesa', 'brazilian']
+        #     both = ['both', 'ambos', 'los dos']
+        #     txt1 = ''
+        #     language_score = {'english': 0, 'spanish': 0, 'other': 0, 'both': 0}  # eng, sp, other, both
+        #     split = content.split()
+        #
+        #     def check_language(language, index):
+        #         skip_next_word = False  # just defining the variable
+        #         for language_word in language:  # language = one of the four word lists above
+        #             for content_word in split:  # content_word = the words in their message
+        #                 if len(content_word) <= 3:
+        #                     continue  # skip words three letters or less
+        #                 if content_word in ['there']:
+        #                     continue  # this triggers the word "other" so I skip it
+        #                 if skip_next_word:  # if i marked this true from a previous loop...
+        #                     skip_next_word = False  # ...first, reset it to false...
+        #                     continue  # then skip this word
+        #                 if content_word.startswith("learn") or content_word.startswith('aprend') \
+        #                         or content_word.startswith('estud') or content_word.startswith('stud') or \
+        #                         content_word.startswith('fluent'):
+        #                     skip_next_word = True  # if they say any of these words, skip the *next* word
+        #                     continue  # example: "I'm learning English, but native Spanish", skip "English"
+        #                 if LDist(language_word, content_word) < 3:
+        #                     language_score[language[0]] += 1
+        #
+        #     check_language(english, 0)  # run the function I just defined four times, once for each of these lists
+        #     check_language(spanish, 1)
+        #     check_language(other, 2)
+        #     check_language(both, 3)
+        #
+        #     num_of_hits = 0
+        #     for lang in language_score:
+        #         if language_score[lang]:  # will add 1 if there's any value in that dictionary entry
+        #             num_of_hits += 1  # so "english spanish" gives 2, but "english english" gives 1
+        #
+        #     if num_of_hits != 1:  # the bot found more than one language statement in their message, so ask again
+        #         await msg.channel.send(f"{msg.author.mention}\n"
+        #                                f"Hello! Welcome to the server!          Is your **native language**: "
+        #                                f"__English__, __Spanish__, __both__, or __neither__?\n"
+        #                                f"¡Hola! ¡Bienvenido(a) al servidor!    ¿Tu **idioma materno** es: "
+        #                                f"__el inglés__, __el español__, __ambos__ u __otro__?")
+        #         return
+        #
+        #     if msg.content.startswith(';') or msg.content.startswith('.'):
+        #         return
+        #
+        #     if language_score['english']:
+        #         txt1 = " I've given you the `English Native` role! ¡Te he asignado el rol de `English Native`!\n\n"
+        #         try:
+        #             await msg.author.add_roles(english_role, *category_roles)
+        #         except discord.NotFound:
+        #             return
+        #     if language_score['spanish']:
+        #         txt1 = " I've given you the `Spanish Native` role! ¡Te he asignado el rol de `Spanish Native!`\n\n"
+        #         try:
+        #             await msg.author.add_roles(spanish_role, *category_roles)
+        #         except discord.NotFound:
+        #             return
+        #     if language_score['other']:
+        #         txt1 = " I've given you the `Other Native` role! ¡Te he asignado el rol de `Other Native!`\n\n"
+        #         try:
+        #             await msg.author.add_roles(other_role, *category_roles)
+        #         except discord.NotFound:
+        #             return
+        #     if language_score['both']:
+        #         txt1 = " I've given you both roles! ¡Te he asignado ambos roles! "
+        #         try:
+        #             await msg.author.add_roles(english_role, spanish_role, *category_roles)
+        #         except discord.NotFound:
+        #             return
+        #
+        #             #  "You can add more roles in <#703075065016877066>:\n" \
+        #         #  "Puedes añadirte más en <#703075065016877066>:\n\n" \
+        #     txt2 = "Before using the server, please read the rules in <#243859172268048385>.\n" \
+        #            "Antes de usar el servidor, por favor lee las reglas en <#243859172268048385>."
+        #     await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
+        #
+        # await smart_welcome(msg)
 
         async def mods_ping(message_in):
             """mods ping on spanish server"""
