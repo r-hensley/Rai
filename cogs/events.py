@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import string
+import sys
 import urllib
 from datetime import timedelta, datetime
 from typing import Optional
@@ -11,7 +12,7 @@ import discord
 from discord.ext import commands
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-from .database import Database
+from .database import Connect
 from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -40,7 +41,6 @@ class Events(commands.Cog):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
-        self.sqdb: Optional[Database] = self.bot.get_cog("Database")
 
     # for debugging infinite loops/crashes etc
     #     @self.bot.event
@@ -1736,6 +1736,8 @@ class Events(commands.Cog):
                 today[author]['lang'][lang] = today[author]['lang'].get(lang, 0) + 1
 
         await msg_count()
+
+        """Database message counting"""
 
         """Ultra Hardcore"""
         await hf.uhc_check(msg)

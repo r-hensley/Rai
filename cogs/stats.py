@@ -1,9 +1,15 @@
 import io
+import sqlite3
+import sys
+from typing import Union
 
+import asqlite
 import discord
 from discord.ext import commands
 
 import re
+
+from .database import Connect
 from .utils import helper_functions as hf
 from datetime import datetime, timedelta, timezone
 import matplotlib.pyplot as plt
@@ -16,11 +22,38 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SPAM_CHAN = 275879535977955330
 
 
+async def add_message_to_database(msg):
+    """Record message data in the sqlite database"""
+    if not msg.guild:
+        return
+
+    # if msg.guild.id not in [266695661670367232, 243838819743432704, 275146036178059265]:
+    #     return
+
+    lang = 'en'
+
+    # guild = await db.execute(f"SELECT (rai_id, guild_id) FROM guilds WHERE guild_id = {msg.guild.id}")
+    async with asqlite.connect(rf'{dir_path}/database.db') as c:
+        async with c.transaction():
+            await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({msg.guild.id})")
+            await c.execute(f"INSERT OR IGNORE INTO channels (channel_id) VALUES ({msg.channel.id})")
+            await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES ({msg.author.id})")
+
+            query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
+                    f"VALUES (?, ?, ?, ?, ?)"
+            parameters = (msg.id, msg.author.id, msg.guild.id, msg.channel.id, lang)
+            await c.execute(query, parameters)
+    print('\n\n', msg.author, msg.content, msg.guild.name, query, parameters)
+    sys.stdout.flush()
+
+
 class Stats(commands.Cog):
     """A module for tracking stats of messages on servers for users to view. Enable/disable the module with `"""
 
     def __init__(self, bot):
         self.bot = bot
+        if not hasattr(self.bot, 'message_pool'):
+            self.bot.message_pool = []
 
     async def cog_check(self, ctx):
         try:
@@ -779,6 +812,99 @@ class Stats(commands.Cog):
             plt.savefig(plotIm, format='png')
             plotIm.seek(0)
             await hf.safe_send(ctx, file=discord.File(plotIm, 'plot.png'))
+
+    async def process_message_pool(self, message_pool: list[discord.Message]):
+        async with asqlite.connect(rf'{dir_path}/database.db') as c:
+            async with c.transaction():
+                res = await c.execute("SELECT guild_id, rai_id FROM guilds")
+                guilds: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
+                res = await c.execute("SELECT channel_id, rai_id FROM channels")
+                channels: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
+                res = await c.execute("SELECT user_id, rai_id FROM users")
+                users: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
+        # b = [msg.guild.id for msg in message_pool]
+        # a = [(i[0], type(i[0]), i[0] in b) for i in guilds]
+        # print(b)
+        # print(a)
+        # print("current guilds logged: \n", [i[0] for i in guilds])
+        new_guild_ids = {msg.guild.id for msg in message_pool
+                         if msg.guild.id not in [g_id[0] for g_id in guilds]}
+        guild_dict = dict(guilds)  # {discord_guild_id: rai_id}
+        new_channel_ids = {msg.channel.id for msg in message_pool
+                           if msg.channel.id not in [c_id[0] for c_id in channels]}
+        channel_dict = dict(channels)  # {discord_channel_id: rai_id}
+        new_user_ids = {msg.author.id for msg in message_pool
+                        if msg.author.id not in [u_id[0] for u_id in users]}
+        user_dict = dict(users)  # {discord_user_id: rai_id}
+        # print("new_guild_ids:", new_guild_ids, sep="\n")
+        # print("new_channel_ids:", new_channel_ids, sep="\n")
+        # print("new_user_ids:", new_user_ids, sep="\n")
+
+        async with asqlite.connect(rf'{dir_path}/database.db') as c:
+            async with c.transaction():
+                for guild_id in new_guild_ids:
+                    await c.execute(f"INSERT INTO guilds (guild_id) VALUES (?)", (guild_id,))
+                    res = await c.execute("SELECT last_insert_rowid()")
+                    rai_id = (await res.fetchone())[0]
+                    guild_dict[guild_id] = rai_id
+                    # print(f"added new guild - {guild_id}: {rai_id}")
+                    # await c.executemany(f"INSERT INTO guilds (guild_id) VALUES (?)", new_guild_ids)
+
+                for channel_id in new_channel_ids:
+                    await c.execute(f"INSERT INTO channels (channel_id) VALUES (?)", (channel_id,))
+                    res = await c.execute("SELECT last_insert_rowid()")
+                    rai_id = (await res.fetchone())[0]
+                    channel_dict[channel_id] = rai_id
+                    # print(f"added new channel - {channel_id}: {rai_id}")
+                    # await c.executemany(f"INSERT INTO channels (channel_id) VALUES (?)", new_channel_ids)
+
+                for user_id in new_user_ids:
+                    await c.execute(f"INSERT INTO users (user_id) VALUES (?)", (user_id,))
+                    res = await c.execute("SELECT last_insert_rowid()")
+                    rai_id = (await res.fetchone())[0]
+                    user_dict[user_id] = rai_id
+                    # print(f"added new user - {user_id}: {rai_id}")
+                    # await c.executemany(f"INSERT INTO users (user_id) VALUES (?)", new_user_ids)
+
+                # print("guilds:", guild_dict)
+                # print("channels:", channel_dict)
+                # print("users:", user_dict)
+
+                param_list = [
+                    (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id], channel_dict[msg.channel.id], 'en')
+                    for msg in message_pool]
+                query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
+                        f"VALUES (?, ?, ?, ?, ?)"
+                await c.executemany(query, param_list)
+        # print("Finished processing pool")
+
+        # for message in message_pool:
+        #     print('\n', f"{counter}/100", message.author, message.content)
+        #     await add_message_to_database(message)
+        #     counter += 1
+        #     sys.stdout.flush()
+
+    @commands.Cog.listener()
+    async def on_message(self, msg: discord.Message):
+        if msg.author.bot:
+            return
+
+        async def pool_messages():
+            if not msg.guild:
+                return
+            if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
+                return
+            self.bot.message_pool.append(msg)
+            # print('\n', msg.author, msg.content, f"Message pool length: {len(self.bot.message_pool)}")
+            # print(len(self.bot.message_pool), end=",")
+            sys.stdout.flush()
+            if len(self.bot.message_pool) == 100:
+                # print('\n', msg.author, msg.content, f"Sending message pool")
+                old_message_pool = self.bot.message_pool
+                self.bot.message_pool = []
+                await self.process_message_pool(old_message_pool)
+
+        await pool_messages()
 
 
 async def setup(bot):
