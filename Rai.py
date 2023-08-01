@@ -6,7 +6,6 @@ import traceback
 import json
 import os
 from datetime import datetime
-from typing import Union
 
 from dotenv import load_dotenv
 
@@ -15,7 +14,7 @@ from discord.ext.commands import Bot
 from discord.ext import commands, tasks
 
 from cogs.utils import helper_functions as hf
-from cogs.database import Database
+from cogs.database import create_database_tables
 
 logging.basicConfig(level=logging.WARNING)
 # logger = logging.getLogger('discord')
@@ -157,11 +156,9 @@ class Rai(Bot):
         hf.load_db(self)
         hf.load_stats(self)
 
-        print("test")
-
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
-                              'cogs.events', 'cogs.interactions', 'cogs.database', 'cogs.clubs']
+                              'cogs.events', 'cogs.interactions', 'cogs.clubs']
 
         for extension in initial_extensions:
             try:
@@ -172,9 +169,7 @@ class Rai(Bot):
                 traceback.print_exc()
                 raise
 
-        # sqdb = Database(self)
-        sqdb: Union[Database, commands.Cog] = self.get_cog("Database")
-        await sqdb.open_db()
+        await create_database_tables()
 
         hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
 

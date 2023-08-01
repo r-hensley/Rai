@@ -30,7 +30,6 @@ RYRY_RAI_BOT_ID = 270366726737231884
 RAI_TEST_BOT_ID = 536170400871219222
 
 
-
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
 
@@ -370,6 +369,8 @@ class Owner(commands.Cog):
         except discord.Forbidden:
             pass
         for cog in cogs.split():
+            if cog == 'database':
+                importlib.reload(sys.modules['cogs.database'])
             if cog in ['hf', 'helper_function']:
                 try:
                     old_module = sys.modules['cogs.utils.helper_functions']
