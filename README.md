@@ -63,7 +63,7 @@ The commands in this module are only usable by users with either the `Administra
 
 #### Setting the mod channel
 Important messages from the bot will go here.  This channel doesn't have to actually be your mod channel, just in the channel you want important notifications to go, type:
-` **`;set_mod_channel`** Sets the current channel as the mod channel
+- **`;set_mod_channel`** Sets the current channel as the mod channel
 
 #### Setting the mod role  
 - **`;set_mod_role [role name]`** Sets the mod role for the server.  Type the name of the role exactly in [role name].
@@ -71,7 +71,7 @@ Important messages from the bot will go here.  This channel doesn't have to actu
 
 #### Setting the submod role
 This is an optional feature.  Submods can 1) ban users within one hour of them joining (for trolls spamming porn or something when there are no mods online), 2) mute users, 3) delete messages using a special command, and the log of the message will be left in the submod channel, and 4) pin messages using a special command.
-` **`;set_submod_channel`** Sets the current channel as the submod channel
+- **`;set_submod_channel`** Sets the current channel as the submod channel
 
 #### Setting the submod role  
 - **`;set_submod_role [role name]`** Sets the mod role for the server.  Type the name of the role exactly in [role name].
@@ -87,7 +87,7 @@ This is an optional feature.  Submods can 1) ban users within one hour of them j
 - **`;ban [time] <user> [reason]`** Bans a user for an optional amount of time with an optional reason.  Examples:
   - `;ban @Ryry013` Bans me indefinitely.  
   - `;ban 1d2h @Ryry013` Bans me for 1 day and 2 hours.
-  ` `;ban @Ryry013 for being mean` Bans me indefinitely for being mean.
+  - `;ban @Ryry013 for being mean` Bans me indefinitely for being mean.
 - **`;mute [time] <user>`** Mutes a user from all text and voice chat.  Similar usage to the above `;ban` command.
 - **`;warn [user] <reason> <-s>`** Warns a user and sends them a PM.  Add `-s` into the reason to make it not send the PM (makes it silent).  Use this for either warning the user when they've done something, or use the silent warnings to log incidents 
   
@@ -116,19 +116,6 @@ Special syntax:
 
 #### Report room
 This command module, while it's still in the bot, has mainly been replaced by the DMModbot bot on my repo.
-~~A feature that allows users to either make an anonymous report to the mods, or enter a special report room to have a conversation with the mods.  This feature was designed to eliminate the need for PMs in moderation.  Further detail will be written later/is written on my testing server.  For now, how to setup:~~
-~~1) First, type `;report setup` in the channel you want to be the report room. Set the permissions on that channel so that `@everyone` can not view messages nor channel history. ~~
-~~2) Make sure you have a mod channel set with `;set_mod_channel` and a mod role set with `;set_mod_role`~~
-~~3) Type `;report` in a channel to test it all out.~~
-
-~~Other commands:~~
-~~- **`;report check_waiting_list`** Checks who is on the waiting list for the report room~~
-~~- **`;report clear_waiting_list`** Clears the waiting list~~
-~~- **`;report [USER / ID]`** Pulls a user into the report room if you want to ask them questions about something.  It is recommended to tell the user you will do this before you do it.~~
-~~- **`;report reset`** If something bugs out with the report room, use this to reset it.  Make sure to also manually reset the permission overrides of the channel for the last user to have been in the room.~~
-~~- **`;report_room_ping`** Enable/disable a `@here` ping when someone joins the report room.~~
-~~- **`;report_anonymous_ping`** Enable/disable a `@here` ping when someone makes an anonymous report.~~
-
 ⠀
 #### Super_watch lists: an anti-raid tool
 
@@ -155,7 +142,6 @@ Setup antispam to [mute/kick/ban] users who spam the same message [x] times in [
 
 #### Invite link/amazingsexdating spam auto-banning
 This command module has been deleted since the release of Discord's automod module. This is the [list of filter terms](https://mystb.in/DramaticallySharedSecretariat) I currently use for my servers from recent bot spammers.
-~~- **`;auto_bans`** Toggles the banning of all users who join and instantly send an invite link, or those that join and spam a link to amazingsexdating.com.  If you use the below welcome messages module too, then the welcome message won't be posted.~~
 
 #### Welcome messages
 Welcome new users when they join the server
