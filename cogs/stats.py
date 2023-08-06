@@ -9,7 +9,6 @@ from discord.ext import commands
 
 import re
 
-from .database import Connect
 from .utils import helper_functions as hf
 from datetime import datetime, timedelta, timezone
 import matplotlib.pyplot as plt
