@@ -139,9 +139,10 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
         first_day: datetime = twentynine_days_before
         days[twentynine_days_before] = 0
 
-    assert first_day != last_day, "The first day and last day in this code should never be equal"
-    assert last_day > first_day, "The last day here should always be greater than the first day"
-    assert first_day + timedelta(days=31) > last_day, "There are more than 31 days separating first and last day"
+    assert first_day != last_day, f"The first {first_day} and last day {last_day} in this code should never be equal"
+    assert last_day > first_day, f"The last day {last_day} here should always be greater than the first day {first_day}"
+    assert first_day + timedelta(days=32) > last_day, f"There are more than 32 days separating first " \
+                                                      f"{first_day} and last {last_day} day"
     one_day = timedelta(days=1)
     for day in days.copy():
         day: datetime
