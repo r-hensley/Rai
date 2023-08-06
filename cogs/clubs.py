@@ -112,9 +112,40 @@ class Clubs(commands.Cog):
         try:
             await club_members.execute(query, parameters)
             await ctx.message.add_reaction("✅")
-        except IntegrityError:
-            await ctx.send("You are already in that club!")
+        except sqlite3.IntegrityError as e:
+            if e.args[0].startswith("UNIQUE constraint failed"):
+                await ctx.send(f"You are already in that club!")
+            else:
+                raise
+
+    @commands.command(aliases=['leaveparty'])
+    async def leaveclub(self, ctx: commands.Context, *, club_name: str):
+        """Leave a club. Type the name of the club you wish to leave in the command.
+        Syntax: `;leaveclub <club-name>`
+        Example: `;leaveclub a boring club`."""
+        clubs = Connect("database.db", "clubs")
+        to_leave_id = None
+        list_of_clubs = await clubs.execute("SELECT club_id, name FROM clubs")
+        for (club_id, name) in list_of_clubs:
+            if name.casefold() == club_name.casefold():
+                to_leave_id = club_id
+
+        if not to_leave_id:
+            await ctx.send("I could not find the club you are trying to leave. Please try again.")
             return
+
+        query = "DELETE FROM club_members WHERE club_id = ? AND member_id = ?"
+        parameters = (to_leave_id, ctx.author.id)
+        try:
+            async with asqlite.connect(DATABASE_PATH) as c:
+                await c.execute(query, parameters)
+        except sqlite3.IntegrityError as e:
+            if e.args[0] == "FOREIGN KEY constraint failed":
+                raise
+            else:
+                raise
+        else:
+            await ctx.message.add_reaction("✅")
 
     @commands.command(aliases=['giveparty'])
     async def giveclub(self, ctx: commands.Context, user_id, *, club_name: str):
