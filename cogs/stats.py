@@ -682,13 +682,18 @@ class Stats(commands.Cog):
                                        f"it will not be shown.")
 
     @commands.command()
-    async def sentiment(self, ctx, user_id: str = None):
+    async def sentiment(self, ctx: commands.Context, user_id: str = None):
         """Check your sentiment score in the server.
 
         For info about sentiment scores, see [this page](https://medium.com/@piocalderon
         /vader-sentiment-analysis-explained-f1c4f9101cd9)
 
         For a tool to test your own messages, try [this](https://monkeylearn.com/sentiment-analysis-online/)."""
+        if ctx.message.content.startswith(";sentiment "):
+            if not re.search(r"(?:;sentiment @)|(?:;sentiment <?@?!?\d{17,22}>?)", ctx.message.content):
+                return  # in on_message, there is separate code handling this case
+                # this is so users can test their sentiment on their messages
+
         user_sentiment = 0
         if not user_id:
             user_id = str(ctx.author.id)

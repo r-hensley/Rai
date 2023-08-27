@@ -1610,10 +1610,36 @@ class Events(commands.Cog):
             if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
                 return
 
-            if lang != 'en':
+            if lang != 'en' and msg.guild.id != RY_SERVER_ID:
                 return
 
-            sentiment = self.sid.polarity_scores(msg.content)['compound']
+            to_calculate = msg.content
+            show_result = False
+            if msg.content.startswith(";sentiment "):
+                if not re.search(r"(?:;sentiment @)|(?:;sentiment <?@?!?\d{17,22}>?)", msg.content):
+                    to_calculate = msg.content.replace(";sentiment ", "")
+                    show_result = True
+
+            sentiment = self.sid.polarity_scores(to_calculate)
+            # above returns a dict like {'neg': 0.0, 'neu': 1.0, 'pos': 0.0, 'compound': 0.0}
+
+            if show_result:
+                pos = sentiment['pos']
+                neu = sentiment['neu']
+                neg = sentiment['neg']
+                await hf.safe_send(ctx, f"Your sentiment score for the above message:"
+                                        f"\n- Positive / Neutral / Negative: +{pos} / n{neu} / -{neg}"
+                                        f"\n- Overall: {sentiment['compound']}"
+                                        f"\nNote this program is often wrong, and can only check English. If using "
+                                        f"this command returned nothing, it means the program couldn't judge "
+                                        f"your message.")
+
+            if msg.author.id == 352959699454263300:  # 352959699454263300
+                test_channel = self.bot.get_channel(1145205130560553060)
+                await hf.safe_send(test_channel, f"{msg.content}\n{sentiment}")
+
+            sentiment = sentiment['compound']
+
             if 'sentiments' not in self.bot.db:
                 self.bot.db['sentiments'] = {}
 
