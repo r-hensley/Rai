@@ -1587,7 +1587,7 @@ class Events(commands.Cog):
 
             if check_lang:
                 try:
-                    if msg.guild.id == SP_SERVER_ID and msg.channel.id != 817074401680818186:
+                    if msg.guild.id in [SP_SERVER_ID, 1112421189739090101] and msg.channel.id != 817074401680818186:
                         if hasattr(self.bot, 'langdetect'):
                             detected_lang: Optional[str] = hf.detect_language(stripped_msg)
                         else:
