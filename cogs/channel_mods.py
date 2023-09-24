@@ -424,10 +424,18 @@ class ChannelMods(commands.Cog):
     #     await ctx.message.delete()
     #     await hf.safe_send(ctx, f"Removed {user_name} as a channel mod for this channel", delete_after=5.0)
 
+    @commands.check(lambda x: x.guild.id in [SP_SERV, JP_SERV])
     @commands.command(aliases=['staff'])
-    async def staffrole(self, ctx):
+    async def staffrole(self, ctx: commands.Context):
         """You can add/remove the staff role from yourself with this"""
-        staffrole = ctx.guild.get_role(642782671109488641)
+        if ctx.guild.id == SP_SERV:
+            staffrole = ctx.guild.get_role(642782671109488641)
+        else:
+            staffrole = ctx.guild.get_role(240647591770062848)
+        if not staffrole:
+            await hf.safe_reply(ctx.message, "I couldn't find the staff role for this server.")
+            return
+        
         if staffrole in ctx.author.roles:
             await ctx.author.remove_roles(staffrole)
             await hf.safe_send(ctx, "I've removed the staff role from you")
