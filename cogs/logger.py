@@ -1435,6 +1435,9 @@ class Logger(commands.Cog):
             if not (not before.is_timed_out() and after.is_timed_out()):
                 return  # event is not a timeout event
 
+            if before.guild.id == 189571157446492161:
+                return
+
             guild = before.guild
             attempts = 0
             time_left = None
