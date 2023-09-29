@@ -1530,12 +1530,13 @@ class Logger(commands.Cog):
                 hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
 
             # send second notification for sesion mods
-            sesion_mod_role = guild.get_role(830821949382983751)
-            if sesion_mod_role in author.roles:
-                if author.top_role == sesion_mod_role:
-                    sesion_helpers_channel = guild.get_channel(861337623636475944)
-                    if sesion_helpers_channel:
-                        await hf.safe_send(sesion_helpers_channel, str(after.id), embed=emb)
+            event_helper = guild.get_role(830821949382983751)
+            event_host = guild.get_role(874020674124021760)
+            if event_helper in author.roles or event_host in author.roles:
+                if author.top_role in [event_helper, event_host]:
+                    event_helpers_channel = guild.get_channel(861337623636475944)
+                    if event_helpers_channel:
+                        await hf.safe_send(event_helpers_channel, str(after.id), embed=emb)
 
         await check_timeouts()
 
