@@ -26,6 +26,7 @@ FEDE_TESTER_SERVER_ID = 941155953682821201
 RY_GUILD = discord.Object(id=RY_SERVER_ID)
 FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
 SP_GUILD = discord.Object(id=SP_SERVER_ID)
+JP_GUILD = discord.Object(id=JP_SERVER_ID)
 
 
 
@@ -1170,7 +1171,7 @@ class Interactions(commands.Cog):
                 return
 
     @app_commands.command()
-    @app_commands.guilds(SP_SERVER_ID, JP_SERVER_ID)
+    @app_commands.guilds(RY_GUILD, SP_GUILD, JP_GUILD)
     @app_commands.default_permissions()
     @app_commands.describe(message_link="A Jump URL message link to a message")
     @app_commands.describe(message_id="An integer ID for a message")
@@ -1206,13 +1207,15 @@ class Interactions(commands.Cog):
 
             destination_member = intr.guild.get_member(destination_id)
             if not destination_member:
-                try:
-                    destination_member = await self.bot.fetch_user(destination_id)
-                except (discord.NotFound, discord.HTTPException):
-                    pass
+                destination_member = intr.guild.get_channel_or_thread(destination_id)  # a text channel
+                if not destination_member:
+                    try:
+                        destination_member = await self.bot.fetch_user(destination_id)
+                    except (discord.NotFound, discord.HTTPException):
+                        pass
 
             if not destination_member:
-                await intr.response.send_message("Failed to find the member you specified", ephemeral=True)
+                await intr.response.send_message("Failed to find the member or channel you specified", ephemeral=True)
                 return
 
         try:

@@ -33,9 +33,12 @@ here._loop = None
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
 CH_SERV_ID = 266695661670367232
-SP_SERV_GUILD = discord.Object(SP_SERV_ID)
+JP_SERVER_ID = 189571157446492161
 FEDE_GUILD = discord.Object(941155953682821201)
 RY_SERV = discord.Object(275146036178059265)
+
+SP_SERV_GUILD = discord.Object(SP_SERV_ID)
+JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 
 def setup(bot, loop):
@@ -1167,6 +1170,12 @@ async def hf_sync():
         await here.bot.tree.sync(guild=SP_SERV_GUILD)
     except discord.Forbidden:
         print("Failed to sync commands to SP_SERV_GUILD")
+
+    # Jp server
+    try:
+        await here.bot.tree.sync(guild=JP_SERV_GUILD)
+    except discord.Forbidden:
+        print("Failed to sync commands to JP_SERV_GUILD")
 
     # Ry serv
     for command in []:
