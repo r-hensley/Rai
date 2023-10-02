@@ -124,11 +124,22 @@ class Submod(commands.Cog):
                     targets.remove(target)
                     continue
 
-            # Allow server helpers on Spanish server to ban users who joined within last 60 minutes
-            if not (ctx.guild.id == SP_SERV_ID and
-                    ctx.guild.get_role(258819531193974784) in ctx.author.roles and
-                    joined_at < timedelta(minutes=60)) and not \
-                    hf.admin_check(ctx):
+            # Allow server helpers on Spanish/JP server to ban users who joined within last 60 minutes
+            perms = False
+            if hf.admin_check(ctx):
+                perms = True
+            else:
+                if joined_at < timedelta(minutes=60):
+                    if ctx.guild.id == JP_SERVER_ID:
+                        jp_staff_role = 543721608506900480
+                        if ctx.guild.get_role(jp_staff_role) in ctx.author.roles:
+                            perms = True
+                    elif ctx.guild.id == SP_SERV_ID:
+                        sp_server_helper_role = 258819531193974784
+                        if ctx.guild.get_role(sp_server_helper_role) in ctx.author.roles:
+                            perms = True
+
+            if not perms:
                 raise commands.MissingPermissions(['ban_members'])
 
         if not targets:
@@ -276,7 +287,7 @@ class Submod(commands.Cog):
         await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
-                                guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265])
+                                guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265, JP_SERVER_ID])
 
     @submod.command(name="role")
     @app_commands.default_permissions()
