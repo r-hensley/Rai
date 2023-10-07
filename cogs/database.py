@@ -341,6 +341,17 @@ async def create_database_tables() -> None:
                            "FOREIGN KEY (user_id) REFERENCES users (rai_id),"
                            "FOREIGN KEY (channel_id) REFERENCES channels (rai_id))")
 
+    # for slash command "/linkusers"
+    messages = Connect("database.db", "", "")
+    await messages.execute("CREATE TABLE IF NOT EXISTS linkedusers "
+                           "(id INTEGER PRIMARY KEY, "
+                           "id_1 INTEGER, "
+                           "id_2 INTEGER, "
+                           "guild_id INTEGER, "
+                           "FOREIGN KEY (id_1) REFERENCES users (user_id) ON DELETE RESTRICT,"
+                           "FOREIGN KEY (id_2) REFERENCES users (user_id) ON DELETE RESTRICT,"
+                           "FOREIGN KEY (guild_id) REFERENCES guilds (guild_id) ON DELETE RESTRICT)")
+
 
 async def setup(bot):
     pass
