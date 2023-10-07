@@ -5,6 +5,7 @@ from typing import Union, List, NamedTuple
 import aiohttp
 from io import BytesIO
 
+import asqlite
 import discord
 import discord.ext.commands as commands
 from typing import Optional
@@ -28,7 +29,7 @@ FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
 SP_GUILD = discord.Object(id=SP_SERVER_ID)
 JP_GUILD = discord.Object(id=JP_SERVER_ID)
 
-
+DATABASE_PATH = rf'{dir_path}/database.db'
 
 
 # @app_commands.describe(): add a description to a parameter when the user is inputting it
@@ -1274,6 +1275,93 @@ class Interactions(commands.Cog):
 
         await asyncio.sleep(10)
         await m.delete()
+
+    @app_commands.command()
+    @app_commands.guilds(RY_SERVER_ID)
+    @app_commands.default_permissions()
+    @app_commands.describe(user1="The first user to link")
+    @app_commands.describe(user2="The second user to link")
+    @app_commands.describe(id1="The ID of the first user (if they left the server)")
+    @app_commands.describe(id2="The ID of the second user (if they left the server)")
+    async def linkusers(self, intr: discord.Interaction,
+                        user1: discord.Member = None,
+                        user2: discord.Member = None,
+                        id1: str = None,
+                        id2: str = None):
+        """(Choose two arguments only!) Link two user accounts so calling modlog of one brings up the other."""
+        if user1:
+            id_1 = user1.id
+            if id1:
+                id1 = None
+                await intr.channel.send("Ignoring unneeded `id1` arg (you already have `user1`)", delete_after=10.0)
+        elif id1:
+            try:
+                id_1 = int(id1)
+            except ValueError:
+                await intr.response.send_message("You must supply an integer for int1")
+                return
+        else:
+            error_msg = "You must choose fill one of either the user option or the ID option for both users!"
+            await intr.response.send_message(error_msg, ephemeral=True)
+            return
+
+        if user2:
+            id_2 = user2.id
+            if id2:
+                id2 = None
+                await intr.channel.send("Ignoring unneeded `id2` arg (you already have `user2`)", delete_after=10.0)
+        elif id2:
+            try:
+                id_2 = int(id2)
+            except ValueError:
+                await intr.response.send_message("You must supply an integer for int2")
+                return
+        else:
+            error_msg = "You must choose fill one of either the user option or the ID option for both users!"
+            await intr.response.send_message(error_msg, ephemeral=True)
+            return
+
+        # check to make sure user didn't specify same user in both fields
+        if id_1 == id_2:
+            error_msg = "You can't link the same user to itself!"
+            await intr.response.send_message(error_msg, ephemeral=True)
+            return
+
+        await hf.send_to_test_channel(1)
+
+        chosen_args = [i for i in [user1, user2, id1, id2] if i]
+        assert len(chosen_args) == 2, "More than two arguments remaining in /linkusers"
+
+        await hf.send_to_test_channel(2, id_1, id_2, intr.guild.id)
+
+        async with asqlite.connect(DATABASE_PATH) as c:
+            await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_1)
+            await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_2)
+            await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES (?)", intr.guild.id)
+
+        await hf.send_to_test_channel(3)
+
+        check_condition = f"((id_1 = ? AND id_2 = ?) OR (id_1 = ? AND id_2 = ?)) AND guild_id = ?"
+        check_parameters = (id_1, id_2, id_2, id_1, intr.guild.id)
+        async with asqlite.connect(DATABASE_PATH) as c:
+            cur = await c.execute(f"SELECT * from linkedusers WHERE {check_condition}", check_parameters)
+            res = await cur.fetchall()
+
+        await hf.send_to_test_channel(4, res)
+
+        if res:
+            async with asqlite.connect(DATABASE_PATH) as c:
+                await c.execute(f"DELETE FROM linkedusers WHERE {check_condition}", check_parameters)
+            await intr.response.send_message(f"I've deleted the link between user IDs {id_1} and {id_2}.")
+            return
+
+        else:
+            async with asqlite.connect(DATABASE_PATH) as c:
+                await c.execute(f"INSERT OR IGNORE INTO linkedusers (id_1, id_2, guild_id) VALUES (?, ?, ?)",
+                                (id_1, id_2, intr.guild.id))
+            await intr.response.send_message(f"I've linked the user's {id_1} and {id_2}.")
+
+        await hf.send_to_test_channel(res, id_1, id_2)
 
 
 async def setup(bot):
