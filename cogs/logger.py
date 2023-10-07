@@ -2141,8 +2141,11 @@ class Logger(commands.Cog):
                             break
 
         except discord.Forbidden:
-            await log_channel.send('I tried to check the audit log to see who performed the action, '
-                                   'but I lack the permission to view the audit log. ')
+            try:
+                await log_channel.send('I tried to check the audit log to see who performed the action, '
+                                       'but I lack the permission to view the audit log. ')
+            except discord.Forbidden:
+                pass
             return
 
         # if audit_entry.user.id == self.bot.owner_id:
