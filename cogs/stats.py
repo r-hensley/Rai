@@ -182,7 +182,7 @@ class Stats(commands.Cog):
         # ### Collect all the data from the database ###
         total_activity = hf.count_activity(user_id, ctx.guild)
         total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count = \
-            hf.get_stats_per_channel(member.id, member.guild)
+            hf.get_stats_per_channel(user_id, ctx.guild)
 
         # ### Sort the data ###
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
