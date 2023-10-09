@@ -685,8 +685,8 @@ class Stats(commands.Cog):
     async def sentiment(self, ctx: commands.Context, user_id: str = None):
         """Check your sentiment score in the server.
 
-        For info about sentiment scores, see [this page](https://medium.com/@piocalderon
-        /vader-sentiment-analysis-explained-f1c4f9101cd9)
+        For info about sentiment scores, see \
+        [this page](https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9).
 
         For a tool to test your own messages, try [this](https://monkeylearn.com/sentiment-analysis-online/)."""
         if ctx.message.content.startswith(";sentiment "):
