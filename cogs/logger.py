@@ -1749,7 +1749,9 @@ class Logger(commands.Cog):
             reason = reason.replace('%20', ' ')
 
         author = re.search(r'^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
-                           r'(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)', reason)
+                           r'(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)',
+                           reason,
+                           flags=re.DOTALL)  # make "." include new lines
         if author:
             if author.group('ID'):
                 admin = self.bot.get_user(int(author.group("ID")))
@@ -1834,7 +1836,7 @@ class Logger(commands.Cog):
 
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 # ⁣ is a flag to *skip* crossposting
-                # "⠀" is flag to specially *enable* crossposting for one  ban
+                # "⠀" is flag to specially *enable* crossposting for one ban
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
                         (ban_emb.description.startswith('⠀')):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
