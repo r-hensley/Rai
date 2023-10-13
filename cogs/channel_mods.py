@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional, Union, List
 from datetime import datetime, timedelta, timezone
 
@@ -924,7 +925,7 @@ class ChannelMods(commands.Cog):
                 emb.color = hf.red_embed("").color
                 emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
                 config = []
-        else:  # Non-existant user
+        else:  # Non-existent user
             config = []
 
         first_embed = None  # only to be used if the first embed goes over 6000 characters
@@ -947,9 +948,8 @@ class ChannelMods(commands.Cog):
             if entry['jump_url']:
                 value += f"[Jump URL]({entry['jump_url']})\n"
 
-            first_embed = None
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
-                first_embed = emb.copy()
+                first_embed = deepcopy(emb)
                 emb.clear_fields()
 
             if len(value) <= 1024:
