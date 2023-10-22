@@ -683,8 +683,14 @@ class Admin(commands.Cog):
                 to_prune_channels.append(msg.channel)
 
         deleted_messages: list[discord.Message] = []
+
+        def check(m):
+            if m.author.id == target_id:
+                if m.type == discord.MessageType.default:
+                    return True
+
         for channel in to_prune_channels:
-            msgs = await channel.purge(limit=1000, check=lambda m: m.author.id == target_id, after=utcnow - time)
+            msgs = await channel.purge(limit=1000, check=check, after=utcnow - time)
             deleted_messages += msgs
 
         deleted_messages.sort(key=lambda m: m.created_at)
