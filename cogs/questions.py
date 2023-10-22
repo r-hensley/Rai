@@ -1326,7 +1326,10 @@ class Questions(commands.Cog):
 
             # Yourei
             yourei_result = await self.get_yourei_results(ctx, search_term)
-            num_yourei_results = getattr(yourei_result.find(id="num-examples"), "text", "0")
+            if yourei_result:
+                num_yourei_results = getattr(yourei_result.find(id="num-examples"), "text", "0")
+            else:
+                num_yourei_results = "Unavailable"
             url = f"https://yourei.jp/{quote(search_term)}"
             s += f"[Yourei]({url}): {num_yourei_results}\n"
 
