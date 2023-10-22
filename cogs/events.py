@@ -889,6 +889,24 @@ class Events(commands.Cog):
 
         ##########################################
 
+        # ### ban users from sensitive_topics on spanish server
+        async def ban_from_sens_top():
+            banned_role_id = 1163181663459749978
+            sensitive_topics_id = 1030545378577219705
+            role = msg.guild.get_role(banned_role_id)
+            if msg.channel.id != sensitive_topics_id:
+                return
+            if role not in msg.author.roles:
+                return
+
+            try:
+                await msg.delete()
+                await msg.author.send("You are not allowed to use that channel. Here is the message you tried to send:")
+                await msg.author.send(msg.content)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        await ban_from_sens_top()
+
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
