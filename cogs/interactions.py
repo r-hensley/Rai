@@ -1248,9 +1248,9 @@ class Interactions(commands.Cog):
             if p.read_messages:
                 list_of_users.append(member)
 
-        if len(list_of_users) > 30:
+        if len(list_of_users) > 45:
             await intr.followup.send(f"This command would invite {len(list_of_users)}, but I can only invite a "
-                                     f"maximum of 30 users. Sorry!", ephemeral=True)
+                                     f"maximum of 45 users. Sorry!", ephemeral=True)
             return
 
         ping_message = "Inviting following users:\n" + ", ".join([u.mention for u in list_of_users])
