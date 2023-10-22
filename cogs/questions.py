@@ -1440,7 +1440,7 @@ class Questions(commands.Cog):
                     dictionary: str = dictionaries[site]
                     break
             if not url.startswith("https"):
-                url: str = "https://itazuraneko.neocities.org/grammar/" + url
+                url: str = "https://djtguide.github.io/grammar/" + url
             grammar = "".join([str(x) for x in i.contents])
             if "<rt>" in grammar:
                 grammar = re.compile(r"(<rt>.*?</rt>|</?ruby>)").sub("", grammar)
@@ -1503,7 +1503,7 @@ class Questions(commands.Cog):
             await wait_for_delete(msg)
             return
         emb = discord.Embed(title="Itazuraneko Grammar Search", color=0x00FF00)
-        desc = 'These are pulled from [this page](https://itazuraneko.neocities.org/grammar/masterreference.html). ' \
+        desc = 'These are pulled from [this page](https://djtguide.github.io/grammar/masterreference.html). ' \
                '\nIf you save the link, you can do\nyour own seaches in the future.\n\n'
         index = 1
         # Add in these "middle" elements to mark where in the list there should be dividers added
