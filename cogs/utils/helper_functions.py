@@ -435,8 +435,6 @@ async def member_converter(ctx: commands.Context, user_in: Union[str, int]) -> O
         if user_in in member[1]:
             return member[2]
 
-    if ctx.author != ctx.bot.user:
-        await ctx.send('Member not found in the server')
     return None
 
 
