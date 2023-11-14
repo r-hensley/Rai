@@ -284,22 +284,38 @@ class Logger(commands.Cog):
         if after.channel:
             users_in_voice = ""
             needed_two_fields = False
+
+            if isinstance(after.channel, discord.StageChannel):
+                name_text = "Current stage channel speakers"
+            else:
+                name_text = "Users currently in joined voice channel"
+
             for user in after.channel.members:
+                if user.voice.suppress:  # a listener in a stage channel
+                    pass
                 text_to_add = f"\n- [{str(user)}"
                 if user.nick:
                     text_to_add += f" ({user.nick})"
                 text_to_add += f"](https://rai/participant-id-is-P{user.id})"
+
+                # Check to make sure the total length of the embed isn't going over 6000, cut off if so
+                if (len(emb) + len(name_text) + len(users_in_voice) + len(text_to_add)) > 6000:
+                    users_in_voice += "\n[...]"
+                    break
                 if len(users_in_voice + text_to_add) < 1024:
                     users_in_voice += text_to_add
                 else:
-                    emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+                    if needed_two_fields:
+                        emb.add_field(name="User list (cont.)", value=users_in_voice)
+                    else:
+                        emb.add_field(name=name_text, value=users_in_voice)
                     users_in_voice = text_to_add
                     needed_two_fields = True
 
             if needed_two_fields:
                 emb.add_field(name="User list (cont.)", value=users_in_voice)
             else:
-                emb.add_field(name="Users currently in joined voice channel", value=users_in_voice)
+                emb.add_field(name=name_text, value=users_in_voice)
 
         """Voice logging"""
         if guild_config:
@@ -1116,6 +1132,7 @@ class Logger(commands.Cog):
                     try:
                         def check(m):
                             return m.author.id == 299335689558949888 and m.channel == jpJHO
+
                         msg = await self.bot.wait_for('message', timeout=10.0, check=check)
                         await msg.delete()
                     except asyncio.TimeoutError:
@@ -2118,7 +2135,6 @@ class Logger(commands.Cog):
                             if before_perms[perm] is False and after_perms[perm] is None:
                                 rai_removing_a_block = True
 
-
         try:
             audit_entry = None
             async for entry in guild.audit_logs(limit=5, oldest_first=False,
@@ -2193,7 +2209,7 @@ class Logger(commands.Cog):
             colour=color,
             timestamp=discord.utils.utcnow(),
         )
-        
+
         if audit_entry:
             emb.set_footer(text=f"Changed by {str(audit_entry.user)}")
 
