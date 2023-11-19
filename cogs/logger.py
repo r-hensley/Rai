@@ -339,8 +339,8 @@ class Logger(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-                four_hours_in_seconds = 60 * 60 * 4
-                if (discord.utils.utcnow() - member.created_at).total_seconds() < four_hours_in_seconds:
+                thirty_six_hours_in_seconds = 60 * 60 * 36
+                if (discord.utils.utcnow() - member.created_at).total_seconds() < thirty_six_hours_in_seconds:
                     emb.description += "\n(Newly created account joining voice):"
                     emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
                     emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
@@ -349,18 +349,6 @@ class Logger(commands.Cog):
                             await hf.safe_send(channel, member.id, embed=emb)
                         except discord.Forbidden:
                             pass
-
-                bronox = member.guild.get_member(894817002672259072)
-                if bronox:
-                    if bronox in a.members:
-                        # 'jason' in the database is a timestamp showing the last time a jason alt was banned
-                        if member.created_at.timestamp() > self.bot.db['jason']:
-                            emb.description += "\n(An account that was created after the last time Jason was banned " \
-                                               "has joined a voice channel with Bronox)"
-                            try:
-                                await hf.safe_send(channel, member.id, embed=emb)
-                            except discord.Forbidden:
-                                pass
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -1101,30 +1089,45 @@ class Logger(commands.Cog):
             server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
 
             # Special Japanese server invite management
-            if guild_id == str(JP_SERV_ID) and used_invite:
+            if guild_id == str(JP_SERV_ID):
                 jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
-                # check if they joined from a Japanese site or other
-                # the following links are specifically the ones we've used to advertise on japanese sites
-                japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+                new_user_role = member.guild.get_role(249695630606336000)
+                ne = member.guild.get_role(197100137665921024)  # native english role
+                ol = member.guild.get_role(248982130246418433)  # other language role
+                nj = member.guild.get_role(196765998706196480)  # native japanese role
                 JHO_msg = f"Welcome {member.name}!"
-                for link in used_invite:
-                    if type(link) == str:
-                        continue
-                    if link.code in japanese_links:
-                        JHO_msg = f'{member.name}さん、サーバーへようこそ！'
-                        break
+
+                # check if they joined from a Japanese site or other
+                if used_invite:
+                    # the following links are specifically the ones we've used to advertise on japanese sites
+                    japanese_links = ['6DXjBs5', 'WcBF7XZ', 'jzfhS2', 'w6muGjF', 'TxdPsSm', 'MF9XF89', 'RJrcSb3']
+                    for link in used_invite:
+                        if type(link) == str:
+                            continue
+                        if link.code in japanese_links:
+                            JHO_msg = f'{member.name}さん、サーバーへようこそ！'
+                            break
+
+                # check if they've been in the server before
                 if list_of_readd_roles:
                     JHO_msg += " I've readded your previous roles to you!"
                     await asyncio.sleep(2)
-                    new_user_role = member.guild.get_role(249695630606336000)
+
+                    # else, if they are a returning *tagged* user, take away "new user" if they have it for some reason
                     if new_user_role in member.roles:
                         await member.remove_roles(new_user_role)
+
+                # if the user has no language roles, give them the "new user" role
+                if (ne not in member.roles) and (ol not in member.roles) and (nj not in member.roles):
+                    await member.add_roles(new_user_role)
+
                 try:
                     await hf.safe_send(jpJHO, JHO_msg)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
-                if member.id == ABELIAN_ID:  # secret entry for Abelian
+                # secret entry for Abelian
+                if member.id == ABELIAN_ID:
                     async for message in jpJHO.history(limit=10):
                         if message.author.id == 159985870458322944:
                             await message.delete()
@@ -1307,7 +1310,9 @@ class Logger(commands.Cog):
                 found_roles = []
                 for role in member.roles:
                     if role.name in ['Nitro Booster', 'New User'] or \
-                            role.id in [249695630606336000, member.guild.id, 645021058184773643,
+                            role.id in [249695630606336000,  # jp server new user role
+                                        member.guild.id,  # the "@everyone" role
+                                        645021058184773643,  # jp server "stage visitor" role
                                         802629332425375794, 802657919400804412, 1002681814734880899,  # category roles
                                         590163584856752143]:  # awesome supporter role (jp server)
 
