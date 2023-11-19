@@ -928,7 +928,7 @@ class ChannelMods(commands.Cog):
         else:  # Non-existent user
             config = []
 
-        first_embed = None  # only to be used if the first embed goes over 6000 characters
+        first_embed: Optional[discord.Embed] = None  # only to be used if the first embed goes over 6000 characters
         for entry in config[-25:]:
             name = f"{config.index(entry) + 1}) "
             if entry['silent']:
@@ -956,7 +956,11 @@ class ChannelMods(commands.Cog):
                 emb.add_field(name=name, value=value[:1024], inline=False)
             else:
                 emb.add_field(name=name, value=value[:1021] + "...", inline=False)
-                emb.add_field(name=name + "(cont.)", value="..." + value[1021:], inline=False)
+                to_add_value = value[1021:]
+                if len(to_add_value) > 1021:
+                    over_amount = len(to_add_value) - 1014
+                    to_add_value = to_add_value[:500] + " [...] " + to_add_value[500+over_amount:]
+                emb.add_field(name=name + "(cont.)", value="..." + to_add_value, inline=False)
 
             # if there are more than 25 fields (the max), remove extra
             extra_fields = len(emb.fields) - 25
