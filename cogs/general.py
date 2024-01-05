@@ -35,6 +35,18 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
+def doneq_check(ctx):
+    if not ctx.guild:
+        return
+    if ctx.guild.id not in [JP_SERVER_ID, SP_SERVER_ID]:
+        return
+    if not isinstance(ctx.channel, discord.Thread):
+        return
+    if not isinstance(ctx.channel.parent, discord.ForumChannel):
+        return
+    return True
+
+
 def fe_check(ctx):
     """Checks if a user has the correct combination of roles for the fe() command"""
     if not ctx.guild:
@@ -1403,6 +1415,23 @@ class General(commands.Cog):
         await asyncio.sleep(60)
         await ctx.channel.edit(archived=False, locked=False)
         await ctx.channel.edit(archived=True)
+
+    @commands.command()
+    @commands.check(doneq_check)
+    async def doneq(self, ctx: commands.Context):
+        """Posts a text asking if the OP of a forum post is done with their question, prompting them to type `;done`"""
+        msg = f"{ctx.channel.owner.mention}\nJust as a reminder, once you're satisfied with the responses you've " \
+              f"received in this thread, please type `;done` below this message! Otherwise, if you'd still like to " \
+              f"wait for more responses, please feel free to keep this post open."
+        try:
+            await hf.safe_send(ctx.channel, msg)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+        try:
+            await ctx.message.delete()
+        except (discord.Forbidden, discord.HTTPException):
+            pass
 
 
 async def setup(bot):
