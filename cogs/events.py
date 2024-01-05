@@ -803,18 +803,19 @@ class Events(commands.Cog):
             challenge_cat_id = 926269985846866010
             sp_questions_cat_id = 685445852009201674
             en_questions_cat_id = 685446008129585176
-            jpserv_jp_questions = 360571119150956544
-            jpserv_eng_questions = 360570891459100672
-            jpserv_correct_me = 1090095564374417490
+            jpserv_jp_questions_cat_id = 360571119150956544
+            jpserv_eng_questions_cat_id = 360570891459100672
+            jpserv_correct_me_channel_id = 1090095564374417490
             if thread.parent.category.id not in [challenge_cat_id, sp_questions_cat_id, en_questions_cat_id,
-                                                 jpserv_jp_questions, jpserv_eng_questions, jpserv_correct_me]:
-                return
+                                                 jpserv_jp_questions_cat_id, jpserv_eng_questions_cat_id]:
+                if thread.parent.id not in [jpserv_correct_me_channel_id]:
+                    return
 
             if not isinstance(thread.parent, discord.ForumChannel):
                 return
 
-            instructions = ("Hello, you've created a question! Once you've received a response you're satisfied with, "
-                            "please close your question by typing `;done`.")
+            instructions = ("Hello, you've created a question! Once you're satisfied with the responses you've "
+                            "received, please close your question by typing `;done`.")
 
             addition = ("\n\nIf more than three days have passed and no one has responded to your post, you may "
                         "ping either `@Spanish Helper`, `@English Helper`, or a country role like `@AskUSA` or "
