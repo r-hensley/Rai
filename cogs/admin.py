@@ -605,7 +605,7 @@ class Admin(commands.Cog):
         """Sets the channel that the captcha will be posted in."""
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
-            await self.toggle
+            await self.toggle(ctx)
         guild_config = self.bot.db['captcha'][guild]
         guild_config['channel'] = ctx.channel.id
         await hf.safe_send(ctx, f'Captcha channel set to {ctx.channel.name}')
@@ -629,7 +629,7 @@ class Admin(commands.Cog):
                 pass
         guild = str(ctx.guild.id)
         if guild not in self.bot.db['captcha']:
-            await self.toggle
+            await self.toggle(ctx)
         guild_config = self.bot.db['captcha'][guild]
         role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
         if not role:
