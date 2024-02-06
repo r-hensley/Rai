@@ -1423,6 +1423,76 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_update(self: commands.Cog, before: discord.Member, after: discord.Member):
         # ######### Nicknames #############
+        async def phys_server_remove_to_check():
+            guild = before.guild
+            to_check = guild.get_role(1199077563839033395)
+            checked = guild.get_role(1199070835080691795)
+            if checked not in before.roles and checked in after.roles:
+                if to_check in after.roles:
+                    await after.remove_roles(to_check)
+        await phys_server_remove_to_check()
+
+        async def phys_server_verification_check():
+            guild = before.guild
+            if guild.id != 965307041314918461:
+                return
+
+            if before.roles == after.roles and before.nick == after.nick:
+                return  # user did not update roles or nickname
+
+            verified_user_role = guild.get_role(1199091196417548339)
+            if verified_user_role in after.roles:
+                return  # User already fully verified, no checks needed
+
+            # get list of important roles
+            important_role_ids = [968631535265796147, 968631629474037800, 968631666371346462, 968631689477763123,
+                                  968631711778869319, 968631736567214101, 1121216657772253204, 1123015201642512558,
+                                  1123015668590198834, 1123015305669640322]
+            important_roles = []
+            for role_id in important_role_ids:
+                role = guild.get_role(role_id)
+                if not role:
+                    raise discord.NotFound
+                important_roles.append(role)
+
+            meta_channel = guild.get_channel(966400278054203403)
+            valid_name_role = guild.get_role(1199070835080691795)
+            check_name_role = guild.get_role(1199077563839033395)
+            roles_verified = False  # becomes True if they have one of the important roles
+            for role in important_roles:
+                if role in after.roles:
+                    roles_verified = True
+
+            name_verified = valid_name_role in after.roles  # becomes True if they have the "Valid Name" role
+
+            if before.nick != after.nick:
+                if (after.nick or '').count(" ") == 0:
+                    await meta_channel.send(f"<@202995638860906496> ❌❌❌\n{before.mention} changed their nickname from "
+                                            f"`{before.nick}` --> `{after.nick}`. Their name doesn't have a space in it"
+                                            f" so it potentially doesn't include their last name. Please check it.")
+                else:
+                    await meta_channel.send(f"<@202995638860906496> ✅✅✅\n{before.mention} changed their nickname from "
+                                            f"`{before.nick}` --> `{after.nick}`. I'm assuming it's a valid name format"
+                                            f" since it has a space in it, so I'm adding the {valid_name_role.name} "
+                                            f"role to them.")
+                    if not roles_verified:
+                        # check because if roles_verified is True, this role will be immediately removed below
+                        await after.add_roles(valid_name_role)
+                    await after.remove_roles(check_name_role)
+                    name_verified = True
+
+            if name_verified and roles_verified:
+                await meta_channel.send(f"<@202995638860906496> ✅✅✅\n{before.mention} has both verified roles and "
+                                        f"a valid name so I'm adding them to the server.")
+                await after.add_roles(verified_user_role)
+                if valid_name_role in after.roles:
+                    try:
+                        await after.remove_roles(valid_name_role)
+                    except discord.HTTPException:
+                        pass
+
+        await phys_server_verification_check()
+
         async def check_nickname_change():
             guild = str(before.guild.id)
             if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
