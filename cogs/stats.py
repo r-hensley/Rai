@@ -646,22 +646,23 @@ class Stats(commands.Cog):
         except KeyError:
             return
         if not flag:
-            channel = str(ctx.channel.id)
-            if channel in config:
-                config.remove(channel)
+            channel_id: str = str(ctx.channel.id)
+            if channel_id in config:
+                config.remove(channel_id)
                 await hf.safe_send(ctx,
                                    f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
                                    f"be shown when someone calls their stats page.")
             else:
-                config.append(channel)
+                config.append(channel_id)
                 await hf.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
                                         f"When someone calls their stats page, it will not be shown.")
         elif flag in ['list', 'view'] and config:
             msg = 'List of channels currently hidden:\n'
-            for channel_id in config:
-                channel = self.bot.get_channel(int(channel_id))
+            c_id: str
+            for c_id in config:
+                channel: discord.TextChannel = self.bot.get_channel(int(c_id))
                 if not channel:
-                    config.remove(channel_id)
+                    config.remove(c_id)
                     continue
                 msg += f"{channel.mention} ({channel.id})\n"
             await hf.safe_send(ctx, msg)
