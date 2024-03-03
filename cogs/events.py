@@ -2060,6 +2060,32 @@ class Events(commands.Cog):
 
         await spanish_server_staff_ping_info_request()
 
+        async def spanish_server_ban_for_adobe_spam_message():
+            """This command will ban users who say the word 'Adobe' in the Spanish server if they have less
+            than five messages in the last month."""
+            if msg.guild.id != SP_SERVER_ID:
+                return
+            if not msg.embeds:
+                return
+            content = msg.embeds[0].description
+            if "Adobe Full Espanol GRATiS 2024" not in content and "@everyone" not in content:
+                return
+            if msg.author.bot:
+                return
+            recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
+            if recent_messages_count > 3:
+                return
+            try:
+                # await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
+                incidents_channel = msg.guild.get_channel(808077477703712788)
+                await hf.safe_send(incidents_channel, "<@202995638860906496>\n"
+                                                      "Testing: this would've banned the user for the Adobe scam.\n"
+                                                      f"(Messages in last month: {recent_messages_count})")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+        await spanish_server_ban_for_adobe_spam_message()
+
         # ### antispam
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
