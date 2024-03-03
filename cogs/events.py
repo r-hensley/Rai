@@ -2032,6 +2032,34 @@ class Events(commands.Cog):
                     return
         await delete_messages_in_pinned_posts()
 
+        async def spanish_server_staff_ping_info_request():
+            """This module will watch for users who ping Spanish server staff role (642782671109488641) and
+            if they didn't include any text with their ping explaining the issue, it will ask them to do so in
+            the future."""
+            if msg.guild.id != SP_SERVER_ID:
+                return  # only watch for pings in the Spanish server
+            if "<@&642782671109488641>" not in msg.content:
+                return  # only watch for pings to the staff role
+            if msg.channel.category.name == "STAFF TEAM":
+                return  # exempt staff channels
+            if msg.author.bot:
+                return
+
+            # remove the staff ping from the message for the next part
+            new_content = msg.content.replace(f"<@&642782671109488641>", "")
+
+            # if the message without the ping is less than 4 characters, it's likely just a ping with no text
+            if len(new_content) < 4:
+                await ctx.reply("- Thank you for pinging staff. In the future, please also include a description of "
+                                "the issue or reply to the problematic message when pinging Staff so moderators who "
+                                "arrive into the channel can more quickly understand what is happening.\n"
+                                "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
+                                "descripción del problema o responde al mensaje problemático cuando envíes un ping al "
+                                "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
+                                "lo que está pasando.")
+
+        await spanish_server_staff_ping_info_request()
+
         # ### antispam
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
