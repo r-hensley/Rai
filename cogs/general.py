@@ -250,7 +250,8 @@ class General(commands.Cog):
         description = f"__Topic {idx}/{len(topics)}__\n" \
                       f"**{topic}**"
 
-        if config := ctx.guild:
+        config = {}
+        if ctx.guild:
             config: dict = self.bot.db['topics'].setdefault(str(ctx.guild.id), {})
             last_occurence: str = config.get(idx, {}).get('jump_url', '')
             number_of_times: int = config.get(idx, {}).get('number', 0)
@@ -265,8 +266,8 @@ class General(commands.Cog):
 
         try:
             sent_msg = await hf.safe_send(ctx, embed=discord.Embed(description=description, color=color))
-            if ctx.guild:
-                config[idx] = {'number': config.get('number', 0) + 1,
+            if config:
+                config[idx] = {'number': config.get(idx, {}).get('number', 0) + 1,
                                'jump_url': sent_msg.jump_url}
         except discord.Forbidden:
             pass
