@@ -13,7 +13,7 @@ from discord.ext import commands
 from discord import app_commands
 from Levenshtein import distance as LDist
 
-from cogs.utils.timeutil import format_interval
+from cogs.utils.helper_functions import format_interval
 
 from .utils import helper_functions as hf
 

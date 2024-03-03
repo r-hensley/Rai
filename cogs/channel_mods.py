@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from .utils import helper_functions as hf
-from .utils.timeutil import format_interval
+from .utils.helper_functions import format_interval
 import re
 
 import os
