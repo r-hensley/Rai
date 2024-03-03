@@ -864,6 +864,65 @@ class Events(commands.Cog):
         await log_channel.send(embed=emb, file=file)
 
     @commands.Cog.listener()
+    async def on_automod_action(self, execution: discord.AutoModAction):
+        # return
+        guild = execution.guild
+        member = execution.member
+        if not guild.me.guild_permissions.manage_guild:
+            return
+
+        if str(guild.id) not in self.bot.db['modlog']:
+            return
+
+        rule = await execution.fetch_rule()
+
+        if len(rule.actions) > 1:
+            if execution.action.type != rule.actions[-1].type:
+                return
+
+        # Add main line of text describing what triggered the filter
+        if execution.rule_trigger_type == discord.AutoModRuleTriggerType.keyword:
+            rule_description = f"Used banned keyword from filter named **{rule.name}**"
+        elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.spam:
+            rule_description = f"User spammed a message"
+        elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.keyword_preset:
+            rule_description = f"User triggered one of the default filters: "
+            if rule.trigger.presets.profanity:
+                rule_description += "Profanity"
+            if rule.trigger.presets.sexual_content:
+                rule_description += "Sexual Content"
+            if rule.trigger.presets.slurs:
+                rule_description += "Slurs"
+        elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.harmful_link:
+            rule_description = f"User sent a potentially harmful link: "
+        elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.mention_spam:
+            rule_description = f"User spammed mentions: "
+        else:
+            rule_description = "User triggered some kind of AutoMod rule (unknown type)"
+
+        # Add line if user was muted
+        silent = True
+        modlog_type = "AutoMod"
+        # if discord.AutoModRuleActionType.timeout in rule.actions:
+        if execution.action.type == discord.AutoModRuleActionType.timeout:
+            silent = False
+            modlog_type = "AutoMod Timeout"
+            rule_description += "\nUser was **timed out** for this"
+        else:
+            # return  # only log mutes
+            pass
+
+        c = self.bot.get_channel(742449924519755878)
+
+        formatted_content = execution.content.replace(execution.matched_content, f'**{execution.matched_content}**')
+        reason = (f"{rule_description}\n"
+                  f">>> {formatted_content}")
+
+        print(execution.action.duration, type(execution.action.duration))
+
+        hf.add_to_modlog(None, [member, guild], modlog_type, reason, silent, execution.action.duration)
+
+    @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
         ctx = await self.bot.get_context(msg)
 
