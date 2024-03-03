@@ -2067,8 +2067,8 @@ class Events(commands.Cog):
                 return
             if not msg.embeds:
                 return
-            content = msg.embeds[0].description
-            if "Adobe Full Espanol GRATiS 2024" not in content and "@everyone" not in content:
+            content = msg.embeds[0].description or ''
+            if "Adobe Full Espanol GRATiS 2024" not in content or "@everyone" not in content:
                 return
             if msg.author.bot:
                 return
