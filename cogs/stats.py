@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 import os
 
-from .utils.timeutil import format_interval
+from .utils.helper_functions import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SPAM_CHAN = 275879535977955330

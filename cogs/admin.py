@@ -11,7 +11,7 @@ import io
 from discord.ext import commands
 
 from .utils import helper_functions as hf
-from .utils.timeutil import format_interval
+from .utils.helper_functions import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161

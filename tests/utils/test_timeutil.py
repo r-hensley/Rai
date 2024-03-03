@@ -1,7 +1,7 @@
 import datetime
 import itertools
 
-from cogs.utils.timeutil import format_interval
+from cogs.utils.helper_functions import format_interval
 
 
 def test_format_interval_zero():
