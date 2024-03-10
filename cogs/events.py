@@ -912,9 +912,12 @@ class Events(commands.Cog):
             # return  # only log mutes
             pass
 
-        c = self.bot.get_channel(742449924519755878)
+        if execution.matched_content:
+            formatted_content = execution.content.replace(execution.matched_content,
+                                                          f'**{execution.matched_content}**')
+        else:
+            formatted_content = execution.content  # if no matched content, just use the content
 
-        formatted_content = execution.content.replace(execution.matched_content, f'**{execution.matched_content}**')
         reason = (f"{rule_description}\n"
                   f">>> {formatted_content}")
 
