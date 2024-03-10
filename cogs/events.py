@@ -2051,10 +2051,10 @@ class Events(commands.Cog):
             # if the message without the ping is less than 4 characters, it's likely just a ping with no text
             if len(new_content) < 4:
                 await ctx.reply("- Thank you for pinging staff. In the future, please also include a description of "
-                                "the issue or reply to the problematic message when pinging Staff so moderators who "
+                                "the issue when pinging Staff so moderators who "
                                 "arrive into the channel can more quickly understand what is happening.\n"
                                 "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
-                                "descripción del problema o responde al mensaje problemático cuando envíes un ping al "
+                                "descripción del problema cuando envíes un ping al "
                                 "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
                                 "lo que está pasando.")
 
