@@ -2076,10 +2076,10 @@ class Events(commands.Cog):
             if recent_messages_count > 3:
                 return
             try:
-                # await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
+                await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
                 incidents_channel = msg.guild.get_channel(808077477703712788)
                 await hf.safe_send(incidents_channel, "<@202995638860906496>\n"
-                                                      "Testing: this would've banned the user for the Adobe scam.\n"
+                                                      "Above user banned for the Adobe scam message.\n"
                                                       f"(Messages in last month: {recent_messages_count})")
             except (discord.Forbidden, discord.HTTPException):
                 pass
