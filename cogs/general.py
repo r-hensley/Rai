@@ -1152,8 +1152,11 @@ class General(commands.Cog):
             return
 
         if ctx.guild.id == JP_SERVER_ID:
-            await hf.safe_send(ctx, "Please use Ciri's version of that command in this server: `,selfmute` or `,sm`.")
-            return
+            # check if ctx.author's highest role is higher than Rai's, and only if then, allow the command
+            if ctx.author.top_role < ctx.guild.me.top_role:
+                await hf.safe_send(ctx, "Please use Ciri's version of that command in this server: "
+                                        "`,selfmute` or `,sm`.")
+                return
 
         if time:
             try:
