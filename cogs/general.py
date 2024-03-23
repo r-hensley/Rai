@@ -1180,8 +1180,8 @@ class General(commands.Cog):
             unmute_time = discord.utils.utcnow() - delta_obj
         else:
             unmute_time = discord.utils.utcnow() + delta_obj
-        if delta_obj.total_seconds() > 604800:  # if length is longer than 7d
-            await hf.safe_send(ctx, "Please choose a time less than 7d")
+        if delta_obj.total_seconds() > 28 * 24 * 60 * 60:  # if length is longer than 28d
+            await hf.safe_send(ctx, "Please choose a time less than 28d")
             return
 
         delta_str = format_interval(delta_obj)  # remove last space
@@ -1193,8 +1193,9 @@ class General(commands.Cog):
         else:
             conf_msg = (f"You are about to irreversibly mute yourself for... -{delta_str}? You want to mute yourself " 
                         f"for negative time? Well, the mods of the server cannot undo this. Type 'yes' to confirm.")
-        conf = await hf.safe_send(ctx, conf_msg)
+        conf = await hf.safe_reply(ctx.message, conf_msg)
 
+        msg = ctx.message
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=15,
@@ -1214,8 +1215,11 @@ class General(commands.Cog):
                 await conf.reply(f"Muted {ctx.author.display_name} for {delta_str}. This is irreversible.\n"
                                  f"Unmute time: <t:{timestamp}> (<t:{timestamp}:R>)")
 
+            elif msg.content.casefold() in ['no', 'cancel']:
+                raise asyncio.TimeoutError
+
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Canceling.")
+            await hf.safe_reply(msg, "Canceling.")
             return
 
     @commands.command(hidden=True, aliases=['pingmods'])
