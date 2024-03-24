@@ -411,9 +411,10 @@ async def safe_send(destination: Union[commands.Context, discord.abc.Messageable
 
 async def safe_reply(message: discord.Message, content="", embed=None):
     try:
-        await message.reply(content, embed=embed)
+        msg = await message.reply(content, embed=embed)
     except discord.HTTPException:
-        await safe_send(message.channel, content, embed=embed)
+        msg = await safe_send(message.channel, content, embed=embed)
+    return msg
 
 
 def parse_time(time: str) -> Tuple[str, list[int]]:
