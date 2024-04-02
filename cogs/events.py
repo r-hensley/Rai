@@ -1,9 +1,7 @@
 import asyncio
-import hashlib
 import os
 import re
 import string
-import sys
 import urllib
 from datetime import timedelta, datetime
 from typing import Optional
@@ -13,7 +11,6 @@ import discord
 from discord.ext import commands
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-from .database import Connect
 from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
