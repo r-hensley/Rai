@@ -27,8 +27,8 @@ from cogs.interactions import Interactions
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 here = sys.modules[__name__]
-here.bot: Optional[commands.Bot] = None
-here._loop = None
+here.bot = None
+here.loop = None
 
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
@@ -41,15 +41,15 @@ SP_SERV_GUILD = discord.Object(SP_SERV_ID)
 JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 
-def setup(bot, loop):
+def setup(bot: commands.Bot, loop):
     """This command is run in the setup_hook function in Rai.py"""
     if here.bot is None:
         here.bot = bot
     else:
         pass
 
-    if here._loop is None:
-        here._loop = loop
+    if here.loop is None:
+        here.loop = loop
     else:
         pass
 
@@ -553,10 +553,10 @@ async def dump_json():
 
     async with _lock:
         try:
-            await here._loop.run_in_executor(None, _predump_json)
+            await here.loop.run_in_executor(None, _predump_json)
         except RuntimeError:
             print("Restarting dump_json on a RuntimeError")
-            await here._loop.run_in_executor(None, _predump_json)
+            await here.loop.run_in_executor(None, _predump_json)
 
 
 def load_db(bot):
@@ -1007,7 +1007,7 @@ def detect_language(text) -> Optional[str]:
 
 
 async def load_language_detection_model():
-    await here._loop.run_in_executor(None, _pre_load_language_detection_model)
+    await here.loop.run_in_executor(None, _pre_load_language_detection_model)
 
 
 @dataclass
