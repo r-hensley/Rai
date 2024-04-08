@@ -438,7 +438,7 @@ class Logger(commands.Cog):
         return emb
 
     @commands.Cog.listener()
-    async def on_message_edit(self, before, after):
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
         if isinstance(before.channel, discord.DMChannel):
             return
         if not before.guild:
@@ -468,7 +468,7 @@ class Logger(commands.Cog):
                             await hf.safe_send(channel, embed=self.make_edit_embed(before, after,
                                                                                    levenshtein_distance))
                         except discord.Forbidden:
-                            await self.module_disable_notification(before.message.guild, guild_config, 'message edits')
+                            return
         await hf.uhc_check(after)
 
     # ############### deletes #####################
