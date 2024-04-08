@@ -174,16 +174,23 @@ class Jpserv(commands.Cog):
         if ctx.guild.id != 189571157446492161:
             return
         config = self.bot.db['ultraHardcore']
+
+        # if the channel is a thread in a forum, ignore the forum instead
+        to_ignore = ctx.channel
+        if isinstance(ctx.channel, discord.Thread):
+            if isinstance(ctx.channel.parent, discord.ForumChannel):
+                to_ignore = ctx.channel.parent
+
         try:
-            if ctx.channel.id not in config['ignore']:
-                config['ignore'].append(ctx.channel.id)
-                await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
+            if to_ignore.id not in config['ignore']:
+                config['ignore'].append(to_ignore.id)
+                await ctx.send(f"Added {to_ignore.name} to list of ignored channels for UHC")
             else:
-                config['ignore'].remove(ctx.channel.id)
-                await ctx.send(f"Removed {ctx.channel.name} from list of ignored channels for UHC")
+                config['ignore'].remove(to_ignore.id)
+                await ctx.send(f"Removed {to_ignore.name} from list of ignored channels for UHC")
         except KeyError:
-            config['ignore'] = [ctx.channel.id]
-            await ctx.send(f"Added {ctx.channel.name} to list of ignored channels for UHC")
+            config['ignore'] = [to_ignore.id]
+            await ctx.send(f"Added {to_ignore.name} to list of ignored channels for UHC")
 
 
 async def setup(bot):
