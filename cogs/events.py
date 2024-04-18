@@ -74,6 +74,83 @@ class Events(commands.Cog):
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
         """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
 
+        async def check_untagged_JHO_users():
+            """This will watch for untagged users in JHO.
+            1) Watch for reactions with one of the three colored emojis from Ciri
+            2) Check if the user is untagged
+            3) Wait 60 minutes
+            4) Check again if they're still untagged
+            5) Ping WP if so
+            """
+            other_lang_emoji_id = 815698119810875453
+            japanese_lang_emoji_id = 439733745390583819
+            english_lang_emoji_id = 439733745591779328
+            native_english_role_id = 197100137665921024
+            native_japanese_role_id = 196765998706196480
+            native_other_role_id = 248982130246418433
+            cirilla_id = 581691615010226188
+            
+            # is this the japanese server
+            if reaction.message.guild.id != JP_SERVER_ID:
+                return
+                
+            # is the reaction one of the language color reactions
+            if reaction.emoji.id not in [other_lang_emoji_id, japanese_lang_emoji_id, english_lang_emoji_id]:
+                return
+            
+            # was cirilla the one who reacted to the message
+            if user.id != cirilla_id:
+                return
+            
+            # is the user untagged
+            user_role_ids = [role.id for role in user.roles]
+            if (native_english_role_id in user_role_ids
+                    or native_japanese_role_id in user_role_ids
+                    or native_other_role_id in user_role_ids):
+                return
+            
+            # wait 1 hour
+            await asyncio.sleep(60 * 60)
+            
+            # refresh author roles
+            refreshed_author = reaction.message.channel.guild.get_member(reaction.message.author.id)
+            refreshed_role_ids = [role.id for role in refreshed_author.roles]
+            
+            # check if message author is still untagged
+            if (native_english_role_id in refreshed_role_ids
+                    or native_japanese_role_id in refreshed_role_ids
+                    or native_other_role_id in refreshed_role_ids):
+                return
+            
+            # send notification to NIF channel
+            nif_channel = self.bot.get_channel(1227289089015943258)
+            msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
+                   f"still untagged. Please check: {reaction.message.jump_url}\n>>> {reaction.message.content}")
+            sent_msg = await nif_channel.send(msg)
+            
+            # wait for the user to get tagged
+            def on_member_update_check(m_before, m_after):
+                if m_after.id != refreshed_author.id:
+                    return False
+                if m_before.roles != m_after.roles:
+                    role_ids = [role.id for role in m_after.roles]
+                    if (native_english_role_id in role_ids
+                            or native_japanese_role_id in role_ids
+                            or native_other_role_id in role_ids):
+                        return True
+        
+            try:
+                await self.bot.wait_for('member_update', check=on_member_update_check, timeout=60 * 60)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                await sent_msg.delete()
+                
+        # await check_untagged_JHO_users()
+        # add above function to asyncio event loop as a task
+        # noinspection PyAsyncCall
+        asyncio.create_task(check_untagged_JHO_users())
+        
         async def remove_from_waiting_list():
             if reaction.emoji == '🚫':
                 if user == self.bot.user:
