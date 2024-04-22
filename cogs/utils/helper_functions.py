@@ -389,12 +389,13 @@ async def safe_send(destination: Union[commands.Context, discord.abc.Messageable
         if isinstance(destination, discord.User):
             if not destination.dm_channel:
                 await destination.create_dm()
-        return await destination.send(content,
-                                      embed=embed,
-                                      embeds=embeds,
-                                      delete_after=delete_after,
-                                      file=file,
-                                      view=view)
+        if embeds and embed:
+            raise ValueError("You can't pass both embed and embeds to safe_send")
+        elif embeds:
+            return await destination.send(content, embeds=embeds, delete_after=delete_after, file=file, view=view)
+        else:
+            return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
+
     except discord.Forbidden:
         if isinstance(destination, commands.Context):
             ctx = destination  # shorter and more accurate name
