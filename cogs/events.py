@@ -124,8 +124,9 @@ class Events(commands.Cog):
             
             # send notification to NIF channel
             nif_channel = self.bot.get_channel(1227289089015943258)
+            msg_content = reaction.message.content.replace("\n", ". ")
             msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
-                   f"still untagged. Please check: {reaction.message.jump_url}\n>>> {reaction.message.content}")
+                   f"still untagged:\n>>> [{msg_content}](<{reaction.message.jump_url}>)")
             sent_msg = await nif_channel.send(msg)
             
             # wait for the user to get tagged
@@ -144,7 +145,12 @@ class Events(commands.Cog):
             except asyncio.TimeoutError:
                 pass
             else:
-                await sent_msg.delete()
+                
+                new_msg = (f"User has been tagged now!\n"
+                           f"~~User {refreshed_author.mention} has potentially sent a message with their native "
+                           f"language and is still untagged~~:\n"
+                           f">>> ~~[{msg_content}](<{reaction.message.jump_url}>)~~")
+                await sent_msg.edit(content=new_msg)
                 
         # await check_untagged_JHO_users()
         # add above function to asyncio event loop as a task
