@@ -777,6 +777,23 @@ class Owner(commands.Cog):
     async def raise_error(self, ctx):
         """Raises an error for testing purposes"""
         raise Exception
+    
+    @commands.command()
+    async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
+                                         "05db50c66e4dcc67d129838e1b9d739a/raw/spy.pet%2520accounts"):
+        id_list_str = await hf.aiohttp_get(ctx, url)
+        if not id_list_str:
+            await hf.safe_send(ctx, "Failed to get list")
+            return
+        id_list = re.findall('"(\d+)"', id_list_str)  # Extracts integers within double quotes
+        
+        await hf.safe_send(ctx, f"Checking from this list: {url}")
+        for guild in self.bot.guilds:
+            member_ids = [str(member.id) for member in guild.members]
+            for account in id_list:
+                if account in member_ids:
+                    await hf.safe_send(ctx, f"{account} is in {guild.name}")
+        await hf.safe_send(ctx, "Done")
 
 
 async def setup(bot):
