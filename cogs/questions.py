@@ -1067,7 +1067,7 @@ class Questions(commands.Cog):
         if site:
             url += f"&siteSearch={site}"
 
-        data = await aiohttp_get(ctx, url)
+        data = await hf.aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
@@ -1182,7 +1182,7 @@ class Questions(commands.Cog):
                   f'&cx={engine_id}' \
                   f'&key={read_file.read()}'
 
-        data = await aiohttp_get(ctx, url)
+        data = await hf.aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
@@ -1258,7 +1258,7 @@ class Questions(commands.Cog):
             if site:
                 url += f"&siteSearch={site}"
 
-        data = await aiohttp_get(ctx, url)
+        data = await hf.aiohttp_get(ctx, url)
 
         num_of_results = data.split('"formattedTotalResults": "')[1].split('"')[0]
         try:
@@ -1394,8 +1394,8 @@ class Questions(commands.Cog):
                               "Handbook of Japanese Grammar": "HoJG",
                               "どんなときどう使う 日本語表現文型辞典": "表現文型辞典"}
 
-        # html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
-        html = await aiohttp_get(ctx, 'https://djtguide.github.io/grammar/masterreference.html')
+        # html = await hf.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await hf.aiohttp_get(ctx, 'https://djtguide.github.io/grammar/masterreference.html')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1539,8 +1539,8 @@ class Questions(commands.Cog):
             # await hf.safe_send(ctx, "You have to input a search term!")
             return
 
-        # html = await aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
-        html = await aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
+        # html = await hf.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await hf.aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1670,7 +1670,7 @@ class Questions(commands.Cog):
         url_quoted_search_term = quote(search_term)
         url = f"https://massif.la/ja/search?q={url_quoted_search_term}&fmt=json"
 
-        text = await aiohttp_get(ctx, url)
+        text = await hf.aiohttp_get(ctx, url)
         if not text:
             await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
             return
@@ -1749,7 +1749,7 @@ class Questions(commands.Cog):
         url_quoted_search_term = quote(search_term)
         url = f"https://yourei.jp/{url_quoted_search_term}"
 
-        text = await aiohttp_get(ctx, url)
+        text = await hf.aiohttp_get(ctx, url)
         if not text:
             return
 
@@ -1826,24 +1826,3 @@ class Questions(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Questions(bot))
-
-
-async def aiohttp_get(ctx: commands.Context, url: str) -> str:
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                response = resp
-                text = await resp.text()
-    except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-        await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-        return ''
-
-    if not text:
-        await hf.safe_send(ctx, embed=hf.red_embed("I received nothing from the site for your search query."))
-        return ''
-
-    if response.status == 200:
-        return text
-    else:
-        await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
-        return ''

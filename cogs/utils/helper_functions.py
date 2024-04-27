@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Union, Tuple
 
+import aiohttp
 import discord
 import numpy as np
 from discord import app_commands
@@ -1441,3 +1442,25 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
             return
 
         return message
+
+
+async def aiohttp_get(ctx: commands.Context, url: str) -> str:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                response = resp
+                text = await resp.text()
+    except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
+        await safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+        return ''
+
+    if not text:
+        await safe_send(ctx, embed=red_embed("I received nothing from the site for your search query."))
+        return ''
+
+    if response.status == 200:
+        return text
+    else:
+        await safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+        return ''
+    
