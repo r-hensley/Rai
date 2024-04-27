@@ -929,7 +929,14 @@ class ChannelMods(commands.Cog):
             config = []
 
         first_embed: Optional[discord.Embed] = None  # only to be used if the first embed goes over 6000 characters
-        for entry in config[-25:]:
+        valid_logs = []
+        for entry in config:
+            if entry['silent']:
+                if entry['type'] == "AutoMod":
+                    continue
+            valid_logs.append(entry)
+                
+        for entry in valid_logs[-25:]:
             name = f"{config.index(entry) + 1}) "
             if entry['silent']:
                 if entry['type'] == "Warning":
