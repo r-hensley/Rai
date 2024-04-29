@@ -26,6 +26,8 @@ from sklearn.pipeline import Pipeline
 
 from cogs.interactions import Interactions
 
+from cogs.utils.BotUtils import bot_utils as utils
+
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 here = sys.modules[__name__]
@@ -43,7 +45,7 @@ SP_SERV_GUILD = discord.Object(SP_SERV_ID)
 JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 
-def setup(bot: commands.Bot, loop):
+def setup(bot: commands.Bot, loop: asyncio.AbstractEventLoop):
     """This command is run in the setup_hook function in Rai.py"""
     if here.bot is None:
         here.bot = bot
@@ -55,45 +57,6 @@ def setup(bot: commands.Bot, loop):
     else:
         pass
 
-
-# credit: https://gist.github.com/dperini/729294
-_url = re.compile(
-    r"""
-            # protocol identifier
-            (?:https?|ftp)://
-            # user:pass authentication
-            (?:\S+(?::\S*)?@)?
-            (?:
-              # IP address exclusion
-              # private & local networks
-              (?!(?:10|127)(?:\.\d{1,3}){3})
-              (?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})
-              (?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})
-              # IP address dotted notation octets
-              # excludes loopback network 0.0.0.0
-              # excludes reserved space >= 224.0.0.0
-              # excludes network & broacast addresses
-              # (first & last IP address of each class)
-              (?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])
-              (?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}
-              \.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4])
-            |
-              # host name
-              (?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+
-              # domain name
-              (?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*
-              # TLD identifier
-              \.[a-z\u00a1-\uffff]{2,}
-              # TLD may end with dot
-              \.?
-            )
-            # port number
-            (?::\d{2,5})?
-            # resource path
-            (?:[/?#]\S*)?
-        """, re.VERBOSE | re.I)
-
-_emoji = re.compile(r'<a?(:[A-Za-z0-9_]+:|#|@|@&)!?[0-9]{17,20}>')
 
 _lock = asyncio.Lock()
 
@@ -337,89 +300,6 @@ def add_to_modlog(ctx: Optional[commands.Context],
     return config
 
 
-def green_embed(text):
-    return discord.Embed(description=text, color=0x23ddf1)
-
-
-def red_embed(text):
-    return discord.Embed(description=text, color=0x9C1313)
-
-
-def grey_embed(text):
-    return discord.Embed(description=text, color=0x848A84)
-
-
-async def safe_send(destination: Union[commands.Context, discord.abc.Messageable],
-                    content='', *,
-                    embed: discord.Embed = None,
-                    embeds: list[discord.Embed] = None,
-                    delete_after: float = None,
-                    file: discord.File = None,
-                    view: discord.ui.View = None):
-    """A command to be clearer about permission errors when sending messages"""
-    if not content and not embed and not file:
-        if type(destination) == str:
-            raise SyntaxError("You maybe forgot to state a destination in the safe_send() function")
-        elif issubclass(destination, discord.abc.Messageable):
-            raise SyntaxError("The content you tried to send in the safe_send() function was None")
-        else:
-            raise SyntaxError("There was an error parsing the arguments of the safe_send() function")
-
-    try:
-        if content is not None:
-            content = str(content)
-    except TypeError:
-        raise TypeError("You tried to pass something in as content to safe_send that can't be converted to a string")
-
-    perms_set = perms = False
-    if isinstance(destination, commands.Context):
-        if destination.guild:
-            perms = destination.channel.permissions_for(destination.guild.me)
-            perms_set = True
-    elif isinstance(destination, discord.TextChannel):
-        perms = destination.permissions_for(destination.guild.me)
-        perms_set = True
-    if not destination:
-        return
-
-    if perms_set:
-        if embed and not perms.embed_links and perms.send_messages:
-            await destination.send("I lack permission to upload embeds here.")
-            return
-
-    try:
-        if isinstance(destination, discord.User):
-            if not destination.dm_channel:
-                await destination.create_dm()
-        if embeds and embed:
-            raise ValueError("You can't pass both embed and embeds to safe_send")
-        elif embeds:
-            return await destination.send(content, embeds=embeds, delete_after=delete_after, file=file, view=view)
-        else:
-            return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
-
-    except discord.Forbidden:
-        if isinstance(destination, commands.Context):
-            ctx = destination  # shorter and more accurate name
-            msg_content = f"Rai tried to send a message to #{ctx.channel.name} but lacked permissions to do so " \
-                          f"(either messages or embeds)."
-
-            try:
-                await safe_send(ctx.author, msg_content)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
-
-        raise
-
-
-async def safe_reply(message: discord.Message, content="", embed=None):
-    try:
-        msg = await message.reply(content, embed=embed)
-    except discord.HTTPException:
-        msg = await safe_send(message.channel, content, embed=embed)
-    return msg
-
-
 def parse_time(time: str) -> Tuple[str, list[int]]:
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
@@ -458,134 +338,6 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
     time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     return time_string, length
 
-
-async def member_converter(ctx: commands.Context, user_in: Union[str, int]) -> Optional[discord.Member]:
-    # check for an ID
-    if isinstance(user_in, int):
-        user_in = str(user_in)
-    user_id = re.findall(r"(^<@!?\d{17,22}>$|^\d{17,22}$)", str(user_in))
-    if user_id:
-        user_id = user_id[0].replace('<@', '').replace('>', '').replace('!', '')
-        member = ctx.guild.get_member(int(user_id))
-        return member
-
-    # check for an exact name
-    member = ctx.guild.get_member_named(user_in)
-    if member:
-        return member
-
-    # try the beginning of the name
-    member_list = [(member.name.casefold(), member.nick.casefold() if member.nick else '', member)
-                   for member in ctx.guild.members]
-    user_in = user_in.casefold()
-    for member in member_list:
-        if member[0].startswith(user_in):
-            return member[2]
-        if member[1].startswith(user_in):
-            return member[2]
-
-    # is it anywhere in the name
-    for member in member_list:
-        if user_in in member[0]:
-            return member[2]
-        if user_in in member[1]:
-            return member[2]
-
-    return None
-
-
-async def user_converter(ctx: commands.Context, user_in: Union[str, int]) -> Union[None, discord.User, discord.Member]:
-    """Doesn't convert to a member first, try doing hf.member_converter() before hf.user_converter()."""
-    if isinstance(user_in, int):
-        user_in = str(user_in)
-    try:
-        user_id = int(re.search(r"<?@?!?(\d{17,22})>?", user_in).group(1))
-    except (AttributeError, ValueError):
-        return
-    else:
-        try:
-            user = await ctx.bot.fetch_user(user_id)
-            return user
-        except (discord.NotFound, discord.HTTPException):
-            return
-
-
-def _predump_json():
-    db_copy = deepcopy(here.bot.db)
-    stats_copy = deepcopy(here.bot.stats)
-    if not os.path.exists(f'{dir_path}/db_2.json'):
-        # if backup files don't exist yet, create them
-        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
-        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
-        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
-        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
-        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
-        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
-    else:
-        # make incremental backups of db.json
-        shutil.copy(f'{dir_path}/db_3.json', f'{dir_path}/db_4.json')
-        shutil.copy(f'{dir_path}/db_2.json', f'{dir_path}/db_3.json')
-        shutil.copy(f'{dir_path}/db.json', f'{dir_path}/db_2.json')
-
-        # make incremental backups of stats.json
-        shutil.copy(f'{dir_path}/stats_3.json', f'{dir_path}/stats_4.json')
-        shutil.copy(f'{dir_path}/stats_2.json', f'{dir_path}/stats_3.json')
-        shutil.copy(f'{dir_path}/stats.json', f'{dir_path}/stats_2.json')
-
-    with open(f'{dir_path}/db_temp.json', 'w') as write_file:
-        json.dump(db_copy, write_file, indent=4)
-    shutil.copy(f'{dir_path}/db_temp.json', f'{dir_path}/db.json')
-
-    with open(f'{dir_path}/stats_temp.json', 'w') as write_file:
-        json.dump(stats_copy, write_file, indent=1)
-    shutil.copy(f'{dir_path}/stats_temp.json', f'{dir_path}/stats.json')
-
-
-async def dump_json():
-    # Wait up to five minutes for the lock to be released
-    for _ in range(5):
-        if _lock.locked():
-            logging.info("In dump_json, _lock is already locked, waiting 60s")
-            await asyncio.sleep(60)
-        if not _lock.locked():
-            break
-
-    # if still locked
-    if _lock.locked():
-        raise Exception("Attempted to call dump_json while _lock was locked; waiting five minutes didn't help.")
-
-    async with _lock:
-        try:
-            await here.loop.run_in_executor(None, _predump_json)
-        except RuntimeError:
-            print("Restarting dump_json on a RuntimeError")
-            await here.loop.run_in_executor(None, _predump_json)
-
-
-def load_db(bot):
-    try:
-        with open(f"{dir_path}/db.json", "r") as read_file1:
-            read_file1.seek(0)
-            bot.db = json.load(read_file1)
-    except json.decoder.JSONDecodeError as e:
-        if e.msg == "Expecting value":
-            logging.warning("No data detected in db.json")
-            bot.db = {}
-        else:
-            raise
-
-
-def load_stats(bot):
-    try:
-        with open(f"{dir_path}/stats.json", "r") as read_file2:
-            read_file2.seek(0)
-            bot.stats = json.load(read_file2)
-    except json.decoder.JSONDecodeError as e:
-        if e.msg == "Expecting value":
-            logging.warning("No data detected in stats.json")
-            bot.stats = {}
-        else:
-            raise
 
 
 def submod_check(ctx: commands.Context):
@@ -699,16 +451,6 @@ def database_toggle(guild: discord.Guild, module_dict: dict):
     return config
 
 
-def rem_emoji_url(msg):
-    if isinstance(msg, discord.Message):
-        msg = msg.content
-    new_msg = _emoji.sub('', _url.sub('', msg))
-    for char in msg:
-        if is_emoji(char):
-            new_msg = new_msg.replace(char, '').replace('  ', '')
-    return new_msg
-
-
 async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
     guilds: list[list[discord.Guild, int, str]] = []
@@ -751,13 +493,13 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
             if mod_channel:
                 try:
                     if embed:
-                        msg = await safe_send(mod_channel,
+                        msg = await utils.safe_send(mod_channel,
                                               f"{member.mention}\n"
                                               f"@here {pings} The below user has been banned on another server "
                                               f"and is in your server.",
                                               embed=embed)
                     else:
-                        msg = await safe_send(mod_channel, f"@here {pings} The below user has been banned on another "
+                        msg = await utils.safe_send(mod_channel, f"@here {pings} The below user has been banned on another "
                                                            f"server and is currently in your server.")
                     sent_to_mod_channel = True
                     ctx = await bot.get_context(msg)
@@ -769,126 +511,6 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
 
     if guilds:
         await bans_channel.send(in_servers_msg)
-
-
-def jpenratio(msg_content):
-    text = _emoji.sub('', _url.sub('', msg_content))
-    en, jp, total = get_character_spread(text)
-    return en / total if total else None
-
-
-def get_character_spread(text):
-    english = 0
-    japanese = 0
-    for ch in text:
-        if is_cjk(ch):
-            japanese += 1
-        elif is_english(ch):
-            english += 1
-    return english, japanese, english + japanese
-
-
-def generous_is_emoji(char):
-    EMOJI_MAPPING = (
-        (0x0080, 0x02AF),
-        (0x0300, 0x03FF),
-        (0x0600, 0x06FF),
-        (0x0C00, 0x0C7F),
-        (0x1DC0, 0x1DFF),
-        (0x1E00, 0x1EFF),
-        (0x2000, 0x209F),
-        (0x20D0, 0x214F),
-        (0x2190, 0x23FF),
-        (0x2460, 0x25FF),
-        (0x2600, 0x27EF),
-        (0x2900, 0x2935),
-        (0x2B00, 0x2BFF),
-        (0x2C60, 0x2C7F),
-        (0x2E00, 0x2E7F),
-        (0x3000, 0x303F),
-        (0xA490, 0xA4CF),
-        (0xE000, 0xF8FF),
-        (0xFE00, 0xFE0F),
-        (0xFE30, 0xFE4F),
-        (0x2757, 0x2757),
-        (0x1F000, 0x1F02F),
-        (0x1F0A0, 0x1F0FF),
-        (0x1F100, 0x1F64F),
-        (0x1F680, 0x1F6FF),
-        (0x1F910, 0x1F96B),
-        (0x1F980, 0x1F9E0),
-    )
-    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
-
-
-def is_emoji(char):
-    EMOJI_MAPPING = (
-        # (0x0080, 0x02AF),
-        # (0x0300, 0x03FF),
-        # (0x0600, 0x06FF),
-        # (0x0C00, 0x0C7F),
-        # (0x1DC0, 0x1DFF),
-        # (0x1E00, 0x1EFF),
-        # (0x2000, 0x209F),
-        # (0x20D0, 0x214F),
-        # (0x2190, 0x23FF),
-        # (0x2460, 0x25FF),
-        # (0x2600, 0x27EF),
-        # (0x2900, 0x2935),
-        # (0x2B00, 0x2BFF),
-        # (0x2C60, 0x2C7F),
-        # (0x2E00, 0x2E7F),
-        # (0x3000, 0x303F),
-        (0xA490, 0xA4CF),
-        (0xE000, 0xF8FF),
-        (0xFE00, 0xFE0F),
-        (0xFE30, 0xFE4F),
-        (0x1F000, 0x1F02F),
-        (0x1F0A0, 0x1F0FF),
-        (0x1F100, 0x1F64F),
-        (0x1F680, 0x1F6FF),
-        (0x1F910, 0x1F96B),
-        (0x1F980, 0x1F9E0),
-    )
-    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
-
-
-def is_ignored_emoji(char):
-    EMOJI_MAPPING = (
-        (0x0080, 0x02AF),
-        (0x0300, 0x03FF),
-        (0x0600, 0x06FF),
-        (0x0C00, 0x0C7F),
-        (0x1DC0, 0x1DFF),
-        (0x1E00, 0x1EFF),
-        (0x2000, 0x209F),
-        (0x20D0, 0x214F)
-    )
-    return any(start <= ord(char) <= end for start, end in EMOJI_MAPPING)
-
-
-def is_cjk(char):
-    CJK_MAPPING = (
-        (0x3040, 0x30FF),  # Hiragana + Katakana
-        (0xFF66, 0xFF9D),  # Half-Width Katakana
-        (0x4E00, 0x9FAF)  # Common/Uncommon Kanji
-    )
-    return any(start <= ord(char) <= end for start, end in CJK_MAPPING)
-
-
-def is_english(char):
-    # basically English characters save for w because of laughter
-    RANGE_CHECK = (
-        (0x61, 0x76),  # a to v
-        (0x78, 0x7a),  # x to z
-        (0x41, 0x56),  # A to V
-        (0x58, 0x5a),  # X to Z
-        (0xFF41, 0xFF56),  # ａ to ｖ
-        (0xFF58, 0xFF5A),  # ｘ to ｚ
-        (0xFF21, 0xFF36),  # Ａ to Ｖ
-        (0xFF58, 0xFF3A),  # Ｘ to Ｚ
-    )
-    return any(start <= ord(char) <= end for start, end in RANGE_CHECK)
 
 
 async def long_deleted_msg_notification(msg):
@@ -907,7 +529,7 @@ async def uhc_check(msg):
                     .replace('welcome', '').replace("what's your native language", "")
                 jpRole = msg.guild.get_role(196765998706196480)
 
-                ratio = jpenratio(lowercase_msg_content)
+                ratio = utils.jpenratio(lowercase_msg_content)
                 # if I delete a long message
 
                 if not lowercase_msg_content:
@@ -1127,7 +749,7 @@ async def send_to_test_channel(*content):
         channel = here.bot.get_channel(int(test_chan_id))
         if channel:
             try:
-                await safe_send(channel, content)
+                await utils.safe_send(channel, content)
             except discord.Forbidden:
                 print("Failed to send content to test_channel in send_to_test_channel()")
 
@@ -1311,10 +933,10 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
 
                 if file:
                     try:
-                        await safe_send(thread, file=file)
+                        await utils.safe_send(thread, file=file)
                     except (discord.Forbidden, discord.HTTPException) as e:
                         try:
-                            await safe_send(thread, f"Error attempting to send {attachment.filename} "
+                            await utils.safe_send(thread, f"Error attempting to send {attachment.filename} "
                                                     f"({attachment.proxy_url}): {e}")
                         except (discord.Forbidden, discord.HTTPException):
                             pass
@@ -1322,7 +944,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                     file_info = f"Failed to download file: {attachment.filename} - {attachment.description}\n" \
                                 f"{attachment.proxy_url}"
                     try:
-                        await safe_send(thread, file_info)
+                        await utils.safe_send(thread, file_info)
                     except (discord.Forbidden, discord.HTTPException):
                         pass
 
@@ -1340,69 +962,12 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                     else:
                         thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
                 try:
-                    await safe_send(thread, embed.url)
+                    await utils.safe_send(thread, embed.url)
                 except (discord.Forbidden, discord.HTTPException) as e:
                     try:
-                        await safe_send(thread, f"Error attempting to send attached link to message: {e}")
+                        await utils.safe_send(thread, f"Error attempting to send attached link to message: {e}")
                     except (discord.Forbidden, discord.HTTPException):
                         pass
-
-
-async def send_error_embed(bot: discord.Client,
-                           ctx: Union[commands.Context, discord.Interaction],
-                           error: Exception,
-                           embed: discord.Embed):
-    error = getattr(error, 'original', error)
-    try:
-        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
-    except AttributeError:  # ctx.command.name is also None
-        qualified_name = "Non-command"
-    traceback.print_tb(error.__traceback__)
-    print(discord.utils.utcnow())
-    print(f'Error in {qualified_name}:', file=sys.stderr)
-    print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-
-    exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
-    if ctx.message:
-        traceback_text = f'{ctx.message.jump_url}\n```py\n{exc}```'
-    elif ctx.channel:
-        traceback_text = f'{ctx.channel.mention}\n```py\n{exc}```'
-    else:
-        traceback_text = f'```py\n{exc}```'
-
-    embed.timestamp = discord.utils.utcnow()
-    traceback_logging_channel = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
-    view = None
-    if ctx.message:
-        view = discord.ui.View.from_message(ctx.message)
-    await bot.get_channel(traceback_logging_channel).send(traceback_text[-2000:], embed=embed, view=view)
-    print('')
-
-
-class RaiView(discord.ui.View):
-    async def on_error(self,
-                       interaction: discord.Interaction,
-                       error: Exception,
-                       item: Union[discord.ui.Button, discord.ui.Select, discord.ui.TextInput]):
-        e = discord.Embed(title=f'View Component Error ({str(item.type)})', colour=0xcc3366)
-        e.add_field(name='Interaction User', value=f"{interaction.user} ({interaction.user.mention})")
-
-        fmt = f'Channel: {interaction.channel} (ID: {interaction.channel.id})'
-        if interaction.guild:
-            fmt = f'{fmt}\nGuild: {interaction.guild} (ID: {interaction.guild.id})'
-
-        e.add_field(name='Location', value=fmt, inline=False)
-
-        if hasattr(item, "label"):
-            e.add_field(name="Item label", value=item.label)
-
-        if interaction.data:
-            e.add_field(name="Data", value=f"```{interaction.data}```", inline=False)
-
-        if interaction.extras:
-            e.add_field(name="Extras", value=f"```{interaction.extras}```")
-
-        await send_error_embed(interaction.client, interaction, error, e)
 
 
 def convert_to_datetime(input_str: str) -> Optional[datetime]:
@@ -1445,45 +1010,3 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
         return message
 
 
-async def aiohttp_get(ctx: commands.Context, url: str) -> str:
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                response = resp
-                text = await resp.text()
-    except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-        await safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
-        return ''
-
-    if not text:
-        await safe_send(ctx, embed=red_embed("I received nothing from the site for your search query."))
-        return ''
-
-    if response.status == 200:
-        return text
-    else:
-        await safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
-        return ''
-
-
-def asyncio_task(func: Callable, *args, **kwargs):
-    async def wrapper():
-        try:
-            # Execute the async function
-            return await func(*args, **kwargs)
-        except Exception as e:
-            print(f"Exception in {func.__name__}: {e}")
-            # Handle exception here if needed
-            raise  # Re-raise the exception for the callback to catch
-
-    task = asyncio.create_task(wrapper())
-    task.add_done_callback(asyncio_task_done_callback)
-
-
-def asyncio_task_done_callback(task):
-    coro_name = task.get_coro().__qualname__
-    if task.exception():
-        print(f"Error in {coro_name}: {task.exception()}")
-        # Handle the exception or forward it to another function
-    else:
-        print(f"Task {coro_name} completed successfully.")
