@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 from typing import Optional, List, Tuple, Dict
 
@@ -85,7 +86,7 @@ class Logger(commands.Cog):
                     "To set where that channel logs to, add `set` to the command.\n" \
                     "- Examples: `joins set`   `;edits set`   `;leaves set`"
         emb.add_field(name=f"**__{'　' * 30}__**", value=emb_value, inline=False)
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @logs.command()
     async def set(self, ctx, module):
@@ -138,7 +139,7 @@ class Logger(commands.Cog):
             pass
         else:
             channel = self.bot.get_channel(channel)
-            await hf.safe_send(channel, f"Disabled the {module_name} logs due to Rai possibly lacking some permission "
+            await utils.safe_send(channel, f"Disabled the {module_name} logs due to Rai possibly lacking some permission "
                                         f"(possibly `Send Messages`, `Embed Links`, or for bans, `View Audit Log`)")
         finally:
             guild_config['enable'] = False
@@ -151,15 +152,15 @@ class Logger(commands.Cog):
         """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['voice'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled voice logging for this server')
+            await utils.safe_send(ctx, 'Disabled voice logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled voice logging for this server. Embeds have a secret ID '
+            await utils.safe_send(ctx, 'Enabled voice logging for this server. Embeds have a secret ID '
                                     'inside of that you can find by searching the user ID with "V" in front (like '
                                     '`V202995638860906496`).')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for voice logging yet. Run `;voice_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for voice logging yet. Run `;voice_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;voice_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;voice_logging set`.  '
                                     'Then, enable/disable logging by typing `;voice_logging`.')
 
     @voice.command(name='set')
@@ -167,9 +168,9 @@ class Logger(commands.Cog):
     async def voice_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['voice'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the voice logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the voice logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled voice logging and set the channel to `{ctx.channel.name}`.  '
+            await utils.safe_send(ctx, f'Enabled voice logging and set the channel to `{ctx.channel.name}`.  '
                                     f'Enable/disable logging by typing `;voice_logging`. Embeds have a secret ID '
                                     f'inside of that you can find by searching the user ID with "V" in front (like '
                                     f'`V202995638860906496`).')
@@ -320,11 +321,11 @@ class Logger(commands.Cog):
         """Voice logging"""
         if guild_config:
             try:
-                await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
             except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
                 await asyncio.sleep(3)
                 try:
-                    await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                    await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
                 except discord.DiscordServerError:
                     pass
 
@@ -335,7 +336,7 @@ class Logger(commands.Cog):
             if a and not b:
                 if member.id in config['users']:
                     try:
-                        await hf.safe_send(channel, member.id, embed=emb)
+                        await utils.safe_send(channel, member.id, embed=emb)
                     except discord.Forbidden:
                         pass
 
@@ -346,7 +347,7 @@ class Logger(commands.Cog):
                     emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
                     if hf.calculate_voice_time(member.id, member.guild.id) < 60 * 60:  # 60 mins
                         try:
-                            await hf.safe_send(channel, member.id, embed=emb)
+                            await utils.safe_send(channel, member.id, embed=emb)
                         except discord.Forbidden:
                             pass
 
@@ -367,7 +368,7 @@ class Logger(commands.Cog):
 
         emb = discord.Embed(description=description, color=color, timestamp=discord.utils.utcnow())
         emb.set_footer(text=footer_text)
-        await hf.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+        await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
 
     # ############### edits #####################
 
@@ -377,14 +378,14 @@ class Logger(commands.Cog):
         """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['edits'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled edit logging for this server')
+            await utils.safe_send(ctx, 'Disabled edit logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled edit logging for this server')
+            await utils.safe_send(ctx, 'Enabled edit logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for edit logging yet. Run `;edit_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for edit logging yet. Run `;edit_logging set`')
         elif result == 4:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;edit_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;edit_logging set`.  '
                                     'Then, enable/disable logging by typing `;edit_logging`.')
 
     @edit_logging.command(name='set')
@@ -392,10 +393,10 @@ class Logger(commands.Cog):
     async def edits_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['edits'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the edit logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the edit logging channel as {ctx.channel.name}')
         elif result == 2:
             self.bot.db['edits'][str(ctx.guild.id)]['distance_limit'] = 3
-            await hf.safe_send(ctx, f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  '
+            await utils.safe_send(ctx, f'Enabled edit logging and set the channel to `{ctx.channel.name}`.  '
                                     f'Enable/disable logging by typing `;edit_logging`.')
 
     @edit_logging.command(aliases=['set_distance'])
@@ -405,7 +406,7 @@ class Logger(commands.Cog):
         guild = str(ctx.guild.id)
         guild_config: dict = self.bot.db['edits'][guild]
         guild_config['distance_limit'] = distance_limit
-        await hf.safe_send(ctx, f'Successfully set Levenshtein Distance limit to {distance_limit}.')
+        await utils.safe_send(ctx, f'Successfully set Levenshtein Distance limit to {distance_limit}.')
 
     @staticmethod
     def make_edit_embed(before, after, levenshtein_distance):
@@ -459,13 +460,13 @@ class Logger(commands.Cog):
                         channel = self.bot.get_channel(guild_config["channel"])
                         if not channel:
                             return
-                        await hf.safe_send(channel, 'Please set a Levenshtein Distance with `;edit set_distance 3`')
+                        await utils.safe_send(channel, 'Please set a Levenshtein Distance with `;edit set_distance 3`')
                         return
                     levenshtein_distance = LDist(before.content, after.content)
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
-                            await hf.safe_send(channel, embed=self.make_edit_embed(before, after,
+                            await utils.safe_send(channel, embed=self.make_edit_embed(before, after,
                                                                                    levenshtein_distance))
                         except discord.Forbidden:
                             return
@@ -479,13 +480,13 @@ class Logger(commands.Cog):
         """Logs deleted messages"""
         result = await self.module_logging(ctx, self.bot.db['deletes'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled delete logging for this server')
+            await utils.safe_send(ctx, 'Disabled delete logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled delete logging for this server')
+            await utils.safe_send(ctx, 'Enabled delete logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for delete logging yet. Run `;delete_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for delete logging yet. Run `;delete_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;delete_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;delete_logging set`.  '
                                     'Then, enable/disable logging by typing `;delete_logging`.')
 
     @deletes.command(name='set')
@@ -493,9 +494,9 @@ class Logger(commands.Cog):
     async def deletes_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['deletes'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the delete logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the delete logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;delete_logging`.')
 
@@ -569,7 +570,7 @@ class Logger(commands.Cog):
             return
 
         try:
-            log_message = await hf.safe_send(channel, embed=await self.make_delete_embed(message))
+            log_message = await utils.safe_send(channel, embed=await self.make_delete_embed(message))
             await hf.send_attachments_to_thread_on_message(log_message, message)
         except discord.Forbidden:
             await self.module_disable_notification(message.guild, guild_config, 'message deletes')
@@ -619,7 +620,7 @@ class Logger(commands.Cog):
                     text += addition
                 else:
                     break
-            emb = hf.red_embed(text)
+            emb = utils.red_embed(text)
             if uncached:
                 text = f"\nAdditionally, {len(uncached)} old uncached message(s) were deleted." \
                        f"I am unable to see who sent uncached messages.\n"
@@ -636,10 +637,10 @@ class Logger(commands.Cog):
                     text += addition
                 else:
                     break
-            emb = hf.red_embed(text)
+            emb = utils.red_embed(text)
 
         try:
-            await hf.safe_send(channel, embed=emb, file=file)
+            await utils.safe_send(channel, embed=emb, file=file)
         except discord.Forbidden:
             await self.module_disable_notification(channel.guild, guild_config, 'message deletes')
 
@@ -652,26 +653,26 @@ class Logger(commands.Cog):
         result = await self.module_logging(ctx, self.bot.db['joins'])
         server_config = self.bot.db['joins'][str(ctx.guild.id)]
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled join logging for this server')
+            await utils.safe_send(ctx, 'Disabled join logging for this server')
         elif result == 2:
             try:
                 invites = await ctx.guild.invites()
                 server_config['invites'] = await self.make_invites_dict(ctx.guild, invites)
                 server_config['invites_enable'] = True
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    'Enabled join logging + invite tracking for this server (type `;joins invites` to '
                                    'disable invite tracking)')
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I've enabled join tracking, but I lack permissions to get invite codes.  "
+                await utils.safe_send(ctx, "I've enabled join tracking, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
                                         f"`{ctx.message.content} invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
 
         elif result == 3:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                'You have not yet set a channel for join logging yet. Run `;joins set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;joins set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;joins set`.  '
                                     'Then, enable/disable logging by typing `;joins`.')
 
     @joins.command(name='set')
@@ -680,17 +681,17 @@ class Logger(commands.Cog):
         result = await self.module_set(ctx, self.bot.db['joins'])
         server_config = self.bot.db['joins'][str(ctx.guild.id)]
         if result == 1:
-            await hf.safe_send(ctx, f'Set the join logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the join logging channel as {ctx.channel.name}')
         elif result == 2:
             try:
                 invites = await ctx.guild.invites()
                 server_config['invites'] = await self.make_invites_dict(ctx.guild, invites)
                 server_config['invites_enable'] = True
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    f'Enabled join logging + invite tracking / set the channel to `{ctx.channel.name}`.'
                                    f'  Enable/disable logging by typing `;joins`.')
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I've enabled join logging, but I lack permissions to get invite codes.  "
+                await utils.safe_send(ctx, "I've enabled join logging, but I lack permissions to get invite codes.  "
                                         "If you want invite tracking too, give me `Manage Server` and then type "
                                         "`;joins invites` to enable invite tracking for future joins.")
                 server_config['invites_enable'] = False
@@ -704,10 +705,10 @@ class Logger(commands.Cog):
             server_config = self.bot.db['joins'][guild]
             try:
                 server_config['invites_enable'] = not server_config['invites_enable']
-                await hf.safe_send(ctx, f"Set invite tracking to `{server_config['invites_enable']}`")
+                await utils.safe_send(ctx, f"Set invite tracking to `{server_config['invites_enable']}`")
             except KeyError:
                 server_config['invites_enable'] = True
-                await hf.safe_send(ctx, 'Enabled invites tracking')
+                await utils.safe_send(ctx, 'Enabled invites tracking')
             except discord.Forbidden:
                 pass
             if server_config['invites_enable']:
@@ -822,17 +823,17 @@ class Logger(commands.Cog):
             try:
                 config['enable'] = not config['enable']
                 x = config['enable']
-                await hf.safe_send(ctx, f'Set welcome message posting to {x}')
+                await utils.safe_send(ctx, f'Set welcome message posting to {x}')
             except KeyError:
                 config['enable'] = True
                 x = config['enable']
-                await hf.safe_send(ctx, f'Set welcome message posting to {x}')
+                await utils.safe_send(ctx, f'Set welcome message posting to {x}')
         else:
             self.bot.db['welcome_message'][guild] = {}
             config = self.bot.db['welcome_message'][guild]
             config['enable'] = True
             x = config['enable']
-            await hf.safe_send(ctx, f'Set welcome message posting to {x}')
+            await utils.safe_send(ctx, f'Set welcome message posting to {x}')
 
     @welcome_message.command()
     async def set_message(self, ctx, *, message: str = None):
@@ -841,15 +842,15 @@ class Logger(commands.Cog):
                     '```;welcome_message set_message Welcome to the server `$NAME$`! Please read the rules```\n'
                     "Valid flags to use are: \n$NAME$ = The user's name in text\n`$USERMENTION$` = Mentions "
                     "the user\n`$SERVER$` = The name of the server")
-            await hf.safe_send(ctx, text)
+            await utils.safe_send(ctx, text)
         else:
             try:
                 config = self.bot.db['welcome_message'][str(ctx.guild.id)]
             except KeyError:
-                await hf.safe_send(ctx, "Run `;welcome_message` first to setup the module")
+                await utils.safe_send(ctx, "Run `;welcome_message` first to setup the module")
                 return
             config['message'] = message
-            await hf.safe_send(ctx, f"Set welcome message to ```{message}```")
+            await utils.safe_send(ctx, f"Set welcome message to ```{message}```")
 
     @welcome_message.command()
     async def set_channel(self, ctx):
@@ -859,12 +860,12 @@ class Logger(commands.Cog):
             await ctx.invoke(self.welcome_message)
             config = self.bot.db['welcome_message'][str(ctx.guild.id)]
         config['channel'] = ctx.channel.id
-        await hf.safe_send(ctx, f"Set welcome message channel to {ctx.channel.mention}")
+        await utils.safe_send(ctx, f"Set welcome message channel to {ctx.channel.mention}")
 
     @welcome_message.command()
     async def show_message(self, ctx):
         config = self.bot.db['welcome_message'][str(ctx.guild.id)]
-        await hf.safe_send(ctx, "```" + config['message'] + "```")
+        await utils.safe_send(ctx, "```" + config['message'] + "```")
 
     @staticmethod
     async def make_invites_dict(guild, invites_in: List[discord.Invite]):
@@ -948,7 +949,7 @@ class Logger(commands.Cog):
                         replace('$NAME$', member.name). \
                         replace('$USERMENTION$', member.mention). \
                         replace('$SERVER$', member.guild.name)
-                    await hf.safe_send(_welcome_channel, message)
+                    await utils.safe_send(_welcome_channel, message)
             return _welcome_channel
 
         welcome_channel = await welcome_message()
@@ -971,7 +972,7 @@ class Logger(commands.Cog):
 
             if not log_channel.permissions_for(guild.me).embed_links:
                 try:
-                    await hf.safe_send(log_channel, "I tried to post a join notification but I lack the permission to"
+                    await utils.safe_send(log_channel, "I tried to post a join notification but I lack the permission to"
                                                     " post embeds. Please give me the permission to embed links.")
                 except discord.Forbidden:
                     del server_config
@@ -980,7 +981,7 @@ class Logger(commands.Cog):
                 disable_message = "Invite tracking is currently enabled, but Discord requries the `Manage Server` " \
                                   "permission to view invite links. Please give Rai this persmission then type " \
                                   "`;joins invites` to reenable the tracking of invite links."
-                await hf.safe_send(log_channel, disable_message)
+                await utils.safe_send(log_channel, disable_message)
                 server_config['invites_enable'] = False
 
             old_invites: Optional[Dict[str, List[Optional[float]]]]
@@ -1075,7 +1076,7 @@ class Logger(commands.Cog):
                 del readd_config['users'][str(member.id)]
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
-            log_message = await hf.safe_send(log_channel, member.id, embed=x)
+            log_message = await utils.safe_send(log_channel, member.id, embed=x)
 
             # Logging join info for modlog pulls
             recorded_info = {}
@@ -1122,7 +1123,7 @@ class Logger(commands.Cog):
                     await member.add_roles(new_user_role)
 
                 try:
-                    await hf.safe_send(jpJHO, JHO_msg)
+                    await utils.safe_send(jpJHO, JHO_msg)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
@@ -1155,7 +1156,7 @@ class Logger(commands.Cog):
                     await self.bot.get_channel(BANS_CHANNEL_ID).send(message)
                     self.bot.db['global_blacklist']['blacklist'].append(member.id)
                     channel = self.bot.get_channel(533863928263082014)
-                    await hf.safe_send(channel,
+                    await utils.safe_send(channel,
                                        f"❌ Automatically added `{member.name} ({member.id}`) to the blacklist for "
                                        f"being an invite-link name")
                     return  # stops execution of the rest of the code if was invite link name
@@ -1171,7 +1172,7 @@ class Logger(commands.Cog):
                     try:
                         await member.ban(reason="On the global blacklist")
                     except discord.Forbidden:
-                        await hf.safe_send(bans_channel, embed=hf.red_embed("WARNING: I tried to ban a user for being "
+                        await utils.safe_send(bans_channel, embed=utils.red_embed("WARNING: I tried to ban a user for being "
                                                                             "on the global blacklist but I lacked "
                                                                             "the permission to ban users on that "
                                                                             "server."))
@@ -1183,7 +1184,7 @@ class Logger(commands.Cog):
         if str(member.id) in self.bot.db['banlog']:
             config = self.bot.db['banlog'][str(member.id)]  # a list of lists of: [guild.id, crosspost_msg.id]
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-            emb = hf.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{member.guild.name}**"
+            emb = utils.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{member.guild.name}**"
                                f"\n\nThey were banned before on the following servers:\n")
             emb.color = 0x8013E0
 
@@ -1212,7 +1213,7 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
                     if mod_channel:
                         try:
-                            await hf.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
+                            await utils.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
                             sent_to_mod_channel = True
                         except (discord.Forbidden, discord.HTTPException):
                             pass
@@ -1222,7 +1223,7 @@ class Logger(commands.Cog):
                         msg = f"{member.mention}"
                     else:
                         msg = f"{member.mention}\n{pings}"
-                    await hf.safe_send(bans_channel, msg, embed=emb)
+                    await utils.safe_send(bans_channel, msg, embed=emb)
 
                 else:
                     del (self.bot.db['banlogs'][str(member.id)])  # cleanup
@@ -1237,13 +1238,13 @@ class Logger(commands.Cog):
         """Logs leaves + shows list of roles at time of leave"""
         result = await self.module_logging(ctx, self.bot.db['leaves'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled leave logging for this server')
+            await utils.safe_send(ctx, 'Disabled leave logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled leave logging for this server')
+            await utils.safe_send(ctx, 'Enabled leave logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for leave logging yet. Run `;leave_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for leave logging yet. Run `;leave_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;leave_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;leave_logging set`.  '
                                     'Then, enable/disable logging by typing `;leave_logging`.')
 
     @leaves.command(name='set')
@@ -1251,9 +1252,9 @@ class Logger(commands.Cog):
     async def leaves_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['leaves'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the leave logging channel as `{ctx.channel.name}`')
+            await utils.safe_send(ctx, f'Set the leave logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;leave_logging`.')
 
@@ -1293,7 +1294,7 @@ class Logger(commands.Cog):
                     del self.bot.db['leaves'][guild]
                     return
                 try:
-                    await hf.safe_send(channel, member.id, embed=self.make_leave_embed(member))
+                    await utils.safe_send(channel, member.id, embed=self.make_leave_embed(member))
                 except discord.Forbidden:
                     await self.module_disable_notification(member.guild, guild_config, 'member leave')
 
@@ -1339,7 +1340,7 @@ class Logger(commands.Cog):
                     await self.module_disable_notification(member.guild, guild_config, 'member kick')
                     return
                 if emb:
-                    await hf.safe_send(channel, embed=emb)
+                    await utils.safe_send(channel, embed=emb)
 
         # ### Remove from join_history used in modlog command
         try:
@@ -1355,14 +1356,14 @@ class Logger(commands.Cog):
         """Logs nicknames changes"""
         result = await self.module_logging(ctx, self.bot.db['nicknames'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled nickname logging for this server')
+            await utils.safe_send(ctx, 'Disabled nickname logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled nickname logging for this server')
+            await utils.safe_send(ctx, 'Enabled nickname logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                'You have not yet set a channel for nickname logging yet. Run `;nickname_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;nickname_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;nickname_logging set`.  '
                                     'Then, enable/disable logging by typing `;nickname_logging`.')
 
     @nicknames.command(name='set')
@@ -1370,9 +1371,9 @@ class Logger(commands.Cog):
     async def nicknames_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['nicknames'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the nickname logging channel as `{ctx.channel.name}`')
+            await utils.safe_send(ctx, f'Set the nickname logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;nickname_logging`.')
 
@@ -1416,7 +1417,7 @@ class Logger(commands.Cog):
                 emb.description = f"**{before_name}**'s {updated_attr} was changed to **{after_name}**"
             emb.colour = 0xFF8800
             try:
-                await hf.safe_send(channel, embed=emb)
+                await utils.safe_send(channel, embed=emb)
             except discord.Forbidden:
                 pass
 
@@ -1513,7 +1514,7 @@ class Logger(commands.Cog):
             elif before.nick and after.nick:  # nickname changed
                 emb.description = f"**{before.nick}**'s __server nickname__ was changed to **{after.nick}**"
             try:
-                await hf.safe_send(channel, embed=emb)
+                await utils.safe_send(channel, embed=emb)
             except discord.Forbidden:
                 pass
 
@@ -1575,7 +1576,7 @@ class Logger(commands.Cog):
             if not time_left:
                 return  # No matching entries found
 
-            emb = hf.red_embed("")
+            emb = utils.red_embed("")
             emb.title = f"You have been timed out on {guild.name}"
             emb.color = 0xff8800  # orange
             emb.add_field(name="User", value=f"{after.name} ({after.id})", inline=False)
@@ -1597,10 +1598,10 @@ class Logger(commands.Cog):
                 content = ""
 
             try:
-                await hf.safe_send(after, content, embed=emb)
+                await utils.safe_send(after, content, embed=emb)
             except discord.Forbidden:
                 try:
-                    await hf.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
+                    await utils.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
                                                "their privacy settings.", embed=emb)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
@@ -1611,10 +1612,10 @@ class Logger(commands.Cog):
             if modlog_channel:
                 if guild.id == SPAN_SERV_ID:
                     incidents_channel = guild.get_channel(808077477703712788)
-                    notif_msg = await hf.safe_send(incidents_channel, str(after.id), embed=emb)
+                    notif_msg = await utils.safe_send(incidents_channel, str(after.id), embed=emb)
                     ctx = await self.bot.get_context(notif_msg)
                 else:
-                    notif_msg = await hf.safe_send(modlog_channel, str(after.id), embed=emb)
+                    notif_msg = await utils.safe_send(modlog_channel, str(after.id), embed=emb)
                     ctx = await self.bot.get_context(notif_msg)
 
                 hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
@@ -1628,7 +1629,7 @@ class Logger(commands.Cog):
                 if author.top_role in [event_helper, event_host]:
                     event_helpers_channel = guild.get_channel(861337623636475944)
                     if event_helpers_channel:
-                        await hf.safe_send(event_helpers_channel, str(after.id), embed=emb)
+                        await utils.safe_send(event_helpers_channel, str(after.id), embed=emb)
 
         await check_timeouts()
 
@@ -1666,14 +1667,14 @@ class Logger(commands.Cog):
         """Logs deleted reactions"""
         result = await self.module_logging(ctx, self.bot.db['reactions'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled reaction logging for this server')
+            await utils.safe_send(ctx, 'Disabled reaction logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled reaction logging for this server')
+            await utils.safe_send(ctx, 'Enabled reaction logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                'You have not yet set a channel for reaction logging yet. Run `;reaction_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;reaction_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;reaction_logging set`.  '
                                     'Then, enable/disable logging by typing `;reaction_logging`.')
 
     @reactions.command(name='set')
@@ -1681,9 +1682,9 @@ class Logger(commands.Cog):
     async def reactions_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the reaction logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the reaction logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;reaction_logging`.')
 
@@ -1730,7 +1731,7 @@ class Logger(commands.Cog):
 
         log_channel = self.bot.get_channel(guild_config["channel"])
         try:
-            await hf.safe_send(log_channel,
+            await utils.safe_send(log_channel,
                                embed=self.make_reaction_embed(emoji, member, message, payload.message_id, channel))
         except discord.Forbidden:
             await self.module_disable_notification(guild, guild_config, 'reaction remove')
@@ -1745,18 +1746,18 @@ class Logger(commands.Cog):
     async def bans(self, ctx):
         """Logs deleted bans"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "I lack the permission to either view audit logs or embed links.  Please try again.")
             return
         result = await self.module_logging(ctx, self.bot.db['bans'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled ban logging for this server')
+            await utils.safe_send(ctx, 'Disabled ban logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled ban logging for this server')
+            await utils.safe_send(ctx, 'Enabled ban logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for ban logging yet. Run `;ban_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for ban logging yet. Run `;ban_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;ban_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;ban_logging set`.  '
                                     'Then, enable/disable logging by typing `;ban_logging`.')
 
     @bans.command(name='set', short_name='set')
@@ -1765,9 +1766,9 @@ class Logger(commands.Cog):
         self.short_name = 'set'
         result = await self.module_set(ctx, self.bot.db['bans'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                     f' logging by typing `;ban_logging`.')
 
     async def make_ban_embed(self, guild: discord.Guild, member: discord.User):
@@ -1924,7 +1925,7 @@ class Logger(commands.Cog):
                 return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await hf.safe_send(channel, member.id, embed=ban_emb)
+                await utils.safe_send(channel, member.id, embed=ban_emb)
 
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 # ⁣ is a flag to *skip* crossposting
@@ -1936,7 +1937,7 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'].get(guild, 0))
                     if mod_channel:
                         try:
-                            await hf.safe_send(mod_channel, f"@here {member.mention}", embed=crosspost_emb)
+                            await utils.safe_send(mod_channel, f"@here {member.mention}", embed=crosspost_emb)
                         except (discord.Forbidden, discord.HTTPException):
                             pass
 
@@ -2008,7 +2009,7 @@ class Logger(commands.Cog):
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
                 try:
-                    await hf.safe_send(channel, embed=self.make_unban_embed(user))
+                    await utils.safe_send(channel, embed=self.make_unban_embed(user))
                 except discord.Forbidden:
                     await self.module_disable_notification(guild, guild_config, 'unban')
                     return
@@ -2021,13 +2022,13 @@ class Logger(commands.Cog):
         """Logs deleted kicks"""
         result = await self.module_logging(ctx, self.bot.db['kicks'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled kick logging for this server')
+            await utils.safe_send(ctx, 'Disabled kick logging for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled kick logging for this server')
+            await utils.safe_send(ctx, 'Enabled kick logging for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for kick logging yet. Run `;kick_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for kick logging yet. Run `;kick_logging set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;kick_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;kick_logging set`.  '
                                     'Then, enable/disable logging by typing `;kick_logging`.')
 
     @kicks.command(name='set')
@@ -2035,9 +2036,9 @@ class Logger(commands.Cog):
     async def kicks_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['kicks'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                     f' logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
@@ -2079,13 +2080,13 @@ class Logger(commands.Cog):
         """Logs creation, deletion, and modifications to channels"""
         result = await self.module_logging(ctx, self.bot.db['channels'])
         if result == 1:
-            await hf.safe_send(ctx, 'Disabled logging of channel modifications for this server')
+            await utils.safe_send(ctx, 'Disabled logging of channel modifications for this server')
         elif result == 2:
-            await hf.safe_send(ctx, 'Enabled logging of channel modifications for this server')
+            await utils.safe_send(ctx, 'Enabled logging of channel modifications for this server')
         elif result == 3:
-            await hf.safe_send(ctx, 'You have not yet set a channel for channel logging yet. Run `;channels set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for channel logging yet. Run `;channels set`')
         elif result == 4:
-            await hf.safe_send(ctx, 'Before doing this, set a channel for logging with `;channels set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;channels set`.  '
                                     'Then, enable/disable logging by typing `;channels`.')
 
     @channels.command(name='set')
@@ -2093,9 +2094,9 @@ class Logger(commands.Cog):
     async def channels_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['channels'])
         if result == 1:
-            await hf.safe_send(ctx, f'Set the channel logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx, f'Set the channel logging channel as {ctx.channel.name}')
         elif result == 2:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f'Enabled channel logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;channels`.')
 
@@ -2298,7 +2299,7 @@ class Logger(commands.Cog):
         embed = await self.make_channels_embed(channel.guild, None, channel)
         channel = channel.guild.get_channel(config['channel'])
         if channel and config['enable'] and embed:
-            await hf.safe_send(channel, channel.id, embed=embed)
+            await utils.safe_send(channel, channel.id, embed=embed)
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
@@ -2308,7 +2309,7 @@ class Logger(commands.Cog):
         embed = await self.make_channels_embed(channel.guild, channel, None)
         channel = channel.guild.get_channel(config['channel'])
         if channel and config['enable'] and embed:
-            await hf.safe_send(channel, channel.id, embed=embed)
+            await utils.safe_send(channel, channel.id, embed=embed)
 
     @commands.Cog.listener()
     async def on_guild_channel_update(self, before, after):
@@ -2318,7 +2319,7 @@ class Logger(commands.Cog):
         embed = await self.make_channels_embed(after.guild, before, after)
         channel = after.guild.get_channel(config['channel'])
         if channel and config['enable'] and embed:
-            await hf.safe_send(channel, channel.id, embed=embed)
+            await utils.safe_send(channel, channel.id, embed=embed)
 
 
 async def setup(bot):

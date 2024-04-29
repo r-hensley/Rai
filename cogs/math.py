@@ -9,7 +9,7 @@ import math
 import asyncio
 import io
 import os
-from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -208,7 +208,7 @@ class Math(commands.Cog):
         with io.BytesIO() as walkIm:
             plt.savefig(walkIm, format='png')
             walkIm.seek(0)
-            await hf.safe_send(ctx, "Here's your random walk!", file=discord.File(walkIm, 'plot.png'))
+            await utils.safe_send(ctx, "Here's your random walk!", file=discord.File(walkIm, 'plot.png'))
 
         if save == 'save':  # will show multiple plots on one graph
             return
@@ -229,10 +229,10 @@ class Math(commands.Cog):
             initial_de = [int(territory) for territory in de.split(',')]
             de = initial_de.copy()
             if att[0] < 2 or [i for i in de if i < 1]:
-                await hf.safe_send(ctx, "You must have at least 2 att and at least 1 de.")
+                await utils.safe_send(ctx, "You must have at least 2 att and at least 1 de.")
                 return
         except (ValueError, TypeError, AttributeError):
-            await hf.safe_send(ctx, "Please put a integer number of att and de. Try `;help rc`.")
+            await utils.safe_send(ctx, "Please put a integer number of att and de. Try `;help rc`.")
             return
 
         results = []
@@ -299,7 +299,7 @@ class Math(commands.Cog):
         # await ctx.send(' '.join([str(i) for i in results['att'][:60]]))
         # await ctx.send(' '.join([str(i) for i in results['de'][:60]]))
 
-        await hf.safe_send(ctx, f"Out of 5,000 battles:\n"
+        await utils.safe_send(ctx, f"Out of 5,000 battles:\n"
                                 f"Attackers occupies **{len(att_victories)} times** "
                                 f"({att_percentage}%) (average {att_average} surviving troops)\n"
                                 f"Defenders survived **{len(de_victories)} times** "

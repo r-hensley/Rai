@@ -12,6 +12,7 @@ from typing import Optional
 from discord import app_commands, ui
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BANS_CHANNEL_ID = 329576845949534208
@@ -56,7 +57,7 @@ async def on_tree_error(interaction: discord.Interaction, error: discord.app_com
     if interaction.extras:
         e.add_field(name="Extras", value=f"```{interaction.extras}```")
 
-    await hf.send_error_embed(interaction.client, interaction, error, e)
+    await utils.send_error_embed(interaction.client, interaction, error, e)
 
 
 class Point(NamedTuple):
@@ -152,7 +153,7 @@ class Interactions(commands.Cog):
         try:
             await ctx.message.add_reaction("♻")
         except (discord.HTTPException, discord.Forbidden, discord.NotFound):
-            await hf.safe_send(ctx, "**`interactions: commands synced`**", delete_after=5.0)
+            await utils.safe_send(ctx, "**`interactions: commands synced`**", delete_after=5.0)
 
     @app_commands.command()
     @app_commands.guilds(FEDE_GUILD)
@@ -186,7 +187,7 @@ class Interactions(commands.Cog):
                              min_values=1,
                              max_values=2)
 
-        view = hf.RaiView()
+        view = utils.RaiView()
         view.add_item(button_1)
         view.add_item(button_2)
         view.add_item(dropdown)
@@ -402,7 +403,7 @@ class Interactions(commands.Cog):
         buttons = [button_author, button_1, button_2, button_3, button_4,
                    button_5, button_6, button_7, button_8, button_9]
 
-        class MyView(hf.RaiView):
+        class MyView(utils.RaiView):
             def __init__(self, timeout):
                 super().__init__(timeout=timeout)
 
@@ -554,14 +555,14 @@ class Interactions(commands.Cog):
                         staff_role_id = staff_role_id[0]
         if staff_role_id:
             content = f"<@&{staff_role_id}>"
-        msg = await hf.safe_send(mod_channel, content, embed=alarm_emb, view=view)
+        msg = await utils.safe_send(mod_channel, content, embed=alarm_emb, view=view)
 
         # Send notification to users who subscribe to mod pings
         for user_id in self.bot.db['staff_ping'].get(guild_id, {}).get('users', []):
             try:
                 user = self.bot.get_user(user_id)
                 if user:
-                    notif = await hf.safe_send(user, embed=alarm_emb)
+                    notif = await utils.safe_send(user, embed=alarm_emb)
                     if hasattr(self.bot, 'synced_reactions'):
                         self.bot.synced_reactions.append((notif, msg))
 
@@ -604,7 +605,7 @@ class Interactions(commands.Cog):
                                      row=1)
 
         # Set up the view with the three buttons
-        view = hf.RaiView()
+        view = utils.RaiView()
         view.add_item(create_embed_button)
         view.add_item(edit_embed_button)
         view.add_item(exit_menu_button)
@@ -677,7 +678,7 @@ class Interactions(commands.Cog):
                                            row=2)
 
         # Setup the view with the three buttons
-        view = hf.RaiView()
+        view = utils.RaiView()
         view.add_item(add_button_button)
         view.add_item(add_dropdown_menu_button)
         view.add_item(remove_element_button)
@@ -732,7 +733,7 @@ class Interactions(commands.Cog):
                     await interaction.delete_original_response()
                     await self.edit_embed(interaction, msg=None)
 
-        view = hf.RaiView()
+        view = utils.RaiView()
         view.add_item(input_jump_url_button)
 
         async def button_callback(button_interaction: discord.Interaction):
@@ -837,10 +838,10 @@ class Interactions(commands.Cog):
                                                         ephemeral=True)
 
             else:
-                emb = hf.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
+                emb = utils.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
                 remove_button = ui.Button(label="Yes, remove it")
                 keep_button = ui.Button(label="No, keep it")
-                view = hf.RaiView()
+                view = utils.RaiView()
 
                 async def remove_callback(button_interaction: discord.Interaction):
                     await member.remove_roles(voice_approved_role)
@@ -971,7 +972,7 @@ class Interactions(commands.Cog):
         else:
             raise TypeError(f"Invalid type of member_or_author passed ({type(member_or_message)})")
 
-        emb = hf.red_embed(f"Attempting to ban user {author.mention}. "
+        emb = utils.red_embed(f"Attempting to ban user {author.mention}. "
                            f"Please select one of the below options.\n\n"
                            f"**- DELETE:** Bans and __deletes the last one day__ of messages.\n"
                            f"**- KEEP:** Bans and preserves messages.\n"
@@ -983,7 +984,7 @@ class Interactions(commands.Cog):
         cancel_button = ui.Button(label="CANCEL", style=discord.ButtonStyle.gray, row=0)
         reason_button = ui.Button(label="Edit ban reason", style=discord.ButtonStyle.primary, row=1)
 
-        view = hf.RaiView()
+        view = utils.RaiView()
         view.add_item(delete_button)
         view.add_item(keep_button)
         view.add_item(cancel_button)
@@ -1220,7 +1221,7 @@ class Interactions(commands.Cog):
                 return
 
         try:
-            await hf.safe_send(destination_member, message.content, embeds=message.embeds)
+            await utils.safe_send(destination_member, message.content, embeds=message.embeds)
         except (discord.Forbidden, discord.HTTPException) as e:
             await intr.response.send_message(f"Failed to send a message to the user you specified: {e}", ephemeral=True)
             return

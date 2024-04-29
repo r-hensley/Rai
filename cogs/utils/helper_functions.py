@@ -1,20 +1,14 @@
 import asyncio
 import csv
 import io
-import json
-import logging
 import os
 import re
-import shutil
 import sys
-import traceback
 
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Union, Tuple, Callable
 
-import aiohttp
 import discord
 import numpy as np
 from discord import app_commands

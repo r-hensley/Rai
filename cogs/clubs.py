@@ -9,6 +9,7 @@ from discord.ext import commands
 
 from .database import Connect
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATABASE_PATH = rf'{dir_path}/database.db'
@@ -58,7 +59,7 @@ class Clubs(commands.Cog):
         """Creates a club. Type the name of your club afterwards like
         `;createclub my club`"""
         if len(club_name) > 32:
-            await hf.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
+            await utils.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
             return
 
         # the user ID is a foreign key to the users table, so make sure it's in there
@@ -86,7 +87,7 @@ class Clubs(commands.Cog):
         """Deletes a club. Type the name of your club afterwards like
         `;deleteclub my club`"""
         if len(club_name) > 32:
-            await hf.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
+            await utils.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
             return
         query1 = f"SELECT name, club_id FROM clubs WHERE name = ?"
         query2 = f"DELETE FROM clubs WHERE name = ? and guild_id = {ctx.guild.id}"
@@ -96,7 +97,7 @@ class Clubs(commands.Cog):
 
         current_clubs = await clubs.execute(query1, parameters)
         if not current_clubs:
-            await hf.safe_send(ctx, "I couldn't find a club with that name, please try again.")
+            await utils.safe_send(ctx, "I couldn't find a club with that name, please try again.")
             return
         assert len(current_clubs) == 1, f"The result of this search was somehow greater than 1: " \
                                         f"{[list(i) for i in current_clubs]}"
@@ -183,7 +184,7 @@ class Clubs(commands.Cog):
         try:
             user_id = int(user_id)
         except ValueError:
-            await hf.safe_send(ctx, "Please send the command in this format: `giveclub <recipient-id> <club name>`. "
+            await utils.safe_send(ctx, "Please send the command in this format: `giveclub <recipient-id> <club name>`. "
                                     "Example: `;giveclub 1234567890 example club`")
             return
 
@@ -194,16 +195,16 @@ class Clubs(commands.Cog):
             if name.casefold() == club_name.casefold() and guild_id == ctx.guild.id:
                 to_give_id = user_id
                 if not club_owners(ctx) and owner_id != ctx.author.id:
-                    await hf.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
+                    await utils.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
                                             "this club away.")
                     return
 
         if not to_give_id:
-            await hf.safe_send(ctx, "I could not find the club you are trying to transfer. Please try again.")
+            await utils.safe_send(ctx, "I could not find the club you are trying to transfer. Please try again.")
             return
 
         if not ctx.guild.get_member(user_id):
-            await hf.safe_send(ctx, f"A user could not be found with the ID: {user_id}; Please try again.")
+            await utils.safe_send(ctx, f"A user could not be found with the ID: {user_id}; Please try again.")
             return
 
         # the user ID is a foreign key to the users table, so make sure it's in there
@@ -219,7 +220,7 @@ class Clubs(commands.Cog):
         try:
             await clubs.execute(query, parameters)
         except IntegrityError:
-            await hf.safe_send(ctx, f"User (ID: {to_give_id}) already owns club: {club_name}.")
+            await utils.safe_send(ctx, f"User (ID: {to_give_id}) already owns club: {club_name}.")
             return
         else:
             await ctx.message.add_reaction("✅")
@@ -234,33 +235,33 @@ class Clubs(commands.Cog):
             if name.casefold() == club_name.casefold() and (owner_id == ctx.author.id or club_owners(ctx)):
                 old_name = name
         if not old_name:
-            await hf.safe_send(ctx, "You need to be the owner of a party to change the name of it.")
+            await utils.safe_send(ctx, "You need to be the owner of a party to change the name of it.")
             return
 
         if not old_name:
-            await hf.safe_send(ctx, "Either I couldn't find your club or there are no clubs!")
+            await utils.safe_send(ctx, "Either I couldn't find your club or there are no clubs!")
             return
 
-        await hf.safe_send(ctx, "Please input the new name for your club")
+        await utils.safe_send(ctx, "Please input the new name for your club")
         try:
             new_name_msg = await self.bot.wait_for("message", timeout=30.0,
                                                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Request timed out. Please start again.")
+            await utils.safe_send(ctx, "Request timed out. Please start again.")
             return
 
         new_name = new_name_msg.content
         if not new_name:
-            await hf.safe_send(ctx, "I couldn't find what new name you wanted to set. Please try again.")
+            await utils.safe_send(ctx, "I couldn't find what new name you wanted to set. Please try again.")
             return
 
         for (name, owner_id) in clubs:
             if name == new_name:
-                await hf.safe_send(ctx, "There already exists a club with that name. Please choose a new name.")
+                await utils.safe_send(ctx, "There already exists a club with that name. Please choose a new name.")
                 return
 
         if len(new_name) > 32:
-            await hf.safe_send(ctx, "Please choose a shorter club name")
+            await utils.safe_send(ctx, "Please choose a shorter club name")
             return
 
         query = f"UPDATE clubs SET name = ? WHERE name = ? AND guild_id = ?"
@@ -268,7 +269,7 @@ class Clubs(commands.Cog):
         try:
             await clubs.execute(query, parameters)
         except IntegrityError as e:
-            await hf.safe_send(ctx, f"Error updating database: {e}")
+            await utils.safe_send(ctx, f"Error updating database: {e}")
             return
         else:
             await new_name_msg.add_reaction("✅")

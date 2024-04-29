@@ -16,6 +16,7 @@ from Levenshtein import distance as LDist
 from cogs.utils.helper_functions import format_interval
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -115,7 +116,7 @@ class General(commands.Cog):
                 requested = self.bot.get_cog(arg)
                 which = 'cog'
             if not requested:
-                await hf.safe_send(ctx, "I was unable to find the command or command module you requested.")
+                await utils.safe_send(ctx, "I was unable to find the command or command module you requested.")
                 return
             if which == 'command':
                 message = f"**;{requested.qualified_name}**\n"
@@ -131,8 +132,8 @@ class General(commands.Cog):
                 message += '\n'
                 if requested.help:
                     message += requested.help
-                emb = hf.green_embed(cleandoc(message))
-                await hf.safe_send(ctx, embed=emb)
+                emb = utils.green_embed(cleandoc(message))
+                await utils.safe_send(ctx, embed=emb)
 
             else:  # requested a cog
                 message = f"**;{requested.qualified_name}**\n"
@@ -142,8 +143,8 @@ class General(commands.Cog):
                 else:
                     message += '\n\n'
                 message += requested.description
-                emb = hf.green_embed(cleandoc(message))
-                await hf.safe_send(ctx, embed=emb)
+                emb = utils.green_embed(cleandoc(message))
+                await utils.safe_send(ctx, embed=emb)
 
         else:  # user wants to see full command list
             cmd_dict = {}
@@ -169,10 +170,10 @@ class General(commands.Cog):
                 if len(help_msg + to_add) <= 2000:
                     help_msg += to_add
                 else:
-                    await hf.safe_send(ctx, help_msg)
+                    await utils.safe_send(ctx, help_msg)
                     help_msg = to_add
 
-            await hf.safe_send(ctx, help_msg)
+            await utils.safe_send(ctx, help_msg)
 
     @commands.command()
     @commands.check(fe_check)
@@ -185,14 +186,14 @@ class General(commands.Cog):
             try:
                 await ctx.author.remove_roles(upper_fluent_english)
             except (discord.Forbidden, discord.HTTPException):
-                await hf.safe_send(ctx, "There has been an error, please try again.")
+                await utils.safe_send(ctx, "There has been an error, please try again.")
                 return
 
         else:
             try:
                 await ctx.author.add_roles(upper_fluent_english)
             except (discord.Forbidden, discord.HTTPException):
-                await hf.safe_send(ctx, "There has been an error, please try again.")
+                await utils.safe_send(ctx, "There has been an error, please try again.")
                 return
 
         await ctx.message.add_reaction('✅')
@@ -222,9 +223,9 @@ class General(commands.Cog):
         else:
             config[str(ctx.author.id)] = True
         if config[str(ctx.author.id)]:
-            await hf.safe_send(ctx, "You will now receive pings when it's your turn.")
+            await utils.safe_send(ctx, "You will now receive pings when it's your turn.")
         else:
-            await hf.safe_send(ctx, "You will no longer receive pings when it's your turn.")
+            await utils.safe_send(ctx, "You will no longer receive pings when it's your turn.")
 
     @commands.command()
     async def topic(self, ctx):
@@ -265,7 +266,7 @@ class General(commands.Cog):
                 description += f"\n[`(chosen {number_of_times} time{s}, last time here)`]({last_occurence})"
 
         try:
-            sent_msg = await hf.safe_send(ctx, embed=discord.Embed(description=description, color=color))
+            sent_msg = await utils.safe_send(ctx, embed=discord.Embed(description=description, color=color))
             if config:
                 config[idx] = {'number': config.get(idx, {}).get('number', 0) + 1,
                                'jump_url': sent_msg.jump_url}
@@ -284,7 +285,7 @@ class General(commands.Cog):
                     role = i
                     break
         if not role:
-            await hf.safe_send(ctx, "I couldn't find the role you specified.")
+            await utils.safe_send(ctx, "I couldn't find the role you specified.")
             return
         emb = discord.Embed(title=f"**List of members in {role.name} role - {len(role.members)}**",
                             description="",
@@ -297,7 +298,7 @@ class General(commands.Cog):
             else:
                 emb.description += "..."
                 break
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
@@ -308,12 +309,12 @@ class General(commands.Cog):
         if role in ctx.author.roles:
             await ctx.author.remove_roles(role)
             try:
-                await hf.safe_send(ctx, "I've removed hardcore from you.")
+                await utils.safe_send(ctx, "I've removed hardcore from you.")
             except discord.Forbidden:
                 pass
         else:
             await ctx.author.add_roles(role)
-            await hf.safe_send(ctx, "I've added hardcore to you. You can only speak in the language you're learning.")
+            await utils.safe_send(ctx, "I've added hardcore to you. You can only speak in the language you're learning.")
 
     @commands.command(aliases=['forcehardcore', 'forcedhardcore'])
     @commands.guild_only()
@@ -324,13 +325,13 @@ class General(commands.Cog):
         try:
             if ctx.channel.id in self.bot.db['forcehardcore']:
                 self.bot.db['forcehardcore'].remove(ctx.channel.id)
-                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of channels for forced hardcore mode")
+                await utils.safe_send(ctx, f"Removed {ctx.channel.name} from list of channels for forced hardcore mode")
             else:
                 self.bot.db['forcehardcore'].append(ctx.channel.id)
-                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of channels for forced hardcore mode")
+                await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of channels for forced hardcore mode")
         except KeyError:
             self.bot.db['forcehardcore'] = [ctx.channel.id]
-            await hf.safe_send(ctx, f"Created forced hardcore mode config; "
+            await utils.safe_send(ctx, f"Created forced hardcore mode config; "
                                     f"added {ctx.channel.name} to list of channels for forced hardcore mode")
 
     @hardcore.command()
@@ -343,13 +344,13 @@ class General(commands.Cog):
         try:
             if ctx.channel.id not in config['ignore']:
                 config['ignore'].append(ctx.channel.id)
-                await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+                await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
             else:
                 config['ignore'].remove(ctx.channel.id)
-                await hf.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
+                await utils.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
         except KeyError:
             config['ignore'] = [ctx.channel.id]
-            await hf.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+            await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
 
     @hardcore.command()
     @hf.is_admin()
@@ -363,12 +364,12 @@ class General(commands.Cog):
                     channels.append(channel)
                 else:
                     self.bot.db['hardcore'][str(ctx.guild.id)]['ignore'].remove(channel_id)
-                    await hf.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
+                    await utils.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
         except KeyError:
             return
         if channels:
             string = "__List of channels excepted from hardcore__:\n#" + '\n#'.join([c.name for c in channels])
-            await hf.safe_send(ctx, string)
+            await utils.safe_send(ctx, string)
 
     @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
     async def lovehug(self, ctx, url=None):
@@ -381,13 +382,13 @@ class General(commands.Cog):
         search = await ctx.invoke(self.bot.get_command('lovehug_get_chapter'), url)
         if isinstance(search, str):
             if search.startswith('html_error'):
-                await hf.safe_send(ctx, search)
+                await utils.safe_send(ctx, search)
                 return
             if search.startswith('invalid_url'):
-                await hf.safe_send(ctx, search)
+                await utils.safe_send(ctx, search)
                 return
         if not search:
-            await hf.safe_send(ctx, "The search failed to find a chapter")
+            await utils.safe_send(ctx, "The search failed to find a chapter")
             return
         if url not in self.bot.db['lovehug']:
             self.bot.db['lovehug'][url] = {'last': f"{url}{search['href']}",
@@ -396,25 +397,25 @@ class General(commands.Cog):
             if ctx.author.id not in self.bot.db['lovehug'][url]['subscribers']:
                 self.bot.db['lovehug'][url]['subscribers'].append(ctx.author.id)
             else:
-                await hf.safe_send(ctx, "You're already subscribed to this manga.")
+                await utils.safe_send(ctx, "You're already subscribed to this manga.")
                 return
-        await hf.safe_send(ctx, f"The latest chapter is: {url}{search['href']}\n\n"
+        await utils.safe_send(ctx, f"The latest chapter is: {url}{search['href']}\n\n"
                                 f"I'll tell you next time a chapter is uploaded.")
 
     @lovehug.command(name='remove')
     async def lovehug_remove(self, ctx, url):
         """Unsubscribes you from a manga. Input the URL: `;lh remove <url>`."""
         if url not in self.bot.db['lovehug']:
-            await hf.safe_send(ctx, "No one is subscribed to that manga. Check your URL.")
+            await utils.safe_send(ctx, "No one is subscribed to that manga. Check your URL.")
             return
         else:
             if ctx.author.id in self.bot.db['lovehug'][url]['subscribers']:
                 self.bot.db['lovehug'][url]['subscribers'].remove(ctx.author.id)
-                await hf.safe_send(ctx, "You've been unsubscribed from that manga.")
+                await utils.safe_send(ctx, "You've been unsubscribed from that manga.")
                 if len(self.bot.db['lovehug'][url]['subscribers']) == 0:
                     del self.bot.db['lovehug'][url]
             else:
-                await hf.safe_send("You're not subscribed to that manga.")
+                await utils.safe_send("You're not subscribed to that manga.")
                 return
 
     @lovehug.command(name='list')
@@ -426,15 +427,15 @@ class General(commands.Cog):
                 subscriptions.append(f"<{url}>")
         subs_list = '\n'.join(subscriptions)
         if subscriptions:
-            await hf.safe_send(ctx, f"The list of mangas you're subscribed to:\n{subs_list}")
+            await utils.safe_send(ctx, f"The list of mangas you're subscribed to:\n{subs_list}")
         else:
-            await hf.safe_send(ctx, "You're not subscribed to any mangas.")
+            await utils.safe_send(ctx, "You're not subscribed to any mangas.")
 
     @commands.command(aliases=['git'])
     @commands.bot_has_permissions(send_messages=True)
     async def github(self, ctx):
         """Gives my github page"""
-        await hf.safe_send(ctx, 'https://github.com/ryry013/Rai')
+        await utils.safe_send(ctx, 'https://github.com/ryry013/Rai')
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -442,7 +443,7 @@ class General(commands.Cog):
         """A punch command I made as a test"""
         if not user:
             user = ctx.author
-        await hf.safe_send(ctx, "ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
+        await utils.safe_send(ctx, "ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -452,9 +453,9 @@ class General(commands.Cog):
         fortnights = 0.00000082672 * self.bot.latency
         fortnights = f"{round(fortnights, 11):.11f} fortnights"
         if ctx.author.id == 233487484791685120:
-            await hf.safe_send(ctx, fortnights)
+            await utils.safe_send(ctx, fortnights)
         else:
-            await hf.safe_send(ctx, latency + 'ms')
+            await utils.safe_send(ctx, latency + 'ms')
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -466,10 +467,10 @@ class General(commands.Cog):
         else:
             members = []
         if ctx.author in members or ctx.author.id == self.bot.owner_id:
-            await hf.safe_send(ctx, discord.utils.oauth_url(self.bot.user.id,
+            await utils.safe_send(ctx, discord.utils.oauth_url(self.bot.user.id,
                                                             permissions=discord.Permissions(permissions=27776)))
         else:
-            await hf.safe_send(ctx, "Sorry, the bot is currently not public. "
+            await utils.safe_send(ctx, "Sorry, the bot is currently not public. "
                                     "The bot owner can send you an invite link.")
 
     @commands.command()
@@ -484,9 +485,9 @@ class General(commands.Cog):
         try:
             await ctx.author.edit(nick=ctx.author.display_name + '📝')
             msg_text = "I've added 📝 to your name.  This means you wish to be corrected in your sentences"
-            await hf.safe_send(ctx, msg_text, delete_after=7.0)
+            await utils.safe_send(ctx, msg_text, delete_after=7.0)
         except discord.Forbidden:
-            await hf.safe_send(ctx, "I lack the permissions to change your nickname", delete_after=7.0)
+            await utils.safe_send(ctx, "I lack the permissions to change your nickname", delete_after=7.0)
         except discord.HTTPException:
             try:
                 await ctx.message.add_reaction('💢')
@@ -502,13 +503,13 @@ class General(commands.Cog):
             await ctx.author.edit(nick=ctx.author.display_name[:-1])
             await ctx.message.add_reaction('◀')
         except discord.Forbidden:
-            await hf.safe_send(ctx, "I lack the permissions to change your nickname")
+            await utils.safe_send(ctx, "I lack the permissions to change your nickname")
 
     @commands.command(aliases=['ryry'])
     @commands.bot_has_permissions(send_messages=True)
     async def ryan(self, ctx):
         """Posts a link to the help docs server for my bot"""
-        await hf.safe_send(ctx, "You can find some shitty docs for how to use my bot here: "
+        await utils.safe_send(ctx, "You can find some shitty docs for how to use my bot here: "
                                 "https://github.com/ryry013/Rai/blob/master/README.md \n"
                                 "You can ask questions and find some further details here: https://discord.gg/7k5MMpr")
 
@@ -529,9 +530,9 @@ class General(commands.Cog):
         Usage: `;cl <text you wish to check>`"""
         if not ctx.guild:
             return
-        stripped_msg = hf.rem_emoji_url(msg)
+        stripped_msg = utils.rem_emoji_url(msg)
         if len(msg) > 900:
-            await hf.safe_send(ctx, "Please pick a shorter test  message")
+            await utils.safe_send(ctx, "Please pick a shorter test  message")
             return
         if not stripped_msg:
             stripped_msg = ' '
@@ -540,12 +541,12 @@ class General(commands.Cog):
             lang_result = f"English: {round(probs[0], 3)}\nSpanish: {round(probs[1], 3)}"
             ctx.command.reset_cooldown(ctx)
         else:
-            await hf.safe_send(ctx, "The language module being used by Rai no longer works. A new one will be found.")
+            await utils.safe_send(ctx, "The language module being used by Rai no longer works. A new one will be found.")
             return
         str = f"Your message:```{msg}```" \
               f"The message I see (no emojis or urls): ```{stripped_msg}```" \
               f"The language I detect: ```{lang_result}```"
-        await hf.safe_send(ctx, str)
+        await utils.safe_send(ctx, str)
 
     @commands.command(aliases=['server', 'info', 'sinfo'])
     @commands.cooldown(1, 30, type=commands.BucketType.channel)
@@ -554,7 +555,7 @@ class General(commands.Cog):
         """Shows info about this server"""
         guild = ctx.guild
         if not guild:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"{ctx.channel}.  Is that what you were looking for?  (Why are you trying to call info "
                                f"on 'this server' in a DM?)")
             return
@@ -607,7 +608,7 @@ class General(commands.Cog):
             em.add_field(name=two.name, value=two.value)
             em.remove_field(-3)
         try:
-            await hf.safe_send(ctx, embed=em)
+            await utils.safe_send(ctx, embed=em)
         except discord.Forbidden:
             pass
 
@@ -618,16 +619,16 @@ class General(commands.Cog):
         config = hf.database_toggle(ctx.guild, self.bot.db['global_blacklist'])
         if config['enable']:
             if not ctx.me.guild_permissions.ban_members:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    'I lack the permission to ban members.  Please fix that before enabling this module')
                 hf.database_toggle(ctx.guild, self.bot.db['global_blacklist'])
                 return
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "Enabled the global blacklist on this server.  Anyone voted into the blacklist by three "
                                "mods and joining your server will be automatically banned.  "
                                "Type `;global_blacklist residency` to claim your residency on a server.")
         else:
-            await hf.safe_send(ctx, "Disabled the global blacklist.  "
+            await utils.safe_send(ctx, "Disabled the global blacklist.  "
                                     "Anyone on the blacklist will be able to join  your server.")
 
     @global_blacklist.command(name='reason', aliases=['edit'])
@@ -638,14 +639,14 @@ class General(commands.Cog):
         try:
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
         except discord.NotFound:
-            await hf.safe_send(ctx, "I couldn't find the message you were trying to edit. Make sure you link to "
+            await utils.safe_send(ctx, "I couldn't find the message you were trying to edit. Make sure you link to "
                                     f"the message ID in the {blacklist_channel.mention}.")
             return
         emb = entry_message.embeds[0]
         old_reason = emb.fields[1].value
         emb.set_field_at(1, name=emb.fields[1].name, value=reason)
         await entry_message.edit(embed=emb)
-        await hf.safe_send(ctx, f"Changed reason of {entry_message.jump_url}\nOld reason: ```{old_reason}```")
+        await utils.safe_send(ctx, f"Changed reason of {entry_message.jump_url}\nOld reason: ```{old_reason}```")
 
     @global_blacklist.command(name='remove', alias=['delete'])
     @blacklist_check()
@@ -655,7 +656,7 @@ class General(commands.Cog):
         try:
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
         except discord.NotFound:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "Message not found.  If you inputted the ID of a user, please input the message ID of "
                                "the entry in the blacklist instead.")
             return
@@ -667,14 +668,14 @@ class General(commands.Cog):
         except ValueError:
             pass
         except KeyError:
-            await hf.safe_send(ctx, "This user is not currently in the GBL.")
+            await utils.safe_send(ctx, "This user is not currently in the GBL.")
 
         try:
             del self.bot.db['global_blacklist']['votes2'][str(target_id)]
         except ValueError:
             pass
         except KeyError:
-            await hf.safe_send(ctx, "This user is not currently under consideration for votes.")
+            await utils.safe_send(ctx, "This user is not currently under consideration for votes.")
 
         await entry_message.delete()
 
@@ -690,17 +691,17 @@ class General(commands.Cog):
         """Claims your residency on a server"""
         config = self.bot.db['global_blacklist']['residency']
         if ctx.guild.id == MODCHAT_SERVER_ID:
-            await hf.safe_send(ctx, "You can't claim residency here. Please do this command on the server you mod.")
+            await utils.safe_send(ctx, "You can't claim residency here. Please do this command on the server you mod.")
             return
 
         if str(ctx.author.id) in config:
             server = self.bot.get_guild(config[str(ctx.author.id)])
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"You've already claimed residency on {server.name}.  You can not change this without "
                                f"talking to Ryan.")
             return
 
-        await hf.safe_send(ctx,
+        await utils.safe_send(ctx,
                            f"For the purpose of maintaining fairness in a ban, you're about to claim your mod residency"
                            f" to `{ctx.guild.name}`.  This can not be changed without talking to Ryan.  "
                            f"Do you wish to continue?\n\nType `yes` or `no` (case insensitive).")
@@ -710,15 +711,15 @@ class General(commands.Cog):
 
         if msg.content.casefold() == 'yes':  # register
             config[str(ctx.author.id)] = ctx.guild.id
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"Registered your residency to `{ctx.guild.name}`.  Type `;global_blacklist add <ID>`"
                                f" to vote on a user for the blacklist")
 
         elif msg.content.casefold() == 'no':  # cancel
-            await hf.safe_send(ctx, "Understood.  Exiting module.")
+            await utils.safe_send(ctx, "Understood.  Exiting module.")
 
         else:  # invalid response
-            await hf.safe_send(ctx, "Invalid response")
+            await utils.safe_send(ctx, "Invalid response")
 
     @blacklist_check()
     @global_blacklist.command(aliases=['vote'], name="add")
@@ -736,7 +737,7 @@ class General(commands.Cog):
         channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         config = self.bot.db['global_blacklist']
         if not list_of_ids:
-            await hf.safe_send(ctx.author, "No valid ID found in command")
+            await utils.safe_send(ctx.author, "No valid ID found in command")
             return
         for user in list_of_ids:
             user_obj = self.bot.get_user(user)
@@ -757,19 +758,19 @@ class General(commands.Cog):
                 emb = discord.Embed(title=f"{user} {target_user} (1 vote)", color=discord.Color(int('ffff00', 16)))
                 emb.add_field(name='Voters', value=ctx.author.name)
                 emb.add_field(name='Reason', value=reason)
-                msg = await hf.safe_send(channel, embed=emb)
+                msg = await utils.safe_send(channel, embed=emb)
                 await msg.add_reaction('⬆')
                 return msg
 
             try:  # the guild ID that the person trying to add a vote belongs to
                 user_residency = config['residency'][str(ctx.author.id)]  # a guild id
             except KeyError:
-                await hf.safe_send(ctx.author,
+                await utils.safe_send(ctx.author,
                                    "Please claim residency on a server first with `;global_blacklist residency`")
                 return
 
             if user in config['blacklist']:  # already blacklisted
-                await hf.safe_send(ctx, f"{user} is already on the blacklist")
+                await utils.safe_send(ctx, f"{user} is already on the blacklist")
                 continue
 
             if user not in config['votes2']:  # 0 votes
@@ -782,9 +783,9 @@ class General(commands.Cog):
                 list_of_votes = config['votes2'][user]['votes']
                 if user_residency in list_of_votes:
                     try:
-                        await hf.safe_send(ctx.author, f"{user} - Someone from your server already voted")
+                        await utils.safe_send(ctx.author, f"{user} - Someone from your server already voted")
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, f"{user} - Someone from your server already voted")
+                        await utils.safe_send(ctx, f"{user} - Someone from your server already voted")
                     continue
 
                 message = await channel.fetch_message(config['votes2'][user]['message'])
@@ -827,7 +828,7 @@ class General(commands.Cog):
         emb = discord.Embed(title="Global blacklist residencies", description="Listed below is a breakdown of who "
                                                                               "holds residencies in which servers.\n\n")
         emb.description += users_str
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @global_blacklist.command(name="sub")
     @blacklist_check()
@@ -866,20 +867,20 @@ class General(commands.Cog):
         # ########################## ASK FOR WHICH ROLE TO TOGGLE ########################
 
         msg += "\nTo toggle the subscription for a role, please input now the number for that role."
-        await hf.safe_send(ctx, msg)
+        await utils.safe_send(ctx, msg)
         try:
             resp = await self.bot.wait_for("message", timeout=20.0,
                                            check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Module timed out.")
+            await utils.safe_send(ctx, "Module timed out.")
             return
         try:
             resp = int(resp.content)
         except ValueError:
-            await hf.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
+            await utils.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
             return
         if resp not in selection_dictionary:
-            await hf.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
+            await utils.safe_send(ctx, "Sorry, I didn't understand your response. Please input only a single number.")
             return
 
         # ################################ TOGGLE THE ROLE #################################
@@ -887,11 +888,11 @@ class General(commands.Cog):
         role_selection: int = selection_dictionary[resp]
         if role_selection in subbed_roles:
             subbed_roles.remove(role_selection)
-            await hf.safe_send(ctx, "I've unsubcribed you from that role.")
+            await utils.safe_send(ctx, "I've unsubcribed you from that role.")
         else:
             #      ####### Possibly match a role to a guild ########
             if role_selection not in role_to_guild_id:
-                await hf.safe_send(ctx, "Before we continue, you need to tell me which server corresponds to that role."
+                await utils.safe_send(ctx, "Before we continue, you need to tell me which server corresponds to that role."
                                         " We'll only need to do this once for your server. Please tell me either the "
                                         "server ID of that server, or the exact name of it.")
                 try:
@@ -899,26 +900,26 @@ class General(commands.Cog):
                                                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
                     resp = resp.content
                 except asyncio.TimeoutError:
-                    await hf.safe_send(ctx, "Module timed out.")
+                    await utils.safe_send(ctx, "Module timed out.")
                     return
 
                 if re.search(r'^\d{17,22}$', resp):  # user specifies a guild ID
                     guild = self.bot.get_guild(int(resp))
                     if not guild:
-                        await hf.safe_send(ctx, "I couldn't find the guild corresponding to that ID. "
+                        await utils.safe_send(ctx, "I couldn't find the guild corresponding to that ID. "
                                                 "Please start over.")
                         return
                 else:  # user probably specified a guild name
                     guild = discord.utils.find(lambda g: g.name == resp, self.bot.guilds)
                     if not guild:
-                        await hf.safe_send(ctx, "I couldn't find the guild corresponding to that guild name. "
+                        await utils.safe_send(ctx, "I couldn't find the guild corresponding to that guild name. "
                                                 "Please start over.")
                         return
                 guild_id_to_role[str(guild.id)] = role_selection
 
             #     ####### Add the role #######
             subbed_roles.append(role_selection)
-            await hf.safe_send(ctx, "I've added you to the subscriptions for that role. I'll ping you for that server.")
+            await utils.safe_send(ctx, "I've added you to the subscriptions for that role. I'll ping you for that server.")
 
     @global_blacklist.command(name="ignore")
     @blacklist_check()
@@ -930,14 +931,14 @@ class General(commands.Cog):
             if not (17 < len(str(user_id)) < 22):
                 raise ValueError
         except ValueError:
-            await hf.safe_send(ctx, "Please input a valid ID.")
+            await utils.safe_send(ctx, "Please input a valid ID.")
             return
         if user_id in self.bot.db['bansub']['ignore']:
             self.bot.db['bansub']['ignore'].remove(user_id)
-            await hf.safe_send(ctx, embed=hf.red_embed("I've removed that user from the ignore list."))
+            await utils.safe_send(ctx, embed=utils.red_embed("I've removed that user from the ignore list."))
         else:
             self.bot.db['bansub']['ignore'].append(user_id)
-            await hf.safe_send(ctx, embed=hf.green_embed("I've added that user to the ignore list for ban logging."))
+            await utils.safe_send(ctx, embed=utils.green_embed("I've added that user to the ignore list for ban logging."))
 
     @commands.command()
     @commands.guild_only()
@@ -983,7 +984,7 @@ class General(commands.Cog):
         if page_num <= num_of_pages:
             footer_text += f" ・ (view the next page: ;lsar {page_num + 1})"
         emb.set_footer(text=footer_text)
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_roles=True)
@@ -1024,12 +1025,12 @@ class General(commands.Cog):
         role_name = role_name.casefold()
         found_role = self.iam_find_role(ctx, role_name)
         if not found_role:
-            await hf.safe_send(ctx,
-                               embed=hf.red_embed(f"**{str(ctx.author)}** No role found"))
+            await utils.safe_send(ctx,
+                               embed=utils.red_embed(f"**{str(ctx.author)}** No role found"))
             return
 
         if found_role in ctx.author.roles:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** "
+            await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** "
                                                        f"You already have that role"))
             return
 
@@ -1039,9 +1040,9 @@ class General(commands.Cog):
                     try:
                         await ctx.author.add_roles(found_role)
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, "Sorry, I could not add roles to that user!")
+                        await utils.safe_send(ctx, "Sorry, I could not add roles to that user!")
                         return
-                    await hf.safe_send(ctx, embed=hf.green_embed(
+                    await utils.safe_send(ctx, embed=utils.green_embed(
                         f"**{str(ctx.author)}** You now have"
                         f" the **{found_role.name}** role."))
                     return
@@ -1057,12 +1058,12 @@ class General(commands.Cog):
 
         found_role = self.iam_find_role(ctx, role_name)
         if not found_role:
-            await hf.safe_send(ctx,
-                               embed=hf.red_embed(f"**{str(ctx.author)}** No role found"))
+            await utils.safe_send(ctx,
+                               embed=utils.red_embed(f"**{str(ctx.author)}** No role found"))
             return
 
         if found_role not in ctx.author.roles:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** "
+            await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** "
                                                        f"You don't have that role"))
             return
 
@@ -1070,13 +1071,13 @@ class General(commands.Cog):
             for role_id in config[group]:
                 if found_role.id == role_id:
                     await ctx.author.remove_roles(found_role)
-                    await hf.safe_send(ctx,
-                                       embed=hf.green_embed(
+                    await utils.safe_send(ctx,
+                                       embed=utils.green_embed(
                                            f"**{str(ctx.author)}** You no longer have "
                                            f"the **{found_role.name}** role."))
                     return
 
-        await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** That role is not "
+        await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** That role is not "
                                                    f"self-assignable."))
 
     @commands.command(aliases=['vmute', 'vm'])
@@ -1100,7 +1101,7 @@ class General(commands.Cog):
         """Unmutes a user"""
         if not guild:
             guild = ctx.guild
-            target: discord.Member = await hf.member_converter(ctx, target_in)
+            target: discord.Member = await utils.member_converter(ctx, target_in)
         else:
             guild = self.bot.get_guild(int(guild))
             target: discord.Member = guild.get_member(int(target_in))
@@ -1131,7 +1132,7 @@ class General(commands.Cog):
         if ctx.author != ctx.bot.user:
             emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
                                 color=discord.Color(int('00ffaa', 16)))
-            await hf.safe_send(ctx, embed=emb)
+            await utils.safe_send(ctx, embed=emb)
 
         if not failed:
             return True
@@ -1146,7 +1147,7 @@ class General(commands.Cog):
         - `;selfmute 3h`   Mute yourself for three hours
         - `;selfmute 5d12h`    Mute yourself for 5d12h"""
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
-            await hf.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
+            await utils.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
                                     "but Rai currently lacks the `Manage Messages` permission, so you can't use this "
                                     "command.")
             return
@@ -1154,19 +1155,19 @@ class General(commands.Cog):
         if ctx.guild.id == JP_SERVER_ID:
             # check if ctx.author's highest role is higher than Rai's, and only if then, allow the command
             if ctx.author.top_role < ctx.guild.me.top_role:
-                await hf.safe_send(ctx, "Please use Ciri's version of that command in this server: "
+                await utils.safe_send(ctx, "Please use Ciri's version of that command in this server: "
                                         "`,selfmute` or `,sm`.")
                 return
 
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
-                    await hf.safe_send(ctx, "You're already muted. No saving you now.")
+                    await utils.safe_send(ctx, "You're already muted. No saving you now.")
                     return
             except KeyError:
                 pass
         else:
-            await hf.safe_send(ctx, "You need to put something! Please give a length of time like 3d, 2h, 5d2h, 5m.")
+            await utils.safe_send(ctx, "You need to put something! Please give a length of time like 3d, 2h, 5d2h, 5m.")
             return
 
         if neg := time.startswith("-"):  # negative time
@@ -1181,7 +1182,7 @@ class General(commands.Cog):
         else:
             unmute_time = discord.utils.utcnow() + delta_obj
         if delta_obj.total_seconds() > 28 * 24 * 60 * 60:  # if length is longer than 28d
-            await hf.safe_send(ctx, "Please choose a time less than 28d")
+            await utils.safe_send(ctx, "Please choose a time less than 28d")
             return
 
         delta_str = format_interval(delta_obj)  # remove last space
@@ -1193,7 +1194,7 @@ class General(commands.Cog):
         else:
             conf_msg = (f"You are about to irreversibly mute yourself for... -{delta_str}? You want to mute yourself " 
                         f"for negative time? Well, the mods of the server cannot undo this. Type 'yes' to confirm.")
-        conf = await hf.safe_reply(ctx.message, conf_msg)
+        conf = await utils.safe_reply(ctx.message, conf_msg)
 
         msg = ctx.message
         try:
@@ -1219,7 +1220,7 @@ class General(commands.Cog):
                 raise asyncio.TimeoutError
 
         except asyncio.TimeoutError:
-            await hf.safe_reply(msg, "Canceling.")
+            await utils.safe_reply(msg, "Canceling.")
             return
 
     @commands.command(hidden=True, aliases=['pingmods'])
@@ -1232,7 +1233,7 @@ class General(commands.Cog):
         if len(ctx.message.content.split()) > 1:
             desc_text += f"\n\nMessage content: {' '.join(ctx.message.content.split()[1:])}"
 
-        emb = hf.green_embed(desc_text)
+        emb = utils.green_embed(desc_text)
         notif: Optional[discord.Message] = await channel.send("@here", embed=emb)
 
         try:
@@ -1253,7 +1254,7 @@ class General(commands.Cog):
         It will update the timer every second."""
         time_left = int(time_left)
         if time_left not in [1, 2, 3, 4, 5, 30]:
-            await hf.safe_send(ctx, "Please choose any of the following values to set your timer: \n"
+            await utils.safe_send(ctx, "Please choose any of the following values to set your timer: \n"
                                     "• Seconds: *30*\n"
                                     "• Minutes: *1*, *2*, *3*, *4* or *5* \n"
                                     "For example: `;timer 5`.")
@@ -1265,9 +1266,9 @@ class General(commands.Cog):
             time_str = f"{time_left}min"
             time_left = time_left * 60
 
-        embed = hf.green_embed(f"The countdown of **{time_str}** set up by "
+        embed = utils.green_embed(f"The countdown of **{time_str}** set up by "
                                f"{ctx.author.mention} **will start in: 5s**.")
-        msg_countdown = await hf.safe_send(ctx, embed=embed)
+        msg_countdown = await utils.safe_send(ctx, embed=embed)
 
         for a in range(4, -1, -1):
             await asyncio.sleep(1)
@@ -1304,7 +1305,7 @@ class General(commands.Cog):
                 embed_text = f"The countdown of **{time_str}** set up by {ctx.author.mention} **is already running**!" \
                              f"\n\nTime left: `{time_left_str}`"
 
-            embed_countdown = hf.green_embed(embed_text)
+            embed_countdown = utils.green_embed(embed_text)
             try:
                 await msg_countdown.edit(embed=embed_countdown)
             except discord.NotFound:
@@ -1347,7 +1348,7 @@ class General(commands.Cog):
         else:
             text_end = f"The countdown of **{time_str}** set up by {ctx.author.mention} **has finished**!\n\nTime out!"
 
-        embed_end = hf.green_embed(text_end)
+        embed_end = utils.green_embed(text_end)
         embed_end.set_footer(text="Command made by Fede#5370")
 
         try:
@@ -1432,7 +1433,7 @@ class General(commands.Cog):
               f"received in this thread, please type `;done` below this message! Otherwise, if you'd still like to " \
               f"wait for more responses, please feel free to keep this post open."
         try:
-            await hf.safe_send(ctx.channel, msg)
+            await utils.safe_send(ctx.channel, msg)
         except (discord.Forbidden, discord.HTTPException):
             pass
 

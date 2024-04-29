@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import os
 
 from .utils.helper_functions import format_interval
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SPAM_CHAN = 275879535977955330
@@ -92,7 +93,7 @@ class Stats(commands.Cog):
         if not member:
             member = ctx.author
         else:
-            member = await hf.member_converter(ctx, member)
+            member = await utils.member_converter(ctx, member)
             if not member:
                 return
         try:
@@ -135,10 +136,10 @@ class Stats(commands.Cog):
             if index == 26:
                 break
         if not lb:
-            await hf.safe_send(ctx, "This user has not said anything in the past 30 days.")
+            await utils.safe_send(ctx, "This user has not said anything in the past 30 days.")
             return
         emb.add_field(name="Top channels", value=lb[:1024])
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @commands.command(aliases=['u'])
     @commands.guild_only()
@@ -155,17 +156,17 @@ class Stats(commands.Cog):
                 member_in = re.sub('[JIMVN]', '', member_in)
 
             # try to convert the ID to a user or member
-            member = await hf.member_converter(ctx, member_in)
+            member = await utils.member_converter(ctx, member_in)
             if member:
                 user = member
             else:
-                user = await hf.user_converter(ctx, member_in)
+                user = await utils.user_converter(ctx, member_in)
 
             if user:
                 user_name = user.name
                 user_id = user.id
             else:
-                await hf.safe_send(ctx, "I couldn't find the user.")
+                await utils.safe_send(ctx, "I couldn't find the user.")
                 return
 
         try:
@@ -317,13 +318,13 @@ class Stats(commands.Cog):
         # ### Send ###
         if post_embed:
             try:
-                await hf.safe_send(ctx, embed=emb)
+                await utils.safe_send(ctx, embed=emb)
             except discord.Forbidden:
                 try:
-                    await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
-                    await hf.safe_send(ctx.author, embed=emb)
+                    await utils.safe_send(ctx, "I lack the permissions to send embeds in this channel")
+                    await utils.safe_send(ctx.author, embed=emb)
                 except discord.Forbidden:
-                    await hf.safe_send(ctx.author, "I lack the permission to send messages in that channel")
+                    await utils.safe_send(ctx.author, "I lack the permission to send messages in that channel")
         return emb
 
     @staticmethod
@@ -394,16 +395,16 @@ class Stats(commands.Cog):
                             c = c.parent
                         channel_obs.append(c)
                     else:
-                        await hf.safe_send(ctx, f"I couldn't find the channel `{channel_id}`.")
+                        await utils.safe_send(ctx, f"I couldn't find the channel `{channel_id}`.")
                         continue
                 except ValueError:
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        "Please provide a link to a channel, not just the channel name "
                                        "(e.g. `;chlb #general`), or if you just type `;chlb` "
                                        "it will show the leaderboard for the current channel.")
                     return
             if not channel_obs:
-                await hf.safe_send(ctx, "I couldn't find any valid channels.")
+                await utils.safe_send(ctx, "I couldn't find any valid channels.")
                 return
 
         if channel_obs:
@@ -427,11 +428,11 @@ class Stats(commands.Cog):
                 title = "Messages Leaderboard"
             else:
                 title = "Activity Score Leaderboard"
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                embed=self.make_leaderboard_embed(ctx, channel_obs, msg_count, title))
         except discord.Forbidden:
             try:
-                await hf.safe_send(ctx, "I lack the permissions to send embeds in this channel")
+                await utils.safe_send(ctx, "I lack the permissions to send embeds in this channel")
             except discord.Forbidden:
                 pass
 
@@ -478,7 +479,7 @@ class Stats(commands.Cog):
                     lb_dict[user] += config[day][user]
                 else:
                     lb_dict[user] = config[day][user]
-        await hf.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
+        await utils.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
 
     @commands.command(aliases=['emojis', 'emoji'])
     @commands.bot_has_permissions(embed_links=True)
@@ -546,12 +547,12 @@ class Stats(commands.Cog):
                 if saved_msgs[-1] != msg:
                     saved_msgs.append(msg)
                 for msg in saved_msgs:
-                    await hf.safe_send(ctx, msg)
+                    await utils.safe_send(ctx, msg)
             else:
-                await hf.safe_send(ctx, msg)
+                await utils.safe_send(ctx, msg)
 
         elif args == '-l':
-            emb = hf.red_embed("Least Used Emojis (last 30 days)")
+            emb = utils.red_embed("Least Used Emojis (last 30 days)")
 
             zero_use_emoji_list = [e for e in ctx.guild.emojis if not e.animated and '_kana_' not in e.name]
             uses_to_emoji_list_dict = {}
@@ -604,10 +605,10 @@ class Stats(commands.Cog):
 
                 field_counter += 1
 
-            await hf.safe_send(ctx, embed=emb)
+            await utils.safe_send(ctx, embed=emb)
 
         else:
-            emb = hf.green_embed("Most Used Emojis (last 30 days)")
+            emb = utils.green_embed("Most Used Emojis (last 30 days)")
             field_counter = 0
             for emoji in top_emojis:
                 if field_counter < 25:
@@ -617,7 +618,7 @@ class Stats(commands.Cog):
                         field_counter += 1
                 else:
                     break
-            await hf.safe_send(ctx, embed=emb)
+            await utils.safe_send(ctx, embed=emb)
 
     @commands.group(invoke_without_command=True)
     @hf.is_admin()
@@ -634,7 +635,7 @@ class Stats(commands.Cog):
                                          {'in_voice': {},
                                           'total_time': {}}
                                      }
-        await hf.safe_send(ctx, f"Logging of stats is now set to {self.bot.stats[guild]['enable']}.")
+        await utils.safe_send(ctx, f"Logging of stats is now set to {self.bot.stats[guild]['enable']}.")
 
     @stats.command()
     @hf.is_admin()
@@ -649,12 +650,12 @@ class Stats(commands.Cog):
             channel_id: str = str(ctx.channel.id)
             if channel_id in config:
                 config.remove(channel_id)
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
                                    f"be shown when someone calls their stats page.")
             else:
                 config.append(channel_id)
-                await hf.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
+                await utils.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
                                         f"When someone calls their stats page, it will not be shown.")
         elif flag in ['list', 'view'] and config:
             msg = 'List of channels currently hidden:\n'
@@ -665,7 +666,7 @@ class Stats(commands.Cog):
                     config.remove(c_id)
                     continue
                 msg += f"{channel.mention} ({channel.id})\n"
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, msg)
         else:
             if re.findall(r"^<#\d{17,22}>$", flag):
                 flag = flag[2:-1]
@@ -673,12 +674,12 @@ class Stats(commands.Cog):
             if channel:
                 if str(channel.id) in config:
                     config.remove(str(channel.id))
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        f"Removed {channel.mention} from the list of hidden channels. It will now "
                                        f"be shown when someone calls their stats page.")
                 else:
                     config.append(str(channel.id))
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        f"Hid {channel.mention}. When someone calls their stats page, "
                                        f"it will not be shown.")
 
@@ -700,13 +701,13 @@ class Stats(commands.Cog):
             user_id = str(ctx.author.id)
             user = ctx.author
         else:
-            user = await hf.member_converter(ctx, user_id)
+            user = await utils.member_converter(ctx, user_id)
             if not user:
-                user = await hf.user_converter(ctx, user_id)
+                user = await utils.user_converter(ctx, user_id)
             if user:
                 user_id = str(user.id)
             else:
-                await hf.safe_reply(ctx.message, "I could not find the user you tried to specify.")
+                await utils.safe_reply(ctx.message, "I could not find the user you tried to specify.")
                 return
 
         if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
@@ -718,7 +719,7 @@ class Stats(commands.Cog):
             return
 
         if not user_sentiment:
-            await hf.safe_send(ctx, "For some reason I couldn't find a sentiment rating for that user.")
+            await utils.safe_send(ctx, "For some reason I couldn't find a sentiment rating for that user.")
         else:
             if len_user_sentiment == 1000:
                 reply_text = f"{str(user)}'s current sentiment rating (last 1000 messages) " \
@@ -730,7 +731,7 @@ class Stats(commands.Cog):
                              f"to 1000 messages) is **{user_sentiment}**." \
                              f"\n([What is a 'sentiment rating'?]" \
                              f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
-            await hf.safe_reply(ctx.message, embed=hf.green_embed(reply_text))
+            await utils.safe_reply(ctx.message, embed=utils.green_embed(reply_text))
 
     @commands.command(aliases=['slb'])
     async def sentiment_leaderboard(self, ctx, negative=None):
@@ -747,7 +748,7 @@ class Stats(commands.Cog):
         for user_id in sentiments_dict:
             user_sentiment = sentiments_dict[user_id]
             if len(user_sentiment) == 1000:
-                user = await hf.member_converter(ctx, user_id)
+                user = await utils.member_converter(ctx, user_id)
                 if not user:
                     continue
                 user_sentiments.append((user, round(sum(user_sentiment), 2)))
@@ -760,24 +761,24 @@ class Stats(commands.Cog):
         else:
             des = "Users with lowest sentiment rating (most negative users)"
 
-        emb = hf.green_embed(des)
+        emb = utils.green_embed(des)
         pos = 1
         for user in user_sentiments:
             emb.add_field(name=f"{pos}) {str(user[0])}", value=user[1])
             pos += 1
 
-        await hf.safe_reply(ctx.message, embed=emb)
+        await utils.safe_reply(ctx.message, embed=emb)
 
     @commands.command(aliases=['ac'])
     async def activity(self, ctx, user_in: str = None):
         if not user_in:
             user = ctx.author
         else:
-            user = await hf.member_converter(ctx, user_in)
+            user = await utils.member_converter(ctx, user_in)
             if not user:
-                user = await hf.user_converter(ctx, user_in)
+                user = await utils.user_converter(ctx, user_in)
                 if not user:
-                    await hf.safe_reply(ctx, "I couldn't find a user corresponding to the one you searched for.")
+                    await utils.safe_reply(ctx, "I couldn't find a user corresponding to the one you searched for.")
                     return
 
         assert user is not None, "Code failed to find user and advanced wrongly to this stage"
@@ -786,7 +787,7 @@ class Stats(commands.Cog):
 
         msgs_per_day: dict[datetime, int] = hf.get_messages_per_day(user.id, ctx.guild)
         if not msgs_per_day:
-            await hf.safe_reply(ctx, "The user you specified has no activity in the last month.")
+            await utils.safe_reply(ctx, "The user you specified has no activity in the last month.")
             return
 
         day_objects = sorted(list(msgs_per_day.keys()))
@@ -816,7 +817,7 @@ class Stats(commands.Cog):
         with io.BytesIO() as plotIm:
             plt.savefig(plotIm, format='png')
             plotIm.seek(0)
-            await hf.safe_send(ctx, file=discord.File(plotIm, 'plot.png'))
+            await utils.safe_send(ctx, file=discord.File(plotIm, 'plot.png'))
 
     async def process_message_pool(self, message_pool: list[discord.Message]):
         async with asqlite.connect(rf'{dir_path}/database.db') as c:
