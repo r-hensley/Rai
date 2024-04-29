@@ -1,0 +1,3 @@
+[submodule "cogs/utils/BotUtils"]
+	path = cogs/utils/BotUtils
+	url = git@github.com:r-hensley/BotUtils.git
