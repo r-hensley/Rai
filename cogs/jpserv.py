@@ -4,6 +4,7 @@ import os
 from datetime import date, datetime, timezone
 from .utils import helper_functions as hf
 from copy import deepcopy
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace('\\', '/')
 
@@ -43,7 +44,7 @@ class Jpserv(commands.Cog):
         role = ctx.guild.get_role(486851965121331200)
         config = self.bot.db['ultraHardcore']['users']
         if member:  # if you specified someone else's ID, then remove UHC from them
-            member = await hf.member_converter(ctx, member)
+            member = await utils.member_converter(ctx, member)
             if not member:
                 return
             if hf.submod_check(ctx) and ctx.author.id != member.id:

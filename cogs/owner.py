@@ -18,6 +18,7 @@ import discord
 from discord.ext import commands
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -92,10 +93,10 @@ class Owner(commands.Cog):
             if len(msg + msg_addition) < 2000:
                 msg += msg_addition
             else:
-                await hf.safe_send(ctx, msg)
+                await utils.safe_send(ctx, msg)
                 msg = msg_addition
         if msg:
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, msg)
 
         dead_guilds = []
         for guild in self.bot.guilds:
@@ -108,10 +109,10 @@ class Owner(commands.Cog):
             if len(msg + msg_addition) < 2000:
                 msg += msg_addition
             else:
-                await hf.safe_send(ctx, msg)
+                await utils.safe_send(ctx, msg)
                 msg = msg_addition
         if msg:
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, msg)
 
     @commands.command()
     async def edit(self, ctx, message_id, *, content):
@@ -119,7 +120,7 @@ class Owner(commands.Cog):
         try:
             msg = await ctx.channel.fetch_message(int(message_id))
         except discord.NotFound:
-            await hf.safe_send(ctx, "Message not found")
+            await utils.safe_send(ctx, "Message not found")
             return
         await msg.edit(content=content)
         try:
@@ -138,7 +139,7 @@ class Owner(commands.Cog):
         else:
             index = int(index_re.group(2))
             if not reply:
-                await hf.safe_send(ctx, "Include reply message")
+                await utils.safe_send(ctx, "Include reply message")
 
         async for msg in channel.history():
             result_channel_id = re.search(f'^(\d{17,22}) <@{self.bot.owner_id}>$', msg.content)
@@ -155,7 +156,7 @@ class Owner(commands.Cog):
                         try:
                             await send_channel.send(reply)
                         except discord.Forbidden as e:
-                            await hf.safe_send(ctx, e)
+                            await utils.safe_send(ctx, e)
                         return
 
     @commands.command(aliases=['db'])
@@ -184,12 +185,12 @@ class Owner(commands.Cog):
             try:
                 config = config[process_arg(arg)]
             except KeyError:
-                await hf.safe_send(ctx, f"Invalid arg: `{arg}`")
+                await utils.safe_send(ctx, f"Invalid arg: `{arg}`")
                 return
 
         if set_to:
             config[path.split()[-1]] = literal_eval(set_to)
-            await hf.safe_send(ctx, f"```\n{config[path.split()[-1]]}"[:1997]+"```")
+            await utils.safe_send(ctx, f"```\n{config[path.split()[-1]]}"[:1997]+"```")
             return
 
         try:
@@ -251,7 +252,7 @@ class Owner(commands.Cog):
                         s = config[key]
                     msg = msg[:-1] + f": {s}\n"
 
-        await hf.safe_send(ctx, f'```\n{msg[:1993]}```')
+        await utils.safe_send(ctx, f'```\n{msg[:1993]}```')
 
     @commands.command(aliases=['cdb'], hidden=True)
     async def change_database(self, ctx):
@@ -276,7 +277,7 @@ class Owner(commands.Cog):
         for user_id in config:
             member = ctx.guild.get_member(int(user_id))
             in_voice_users += f"{member.display_name} - {config[user_id]}\n"
-        await hf.safe_send(ctx, in_voice_users)
+        await utils.safe_send(ctx, in_voice_users)
 
     @commands.command(hidden=True)
     async def flush(self, ctx):
@@ -288,7 +289,8 @@ class Owner(commands.Cog):
     @commands.command(aliases=['sdb', 'dump'], hidden=True)
     async def savedatabase(self, ctx):
         """Saves the database"""
-        await hf.dump_json()
+        await utils.dump_json('db')
+        await utils.dump_json('stats')
         await ctx.message.add_reaction('\u2705')
 
     @commands.command(aliases=['rdb'], hidden=True)
@@ -340,7 +342,7 @@ class Owner(commands.Cog):
             await self.bot.close()
             await self.bot.close()
         except Exception as e:
-            await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+            await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
 
     @commands.command(hidden=True)
     async def load(self, ctx, *, cog: str):
@@ -349,18 +351,18 @@ class Owner(commands.Cog):
         try:
             await self.bot.load_extension(f'cogs.{cog}')
         except Exception as e:
-            await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
+            await utils.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
-            await hf.safe_send(ctx, '**`SUCCESS`**')
+            await utils.safe_send(ctx, '**`SUCCESS`**')
 
     @commands.command(hidden=True)
     async def unload(self, ctx, *, cog: str):
         try:
             await self.bot.unload_extension(f'cogs.{cog}')
         except Exception as e:
-            await hf.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
+            await utils.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
         else:
-            await hf.safe_send(ctx, '**`SUCCESS`**')
+            await utils.safe_send(ctx, '**`SUCCESS`**')
 
     @commands.command(hidden=True)
     async def reload(self, ctx, *, cogs: str):
@@ -377,9 +379,9 @@ class Owner(commands.Cog):
                     importlib.reload(sys.modules['cogs.utils.helper_functions'])
                     hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
                 except Exception as e:
-                    await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
                 else:
-                    await hf.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
+                    await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
 
             else:
                 try:
@@ -388,9 +390,9 @@ class Owner(commands.Cog):
                         sync = self.bot.get_command('sync')
                         await ctx.invoke(sync)
                 except Exception as e:
-                    await hf.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
                 else:
-                    await hf.safe_send(ctx, f' **`{cog}: SUCCESS`**', delete_after=5.0)
+                    await utils.safe_send(ctx, f' **`{cog}: SUCCESS`**', delete_after=5.0)
 
     def cleanup_code(self, content):  # credit Danny
         """Automatically removes code blocks from the code."""
@@ -432,7 +434,7 @@ class Owner(commands.Cog):
                     ping_party_list += f'{member[0].name}: {member[1]}\n'
             except AttributeError:
                 print(f'This user left: {member[0].name}: {member[1]}')
-        await hf.safe_send(ctx, ping_party_list)
+        await utils.safe_send(ctx, ping_party_list)
 
     @commands.command(hidden=True, name='eval')
     async def _eval(self, ctx, *, body: str):
@@ -462,7 +464,7 @@ class Owner(commands.Cog):
         try:
             exec(to_compile, env)
         except Exception as e:
-            return await hf.safe_send(ctx, f'```py\n{e.__class__.__name__}: {e}\n```')
+            return await utils.safe_send(ctx, f'```py\n{e.__class__.__name__}: {e}\n```')
 
         func = env['func']
         try:
@@ -470,7 +472,7 @@ class Owner(commands.Cog):
                 ret = await func()
         except Exception as e:
             value = stdout.getvalue()
-            await hf.safe_send(ctx, f'```py\n{value}{traceback.format_exc()}\n```')
+            await utils.safe_send(ctx, f'```py\n{value}{traceback.format_exc()}\n```')
         else:
             value = stdout.getvalue()
             try:
@@ -481,14 +483,14 @@ class Owner(commands.Cog):
             if ret is None:
                 if value:
                     try:
-                        await hf.safe_send(ctx, f'```py\n{value}\n```')
+                        await utils.safe_send(ctx, f'```py\n{value}\n```')
                     except discord.HTTPException:
                         st = f'```py\n{value}\n```'
-                        await hf.safe_send(ctx, 'Result over 2000 characters')
-                        await hf.safe_send(ctx, st[0:1996] + '\n```')
+                        await utils.safe_send(ctx, 'Result over 2000 characters')
+                        await utils.safe_send(ctx, st[0:1996] + '\n```')
             else:
                 self._last_result = ret
-                await hf.safe_send(ctx, f'```py\n{value}{ret}\n```')
+                await utils.safe_send(ctx, f'```py\n{value}{ret}\n```')
 
     @commands.command()
     async def count_emoji(self, ctx):
@@ -525,7 +527,7 @@ class Owner(commands.Cog):
             else:
                 msg2 += f':{name}:: {i[1]}\n'
         print(msg1)
-        await hf.safe_send(ctx, msg1)
+        await utils.safe_send(ctx, msg1)
         print(emoji_dict)
         print(emoji_list)
 
@@ -533,7 +535,7 @@ class Owner(commands.Cog):
     async def selfMute(self, ctx, hour: float, minute: float):
         """Irreversibly mutes the bot owner for x amount of minutes"""
         self.bot.selfMute = True
-        await hf.safe_send(ctx, f'Muting {ctx.author} for {hour} hours and {minute} minutes (he chose to do this).')
+        await utils.safe_send(ctx, f'Muting {ctx.author} for {hour} hours and {minute} minutes (he chose to do this).')
         self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
 
     @commands.command(aliases=['fd'])
@@ -558,7 +560,7 @@ class Owner(commands.Cog):
                         try:
                             role_name_list = embed.fields[0].value.split(', ')
                         except IndexError:
-                            await hf.safe_send(ctx, "Index error failure")
+                            await utils.safe_send(ctx, "Index error failure")
                             return
                         role_id_list = [name_to_id[role] for role in role_name_list]
                         try:
@@ -623,14 +625,14 @@ class Owner(commands.Cog):
         em.set_author(name='author name', url='https://author.url', icon_url='https://i.imgur.com/QLRBaM4.png')
         em.add_field(name='name=str, value=str, inline=True', value='value', inline=True)
         em.add_field(name='name=str, value=str, inline=False', value='value', inline=False)
-        await hf.safe_send(ctx, embed=em)
+        await utils.safe_send(ctx, embed=em)
 
     @commands.command(aliases=['hk'], hidden=True)
     async def hubkick(self, ctx, user: discord.Member, rule):
         await ctx.message.delete()
         role = ctx.guild.get_role(530669592218042378)
         await user.remove_roles(role)
-        await hf.safe_send(user, f"I've removed your member role on the Language Hub server.  Please reread "
+        await utils.safe_send(user, f"I've removed your member role on the Language Hub server.  Please reread "
                                  f"<#530669247718752266> carefully and then you can rejoin the server."
                                  f"Specifically, {rule}.")
 
@@ -643,11 +645,11 @@ class Owner(commands.Cog):
             try:
                 guild = self.bot.get_guild(int(guild_id))
             except ValueError:
-                await hf.safe_send(ctx, "Invalid server")
+                await utils.safe_send(ctx, "Invalid server")
                 return
             else:
                 if not guild:
-                    await hf.safe_send(ctx, "Invalid server")
+                    await utils.safe_send(ctx, "Invalid server")
                     return
 
         self.bot.db['ignored_servers'].append(guild.id)
@@ -730,7 +732,7 @@ class Owner(commands.Cog):
         short_result = result[:1994]
         short_result = f"```{short_result}```"
 
-        await hf.safe_send(ctx, short_result)
+        await utils.safe_send(ctx, short_result)
 
         if long:
             buffer = io.BytesIO(bytes(result, "utf-8"))
@@ -746,7 +748,7 @@ class Owner(commands.Cog):
         if user_id:
             user_id = user_id[0]  # get the ID
         else:
-            await hf.safe_send(ctx, "Failed to parse user")
+            await utils.safe_send(ctx, "Failed to parse user")
             return
 
         channel_message_id = re.findall(r"https:\/\/(?:.*\.)?.*\.com\/channels\/\d{17,22}\/(\d{17,22})\/(\d{17,22})",
@@ -755,7 +757,7 @@ class Owner(commands.Cog):
             channel_id = int(channel_message_id[0][0])
             message_id = int(channel_message_id[0][1])
         else:
-            await hf.safe_send(ctx, "Failed to parse jump url")
+            await utils.safe_send(ctx, "Failed to parse jump url")
             return
 
         channel = self.bot.get_channel(channel_id)
@@ -764,7 +766,7 @@ class Owner(commands.Cog):
         new_join_date_timestamp = message.created_at.timestamp()
         self.bot.db['joindates'][user_id] = new_join_date_timestamp
 
-        await hf.safe_send(ctx, embed=hf.green_embed(f"Set new join date for <@{user_id}> to "
+        await utils.safe_send(ctx, embed=utils.green_embed(f"Set new join date for <@{user_id}> to "
                                                      f"<t:{int(new_join_date_timestamp)}:f>"))
 
     @commands.command()
@@ -781,19 +783,19 @@ class Owner(commands.Cog):
     @commands.command()
     async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
                                          "05db50c66e4dcc67d129838e1b9d739a/raw/spy.pet%2520accounts"):
-        id_list_str = await hf.aiohttp_get(ctx, url)
+        id_list_str = await utils.aiohttp_get(ctx, url)
         if not id_list_str:
-            await hf.safe_send(ctx, "Failed to get list")
+            await utils.safe_send(ctx, "Failed to get list")
             return
         id_list = re.findall('"(\d+)"', id_list_str)  # Extracts integers within double quotes
         
-        await hf.safe_send(ctx, f"Checking from this list: {url}")
+        await utils.safe_send(ctx, f"Checking from this list: {url}")
         for guild in self.bot.guilds:
             member_ids = [str(member.id) for member in guild.members]
             for account in id_list:
                 if account in member_ids:
-                    await hf.safe_send(ctx, f"{account} is in {guild.name}")
-        await hf.safe_send(ctx, "Done")
+                    await utils.safe_send(ctx, f"{account} is in {guild.name}")
+        await utils.safe_send(ctx, "Done")
 
 
 async def setup(bot):

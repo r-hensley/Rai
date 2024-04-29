@@ -14,6 +14,7 @@ from discord.ext.commands import Bot
 from discord.ext import commands, tasks
 
 from cogs.utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 from cogs.database import create_database_tables
 
 logging.basicConfig(level=logging.WARNING)
@@ -69,6 +70,8 @@ def prefix(bot, msg):
     else:
         default = 'r;'
     if msg.guild:
+        if 'prefix' not in bot.db:
+            bot.db['prefix'] = {}
         return bot.db['prefix'].get(str(msg.guild.id), default)
     else:
         return default
@@ -110,8 +113,8 @@ class Rai(Bot):
             db.close()
 
     async def on_ready(self):
-        if not self.stats:
-            hf.load_stats(self)
+        # if not self.stats:
+        #     hf.load_stats(self)
 
         await hf.load_language_detection_model()
         self.language_detection = True
@@ -153,8 +156,8 @@ class Rai(Bot):
             self.database_backups.start()
 
     async def setup_hook(self):
-        hf.load_db(self)
-        hf.load_stats(self)
+        utils.load_db(self, 'db')
+        utils.load_db(self, 'stats')
 
         initial_extensions = ['cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.jpserv', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
@@ -172,6 +175,7 @@ class Rai(Bot):
         await create_database_tables()
 
         hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+        utils.setup(bot=self, loop=asyncio.get_event_loop())
 
     @tasks.loop(hours=24)
     async def database_backups(self):
@@ -321,7 +325,7 @@ class Rai(Bot):
             fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
         e.add_field(name='Location', value=fmt, inline=False)
 
-        await hf.send_error_embed(self, ctx, error, e)
+        await utils.send_error_embed(self, ctx, error, e)
 
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)

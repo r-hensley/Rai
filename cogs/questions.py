@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -24,7 +25,7 @@ async def find_and_unarchive_thread(ctx):
                     try:
                         thread = await thread.edit(archived=False)
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, "I need to unarchive the questions log channel but I lacked the "
+                        await utils.safe_send(ctx, "I need to unarchive the questions log channel but I lacked the "
                                                 f"permission to do that. Please unarchive this thread: "
                                                 f"{thread.mention}.")
                         return
@@ -158,11 +159,11 @@ class Questions(commands.Cog):
             config: dict = self.bot.db['questions'][str(ctx.guild.id)][str(ctx.channel.id)]
         except KeyError:
             try:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    f"This channel is not setup as a questions channel.  Run `;question setup` in the "
                                    f"questions channel to start setup.")
             except discord.Forbidden:
-                await hf.safe_send(ctx.author, "Rai lacks permissions to send messages in that channel")
+                await utils.safe_send(ctx.author, "Rai lacks permissions to send messages in that channel")
                 return
             return
         if not title:
@@ -204,7 +205,7 @@ class Questions(commands.Cog):
                 except discord.HTTPException:
                     thread = ctx.guild.get_thread(target_message.id)
 
-                await hf.safe_send(thread, "I've opened a thread corresponding to this question. Closing the thread "
+                await utils.safe_send(thread, "I've opened a thread corresponding to this question. Closing the thread "
                                            "will close the question, or you can type `;q a` inside this channel. "
                                            "If you give me permission to manage threads, I will automatically "
                                            "reopen this thread if it is autoarchived until someone "
@@ -217,7 +218,7 @@ class Questions(commands.Cog):
 
                 thread_id = thread.id
             except discord.Forbidden:
-                await hf.safe_send(ctx, "You've enabled thread support for this channel but I don't have the "
+                await utils.safe_send(ctx, "You've enabled thread support for this channel but I don't have the "
                                         "permission to create threads in this channel. Please fix this or rerun "
                                         "`;q setup` and choose to disable thread support.")
                 return
@@ -278,7 +279,7 @@ class Questions(commands.Cog):
                     log_channel = await log_channel.edit(archived=False)
                 except discord.Forbidden:
                     try:
-                        await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
+                        await utils.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
                                                 "and I don't have permission to unarchive it. Please either unarchive "
                                                 f"the log channel thread {log_channel.mention} or give me the "
                                                 f"permission to `Manage Threads` in that channel.")
@@ -286,7 +287,7 @@ class Questions(commands.Cog):
                         pass
                     return
 
-        log_message = await hf.safe_send(log_channel, embed=emb)
+        log_message = await utils.safe_send(log_channel, embed=emb)
 
         try:
             await self._delete_log(ctx)
@@ -294,9 +295,9 @@ class Questions(commands.Cog):
             config['questions'][str(question_number)]['log_message'] = log_message.id
         except discord.HTTPException as err:
             if err.status == 400:
-                await hf.safe_send(ctx, "The question was too long, or the embed is too big.")
+                await utils.safe_send(ctx, "The question was too long, or the embed is too big.")
             elif err.status == 403:
-                await hf.safe_send(ctx, "I didn't have permissions to post in that channel")
+                await utils.safe_send(ctx, "I didn't have permissions to post in that channel")
             else:
                 raise
             del (config['questions'][str(question_number)])
@@ -318,7 +319,7 @@ class Questions(commands.Cog):
             try:
                 await target_message.add_reaction(number_map[str(question_number)])
             except discord.Forbidden:
-                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+                await utils.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except discord.NotFound:  # emoji specified not found
                 await ctx.send("I can't find that emoji.")
                 # noinspection PyTypeChecker
@@ -332,7 +333,7 @@ class Questions(commands.Cog):
                        f" help make sure you receive an answer.  When someone answers your question, please type " \
                        f"`;q a` to mark the question as answered.  Thanks!"
             try:
-                await hf.safe_send(target_message.author, msg_text)
+                await utils.safe_send(target_message.author, msg_text)
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
@@ -343,7 +344,7 @@ class Questions(commands.Cog):
         """A module for asking questions, put the title of your quesiton like `;question <title>`"""
         if not args:
             msg = f"Type `;q <question text>` to make a question, or do `;help q`. For now, here's the questions list:"
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, msg)
             await ctx.invoke(self.question_list)
             return
         args = args.split(' ')
@@ -378,7 +379,7 @@ class Questions(commands.Cog):
         """Use this command in your questions channel"""
         config = self.bot.db['questions'].setdefault(str(ctx.guild.id), {})
         if str(ctx.channel.id) in config:
-            msg = await hf.safe_send(ctx, "This will reset the questions database for this channel.  "
+            msg = await utils.safe_send(ctx, "This will reset the questions database for this channel.  "
                                           "Do you wish to continue?  Type `y` to continue.")
             try:
                 await self.bot.wait_for('message', timeout=15.0, check=lambda m: m.content == 'y' and
@@ -386,7 +387,7 @@ class Questions(commands.Cog):
             except asyncio.TimeoutError:
                 await msg.edit(content="Canceled...", delete_after=10.0)
                 return
-        msg_1 = await hf.safe_send(ctx,
+        msg_1 = await utils.safe_send(ctx,
                                    f"Questions channel set as {ctx.channel.mention}.  In the way I just linked this "
                                    f"channel, please give me a link to the log channel "
                                    f"you wish to use for this channel.")
@@ -402,11 +403,11 @@ class Questions(commands.Cog):
             if not log_channel:
                 raise NameError
         except (IndexError, NameError):
-            await hf.safe_send(ctx, f"Invalid channel specified.  Please start over and specify a link to a channel "
+            await utils.safe_send(ctx, f"Invalid channel specified.  Please start over and specify a link to a channel "
                                     f"(should highlight blue)")
             return
 
-        msg_3 = await hf.safe_send(ctx,
+        msg_3 = await utils.safe_send(ctx,
                                    f"Set the log channel as {log_channel.mention}.\n\n"
                                    f"Do you wish to integrate the questions "
                                    f"module with Discord threads? [Yes/No]")
@@ -432,7 +433,7 @@ class Questions(commands.Cog):
                                        'log_channel': log_channel_id,
                                        "threads": threads}
 
-        await hf.safe_send(ctx, "Setup complete. Try starting your first "
+        await utils.safe_send(ctx, "Setup complete. Try starting your first "
                                 "question with `;question <title>` in this channel.")
 
     @question.command(aliases=['a'])
@@ -448,7 +449,7 @@ class Questions(commands.Cog):
         try:
             config = self.bot.db['questions'][str(ctx.guild.id)][str(question_channel.id)]
         except KeyError:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"This channel is not setup as a questions channel.  Please make sure you mark your "
                                f"question as 'answered' in the channel you asked it in.")
             return
@@ -466,7 +467,7 @@ class Questions(commands.Cog):
                     return int(question_number)  # mods can also use it in a thread
 
             # if the code gets here, it never returned anywhere above
-            await hf.safe_send(ctx, f"I can't find a question to close (maybe your question was "
+            await utils.safe_send(ctx, f"I can't find a question to close (maybe your question was "
                                     f"already marked as answered?) If you're trying to close someone else's question, "
                                     f"only the original asker can close a question by typing `;q a`. "
                                     f"Others must specify which question "
@@ -483,7 +484,7 @@ class Questions(commands.Cog):
             answer_message = ctx.message
             answer_text = ''
             if not number:
-                await hf.safe_send(ctx, f"Please enter the number of the question you wish to answer, like `;q a 3`.")
+                await utils.safe_send(ctx, f"Please enter the number of the question you wish to answer, like `;q a 3`.")
                 return
 
         elif len(args) == 1:  # 1) ;q a <question ID>     2) ;q a <word>      3) ;q a <message ID>
@@ -504,7 +505,7 @@ class Questions(commands.Cog):
                     try:
                         answer_message = await ctx.channel.fetch_message(single_arg)
                     except discord.NotFound:
-                        await hf.safe_send(ctx, f"I thought `{single_arg}` was a message ID but I couldn't find that "
+                        await utils.safe_send(ctx, f"I thought `{single_arg}` was a message ID but I couldn't find that "
                                                 f"message in this channel.")
                         return
                     answer_text = answer_message.content[:900]
@@ -527,7 +528,7 @@ class Questions(commands.Cog):
                 answer_message = ctx.message
                 answer_text = ' '.join(args[1:])
             except discord.NotFound:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    f"A corresponding message to the specified ID was not found.  `;q a <question_id> "
                                    f"<message id>`")
                 return
@@ -537,12 +538,12 @@ class Questions(commands.Cog):
             number = str(number)  # the question number
             question = questions[number]  # question config
         except KeyError:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"Invalid question number.  Check the log channel again and input a single number like "
                                f"`;question answer 3`.  Also, make sure you're answering in the right channel.")
             return
         except Exception:
-            await hf.safe_send(ctx, f"You've done *something* wrong... (´・ω・`)")
+            await utils.safe_send(ctx, f"You've done *something* wrong... (´・ω・`)")
             raise
 
         try:
@@ -555,7 +556,7 @@ class Questions(commands.Cog):
 
             # If it still doesn't work, give up.
             if not log_channel:
-                await hf.safe_send(ctx, "I couldn't find the log channel for this questions channel. Please reset "
+                await utils.safe_send(ctx, "I couldn't find the log channel for this questions channel. Please reset "
                                         "the questions module here.\n\nIf your log channel is a thread, check if the "
                                         f"thread is archived: <#{config['log_channel']}>")
                 return
@@ -563,17 +564,17 @@ class Questions(commands.Cog):
             log_message = await log_channel.fetch_message(question['log_message'])
         except discord.NotFound:
             log_message = None
-            await hf.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
+            await utils.safe_send(ctx, f"Message in log channel not found.  Continuing code.")
         except KeyError:
             log_message = None
-            await hf.safe_send(ctx, "Sorry I think this question got a bit bugged out. I'm going to close it.")
+            await utils.safe_send(ctx, "Sorry I think this question got a bit bugged out. I'm going to close it.")
 
         try:
             question_message = await question_channel.fetch_message(question['question_message'])
             if ctx.author.id not in [question_message.author.id, question['command_caller'], self.bot.user.id] \
                     and not hf.submod_check(ctx) and ctx.author.id not in \
                     self.bot.db['channel_mods'].get(str(ctx.guild.id), {}).get(str(question_channel.id), []):
-                await hf.safe_send(ctx, f"Only mods or the person who asked/started the question "
+                await utils.safe_send(ctx, f"Only mods or the person who asked/started the question "
                                         f"originally can mark it as answered.")
                 return
         except discord.NotFound:
@@ -586,7 +587,7 @@ class Questions(commands.Cog):
             else:
                 msg = f"Original question message for question {number} not found. Closing question."
             del questions[number]
-            msg = await hf.safe_send(ctx, msg)
+            msg = await utils.safe_send(ctx, msg)
             await asyncio.sleep(5)
 
             try:
@@ -616,7 +617,7 @@ class Questions(commands.Cog):
                     try:
                         log_message = await log_message.channel.edit(archived=False)
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
+                        await utils.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
                                                 "and I don't have permission to unarchive it. Please either unarchive "
                                                 f"the log channel thread {log_message.channel.mention} or give me the "
                                                 f"permission to `Manage Threads` in that channel.")
@@ -626,7 +627,7 @@ class Questions(commands.Cog):
         try:
             question_message = await question_channel.fetch_message(question['question_message'])
         except discord.NotFound:
-            msg = await hf.safe_send(ctx, "That question was deleted")
+            msg = await utils.safe_send(ctx, "That question was deleted")
             await log_message.delete()
             await asyncio.sleep(5)
             await msg.delete()
@@ -638,14 +639,14 @@ class Questions(commands.Cog):
                         await question_message.remove_reaction(reaction.emoji, self.bot.user)
 
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+                        await utils.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
         # add thumbs up reaction before archiving thread
         if ctx.message:
             try:
                 await ctx.message.add_reaction('\u2705')
             except discord.Forbidden:
-                await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+                await utils.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
             except (discord.NotFound, discord.HTTPException):
                 pass
 
@@ -688,7 +689,7 @@ class Questions(commands.Cog):
         try:
             log_message = await log_channel.fetch_message(int(message_id))
         except discord.NotFound:
-            await hf.safe_send(ctx, f"Specified log message not found")
+            await utils.safe_send(ctx, f"Specified log message not found")
             return
         emb = log_message.embeds[0]
         if emb.title == 'ANSWERED':
@@ -696,11 +697,11 @@ class Questions(commands.Cog):
             try:
                 question_message = await question_channel.fetch_message(int(emb.fields[0].value.split('/')[-1]))
             except discord.NotFound:
-                await hf.safe_send(ctx, f"The message for the original question was not found")
+                await utils.safe_send(ctx, f"The message for the original question was not found")
                 return
             await self.add_question(ctx, question_message, question_message.content)
         else:
-            new_log_message = await hf.safe_send(log_channel, embed=emb)
+            new_log_message = await utils.safe_send(log_channel, embed=emb)
             question['log_message'] = new_log_message.id
         await log_message.delete()
 
@@ -717,7 +718,7 @@ class Questions(commands.Cog):
         try:
             config = self.bot.db['questions'][str(ctx.guild.id)]
         except KeyError:
-            await hf.safe_send(target_channel, f"There are no questions channels on this server.  Run `;question"
+            await utils.safe_send(target_channel, f"There are no questions channels on this server.  Run `;question"
                                                f" setup` in the questions channel to start setup.")
             return
 
@@ -733,7 +734,7 @@ class Questions(commands.Cog):
                     log_channel_id = question_channel.id  # if you call from a log channel instead of a question channel
                     break
             if not log_channel_id:
-                await hf.safe_send(target_channel, "This channel is not setup as a questions channel.")
+                await utils.safe_send(target_channel, "This channel is not setup as a questions channel.")
                 return
 
         first = True
@@ -758,7 +759,7 @@ class Questions(commands.Cog):
             for question in channel_config.copy():
                 try:
                     if question not in channel_config:  # race conditions failing
-                        await hf.safe_send(ctx, "Seems you're maybe trying things too fast. Try again.")
+                        await utils.safe_send(ctx, "Seems you're maybe trying things too fast. Try again.")
                         return
                     q_config = channel_config[question]
                     question_message = await question_channel.fetch_message(q_config['question_message'])
@@ -783,7 +784,7 @@ class Questions(commands.Cog):
                         try:
                             log_message = await log_message.fetch_message(q_config['log_message'])
                         except discord.Forbidden:
-                            await hf.safe_send(ctx, f"I Lack the ability to see messages or message history in "
+                            await utils.safe_send(ctx, f"I Lack the ability to see messages or message history in "
                                                     f"{log_message.mention}.")
                             return
                         value_text += f"__[Responses: {len(q_config['responses'])}]({log_message.jump_url})__\n"
@@ -808,7 +809,7 @@ class Questions(commands.Cog):
                     # continue
                     # emb.add_field(name=f"Question `{question}`",
                     #               value="original message not found")
-        await hf.safe_send(target_channel, embed=emb)
+        await utils.safe_send(target_channel, embed=emb)
 
         for question in deleted_questions:
             # author = ctx.guild.get_member(question_data[1]['author'])
@@ -830,7 +831,7 @@ class Questions(commands.Cog):
             log_channel = await find_and_unarchive_thread(ctx)
         target_message = await log_channel.fetch_message(int(log_id))
         if target not in ['asker', 'answerer', 'question', 'title', 'answer']:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"Invalid field specified in the log message.  Please choose a target to edit out of "
                                f"`asker`, `answerer`, `question`, `title`, `answer`")
             return
@@ -855,7 +856,7 @@ class Questions(commands.Cog):
             try:
                 asker = ctx.guild.get_member(int(text[0]))
             except ValueError:
-                await hf.safe_send(ctx, f"To edit the asker, give the user ID of the user.  For example: "
+                await utils.safe_send(ctx, f"To edit the asker, give the user ID of the user.  For example: "
                                         f"`;q edit <log_message_id> asker <user_id>`")
                 return
             new_description = emb.description.split(' ')
@@ -886,7 +887,7 @@ class Questions(commands.Cog):
         try:
             await ctx.message.add_reaction('\u2705')
         except discord.Forbidden:
-            await hf.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
+            await utils.safe_send(ctx, f"I lack the ability to add reactions, please give me this permission")
 
     # 'questions'
     #   >id of guild
@@ -919,7 +920,7 @@ class Questions(commands.Cog):
         except KeyError:
             return
         if not response:
-            await hf.safe_send(ctx, "You need to type something for your response.")
+            await utils.safe_send(ctx, "You need to type something for your response.")
             return
         if len(response.split()) == 1:  # refers to a question ID of your response in the same channel
             try:
@@ -931,7 +932,7 @@ class Questions(commands.Cog):
             except (discord.NotFound, ValueError):
                 pass
         if index not in config['questions']:
-            await hf.safe_send(ctx, "Invalid question index. Make sure you're typing this command in the channel "
+            await utils.safe_send(ctx, "Invalid question index. Make sure you're typing this command in the channel "
                                     "the question was originally made in.")
             return
 
@@ -942,12 +943,12 @@ class Questions(commands.Cog):
 
             # If after that log_channel is still None, end function
             if not log_channel:
-                await hf.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
+                await utils.safe_send(ctx, "The original log channel can't be found (type `;q setup`)")
                 return
         try:
             log_message = await log_channel.fetch_message(config['questions'][index]['log_message'])
         except discord.NotFound:
-            await hf.safe_send(ctx, "The original question log message could not be found. Type `;q a <index>` to "
+            await utils.safe_send(ctx, "The original question log message could not be found. Type `;q a <index>` to "
                                     "close the question and clear it.")
             return
 
@@ -979,7 +980,7 @@ class Questions(commands.Cog):
             log_channel = await find_and_unarchive_thread(ctx)
 
         if not log_channel:
-            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            await utils.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
         try:
             last_message = None
@@ -1014,7 +1015,7 @@ class Questions(commands.Cog):
 
         # If still no log_channel found after searching archived threads...
         if not log_channel:
-            await hf.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
+            await utils.safe_send(ctx, "The original log channel was not found. Please run `;q setup`.")
             return
 
         await ctx.invoke(self.question_list, log_channel)
@@ -1034,7 +1035,7 @@ class Questions(commands.Cog):
         `[taekim-complete, taekim-grammar, taekim, maggie, japanesetest4you, imabi, jlptsensei, ejlx]`. \n
         Aliases = `[tk, t, taekim, gram, g, imabi]`"""
         if not search_term:
-            await hf.safe_send(ctx, ctx.command.help)
+            await utils.safe_send(ctx, ctx.command.help)
             return
 
         # ### Check if you specify a certain site ###
@@ -1054,7 +1055,7 @@ class Questions(commands.Cog):
         else:
             site = None
         if not search_term:
-            await hf.safe_send(ctx, "Please enter a search term. Check the help for this command")
+            await utils.safe_send(ctx, "Please enter a search term. Check the help for this command")
             return
 
         # ### Call the search ###
@@ -1067,13 +1068,13 @@ class Questions(commands.Cog):
         if site:
             url += f"&siteSearch={site}"
 
-        data = await hf.aiohttp_get(ctx, url)
+        data = await utils.aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
             results = jr['items']
         else:
-            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            await utils.safe_send(ctx, embed=utils.red_embed("No results found."))
             return
         search_term = jr['queries']['request'][0]['searchTerms']
 
@@ -1116,7 +1117,7 @@ class Questions(commands.Cog):
         def make_embed(page):
             search_url = f"https://cse.google.com/cse?cx=013657184909367434363:djogpwlkrc0" \
                          f"&q={search_term.replace(' ', '%20').replace('　', '%E3%80%80')}"
-            emb = hf.green_embed(f"Search for {search_term} ー [(see full results)]({search_url})")
+            emb = utils.green_embed(f"Search for {search_term} ー [(see full results)]({search_url})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
                 url = result['link']
@@ -1135,7 +1136,7 @@ class Questions(commands.Cog):
             return emb
 
         page = 0
-        msg = await hf.safe_send(ctx, embed=make_embed(0))
+        msg = await utils.safe_send(ctx, embed=make_embed(0))
         await msg.add_reaction('⬅')
         await msg.add_reaction('➡')
 
@@ -1171,7 +1172,7 @@ class Questions(commands.Cog):
     async def stackexchange(self, ctx, *, search_term=None):
         """Searches stackexchange.  Use: `;se <search term>`."""
         if not search_term:
-            await hf.safe_send(ctx, ctx.command.help)
+            await utils.safe_send(ctx, ctx.command.help)
             return
 
         # ### Call the search ###
@@ -1182,18 +1183,18 @@ class Questions(commands.Cog):
                   f'&cx={engine_id}' \
                   f'&key={read_file.read()}'
 
-        data = await hf.aiohttp_get(ctx, url)
+        data = await utils.aiohttp_get(ctx, url)
 
         jr = json.loads(data)
         if 'items' in jr:
             results = jr['items']
         else:
-            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            await utils.safe_send(ctx, embed=utils.red_embed("No results found."))
             return
         search_term = jr['queries']['request'][0]['searchTerms']
 
         def make_embed(page):
-            emb = hf.green_embed(f"Search for {search_term} ー [(See full results)](https://cse.google.com/cse?cx="
+            emb = utils.green_embed(f"Search for {search_term} ー [(See full results)](https://cse.google.com/cse?cx="
                                  f"ddde7b27ce4758ac8&q={search_term.replace(' ', '%20').replace('　', '%E3%80%80')})")
             for result in results[page * 3:(page + 1) * 3]:
                 title = result['title']
@@ -1214,7 +1215,7 @@ class Questions(commands.Cog):
             return emb
 
         page = 0
-        msg = await hf.safe_send(ctx, embed=make_embed(0))
+        msg = await utils.safe_send(ctx, embed=make_embed(0))
         await msg.add_reaction('⬅')
         await msg.add_reaction('➡')
 
@@ -1258,7 +1259,7 @@ class Questions(commands.Cog):
             if site:
                 url += f"&siteSearch={site}"
 
-        data = await hf.aiohttp_get(ctx, url)
+        data = await utils.aiohttp_get(ctx, url)
 
         num_of_results = data.split('"formattedTotalResults": "')[1].split('"')[0]
         try:
@@ -1283,10 +1284,10 @@ class Questions(commands.Cog):
         `news24`, `nhk`, `rocketnews24`, `asahi`, `jiji`,
         `nikkei`, `oricon`, `sankei`, `yomiuri`, `news.yahoo.co.jp`"""
         if not search_terms:
-            await hf.safe_send(ctx, ctx.command.help)
+            await utils.safe_send(ctx, ctx.command.help)
             return
         if len(search_terms) > 5:
-            await hf.safe_send(ctx, "Please input less terms. You'll kill my bot!!")
+            await utils.safe_send(ctx, "Please input less terms. You'll kill my bot!!")
             return
 
         if search_terms[0].startswith('site:'):
@@ -1335,7 +1336,7 @@ class Questions(commands.Cog):
 
             s += "\n"  # Split different search terms
 
-        await hf.safe_send(ctx, embed=discord.Embed(title="Search comparison results", description=s, color=0x0C8DF0))
+        await utils.safe_send(ctx, embed=discord.Embed(title="Search comparison results", description=s, color=0x0C8DF0))
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
@@ -1346,7 +1347,7 @@ class Questions(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             pass
         pretty_url = "https://jisho.org/search/" + text.replace(" ", "%20").replace("　", "%E3%80%80")
-        await hf.safe_send(ctx, f"Try finding the meaning to the word you're looking for here: "
+        await utils.safe_send(ctx, f"Try finding the meaning to the word you're looking for here: "
                                 f"{pretty_url}")
 
     @commands.command(aliases=['diff'])
@@ -1355,7 +1356,7 @@ class Questions(commands.Cog):
         if not query:
             query = "X Y"
         urlquery = '+'.join(query.split())
-        emb = hf.green_embed(f"A lot of 'what is the difference between X and Y' kinds of questions can be answered "
+        emb = utils.green_embed(f"A lot of 'what is the difference between X and Y' kinds of questions can be answered "
                              f"by typing something like the following into google (click the links to see the "
                              f"search results):\n\n"
                              f"['Japanese {query} difference']"
@@ -1365,7 +1366,7 @@ class Questions(commands.Cog):
                              f"['{query} 違い']"
                              f"(https://www.google.com/search?q={urlquery}+違い)\n"
                              )
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     @commands.command()
     async def neko(self, ctx, *search):
@@ -1375,7 +1376,7 @@ class Questions(commands.Cog):
         """
 
         if not search:
-            await hf.safe_send(ctx, "You have to input a search term!")
+            await utils.safe_send(ctx, "You have to input a search term!")
             return
 
         dictionaries: dict[str: str] = {"dojg/dojgpages/basic": "A Dictionary of Basic Japanese Grammar",
@@ -1394,8 +1395,8 @@ class Questions(commands.Cog):
                               "Handbook of Japanese Grammar": "HoJG",
                               "どんなときどう使う 日本語表現文型辞典": "表現文型辞典"}
 
-        # html = await hf.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
-        html = await hf.aiohttp_get(ctx, 'https://djtguide.github.io/grammar/masterreference.html')
+        # html = await utils.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await utils.aiohttp_get(ctx, 'https://djtguide.github.io/grammar/masterreference.html')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1502,7 +1503,7 @@ class Questions(commands.Cog):
                 pass
 
         if not (exacts or almost or contains):
-            msg = await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find any results for your search term."))
+            msg = await utils.safe_send(ctx, embed=utils.red_embed("I couldn't find any results for your search term."))
             await wait_for_delete(msg)
             return
         emb = discord.Embed(title="Itazuraneko Grammar Search", color=0x00FF00)
@@ -1526,7 +1527,7 @@ class Questions(commands.Cog):
                 desc += f"(+ {total_length - (index - 1)} others...)"
                 break
         emb.description = desc
-        msg = await hf.safe_send(ctx, embed=emb)
+        msg = await utils.safe_send(ctx, embed=emb)
         await wait_for_delete(msg)
 
     @commands.command(aliases=['bp'])
@@ -1536,11 +1537,11 @@ class Questions(commands.Cog):
         """
 
         if not search:
-            # await hf.safe_send(ctx, "You have to input a search term!")
+            # await utils.safe_send(ctx, "You have to input a search term!")
             return
 
-        # html = await hf.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
-        html = await hf.aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
+        # html = await utils.aiohttp_get(ctx, 'https://itazuraneko.neocities.org/grammar/masterreference.html')
+        html = await utils.aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -1634,7 +1635,7 @@ class Questions(commands.Cog):
                 pass
 
         if not (exacts or almost or contains):
-            msg = await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find any results for your search term."))
+            msg = await utils.safe_send(ctx, embed=utils.red_embed("I couldn't find any results for your search term."))
             await wait_for_delete(msg)
             return
         emb = discord.Embed(title="Bunpro Grammar Search", color=0x00FF00)
@@ -1663,16 +1664,16 @@ class Questions(commands.Cog):
                 desc += f"(+ {total_length - (index - 1)} others...)"
                 break
         emb.description = desc
-        msg = await hf.safe_send(ctx, embed=emb)
+        msg = await utils.safe_send(ctx, embed=emb)
         await wait_for_delete(msg)
 
     async def get_massif_results(self, ctx, search_term):
         url_quoted_search_term = quote(search_term)
         url = f"https://massif.la/ja/search?q={url_quoted_search_term}&fmt=json"
 
-        text = await hf.aiohttp_get(ctx, url)
+        text = await utils.aiohttp_get(ctx, url)
         if not text:
-            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            await utils.safe_send(ctx, embed=utils.red_embed("No results found."))
             return
 
         jr = json.loads(text)
@@ -1727,7 +1728,7 @@ class Questions(commands.Cog):
         # result['sample_source']['url']: url of source page
 
         if not hits:
-            await hf.safe_send(ctx, embed=hf.red_embed("No results found."))
+            await utils.safe_send(ctx, embed=utils.red_embed("No results found."))
             return
 
         emb = discord.Embed(title="Massif search results", url=url.replace("&fmt=json", ""))
@@ -1743,13 +1744,13 @@ class Questions(commands.Cog):
             emb.description += index_text + text + '\n'
             index += 1
 
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
     async def get_yourei_results(self, ctx, search_term) -> Optional[BeautifulSoup]:
         url_quoted_search_term = quote(search_term)
         url = f"https://yourei.jp/{url_quoted_search_term}"
 
-        text = await hf.aiohttp_get(ctx, url)
+        text = await utils.aiohttp_get(ctx, url)
         if not text:
             return
 
@@ -1777,7 +1778,7 @@ class Questions(commands.Cog):
         try:
             results = soup.find_all("li", "sentence")  # list of sentence tag objects (get text using result.text)
         except IndexError:
-            await hf.safe_send(ctx, "It's possible the HTML structure of the yourei.jp site has changed. I received "
+            await utils.safe_send(ctx, "It's possible the HTML structure of the yourei.jp site has changed. I received "
                                     "a response with data from the site but the list of sentences were not where I "
                                     f"expected. Try checking the site yourself: {url}")
             return
@@ -1790,7 +1791,7 @@ class Questions(commands.Cog):
         num_examples = int(num_examples.replace(',', ''))  # an int 13381
 
         if not num_examples:
-            await hf.safe_send(ctx, embed=hf.red_embed("Your search returned no results. Note, this probably means "
+            await utils.safe_send(ctx, embed=utils.red_embed("Your search returned no results. Note, this probably means "
                                                        "your word or phrase wasn't in yourei's (limited) database "
                                                        "rather than it never appearing in literature. The database "
                                                        "focuses mainly on single words or very short phrases."))
@@ -1821,7 +1822,7 @@ class Questions(commands.Cog):
             emb.description += index_text + text + '\n'
             index += 1
 
-        await hf.safe_send(ctx, embed=emb)
+        await utils.safe_send(ctx, embed=emb)
 
 
 async def setup(bot):

@@ -6,7 +6,7 @@ import traceback
 import discord
 from discord.ext import commands, tasks
 from bs4 import BeautifulSoup
-from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 RYRY_SPAM_CHAN = 275879535977955330
 
@@ -49,7 +49,7 @@ class Background(commands.Cog):
             if not task.is_running():
                 s += f"X: {task.coro.__name__}\n"
         if s:
-            await hf.safe_send(ctx, s)
+            await utils.safe_send(ctx, s)
         else:
             try:
                 await ctx.message.add_reaction("✅")
@@ -61,7 +61,7 @@ class Background(commands.Cog):
         ch = self.bot.get_channel(RYRY_SPAM_CHAN)
         for task in self.bot.bg_tasks:
             if not task.is_running():
-                await hf.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
+                await utils.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
@@ -72,7 +72,8 @@ class Background(commands.Cog):
             print("stats database not yet fully loaded, so delaying database saving")
             return
 
-        await hf.dump_json()
+        await utils.dump_json('db')
+        await utils.dump_json('stats')
 
     @tasks.loop(minutes=10.0)
     async def risk_check(self):
@@ -124,7 +125,7 @@ class Background(commands.Cog):
             elif "ended the turn" in event:
                 event = f"__⏩ {event}__\n⠀"  # invisible non-space character at end of this line
             if event:
-                await hf.safe_send(risk_ch, event)
+                await utils.safe_send(risk_ch, event)
         config['log'] = log[-20:]
 
         for li in soup.find_all('li'):
@@ -156,7 +157,7 @@ class Background(commands.Cog):
                         player_name = f"<@{player_id}>"
                     else:
                         player_name = risk_ch.guild.get_member(int(player_id)).display_name
-                    await hf.safe_send(risk_ch, f"✅ It is {player_name}'s turn! <{url}>")
+                    await utils.safe_send(risk_ch, f"✅ It is {player_name}'s turn! <{url}>")
             except KeyError:
                 pass
 
@@ -175,7 +176,7 @@ class Background(commands.Cog):
                 continue
             for user_id in config[manga]['subscribers']:
                 user = self.bot.get_user(user_id)
-                await hf.safe_send(user, f"New manga chapter possibly: {manga}/{str(int(config[manga]['last'])+1)}")
+                await utils.safe_send(user, f"New manga chapter possibly: {manga}/{str(int(config[manga]['last'])+1)}")
             config[manga]['last'] += 1
 
     @check_rawmangas.error
@@ -267,7 +268,7 @@ class Background(commands.Cog):
                     text_list.append(f"{user.mention} ({user.name})")
                 if not text_list:
                     return  # weird scenario where a user was unbanned but it coudldn't find their account afterwards
-                await hf.safe_send(mod_channel,
+                await utils.safe_send(mod_channel,
                                    embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as "
                                                                    f"the time for their temporary ban has expired",
                                                        color=discord.Color(int('00ffaa', 16))))
@@ -316,7 +317,7 @@ class Background(commands.Cog):
                             text_list.append(f"{i}")
                     if mod_channel.guild.id == 243838819743432704:  # spanish server
                         mod_channel = self.bot.get_channel(297877202538594304)  # incidents channel
-                    await hf.safe_send(mod_channel,
+                    await utils.safe_send(mod_channel,
                                        embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
                                                                        f"the time for their temporary mute has expired",
                                                            color=discord.Color(int('00ffaa', 16))))
@@ -350,7 +351,7 @@ class Background(commands.Cog):
                 for user_id in unmuted_users:
                     user = self.bot.get_user(int(user_id))
                     try:
-                        await hf.safe_send(user, "Your selfmute has expired.")
+                        await utils.safe_send(user, "Your selfmute has expired.")
                     except discord.Forbidden:
                         pass
 
@@ -394,7 +395,7 @@ class Background(commands.Cog):
         #     result = await self.lovehug_get_chapter(url)
         #     if type(result) == str:
         #         if 'invalid_url' in result:
-        #             await hf.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
+        #             await utils.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
         #         continue
         #     if not result:
         #         return
@@ -406,7 +407,7 @@ class Background(commands.Cog):
         #         continue
         #     for user in self.bot.db['lovehug'][url]['subscribers']:
         #         u = self.bot.get_user(user)
-        #         await hf.safe_send(u, f"New chapter: {url}{result['href']}")
+        #         await utils.safe_send(u, f"New chapter: {url}{result['href']}")
         #     self.bot.db['lovehug'][url]['last'] = chapter
 
     @staticmethod

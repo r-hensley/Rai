@@ -1,7 +1,8 @@
+import asyncio
 import discord
 from discord.ext import commands
 from .utils import helper_functions as hf
-import asyncio
+from cogs.utils.BotUtils import bot_utils as utils
 
 import os
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -26,21 +27,21 @@ class Reports(commands.Cog):
             return
         guild_id = str(ctx.guild.id)
         if guild_id not in self.bot.db['report']:
-            await hf.safe_send(ctx, f"This server has not run the setup for the report function yet.  Please type "
+            await utils.safe_send(ctx, f"This server has not run the setup for the report function yet.  Please type "
                                     f"`;report setup`.")
             return
         config = self.bot.db['report'][guild_id]
         report_room = self.bot.get_channel(config['channel'])
 
         if user:
-            user = await hf.member_converter(ctx, user)
+            user = await utils.member_converter(ctx, user)
             if not user:
                 if not hf.admin_check(ctx):
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        "You shouldn't type the report into the channel.  Just type `;report` and a "
                                        "menu will help you.")
                 else:
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        "I couldn't find that user.  Please try again, or type just `;report` if you "
                                        "want to make your own report")
                 return
@@ -123,7 +124,7 @@ class Reports(commands.Cog):
             await self.report_room(ctx, config, ctx.author, report_text)
 
         if str(reaction.emoji) == '4⃣':  # Cancel
-            await hf.safe_send(ctx.author, 'Understood.  Have a nice day!')
+            await utils.safe_send(ctx.author, 'Understood.  Have a nice day!')
             return
 
     @report.command(name='setup')
@@ -135,10 +136,10 @@ class Reports(commands.Cog):
             mod_channel = self.bot.db['mod_channel'][str(ctx.guild.id)]
             if not mod_channel:
                 del(self.bot.db['mod_channel'][str(ctx.guild.id)])
-                await hf.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
+                await utils.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
                 return
         except KeyError:
-            await hf.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
+            await utils.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
             return
         perms = ctx.channel.permissions_for(ctx.me)
         if not perms.read_messages or not perms.read_message_history or not perms.manage_roles:
@@ -147,22 +148,22 @@ class Reports(commands.Cog):
             except discord.Forbidden:
                 pass
             try:
-                await hf.safe_send(ctx, "I need permissions for reading messages, reading message history, and "
+                await utils.safe_send(ctx, "I need permissions for reading messages, reading message history, and "
                                         "managing either channel permissions or server roles.  Please check these")
             except discord.Forbidden:
-                await hf.safe_send(ctx.author, f"Rai lacks the permission to send messages in {ctx.channel.mention}.")
+                await utils.safe_send(ctx.author, f"Rai lacks the permission to send messages in {ctx.channel.mention}.")
             return
 
         guild_id = str(ctx.guild.id)
         if guild_id in self.bot.db['report']:
             self.bot.db['report'][guild_id]['channel'] = ctx.channel.id
-            await hf.safe_send(ctx, f"Successfully set the report room channel to {ctx.channel.mention}.")
+            await utils.safe_send(ctx, f"Successfully set the report room channel to {ctx.channel.mention}.")
         else:
             self.bot.db['report'][guild_id] = {'channel': ctx.channel.id,
                                                'current_user': None,
                                                'waiting_list': [],
                                                'entry_message': None}
-            await hf.safe_send(ctx, f"Initial setup for report room complete.  The report room channel has been set to "
+            await utils.safe_send(ctx, f"Initial setup for report room complete.  The report room channel has been set to "
                                     f"{ctx.channel.mention}.")
 
     @report.command()
@@ -230,7 +231,7 @@ class Reports(commands.Cog):
             message = message + ', '.join(members)
         else:
             message = 'There are no users on the waiting list'
-        await hf.safe_send(ctx, message)
+        await utils.safe_send(ctx, message)
 
     @report.command()
     @hf.is_admin()
@@ -243,9 +244,9 @@ class Reports(commands.Cog):
 
         if config['waiting_list']:
             config['waiting_list'] = []
-            await hf.safe_send(ctx, 'Waiting list cleared')
+            await utils.safe_send(ctx, 'Waiting list cleared')
         else:
-            await hf.safe_send(ctx, 'There was no one on the waiting list.')
+            await utils.safe_send(ctx, 'There was no one on the waiting list.')
 
     @report.command(name="disable")
     @hf.is_admin()
@@ -254,12 +255,12 @@ class Reports(commands.Cog):
         if str(ctx.guild.id) in self.bot.db['report']:
             del self.bot.db['report'][str(ctx.guild.id)]
             try:
-                await hf.safe_send(ctx, "I've disabled the report module in your guild.")
+                await utils.safe_send(ctx, "I've disabled the report module in your guild.")
             except discord.Forbidden:
                 pass
         else:
             try:
-                await hf.safe_send(ctx, "You don't have the report module enabled.")
+                await utils.safe_send(ctx, "You don't have the report module enabled.")
             except discord.Forbidden:
                 pass
 
@@ -273,7 +274,7 @@ class Reports(commands.Cog):
             return
         config['current_user'] = config['entry_message'] = None
         config['waiting_list'] = []
-        await hf.safe_send(ctx,
+        await utils.safe_send(ctx,
                            f"The report module has been reset on this server.  Check the permission overrides on the "
                            f"report channel to make sure there are no users left there.")
 
@@ -287,9 +288,9 @@ class Reports(commands.Cog):
             return
         config['anonymous_ping'] = not config['anonymous_ping']
         if config['anonymous_ping']:
-            await hf.safe_send(ctx, "Enabled pinging for anonymous reports.  I'll add a `@here` ping to the next one.")
+            await utils.safe_send(ctx, "Enabled pinging for anonymous reports.  I'll add a `@here` ping to the next one.")
         else:
-            await hf.safe_send(ctx, "Disabled pinging for anonymous reports.")
+            await utils.safe_send(ctx, "Disabled pinging for anonymous reports.")
 
     @report.command(name="room_ping")
     @hf.is_admin()
@@ -301,10 +302,10 @@ class Reports(commands.Cog):
             return
         config['room_ping'] = not config['room_ping']
         if config['room_ping']:
-            await hf.safe_send(ctx, "Enabled pinging for when someone enters the report room.  "
+            await utils.safe_send(ctx, "Enabled pinging for when someone enters the report room.  "
                                     "I'll add a `@here` ping to the next one.")
         else:
-            await hf.safe_send(ctx, "Disabled pinging for the report room.")
+            await utils.safe_send(ctx, "Disabled pinging for the report room.")
 
     @staticmethod
     async def report_options(ctx, report_text):
@@ -314,9 +315,9 @@ class Reports(commands.Cog):
             return user == ctx.author and (str(reaction.emoji) in "1⃣2⃣3⃣4⃣")  # 4⃣
 
         try:
-            msg = await hf.safe_send(ctx.author, report_text[0])  # when the user first enters the module
+            msg = await utils.safe_send(ctx.author, report_text[0])  # when the user first enters the module
         except discord.Forbidden:
-            await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
+            await utils.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                     f"from server members enabled.")
             ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None
             return
@@ -330,37 +331,37 @@ class Reports(commands.Cog):
             reaction, user = await ctx.bot.wait_for('reaction_add', timeout=300.0, check=check)
             return reaction
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx.author, "Module timed out.")
+            await utils.safe_send(ctx.author, "Module timed out.")
             return
 
     @staticmethod
     async def anonymous_report(ctx, report_text):
         """;report: The code for an anonymous report submission"""
-        await hf.safe_send(ctx.author, report_text[1])  # Instructions for the anonymous report
+        await utils.safe_send(ctx.author, report_text[1])  # Instructions for the anonymous report
 
         def check(m):
             return m.author == ctx.author and isinstance(m.channel, discord.channel.DMChannel)
 
         try:
             msg = await ctx.bot.wait_for('message', timeout=300.0, check=check)
-            await hf.safe_send(ctx.author, report_text[2])  # "thank you for the report"
+            await utils.safe_send(ctx.author, report_text[2])  # "thank you for the report"
             mod_channel = ctx.bot.get_channel(ctx.bot.db['mod_channel'][str(ctx.guild.id)])
             if not mod_channel:
-                await hf.safe_send(ctx, "Unfortunately this server has hidden their mod channel from me, so I "
+                await utils.safe_send(ctx, "Unfortunately this server has hidden their mod channel from me, so I "
                                         "can't send your report anymore.")
                 return
             initial_msg = 'Received report from a user: \n\n'
             if ctx.bot.db['report'][str(ctx.guild.id)].setdefault('anonymous_ping', False):
                 initial_msg = '@here ' + initial_msg
             try:
-                await hf.safe_send(mod_channel, initial_msg)
+                await utils.safe_send(mod_channel, initial_msg)
             except AttributeError:
-                await hf.safe_send(ctx, "Please tell the admins of that server that they have not properly configured "
+                await utils.safe_send(ctx, "Please tell the admins of that server that they have not properly configured "
                                         "their mod channel, so I have nowhere to send this anonymous report. Sorry.")
-            await hf.safe_send(mod_channel, msg.content)
+            await utils.safe_send(mod_channel, msg.content)
             return
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx.author, f"Module timed out.")
+            await utils.safe_send(ctx.author, f"Module timed out.")
             return
 
     @staticmethod
@@ -374,7 +375,7 @@ class Reports(commands.Cog):
             await user.send(msg)  # someone is in the room, you've been added to waiting list
             try:
                 mod_channel = ctx.guild.get_channel_or_thread(ctx.cog.bot.db['mod_channel'][str(ctx.guild.id)])
-                await hf.safe_send(mod_channel,
+                await utils.safe_send(mod_channel,
                                    f"{user.mention} ({user.name}) tried to enter the report room, but someone "
                                    f"else is already in it.  Try typing `;report done` in the report room, "
                                    f"and type `;report check_waiting_list` to see who is waiting.")
@@ -404,7 +405,7 @@ class Reports(commands.Cog):
             try:
                 await user.send(report_text[6])
             except discord.Forbidden:
-                await hf.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
+                await utils.safe_send(ctx, f"I'm unable to complete your request, as the user does not have PMs "
                                         f"from server members enabled.")
                 ctx.bot.db['report'][str(ctx.guild.id)]['current_user'] = None
                 return

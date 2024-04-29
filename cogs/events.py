@@ -12,6 +12,7 @@ from discord.ext import commands
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -156,7 +157,7 @@ class Events(commands.Cog):
         # add above function to asyncio event loop as a task
         # noinspection PyAsyncCall
         # asyncio.create_task(check_untagged_JHO_users())
-        hf.asyncio_task(check_untagged_JHO_users)
+        utils.asyncio_task(check_untagged_JHO_users)
         
         async def remove_from_waiting_list():
             if reaction.emoji == '🚫':
@@ -172,7 +173,7 @@ class Events(commands.Cog):
                             mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
                             msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
                                                  f"report room but just removed themselves."
-                            await hf.safe_send(mod_channel, msg_to_mod_channel)
+                            await utils.safe_send(mod_channel, msg_to_mod_channel)
                             return
                     await user.send("You aren't on the waiting list.")
 
@@ -324,10 +325,10 @@ class Events(commands.Cog):
                 else:
                     print('not in residency')
                     try:
-                        await hf.safe_send(ctx.author, "Please claim residency on a server first with "
+                        await utils.safe_send(ctx.author, "Please claim residency on a server first with "
                                                        "`;global_blacklist residency`")
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, "Please claim residency on a server first with `;global_blacklist "
+                        await utils.safe_send(ctx, "Please claim residency on a server first with `;global_blacklist "
                                                 "residency`.")
                     return
 
@@ -341,7 +342,7 @@ class Events(commands.Cog):
                 try:
                     reason = re.search('__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
                 except AttributeError:
-                    await hf.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
+                    await utils.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
                                                 "the GBL.")
                     return
                 config = self.bot.db['global_blacklist']
@@ -351,7 +352,7 @@ class Events(commands.Cog):
                         await ctx.invoke(blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
-                    await hf.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
+                    await utils.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
                     return
 
         if payload.emoji.name == '✅':  # captcha
@@ -656,7 +657,7 @@ class Events(commands.Cog):
                                 await member.remove_roles(role)
                                 return
                         except (discord.HTTPException, discord.Forbidden):
-                            await hf.safe_send(member, "I tried to give you a role for being in a voice channel for "
+                            await utils.safe_send(member, "I tried to give you a role for being in a voice channel for "
                                                        "over 30 minutes, but either there was some kind of HTML "
                                                        "error or I lacked permission to assign/remove roles. Please "
                                                        "tell the admins of your server, or use the command "
@@ -669,7 +670,7 @@ class Events(commands.Cog):
                             try:
                                 await member.add_roles(role)
                             except (discord.HTTPException, discord.Forbidden):
-                                await hf.safe_send(member,
+                                await utils.safe_send(member,
                                                    "I tried to give you a role for being in a voice channel for "
                                                    "over 30 minutes, but either there was some kind of HTML "
                                                    "error or I lacked permission to assign/remove roles. Please "
@@ -681,7 +682,7 @@ class Events(commands.Cog):
                                 if config['remove_when_leave']:
                                     await member.remove_roles(role)
                             except (discord.HTTPException, discord.Forbidden):
-                                await hf.safe_send(member,
+                                await utils.safe_send(member,
                                                    "I tried to give you a role for being in a voice channel for "
                                                    "over 30 minutes, but either there was some kind of HTML "
                                                    "error or I lacked permission to assign/remove roles. Please "
@@ -774,12 +775,12 @@ class Events(commands.Cog):
                 "estado en nuestro servidor y acabas de unirte nuevamente, puedes enviar un mensaje a " \
                 "<@713245294657273856> para obtener un permiso especial para unirte a los canales de voz. "
             try:
-                await hf.safe_send(member, t)
+                await utils.safe_send(member, t)
             except discord.Forbidden:
                 bot_channel = guild.get_channel(247135634265735168)
                 t = f"{member.mention} {t}"
                 try:
-                    await hf.safe_send(bot_channel, t)
+                    await utils.safe_send(bot_channel, t)
                 except discord.Forbidden:
                     pass
 
@@ -832,7 +833,7 @@ class Events(commands.Cog):
                                                      oldest_first=False):
                 if log.extra.channel == after.channel:
                     staff_channel = self.bot.get_channel(913886469809115206)
-                    emb = hf.red_embed(f"The user {member.mention} ({member.id}) has potentially moved themselves "
+                    emb = utils.red_embed(f"The user {member.mention} ({member.id}) has potentially moved themselves "
                                        f"into a full channel ({after.channel.mention}). Please check this.")
                     if before.channel.members:
                         list_of_before_users = '- ' + '\n -'.join([m.mention for m in before.channel.members])
@@ -909,7 +910,7 @@ class Events(commands.Cog):
             if thread.starter_message:
                 await thread.starter_message.reply(instructions)
             else:
-                await hf.safe_send(thread, instructions)
+                await utils.safe_send(thread, instructions)
 
         await new_post_info()
 
@@ -941,7 +942,7 @@ class Events(commands.Cog):
         for author in authors_in_channel:
             embed_text += f"\n- M{author.id} ({str(author)})"
             embed_text += f" **x{len([m for m in cached_messages_in_channel if m.author == author])}**"
-        emb = hf.red_embed(embed_text)
+        emb = utils.red_embed(embed_text)
 
         await log_channel.send(embed=emb, file=file)
 
@@ -1213,7 +1214,7 @@ class Events(commands.Cog):
             new_word = new_word.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
             new_word = new_word.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o") \
                 .replace("ú", "u")
-            new_word = hf.rem_emoji_url(new_word)
+            new_word = utils.rem_emoji_url(new_word)
             
             if not new_word:
                 return
@@ -1464,7 +1465,7 @@ class Events(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(msg.guild.id)])
                     log_channel = self.bot.get_channel(self.bot.db['bans'][str(msg.guild.id)]['channel'])
                     if discord.utils.utcnow() - msg.author.joined_at > timedelta(minutes=60):
-                        await hf.safe_send(mod_channel,
+                        await utils.safe_send(mod_channel,
                                            f"Warning: {msg.author.name} may have said the banned words spam message"
                                            f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                            f"\n```{msg.content}"[:1995] + '```')
@@ -1472,7 +1473,7 @@ class Events(commands.Cog):
                     try:
                         await msg.delete()
                     except discord.Forbidden:
-                        await hf.safe_send(mod_channel,
+                        await utils.safe_send(mod_channel,
                                            "Rai is lacking the permission to delete messages for the Chinese "
                                            "spam message.")
                     except discord.NotFound:
@@ -1483,11 +1484,11 @@ class Events(commands.Cog):
                         await msg.author.ban(reason=f"Automatic ban: Chinese banned words spam\n"
                                                     f"{msg.content[:100]}", delete_message_days=1)
                     except discord.Forbidden:
-                        await hf.safe_send(mod_channel,
+                        await utils.safe_send(mod_channel,
                                            "I tried to ban someone for the Chinese spam message, but I lack "
                                            "the permission to ban users.")
                     
-                    await hf.safe_send(log_channel, f"Banned {msg.author} for the banned words spam message."
+                    await utils.safe_send(log_channel, f"Banned {msg.author} for the banned words spam message."
                                                     f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                                     f"\n```{msg.content}"[:1850] + '```')
                     
@@ -1600,7 +1601,7 @@ class Events(commands.Cog):
         #         #  "Puedes añadirte más en <#703075065016877066>:\n\n" \
         #     txt2 = "Before using the server, please read the rules in <#243859172268048385>.\n" \
         #            "Antes de usar el servidor, por favor lee las reglas en <#243859172268048385>."
-        #     await hf.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
+        #     await utils.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
         #
         # await smart_welcome(msg)
         
@@ -1717,7 +1718,7 @@ class Events(commands.Cog):
             link += ')'
             emb.add_field(name="Message:", value=msg.content[:1024 - len(link)] + link)
             
-            await hf.safe_send(self.bot.get_channel(config['channel']), embed=emb)
+            await utils.safe_send(self.bot.get_channel(config['channel']), embed=emb)
         
         await super_watch()
         
@@ -1727,7 +1728,7 @@ class Events(commands.Cog):
             is_hardcore = False
             if str(msg.guild.id) not in self.bot.stats:
                 return None, False
-            stripped_msg = hf.rem_emoji_url(msg)
+            stripped_msg = utils.rem_emoji_url(msg)
             check_lang = False
             
             if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
@@ -1790,7 +1791,7 @@ class Events(commands.Cog):
                 pos = sentiment['pos']
                 neu = sentiment['neu']
                 neg = sentiment['neg']
-                await hf.safe_send(ctx, f"Your sentiment score for the above message:"
+                await utils.safe_send(ctx, f"Your sentiment score for the above message:"
                                         f"\n- Positive / Neutral / Negative: +{pos} / n{neu} / -{neg}"
                                         f"\n- Overall: {sentiment['compound']}"
                                         f"\nNote this program is often wrong, and can only check English. If using "
@@ -1799,7 +1800,7 @@ class Events(commands.Cog):
             
             if msg.author.id == 352959699454263300:  # 352959699454263300
                 test_channel = self.bot.get_channel(1145205130560553060)
-                await hf.safe_send(test_channel, f"{msg.content}\n{sentiment}")
+                await utils.safe_send(test_channel, f"{msg.content}\n{sentiment}")
             
             sentiment = sentiment['compound']
             
@@ -1909,9 +1910,9 @@ class Events(commands.Cog):
             # emojis
             emojis = re.findall(r':([A-Za-z0-9_]+):', msg.content)
             for character in msg.content:
-                if hf.is_emoji(character):
+                if utils.is_emoji(character):
                     emojis.append(character)
-                if hf.is_ignored_emoji(character) and character not in self.ignored_characters:
+                if utils.is_ignored_emoji(character) and character not in self.ignored_characters:
                     self.ignored_characters.append(character)
             
             if emojis:
@@ -1949,7 +1950,7 @@ class Events(commands.Cog):
                 
                 learning_eng = msg.guild.get_role(ENG_ROLE[msg.guild.id])  # this function is only called for two guilds
                 
-                ratio = hf.jpenratio(content)
+                ratio = utils.jpenratio(content)
                 if ratio is not None:  # it might be "0" so I can't do "if ratio"
                     if learning_eng in msg.author.roles:
                         if ratio < .55:
@@ -2035,7 +2036,7 @@ class Events(commands.Cog):
                 enRole = msg.guild.get_role(197100137665921024)
                 if jpRole in msg.author.roles and enRole in msg.author.roles:
                     return
-                ratio = hf.jpenratio(msg.content.casefold())
+                ratio = utils.jpenratio(msg.content.casefold())
                 nf = "<#193966083886153729>"
                 if ratio is None:
                     return
@@ -2163,7 +2164,7 @@ class Events(commands.Cog):
             try:
                 await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
                 incidents_channel = msg.guild.get_channel(808077477703712788)
-                await hf.safe_send(incidents_channel, "<@202995638860906496>\n"
+                await utils.safe_send(incidents_channel, "<@202995638860906496>\n"
                                                       "Above user banned for the Adobe scam message.\n"
                                                       f"(Messages in last month: {recent_messages_count})")
             except (discord.Forbidden, discord.HTTPException):
@@ -2243,8 +2244,8 @@ class Events(commands.Cog):
                         if msg.guild.id == SP_SERVER_ID:
                             mod_channel = msg.guild.get_channel_or_thread(297877202538594304)  # incidents channel
                         if mod_channel:
-                            await hf.safe_send(mod_channel, msg.author.id,
-                                               embed=hf.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
+                            await utils.safe_send(mod_channel, msg.author.id,
+                                               embed=utils.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
                                                                   f"[Jump URL]({msg.jump_url})"))
                 
                 # skip if something went wrong

@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 from .utils import helper_functions as hf
 from .utils.helper_functions import format_interval
+from cogs.utils.BotUtils import bot_utils as utils
 import re
 
 import os
@@ -58,7 +59,7 @@ async def make_mute_role(ctx, dest, voice_mute):
     _role = discord.utils.find(lambda r: r.name.casefold().replace('-', " ") == name_with_spaces, ctx.guild.roles)
     if _role:
         first = False
-        await hf.safe_send(dest, "Reusing previously existing Rai mute role")
+        await utils.safe_send(dest, "Reusing previously existing Rai mute role")
     else:
         first = True
         _role = await ctx.guild.create_role(name=name, reason="For use with bot mute command")
@@ -80,7 +81,7 @@ class ChannelMods(commands.Cog):
         # mod channel must be set
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             if not ctx.message.content.endswith("help"):  # ignore if it's the help command
-                await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
+                await utils.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
 
         # submods can use all channel mod commands
@@ -144,7 +145,7 @@ class ChannelMods(commands.Cog):
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
         try:
             await ctx.message.delete()
-            await hf.safe_send(ctx.author,
+            await utils.safe_send(ctx.author,
                                f"I'm gonna delete your message to potentially keep your privacy, but in case "
                                f"something goes wrong, here was what you sent: \n{ctx.message.content}")
         except (discord.NotFound, AttributeError):
@@ -162,7 +163,7 @@ class ChannelMods(commands.Cog):
                 except ValueError:
                     pass
                 else:
-                    await hf.safe_send(ctx, "This is a command to delete a certain message by specifying its "
+                    await utils.safe_send(ctx, "This is a command to delete a certain message by specifying its "
                                             f"message ID. \n\nMaybe you meant to use `;clear {ids[0]}`?")
 
         # search ctx.channel for the ids
@@ -179,7 +180,7 @@ class ChannelMods(commands.Cog):
                 invalid_ids.append(msg_id)
 
         if invalid_ids:
-            await hf.safe_send(ctx, f"The following IDs were not properly formatted: "
+            await utils.safe_send(ctx, f"The following IDs were not properly formatted: "
                                     f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
 
         # search every channel, not just ctx.channel for the missing IDs
@@ -197,7 +198,7 @@ class ChannelMods(commands.Cog):
                 if not failed_ids:
                     break
         if failed_ids:
-            await hf.safe_send(ctx, f"Unable to find ID(s) `{'`, `'.join([str(i) for i in failed_ids])}`.")
+            await utils.safe_send(ctx, f"Unable to find ID(s) `{'`, `'.join([str(i) for i in failed_ids])}`.")
 
         if not msgs:
             return  # no messages found
@@ -243,30 +244,30 @@ class ChannelMods(commands.Cog):
         if str(ctx.guild.id) in self.bot.db['submod_channel']:
             channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
             if not channel:
-                await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
+                await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
                 del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
             channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
             if not channel:
-                await hf.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
+                await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                         "set it again.")
                 del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         else:
-            await hf.safe_send(ctx, "Please set either a mod channel or a submod channel with "
+            await utils.safe_send(ctx, "Please set either a mod channel or a submod channel with "
                                     "`;set_mod_channel` or `;set_submod_channel`")
             return
 
-        log_message = await hf.safe_send(channel, str(msg.author.id), embed=emb)
+        log_message = await utils.safe_send(channel, str(msg.author.id), embed=emb)
         for msg in msgs:
             await hf.send_attachments_to_thread_on_message(log_message, msg)
         if embeds:
             for embed in embeds:
                 if not embed:
                     continue
-                await hf.safe_send(channel, embed=embed)
+                await utils.safe_send(channel, embed=embed)
 
     @commands.command(name="pin")
     # @commands.bot_has_permissions(send_messages=True, manage_messages=True)
@@ -285,29 +286,29 @@ class ChannelMods(commands.Cog):
                 try:
                     to_be_pinned_msg = await ctx.channel.fetch_message(args[0])
                 except discord.NotFound:
-                    await hf.safe_send(ctx, "I couldn't find the message you were looking for.")
+                    await utils.safe_send(ctx, "I couldn't find the message you were looking for.")
                     return
             elif re.search(r'^\d{17,22}-\d{17,22}$', args[0]):
                 channel_id = int(args[0].split('-')[0])
                 channel = ctx.guild.get_channel_or_thread(channel_id)
                 if not channel:
-                    await hf.safe_send(ctx, "I couldn't find the channel you specified!")
+                    await utils.safe_send(ctx, "I couldn't find the channel you specified!")
                     return
                 message_id = int(args[0].split('-')[1])
                 to_be_pinned_msg = await channel.fetch_message(message_id)
             else:
-                await hf.safe_send(ctx, "Please input a valid ID")
+                await utils.safe_send(ctx, "Please input a valid ID")
                 return
         elif len(args) == 2:
             channel_id = int(args[0])
             channel = ctx.guild.get_channel_or_thread(channel_id)
             if not channel:
-                await hf.safe_send(ctx, "I couldn't find the channel you specified!")
+                await utils.safe_send(ctx, "I couldn't find the channel you specified!")
                 return
             message_id = int(args[1])
             to_be_pinned_msg = await channel.fetch_message(message_id)
         else:
-            await hf.safe_send(ctx, "You gave too many arguments!")
+            await utils.safe_send(ctx, "You gave too many arguments!")
             return
 
         try:
@@ -317,18 +318,18 @@ class ChannelMods(commands.Cog):
 
         if to_be_pinned_msg.pinned:
             if not to_be_pinned_msg.author.bot:
-                await hf.safe_send(ctx, "Unfortunately, this command can only unpin bot messages.", delete_after=5.0)
+                await utils.safe_send(ctx, "Unfortunately, this command can only unpin bot messages.", delete_after=5.0)
                 return
             try:
                 await to_be_pinned_msg.unpin()
-                await hf.safe_send(ctx, "I've unpinned that message.", delete_after=5.0)
+                await utils.safe_send(ctx, "I've unpinned that message.", delete_after=5.0)
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I lack the permission to unpin messages in this channel.", delete_after=5.0)
+                await utils.safe_send(ctx, "I lack the permission to unpin messages in this channel.", delete_after=5.0)
         else:
             try:
                 await to_be_pinned_msg.pin()
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I lack the permission to pin messages in this channel", delete_after=5.0)
+                await utils.safe_send(ctx, "I lack the permission to pin messages in this channel", delete_after=5.0)
 
     @commands.command()
     async def log(self, ctx, *, args="None"):
@@ -350,20 +351,20 @@ class ChannelMods(commands.Cog):
     #
     #     Usage (in the channel): `;cm <user name>`"""
     #     config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-    #     user = await hf.member_converter(ctx, user)
+    #     user = await utils.member_converter(ctx, user)
     #     if not user:
     #         await ctx.invoke(self.list_channel_mods)
     #         return
     #     if str(ctx.channel.id) in config:
     #         if user.id in config[str(ctx.channel.id)]:
-    #             await hf.safe_send(ctx, "That user is already a channel mod in this channel.")
+    #             await utils.safe_send(ctx, "That user is already a channel mod in this channel.")
     #             return
     #         else:
     #             config[str(ctx.channel.id)].append(user.id)
     #     else:
     #         config[str(ctx.channel.id)] = [user.id]
     #     await ctx.message.delete()
-    #     await hf.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
+    #     await utils.safe_send(ctx, f"Set {user.name} as a channel mod for this channel", delete_after=5.0)
 
     # @commands.command(aliases=['list_channel_helpers', 'lcm', 'lch'])
     # async def list_channel_mods(self, ctx):
@@ -375,7 +376,7 @@ class ChannelMods(commands.Cog):
     #     for channel_id in config.copy():
     #         channel = self.bot.get_channel(int(channel_id))
     #         if not channel:
-    #             await hf.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
+    #             await utils.safe_send(ctx, f"Removing deleted channel {channel_id} from list with helpers "
     #                                     f"{', '.join([str(i) for i in config[channel_id]])}")
     #             del config[channel_id]
     #             continue
@@ -383,13 +384,13 @@ class ChannelMods(commands.Cog):
     #         for user_id in config[channel_id]:
     #             user = self.bot.get_user(int(user_id))
     #             if not user:
-    #                 await hf.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
+    #                 await utils.safe_send(ctx, f"<@{user_id}> was not found.  Removing from list...")
     #                 config[channel_id].remove(user_id)
     #                 continue
     #             output_msg += f"{user.display_name}\n"
     #         output_msg += '\n'
     #     output_msg += '```'
-    #     await hf.safe_send(ctx, output_msg)
+    #     await utils.safe_send(ctx, output_msg)
     #
     # @commands.command(aliases=['rcm', 'rch'])
     # @hf.is_admin()
@@ -398,7 +399,7 @@ class ChannelMods(commands.Cog):
     #
     #     Usage: `;rcm <user name>`"""
     #     config = self.bot.db['channel_mods'].setdefault(str(ctx.guild.id), {})
-    #     user_obj = await hf.member_converter(ctx, user)
+    #     user_obj = await utils.member_converter(ctx, user)
     #     if user_obj:
     #         user_id = user_obj.id
     #         user_name = user_obj.name
@@ -407,13 +408,13 @@ class ChannelMods(commands.Cog):
     #             user_id = int(user)
     #             user_name = user
     #         except ValueError:
-    #             await hf.safe_send(ctx, "I couldn't parse the user you listed and couldn't find them in the server. "
+    #             await utils.safe_send(ctx, "I couldn't parse the user you listed and couldn't find them in the server. "
     #                                     "Please check your input.", delete_after=5.0)
     #             return
-    #         await hf.safe_send(ctx, "Note: I couldn't find that user in the server.", delete_after=5.0)
+    #         await utils.safe_send(ctx, "Note: I couldn't find that user in the server.", delete_after=5.0)
     #     if str(ctx.channel.id) in config:
     #         if user_id not in config[str(ctx.channel.id)]:
-    #             await hf.safe_send(ctx, "That user is not a channel mod in this channel. You must call this command "
+    #             await utils.safe_send(ctx, "That user is not a channel mod in this channel. You must call this command "
     #                                     "in their channel.")
     #             return
     #         else:
@@ -423,7 +424,7 @@ class ChannelMods(commands.Cog):
     #     else:
     #         return
     #     await ctx.message.delete()
-    #     await hf.safe_send(ctx, f"Removed {user_name} as a channel mod for this channel", delete_after=5.0)
+    #     await utils.safe_send(ctx, f"Removed {user_name} as a channel mod for this channel", delete_after=5.0)
 
     @commands.check(lambda x: x.guild.id in [SP_SERV, JP_SERV])
     @commands.command(aliases=['staff'])
@@ -434,21 +435,21 @@ class ChannelMods(commands.Cog):
         else:
             staffrole = ctx.guild.get_role(240647591770062848)
         if not staffrole:
-            await hf.safe_reply(ctx.message, "I couldn't find the staff role for this server.")
+            await utils.safe_reply(ctx.message, "I couldn't find the staff role for this server.")
             return
         
         if staffrole in ctx.author.roles:
             await ctx.author.remove_roles(staffrole)
-            await hf.safe_send(ctx, "I've removed the staff role from you")
+            await utils.safe_send(ctx, "I've removed the staff role from you")
         else:
             try:
                 await ctx.author.add_roles(staffrole)
             except discord.Forbidden:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    "I lack the ability to attach the staff role. Please make sure I have the ability "
                                    "to manage roles, and that the staff role isn't above my highest user role.")
                 return
-            await hf.safe_send(ctx, "I've given you the staff role.")
+            await utils.safe_send(ctx, "I've given you the staff role.")
 
     @commands.group(invoke_without_command=True)
     async def staffping(self, ctx):
@@ -458,10 +459,10 @@ class ChannelMods(commands.Cog):
         subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]['users']
         if ctx.author.id in subscribed_users:
             subscribed_users.remove(ctx.author.id)
-            await hf.safe_send(ctx, "You will no longer receive notifications for staff pings.")
+            await utils.safe_send(ctx, "You will no longer receive notifications for staff pings.")
         else:
             subscribed_users.append(ctx.author.id)
-            await hf.safe_send(ctx, "You will receive notifications for staff pings.")
+            await utils.safe_send(ctx, "You will receive notifications for staff pings.")
 
     @staffping.command(name="set")
     async def staffping_set(self, ctx, input_id=None):
@@ -480,7 +481,7 @@ class ChannelMods(commands.Cog):
 
         if not input_id:  # nothing, assume setting channel to current channel
             config['channel'] = ctx.channel.id
-            await hf.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
+            await utils.safe_send(ctx, f"I've set the notification channel for staff pings as {ctx.channel.mention}.")
             return
 
         channel = role = None
@@ -490,14 +491,14 @@ class ChannelMods(commands.Cog):
             role = ctx.guild.get_role(object_id)
             if channel:
                 config['channel'] = channel.id
-                await hf.safe_send(ctx, f"I've set the notification channel for staff pings to {channel.mention}.")
+                await utils.safe_send(ctx, f"I've set the notification channel for staff pings to {channel.mention}.")
             elif role:
                 config['role'] = role.id
-                await hf.safe_send(ctx, f"I've set the watched staff role to **{role.name}** (`{role.mention}`)")
+                await utils.safe_send(ctx, f"I've set the watched staff role to **{role.name}** (`{role.mention}`)")
 
         if not channel and not role:
-            await hf.safe_send(ctx, "I couldn't figure out what you wanted to do.")
-            await hf.safe_send(ctx, ctx.command.help)
+            await utils.safe_send(ctx, "I couldn't figure out what you wanted to do.")
+            await utils.safe_send(ctx, ctx.command.help)
 
     @commands.command(aliases=['r', 't', 'tag'])
     async def role(self, ctx, *, args):
@@ -561,14 +562,14 @@ class ChannelMods(commands.Cog):
 
         args = args.split()
         if len(args) > 1:  # ;r ryry013 english
-            user = await hf.member_converter(ctx, args[0])
+            user = await utils.member_converter(ctx, args[0])
             if not user:
                 return
             langs = [lang.casefold() for lang in args[1:]]
 
         elif len(args) == 1:  # something like ;r english
             if args[0].casefold() in ['none', 'n']:
-                await hf.safe_send(ctx, "You can't use `none` and not specify a name.")
+                await utils.safe_send(ctx, "You can't use `none` and not specify a name.")
                 return
             langs = [args[0].casefold()]
 
@@ -581,18 +582,18 @@ class ChannelMods(commands.Cog):
                 if not found:
                     user = message.author
             if not user:
-                await hf.safe_send(ctx, "I couldn't find any users in the last ten messages without a native role.")
+                await utils.safe_send(ctx, "I couldn't find any users in the last ten messages without a native role.")
                 return
 
         else:  # no args
-            await hf.safe_send(ctx, "Gimme something at least! Run `;help role`")
+            await utils.safe_send(ctx, "Gimme something at least! Run `;help role`")
             return
 
         langs = [lang.casefold() for lang in langs]
         if 'none' in langs or 'n' in langs:
             none = True
             if len(langs) > 1:
-                await hf.safe_send(ctx, "If you specify `none`, please don't specify other languages too. "
+                await utils.safe_send(ctx, "If you specify `none`, please don't specify other languages too. "
                                         "That's confusing!")
                 return
         else:
@@ -600,10 +601,10 @@ class ChannelMods(commands.Cog):
 
         for lang in langs:
             if lang not in langs_dict:
-                await hf.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;help r`")
+                await utils.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;help r`")
                 return
         if not user:
-            await hf.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
+            await utils.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
             return
 
         # right now, user=a member object, lansg=a list of strings the user typed o/e/s/other/english/spanish/etc
@@ -612,7 +613,7 @@ class ChannelMods(commands.Cog):
             if not lang:
                 role_index = lang_roles.index(lang)
                 deleted_str = langs[role_index]
-                await hf.safe_send(ctx, f"I could not find the role corresponding to your request for `{deleted_str}`")
+                await utils.safe_send(ctx, f"I could not find the role corresponding to your request for `{deleted_str}`")
                 return
         removed = []
         for role in all_roles:
@@ -624,21 +625,21 @@ class ChannelMods(commands.Cog):
             try:
                 await user.add_roles(*lang_roles)
             except discord.Forbidden:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    "I lack the ability to attach the roles. Please make sure I have the ability "
                                    "to manage roles, and that the role isn't above my highest user role.")
                 return
 
         if none and not removed:
-            await hf.safe_send(ctx, "There were no roles to remove!")
+            await utils.safe_send(ctx, "There were no roles to remove!")
         elif none and removed:
-            await hf.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
+            await utils.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
                                     f"{user.display_name}.")
         elif removed:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} instead of "
+            await utils.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} instead of "
                                     f"{', '.join([r.mention for r in removed])} to {user.display_name}.")
         else:
-            await hf.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} to {user.display_name}.")
+            await utils.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} to {user.display_name}.")
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -647,7 +648,7 @@ class ChannelMods(commands.Cog):
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member: discord.Member = await hf.member_converter(ctx, id_in)
+        member: discord.Member = await utils.member_converter(ctx, id_in)
         if member:
             user: Optional[Union[discord.User, discord.Member]] = member
             user_id = str(member.id)
@@ -658,10 +659,10 @@ class ChannelMods(commands.Cog):
             except discord.NotFound:
                 user = user_id = None
             except discord.HTTPException:
-                await hf.safe_send(ctx, "Your ID was not properly formatted. Try again.")
+                await utils.safe_send(ctx, "Your ID was not properly formatted. Try again.")
                 return
             except ValueError:
-                await hf.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
+                await utils.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
                                         "use an ID")
                 return
 
@@ -672,7 +673,7 @@ class ChannelMods(commands.Cog):
         #
 
         if not member and not user:  # Can't find user at all
-            emb = hf.red_embed("")
+            emb = utils.red_embed("")
             emb.set_author(name="COULD NOT FIND USER")
 
         else:
@@ -754,7 +755,7 @@ class ChannelMods(commands.Cog):
             #
             #
 
-            emb = hf.green_embed("")
+            emb = utils.green_embed("")
 
             if getattr(user, "nick", None):
                 name = f"{str(user)} ({user.nick})\n{user_id}"
@@ -922,7 +923,7 @@ class ChannelMods(commands.Cog):
             if user_id in config:  # Modlog entries
                 config = config[user_id]
             else:  # No entries
-                emb.color = hf.red_embed("").color
+                emb.color = utils.red_embed("").color
                 emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
                 config = []
         else:  # Non-existent user
@@ -984,17 +985,17 @@ class ChannelMods(commands.Cog):
         if post_embed:
             if first_embed:  # will only be True if there are two embeds to send
                 try:
-                    await hf.safe_send(ctx, user_id, embed=first_embed, delete_after=delete_parameter)
+                    await utils.safe_send(ctx, user_id, embed=first_embed, delete_after=delete_parameter)
                 except discord.Forbidden:
-                    await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+                    await utils.safe_send(ctx.author, "I lack some permission to send the result of this command")
                     return
 
             try:
                 # if there's a first embed, this will be the second embed
-                await hf.safe_send(ctx, user_id, embed=emb, delete_after=delete_parameter)
+                await utils.safe_send(ctx, user_id, embed=emb, delete_after=delete_parameter)
             except discord.Forbidden:
                 if not ctx.author.bot:
-                    await hf.safe_send(ctx.author, "I lack some permission to send the result of this command")
+                    await utils.safe_send(ctx.author, "I lack some permission to send the result of this command")
                     return
 
         if first_embed:
@@ -1008,7 +1009,7 @@ class ChannelMods(commands.Cog):
         """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
         if not indices:  # If no index is given:
-            await hf.safe_send(ctx, "Please write numeric indices equal to or greater than 1 or "
+            await utils.safe_send(ctx, "Please write numeric indices equal to or greater than 1 or "
                                     "`-all` to clear the user's modlog.")
             return
 
@@ -1018,13 +1019,13 @@ class ChannelMods(commands.Cog):
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
             return
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, user)
+        member = await utils.member_converter(ctx, user)
         if member:
             user_id = str(member.id)
         else:
             user_id = user
         if user_id not in config:
-            await hf.safe_send(ctx, "That user was not found in the modlog")
+            await utils.safe_send(ctx, "That user was not found in the modlog")
             return
 
         config: dict = config[user_id]
@@ -1032,16 +1033,16 @@ class ChannelMods(commands.Cog):
         # Performs the deletions:
         if '-a' in indices or '-all' in indices:  # If any of these flags is found in the list:
             del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
-            await hf.safe_send(ctx, embed=hf.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
+            await utils.safe_send(ctx, embed=utils.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
 
         elif len(indices) == 1:  # If there is a single argument given, then:
             try:
                 del config[int(indices[0]) - 1]  # delete it from modlog...
             except IndexError:  # except if the index given is not found in config...
-                await hf.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
+                await utils.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
                 return
             except ValueError:  # or if the index given is not an integer...
-                await hf.safe_send(ctx, "The given index is invalid.\n"
+                await utils.safe_send(ctx, "The given index is invalid.\n"
                                         "Please write numeric indices equal to or greater than 1 or "
                                         "`-all` to clear the user's modlog.")
                 return
@@ -1110,8 +1111,8 @@ class ChannelMods(commands.Cog):
                 if len(invalid_indices) > 10:
                     summary_text = summary_text[:-1] + f" and {len(invalid_indices) - 10} more..."
 
-            emb = hf.green_embed(summary_text)  # Make the embed with the summary text previously built.
-            await hf.safe_send(ctx, embed=emb)  # Send the embed.
+            emb = utils.green_embed(summary_text)  # Make the embed with the summary text previously built.
+            await utils.safe_send(ctx, embed=emb)  # Send the embed.
 
     @modlog.command(name="edit", aliases=['reason'])
     @hf.is_admin()
@@ -1123,23 +1124,23 @@ class ChannelMods(commands.Cog):
             if re.search(r"\d{17,22}", str(index)):
                 user, index = str(index), int(user)  # swap the variables
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
-        member = await hf.member_converter(ctx, user)
+        member = await utils.member_converter(ctx, user)
         if member:
             user_id = str(member.id)
         else:
             user_id = user
         if user_id not in config:
-            await hf.safe_send(ctx, "That user was not found in the modlog")
+            await utils.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
         try:
             old_reason = config[index - 1]['reason']
         except IndexError:
-            await hf.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
+            await utils.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
                                     f"and try again.")
             return
         config[index - 1]['reason'] = reason
-        await hf.safe_send(ctx, embed=hf.green_embed(f"Changed the reason for entry #{index} from "
+        await utils.safe_send(ctx, embed=utils.green_embed(f"Changed the reason for entry #{index} from "
                                                      f"```{old_reason}```to```{reason}```"))
 
     @commands.command()
@@ -1275,7 +1276,7 @@ class ChannelMods(commands.Cog):
 
             role, first = await make_mute_role(ctx, dest, voice_mute)
             if first:  # if the role was newly made
-                await hf.safe_send(dest, f"Doing first-time setup of mute module.  I have a `{role.name}` role, "
+                await utils.safe_send(dest, f"Doing first-time setup of mute module.  I have a `{role.name}` role, "
                                          "add I will add a permission override for it to every channel to prevent "
                                          "communication")
 
@@ -1290,10 +1291,10 @@ class ChannelMods(commands.Cog):
                         msg += f"\n{channel[0]}: {channel[1]}"
                     try:
                         if len(msg) <= 2000:
-                            await hf.safe_send(ctx.author, msg)
+                            await utils.safe_send(ctx.author, msg)
                         else:
-                            await hf.safe_send(ctx.author, msg[:2000])
-                            await hf.safe_send(ctx.author, msg[1980:])
+                            await utils.safe_send(ctx.author, msg[:2000])
+                            await utils.safe_send(ctx.author, msg[1980:])
                     except discord.HTTPException:
                         pass
 
@@ -1333,12 +1334,12 @@ class ChannelMods(commands.Cog):
             pass
 
         if role in target.roles:
-            await hf.safe_send(ctx, "This user is already muted (already has the mute role)")
+            await utils.safe_send(ctx, "This user is already muted (already has the mute role)")
             return {}
         try:
             await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
         except discord.Forbidden:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "I lack the ability to attach the mute role. Please make sure I have the ability "
                                "to manage roles, and that the mute role isn't above my highest user role.")
             return {}
@@ -1347,7 +1348,7 @@ class ChannelMods(commands.Cog):
             try:
                 await target.move_to(None, reason="Remove from voice due to Rai mute")
             except (discord.Forbidden, discord.HTTPException):
-                await hf.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
+                await utils.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
                                         "give Rai this permission, then it'll move the user to the AFK channel and "
                                         "back to force the mute into effect. Otherwise, Discord's implementation of "
                                         "the mute won't take effect until the next time the user connects to a "
@@ -1372,12 +1373,12 @@ class ChannelMods(commands.Cog):
         try:
             await target.timeout(time_obj, reason=reason)
         except discord.Forbidden:
-            await hf.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
+            await utils.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
                                     f"Please check my permissions "
                                     f"(I can't timeout people higher than me on the rolelist)")
             return {}
         except discord.HTTPException:
-            await hf.safe_send(ctx, f"There was some kind of HTTP error that prevented me from timing out {target.id}"
+            await utils.safe_send(ctx, f"There was some kind of HTTP error that prevented me from timing out {target.id}"
                                     " user. Please try again.")
             return {}
 
@@ -1408,7 +1409,7 @@ class ChannelMods(commands.Cog):
         target_ids = args.user_ids
 
         if not target_ids:
-            await hf.safe_send(ctx, "I couldn't understand your command properly. Please mention a user to mute, "
+            await utils.safe_send(ctx, "I couldn't understand your command properly. Please mention a user to mute, "
                                "and if you write a time, format it like `2d`, `3h`, `5d6h`, etc.")
             return
 
@@ -1427,14 +1428,14 @@ class ChannelMods(commands.Cog):
                 time_arg = '24h'
                 time_string, length = hf.parse_time(time_arg)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-                await hf.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
+                await utils.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
                                                "hours, so I set the duration of the mute to 24h.")
 
         silent = False
         if reason:
             if '-s' in reason or '-n' in reason:
                 if ctx.guild.id == JP_SERV:
-                    await hf.safe_send(ctx, "Maybe you meant to use Ciri?")
+                    await utils.safe_send(ctx, "Maybe you meant to use Ciri?")
                 reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
                 silent = True
 
@@ -1444,7 +1445,7 @@ class ChannelMods(commands.Cog):
             # Stop function if user not found
             if not target:
                 try:
-                    await hf.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
+                    await utils.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
                                             "or a mention to the user (this is to prevent mistaking people).")
                 except discord.HTTPException:  # Possible if Rai is sending a message to itself for automatic mutes
                     pass
@@ -1470,7 +1471,7 @@ class ChannelMods(commands.Cog):
                 description = f"You have been voice muted on {ctx.guild.name}"
             else:
                 description = f"You have been muted on {ctx.guild.name}"
-            emb = hf.red_embed("")
+            emb = utils.red_embed("")
             emb.title = description
             emb.color = discord.Color(int('ff8800', 16))  # embed
             if time_arg:
@@ -1488,7 +1489,7 @@ class ChannelMods(commands.Cog):
                     emb.add_field(name="Reason", value=reason[:1024])
                     emb.add_field(name="Reason (cont.)", value=reason[1024:])
                 else:
-                    await hf.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
+                    await utils.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
                                             "characters.")
                     return
 
@@ -1504,9 +1505,9 @@ class ChannelMods(commands.Cog):
 
             if not silent:
                 try:
-                    await hf.safe_send(target, content, embed=emb)
+                    await utils.safe_send(target, content, embed=emb)
                 except discord.Forbidden:
-                    await hf.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
+                    await utils.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
                                             "keep them muted but they won't receive the notification for it.")
                     pass
 
@@ -1525,7 +1526,7 @@ class ChannelMods(commands.Cog):
                 notif_text += f"\nReason: {reason}"
 
             # Make embed
-            emb = hf.red_embed('')
+            emb = utils.red_embed('')
             if voice_mute:
                 emb.title = "Voice Mute"
             else:
@@ -1572,7 +1573,7 @@ class ChannelMods(commands.Cog):
             else:
                 additonal_text = ""
             if ctx.author != self.bot.user and "Nitro" not in reason:
-                await hf.safe_send(ctx, additonal_text, embed=emb)
+                await utils.safe_send(ctx, additonal_text, embed=emb)
 
             # Add mute info to modlog
             if voice_mute:
@@ -1586,9 +1587,9 @@ class ChannelMods(commands.Cog):
             try:
                 if modlog_channel:
                     if modlog_channel != ctx.channel:
-                        await hf.safe_send(modlog_channel, target.id, embed=emb)
+                        await utils.safe_send(modlog_channel, target.id, embed=emb)
             except AttributeError:
-                await hf.safe_send(ctx, embed=emb)
+                await utils.safe_send(ctx, embed=emb)
 
     @commands.command()
     @hf.is_admin()
@@ -1601,17 +1602,17 @@ class ChannelMods(commands.Cog):
             guild = None
         if not guild:
             guild = ctx.guild
-            target: discord.Member = await hf.member_converter(ctx, target_in)
+            target: discord.Member = await utils.member_converter(ctx, target_in)
         else:
             guild = self.bot.get_guild(int(guild))
             target: discord.Member = guild.get_member(int(target_in))
         config = self.bot.db['mutes'].get(str(guild.id))
         if not config:
-            await hf.safe_send(ctx, "I could not find any information about mutes in your guild.")
+            await utils.safe_send(ctx, "I could not find any information about mutes in your guild.")
             return
         role = guild.get_role(config['role'])
         if not role:
-            await hf.safe_send(ctx, "I could not find the mute role. Maybe it has been deleted?")
+            await utils.safe_send(ctx, "I could not find the mute role. Maybe it has been deleted?")
             return
 
         voice_role = None
@@ -1647,12 +1648,12 @@ class ChannelMods(commands.Cog):
                 try:
                     await target.edit(timed_out_until=None)
                 except (discord.Forbidden, discord.HTTPException):
-                    await hf.safe_send(ctx, "I failed to remove the timeout from the user.")
+                    await utils.safe_send(ctx, "I failed to remove the timeout from the user.")
 
         if ctx.author != ctx.bot.user:
             emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
                                 color=discord.Color(int('00ffaa', 16)))
-            await hf.safe_send(ctx, embed=emb)
+            await utils.safe_send(ctx, embed=emb)
 
         if not failed:
             return True

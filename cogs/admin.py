@@ -11,6 +11,7 @@ import io
 from discord.ext import commands
 
 from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
 from .utils.helper_functions import format_interval
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -57,7 +58,7 @@ class Admin(commands.Cog):
         else:  # a user inputs all three necessary arguments
             for i_input in args.split('\n'):
                 if len(i_input.split()) < 3:
-                    await hf.safe_send(ctx, "One of your lines didn't have enough arguments. Please check "
+                    await utils.safe_send(ctx, "One of your lines didn't have enough arguments. Please check "
                                             "the help command.")
                     return
                 x = i_input.split()
@@ -89,7 +90,7 @@ class Admin(commands.Cog):
             try:
                 await i_message.add_reaction(*[i for i in msg_emoji_dict[i_message]])
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I lack permissions to add reactions. Please attach your emojis to the "
+                await utils.safe_send(ctx, "I lack permissions to add reactions. Please attach your emojis to the "
                                         "target message yourself.")
         try:
             await ctx.message.add_reaction('✅')
@@ -102,14 +103,14 @@ class Admin(commands.Cog):
         if msg_id:
             msg_id = msg_id[0]
         else:
-            await hf.safe_send(ctx, f"{text} is an invalid response. Please make sure to only respond with a message "
+            await utils.safe_send(ctx, f"{text} is an invalid response. Please make sure to only respond with a message "
                                     "ID that looks like 708540770323529758. Please start over.")
             return
 
         try:
             return await ctx.channel.fetch_message(msg_id)
         except discord.NotFound:
-            await hf.safe_send(ctx, f"I was not able to find the message you linked to with {text}. Make sure it is a"
+            await utils.safe_send(ctx, f"I was not able to find the message you linked to with {text}. Make sure it is a"
                                     " message in this channel. Please start over.")
             return
 
@@ -125,28 +126,28 @@ class Admin(commands.Cog):
             else:  # gives the name of the role in text
                 role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
                 if not role:
-                    await hf.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
+                    await utils.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
                     return
                 else:
                     return role
         if role_id:
             role = ctx.guild.get_role(role_id)
             if not role:
-                await hf.safe_send(ctx, f"I couldn't find the role of {text}. Please start over.")
+                await utils.safe_send(ctx, f"I couldn't find the role of {text}. Please start over.")
                 return
             return role
 
     async def reaction_roles_guide(self, ctx):  # returns 1) reaction_msg 2) emoji 3) role
         # ########### STEP 1: MSG_ID ################# # gives "reaction_msg"
-        emb = hf.green_embed("First, please paste the `message id` of the reaction roles message. It must be a "
+        emb = utils.green_embed("First, please paste the `message id` of the reaction roles message. It must be a "
                              "message in this channel. Example: `708540770323529758`")
         emb.title = "Reaction Roles - Step 1"
-        msg = await hf.safe_send(ctx, embed=emb)
+        msg = await utils.safe_send(ctx, embed=emb)
 
         try:
             resp = await self.bot.wait_for('message', check=lambda m: m.author.id == ctx.author.id, timeout=60.0)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            await utils.safe_send(ctx, "Message timed out. Please start over.")
             return
 
         try:
@@ -159,7 +160,7 @@ class Admin(commands.Cog):
             return
 
         # ############## STEP 2: EMOJI ###################  # gives "emoji"
-        emb = hf.green_embed("Next, please react to this message with the emoji you wish to associate with your "
+        emb = utils.green_embed("Next, please react to this message with the emoji you wish to associate with your "
                              "reaction role. It must be an emoji from a guild I have access to.")
         emb.title = "Reaction Roles - Step 2"
         await msg.edit(embed=emb)
@@ -169,19 +170,19 @@ class Admin(commands.Cog):
                                                   check=lambda r, u: u.id == ctx.author.id and r.message.id == msg.id,
                                                   timeout=60.0)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            await utils.safe_send(ctx, "Message timed out. Please start over.")
             return
         emoji = reaction.emoji
 
         # ############## STEP 3: ROLE NAME ################# # gives "role"
-        emb = hf.green_embed("Finally, please ping or write the ID or name of the role you wish to give.")
+        emb = utils.green_embed("Finally, please ping or write the ID or name of the role you wish to give.")
         emb.title = "Reaction Roles - Step 3"
         await msg.edit(embed=emb)
 
         try:
             resp = await self.bot.wait_for('message', check=lambda m: m.author.id == ctx.author.id, timeout=60.0)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Message timed out. Please start over.")
+            await utils.safe_send(ctx, "Message timed out. Please start over.")
             return
 
         try:
@@ -194,7 +195,7 @@ class Admin(commands.Cog):
             return
 
         # ############## FINISHED #######################
-        emb = hf.green_embed("Finished! You can now delete all messages except for the message you selected as your "
+        emb = utils.green_embed("Finished! You can now delete all messages except for the message you selected as your "
                              "reaction roles message.\n\nIn the future, you can speed up this process by using this "
                              f"command in the pattern of `;rr <reaction_msg_id> <emoji> <role_id_mention_or_name>`.\n\n"
                              f"For you, that would've been: `;rr {reaction_msg.id} {str(emoji)} {role.id}`. You can "
@@ -212,19 +213,19 @@ class Admin(commands.Cog):
 
         # ######## emoji #############
         if len(emoji) == 1:
-            if hf.generous_is_emoji(emoji):
+            if utils.generous_is_emoji(emoji):
                 pass
             else:
-                await hf.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
+                await utils.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
                 return
         else:
             emoji_id = re.findall(r'^<:\w+:(\d{17,22})>$', emoji)
             if not emoji_id:
-                await hf.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
+                await utils.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
                 return
             emoji = self.bot.get_emoji(int(emoji_id[0]))
             if not emoji:
-                await hf.safe_send(ctx, f"I couldn't find the emoji {emoji} in any of my servers. Please start over.")
+                await utils.safe_send(ctx, f"I couldn't find the emoji {emoji} in any of my servers. Please start over.")
                 return
         # ######## role ###########
         role = await self.get_role(ctx, role)
@@ -239,15 +240,15 @@ class Admin(commands.Cog):
         config = self.bot.db['voicemod']
         if str(ctx.guild.id) not in config:
             return
-        user = await hf.member_converter(ctx, user)
+        user = await utils.member_converter(ctx, user)
         config2 = config[str(ctx.guild.id)]
         if not user:
             return
         if user.id in config2:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"{user.mention} is already a voice mod."))
+            await utils.safe_send(ctx, embed=utils.red_embed(f"{user.mention} is already a voice mod."))
             return
         config2.append(user.id)
-        await hf.safe_send(ctx, embed=hf.green_embed(f"{user.mention} is now a voice mod."))
+        await utils.safe_send(ctx, embed=utils.green_embed(f"{user.mention} is now a voice mod."))
 
     @voicemod.command(name="list")
     async def voicemod_list(self, ctx):
@@ -258,7 +259,7 @@ class Admin(commands.Cog):
         mod_ids = config[str(ctx.guild.id)]
         mods = []
         for mod_id in mod_ids:
-            mod = await hf.member_converter(ctx, mod_id)
+            mod = await utils.member_converter(ctx, mod_id)
             if mod:
                 mods.append(f"{mod.mention} ({mod.name})")
             else:
@@ -266,10 +267,10 @@ class Admin(commands.Cog):
                     user = await self.bot.fetch_user(mod_id)
                 except discord.NotFound:
                     continue
-                await hf.safe_send(ctx, f"Could not find {user.name} ({mod_id}), so I'm removing them from the list.")
+                await utils.safe_send(ctx, f"Could not find {user.name} ({mod_id}), so I'm removing them from the list.")
                 config[str(ctx.guild.id)].remove(mod_id)
         list_of_mods = '\n'.join(mods)
-        await hf.safe_send(ctx, embed=hf.green_embed(f"__List of voice mods__\n{list_of_mods}"))
+        await utils.safe_send(ctx, embed=utils.green_embed(f"__List of voice mods__\n{list_of_mods}"))
 
     @voicemod.command(name="remove")
     async def voicemod_remove(self, ctx, *, user):
@@ -277,15 +278,15 @@ class Admin(commands.Cog):
         config = self.bot.db['voicemod']
         if str(ctx.guild.id) not in config:
             return
-        user = await hf.member_converter(ctx, user)
+        user = await utils.member_converter(ctx, user)
         config2 = config[str(ctx.guild.id)]
         if not user:
             return
         if user.id not in config2:
-            await hf.safe_send(ctx, embed=hf.red_embed(f"{user.mention} is not a voice mod."))
+            await utils.safe_send(ctx, embed=utils.red_embed(f"{user.mention} is not a voice mod."))
             return
         config2.remove(user.id)
-        await hf.safe_send(ctx, embed=hf.green_embed(f"{user.mention} is no longer a voice mod."))
+        await utils.safe_send(ctx, embed=utils.green_embed(f"{user.mention} is no longer a voice mod."))
 
     @commands.command(aliases=['mutes', 'incidents', 'ai'])
     @commands.bot_has_permissions(embed_links=True)
@@ -314,7 +315,7 @@ class Admin(commands.Cog):
 
         embed_text = "__Current Mutes__\n"
         for mute in mutes:
-            member = await hf.member_converter(ctx, mute['id'])
+            member = await utils.member_converter(ctx, mute['id'])
             if member:
                 member_text = f"{member.mention} ({member.id})"
             else:
@@ -329,7 +330,7 @@ class Admin(commands.Cog):
             embed_text += f"• {member_text}\n" \
                           f"Until {mute['until']} (in {interval_str})\n" \
                           f"{mute['reason']} (by {author.name})\n"
-        await hf.safe_send(ctx, embed=hf.green_embed(embed_text))
+        await utils.safe_send(ctx, embed=utils.green_embed(embed_text))
 
     @commands.command(aliases=['baibairai'])
     async def modsonly(self, ctx):
@@ -368,9 +369,9 @@ class Admin(commands.Cog):
         else:
             config = self.bot.db['bans'][str(ctx.guild.id)] = {'enable': False, 'channel': None, 'crosspost': True}
         if config['crosspost']:
-            await hf.safe_send(ctx, "Rai will now crosspost ban logs")
+            await utils.safe_send(ctx, "Rai will now crosspost ban logs")
         else:
-            await hf.safe_send(ctx, "Rai won't crosspost ban logs anymore")
+            await utils.safe_send(ctx, "Rai won't crosspost ban logs anymore")
 
     @commands.command(hidden=True)
     async def echo(self, ctx, *, content: str):
@@ -379,7 +380,7 @@ class Admin(commands.Cog):
             await ctx.message.delete()
         except (discord.NotFound, discord.Forbidden):
             pass
-        await hf.safe_send(ctx, content)
+        await utils.safe_send(ctx, content)
 
     @commands.command(hidden=True)
     async def post_rules(self, ctx):
@@ -412,7 +413,7 @@ class Admin(commands.Cog):
             except discord.NotFound:
                 pass
             except discord.Forbidden:
-                await hf.safe_send(ctx, "I was unable to delete the old messages!")
+                await utils.safe_send(ctx, "I was unable to delete the old messages!")
                 return
         try:
             async with aiohttp.ClientSession() as session:
@@ -420,10 +421,10 @@ class Admin(commands.Cog):
                     response = resp
                     rules = await resp.text(encoding='utf-8-sig')
         except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({download_link})')
+            await utils.safe_send(ctx, f'invalid_url:  Your URL was invalid ({download_link})')
             return
         if response.status != 200:
-            await hf.safe_send(ctx, f'html_error: Error {resp.status}: {resp.reason} ({download_link})')
+            await utils.safe_send(ctx, f'html_error: Error {resp.status}: {resp.reason} ({download_link})')
             return
         rules = rules.replace('__', '').replace('{und}',
                                                 '__')  # google uses '__' page breaks so this gets around that
@@ -438,10 +439,10 @@ class Admin(commands.Cog):
                         async with session.get(url) as resp:
                             buffer = io.BytesIO(await resp.read())
                 except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-                    await hf.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
+                    await utils.safe_send(ctx, f'invalid_url:  Your URL was invalid ({url})')
                     return
                 if response.status != 200:
-                    await hf.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
+                    await utils.safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
                     return
                 msg = await ctx.send(file=discord.File(buffer, filename="image.png"))
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!lang'):
@@ -457,12 +458,12 @@ class Admin(commands.Cog):
                     replace('{fluentspanish}', str(fluentspanish)). \
                     replace('{fluentenglish}', str(fluentenglish)). \
                     replace('{mods}', str(mods))
-                msg = await hf.safe_send(ctx, post[7:])
+                msg = await utils.safe_send(ctx, post[7:])
             elif page[:30].replace('\r', '').replace('\n', '').startswith('!roles'):
                 if channel == 0:  # chinese
                     emoji = self.bot.get_emoji(358529029579603969)  # blobflags
                     post = page[8:].replace('{emoji}', str(emoji))
-                    msg = await hf.safe_send(ctx, post)
+                    msg = await utils.safe_send(ctx, post)
                     self.bot.db['roles'][str(ctx.guild.id)]['message'] = msg.id
                     await msg.add_reaction("🔥")  # hardcore
                     await msg.add_reaction("📝")  # correct me
@@ -473,7 +474,7 @@ class Admin(commands.Cog):
                 elif channel == 1 or channel == 2:  # english/spanish
                     emoji = self.bot.get_emoji(513211476790738954)
                     post = page.replace('{table}', str(emoji))
-                    msg = await hf.safe_send(ctx, post[8:])
+                    msg = await utils.safe_send(ctx, post[8:])
                     await msg.add_reaction("🎨")
                     await msg.add_reaction("🐱")
                     await msg.add_reaction("🐶")
@@ -494,16 +495,16 @@ class Admin(commands.Cog):
                     elif channel == 2:
                         self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
                 else:
-                    await hf.safe_send(ctx, "Something went wrong")
+                    await utils.safe_send(ctx, "Something went wrong")
                     return
             else:
                 try:
-                    msg = await hf.safe_send(ctx, page)
+                    msg = await utils.safe_send(ctx, page)
                 except Exception as e:
                     await ctx.send(e)
                     raise
             if not msg:
-                await hf.safe_send(ctx, "⠀\n⠀\n⠀\nThere was an error with one of your posts in the Google Doc.  Maybe "
+                await utils.safe_send(ctx, "⠀\n⠀\n⠀\nThere was an error with one of your posts in the Google Doc.  Maybe "
                                         "check your usage of `########`.  Eight hashes means a new message.")
                 return
 
@@ -570,12 +571,12 @@ class Admin(commands.Cog):
 ⠀"""
             for i in jump_links:
                 x = x.replace(f"x{i}x", jump_links[i])
-            await ctx.send(embed=hf.green_embed(x))
+            await ctx.send(embed=utils.green_embed(x))
 
     @commands.group(invoke_without_command=True)
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
-        await hf.safe_send(ctx,
+        await utils.safe_send(ctx,
                            'This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
                            '\n1) First, do `;captcha toggle` to setup the module'
                            '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
@@ -592,13 +593,13 @@ class Admin(commands.Cog):
             guild_config = self.bot.db['captcha'][guild]
             if guild_config['enable']:
                 guild_config['enable'] = False
-                await hf.safe_send(ctx, 'Captcha module disabled')
+                await utils.safe_send(ctx, 'Captcha module disabled')
             else:
                 guild_config['enable'] = True
-                await hf.safe_send(ctx, 'Captcha module enabled')
+                await utils.safe_send(ctx, 'Captcha module enabled')
         else:
             self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
-            await hf.safe_send(ctx, 'Captcha module setup and enabled.')
+            await utils.safe_send(ctx, 'Captcha module setup and enabled.')
 
     @captcha.command(name="set_channel")
     async def captcha_set_channel(self, ctx):
@@ -608,13 +609,13 @@ class Admin(commands.Cog):
             await self.toggle(ctx)
         guild_config = self.bot.db['captcha'][guild]
         guild_config['channel'] = ctx.channel.id
-        await hf.safe_send(ctx, f'Captcha channel set to {ctx.channel.name}')
+        await utils.safe_send(ctx, f'Captcha channel set to {ctx.channel.name}')
 
     @captcha.command(name="set_role")
     async def captcha_set_role(self, ctx, *, role_input: str = None):
         """Sets the role that will be given when captcha is completed. Usage: `;captcha set_role <role_name>`"""
         if not role_input:
-            instr_msg = await hf.safe_send(ctx, "Please input the exact name of the role new users will receive")
+            instr_msg = await utils.safe_send(ctx, "Please input the exact name of the role new users will receive")
             try:
                 reply_msg = await self.bot.wait_for('message',
                                                     timeout=20.0,
@@ -622,7 +623,7 @@ class Admin(commands.Cog):
                 await instr_msg.delete()
                 await reply_msg.delete()
             except asyncio.TimeoutError:
-                await hf.safe_send(ctx, "Module timed out")
+                await utils.safe_send(ctx, "Module timed out")
                 await instr_msg.delete()
                 return
             except discord.Forbidden:
@@ -633,11 +634,11 @@ class Admin(commands.Cog):
         guild_config = self.bot.db['captcha'][guild]
         role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
         if not role:
-            await hf.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
+            await utils.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
                                     '`;captcha set_role New User`')
         else:
             guild_config['role'] = role.id
-            await hf.safe_send(ctx, f'Set role to {role.name} ({role.id})')
+            await utils.safe_send(ctx, f'Set role to {role.name} ({role.id})')
 
     @captcha.command(name="post_message")
     async def captcha_post_message(self, ctx):
@@ -646,7 +647,7 @@ class Admin(commands.Cog):
         if guild in self.bot.db['captcha']:
             guild_config = self.bot.db['captcha'][guild]
             if guild_config['enable']:
-                msg = await hf.safe_send(ctx, 'Please react with the checkmark to enter the server')
+                msg = await utils.safe_send(ctx, 'Please react with the checkmark to enter the server')
                 guild_config['message'] = msg.id
                 await msg.add_reaction('✅')
 
@@ -658,7 +659,7 @@ class Admin(commands.Cog):
         target_id = int(re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
         time = hf.parse_time(time_in)[1]  # gives list of integers: [days, hours, minutes]
         if not time:
-            await hf.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")
+            await utils.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")
             return
         time = timedelta(days=time[0], hours=time[1], minutes=time[2])
 
@@ -698,12 +699,12 @@ class Admin(commands.Cog):
         deleted_message_logging_channel_id = self.bot.db['deletes'].get(str(ctx.guild.id), {}).get('channel', 0)
         deleted_message_logging_channel = ctx.guild.get_channel_or_thread(deleted_message_logging_channel_id)
         if deleted_message_logging_channel:
-            await hf.safe_send(ctx, f"Deleted all messages from {target_in}.")
+            await utils.safe_send(ctx, f"Deleted all messages from {target_in}.")
         else:
             deleted_messages_text = hf.message_list_to_text(deleted_messages)
             deleted_messages_file = hf.text_to_file(deleted_messages_text, f"deleted_messages_M{target_id}.txt")
 
-            await hf.safe_send(ctx, "Deleted messages attached in below file", file=deleted_messages_file)
+            await utils.safe_send(ctx, "Deleted messages attached in below file", file=deleted_messages_file)
 
     @commands.command(aliases=['purge', 'prune'])
     @commands.bot_has_permissions(manage_messages=True)
@@ -712,28 +713,28 @@ class Admin(commands.Cog):
         Usage: `;clear <num_of_messages> [user] [after_message_id]`.
         See [the docs](https://github.com/ryry013/Rai#clearprune-messages) for a full explanation on how to use this."""
         if not num:
-            await hf.safe_send(ctx, "Please input a number")
+            await utils.safe_send(ctx, "Please input a number")
             return
         if 17 <= len(num) <= 20:  # message ID
             try:
                 _ = await ctx.channel.fetch_message(int(num))
             except (ValueError, discord.NotFound):
-                await hf.safe_send(ctx, "Looks like you tried to input a message ID, but I couldn't find that message")
+                await utils.safe_send(ctx, "Looks like you tried to input a message ID, but I couldn't find that message")
                 return
             args = ('0', int(num))
             num = 100
         try:
             int(num)
         except ValueError:
-            await hf.safe_send(ctx, "You need to put a number of messages. "
+            await utils.safe_send(ctx, "You need to put a number of messages. "
                                     "Type `;help clear` for information on syntax.")
             return
         if 1000 < int(num):
-            await hf.safe_send(ctx, "I can't erase a server for you! Capping the number of messages down "
+            await utils.safe_send(ctx, "I can't erase a server for you! Capping the number of messages down "
                                     "to 1000.", delete_after=5)
             num = 1000
         if 100 < int(num):
-            msg = await hf.safe_send(ctx, f"You're trying to delete the last {num} messages. "
+            msg = await utils.safe_send(ctx, f"You're trying to delete the last {num} messages. "
                                           f"Please type `y` to confirm this.")
             try:
                 await self.bot.wait_for('message', timeout=10,
@@ -749,16 +750,16 @@ class Admin(commands.Cog):
             if args[0] == '0':
                 user = None
             else:
-                user = await hf.member_converter(ctx, args[0])
+                user = await utils.member_converter(ctx, args[0])
                 if not user:
                     user = await self.bot.fetch_user(args[0])
                     if not user:
-                        await hf.safe_send(ctx, f"I could not find the user you tried to specify ({args[0]}).")
+                        await utils.safe_send(ctx, f"I could not find the user you tried to specify ({args[0]}).")
                         return
             try:
                 msg = await ctx.channel.fetch_message(args[1])
             except discord.NotFound:  # invalid message ID given
-                await hf.safe_send(ctx, 'Message not found')
+                await utils.safe_send(ctx, 'Message not found')
                 return
             except IndexError:  # no message ID given
                 msg = None
@@ -787,7 +788,7 @@ class Admin(commands.Cog):
         except TypeError:
             pass
         except ValueError:
-            await hf.safe_send(ctx, 'You must put a number after the command, like `;await clear 5`')
+            await utils.safe_send(ctx, 'You must put a number after the command, like `;await clear 5`')
             return
 
     @commands.command()
@@ -796,12 +797,12 @@ class Admin(commands.Cog):
         """Auto bans for amazingsexdating/users who join with invite link names/other spam sites"""
         config = hf.database_toggle(ctx.guild, self.bot.db['auto_bans'])
         if config['enable']:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                'Enabled the auto bans module.  I will now automatically ban all users who join with '
                                'a discord invite link username or who join and immediately send an '
                                'amazingsexdating link')
         else:
-            await hf.safe_send(ctx, 'Disabled the auto bans module.  I will no longer auto ban users who join with a '
+            await utils.safe_send(ctx, 'Disabled the auto bans module.  I will no longer auto ban users who join with a '
                                     'discord invite link username or who spam a link to amazingsexdating.')
 
     @commands.command()
@@ -811,7 +812,7 @@ class Admin(commands.Cog):
             self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
         else:
             self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
-        await hf.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
+        await utils.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
 
     @commands.command()
     async def set_mod_role(self, ctx, *, role_name):
@@ -822,14 +823,14 @@ class Admin(commands.Cog):
             del (config['enable'])
         if role_name.casefold() == "none":
             del self.bot.db['mod_role'][str(ctx.guild.id)]
-            await hf.safe_send(ctx, "Removed mod role setting for this server")
+            await utils.safe_send(ctx, "Removed mod role setting for this server")
             return
         mod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
         if not mod_role:
-            await hf.safe_send(ctx, "The role with that name was not found")
+            await utils.safe_send(ctx, "The role with that name was not found")
             return None
         config['id'] = mod_role.id
-        await hf.safe_send(ctx, f"Set the mod role to {mod_role.name} ({mod_role.id})")
+        await utils.safe_send(ctx, f"Set the mod role to {mod_role.name} ({mod_role.id})")
 
     @commands.command(aliases=['setmodchannel'])
     async def set_mod_channel(self, ctx, channel_id=None):
@@ -837,7 +838,7 @@ class Admin(commands.Cog):
         if not channel_id:
             channel_id = ctx.channel.id
         self.bot.db['mod_channel'][str(ctx.guild.id)] = channel_id
-        await hf.safe_send(ctx, f"Set the mod channel for this server as {ctx.channel.mention}.")
+        await utils.safe_send(ctx, f"Set the mod channel for this server as {ctx.channel.mention}.")
 
     @commands.command()
     async def readd_roles(self, ctx):
@@ -859,12 +860,12 @@ class Admin(commands.Cog):
             config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {'enable': True, 'users': {}, 'roles': {}}
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
-                await hf.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
+                await utils.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
                 config['readd_roles']['enable'] = False
                 return
-            await hf.safe_send(ctx, "I will readd roles to people who have previously left the server")
+            await utils.safe_send(ctx, "I will readd roles to people who have previously left the server")
         else:
-            await hf.safe_send(ctx, "I will NOT readd roles to people who have previously left the server")
+            await utils.safe_send(ctx, "I will NOT readd roles to people who have previously left the server")
         if 'users' not in config:
             config['users'] = {}
 
@@ -879,10 +880,10 @@ class Admin(commands.Cog):
             config['enable'] = False
         if not config['enable']:
             config['enable'] = True
-            await hf.safe_send(ctx, "I've enabled the watching of new users.")
+            await utils.safe_send(ctx, "I've enabled the watching of new users.")
         else:
             config['enable'] = False
-            await hf.safe_send(ctx, "Ive disabled the watching of new users.")
+            await utils.safe_send(ctx, "Ive disabled the watching of new users.")
 
     @commands.group(invoke_without_command=True, aliases=['superwatch', 'sw'])
     async def super_watch(self, ctx):
@@ -890,7 +891,7 @@ class Admin(commands.Cog):
         config = self.bot.db['super_watch'].setdefault(str(ctx.guild.id),
                                                        {"users": {}, "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
-        await hf.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
+        await utils.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
                                 f"({ctx.channel.id}).  \n\n"
                                 f"Type `;sw add <ID>` to add someone to the list, or `;sw remove <ID>` to remove them. "
                                 f"You can change the channel that super_watch sends posts to by typing `;sw set`.")
@@ -901,20 +902,20 @@ class Admin(commands.Cog):
         if str(ctx.guild.id) not in self.bot.db['super_watch']:
             await ctx.invoke(self.super_watch)
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        target = await hf.member_converter(ctx, target)
+        target = await utils.member_converter(ctx, target)
         if not target:  # invalid user given
             return
         if target.id not in config:
             config[str(target.id)] = ctx.message.jump_url
-            await hf.safe_send(ctx, f"Added {target.name} to super_watch list")
+            await utils.safe_send(ctx, f"Added {target.name} to super_watch list")
         else:
-            await hf.safe_send(ctx, f"{target.name} is already on the super_watch list")
+            await utils.safe_send(ctx, f"{target.name} is already on the super_watch list")
 
     @super_watch.command(name="remove")
     async def superwatch_remove(self, ctx, *, target):
         """Removes a user from the superwatch list."""
         config = self.bot.db['super_watch'][str(ctx.guild.id)]['users']
-        target_obj = await hf.member_converter(ctx, target)
+        target_obj = await utils.member_converter(ctx, target)
         if not target_obj:
             try:
                 target_id = int(target)
@@ -924,9 +925,9 @@ class Admin(commands.Cog):
             target_id = target_obj.id
         try:
             del (config[str(target_id)])
-            await hf.safe_send(ctx, f"Removed <@{target_id}> from super_watch list")
+            await utils.safe_send(ctx, f"Removed <@{target_id}> from super_watch list")
         except KeyError:
-            await hf.safe_send(ctx, "That user wasn't on the super_watch list")
+            await utils.safe_send(ctx, "That user wasn't on the super_watch list")
 
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
@@ -934,21 +935,21 @@ class Admin(commands.Cog):
         config: list = self.bot.db['super_watch'].get(str(ctx.guild.id), {'users': []})['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
-            await hf.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
+            await utils.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
         else:
-            await hf.safe_send(ctx, "There's currently no one on the super_watch list")
+            await utils.safe_send(ctx, "There's currently no one on the super_watch list")
 
     @commands.group(invoke_without_command=True, aliases=['svw', 'supervoicewatch', 'voicewatch', 'vw'])
     async def super_voicewatch(self, ctx):
         """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                                "channel you want to designate.")
             return
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
-        await hf.safe_send(ctx, f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
+        await utils.safe_send(ctx, f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
                                 "**About svw:** Puts a message in the mod channel every time someone on the super "
                                 "watchlist joins a voice channel.  Use `;super_voicewatch add USER` or "
                                 "`'super_voicewatch remove USER` to manipulate the list.  Type `;super_voicewatch "
@@ -958,19 +959,19 @@ class Admin(commands.Cog):
     async def voicewatch_add(self, ctx, member: discord.Member):
         """Add a member to super voice watch"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
                                "channel you want to designate.")
             return
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
         config['users'].append(member.id)
-        await hf.safe_send(ctx, f"Added `{member.name} ({member.id})` to the super voice watchlist.")
+        await utils.safe_send(ctx, f"Added `{member.name} ({member.id})` to the super voice watchlist.")
 
     @super_voicewatch.command(name="remove")
     async def voicewatch_remove(self, ctx, member):
         """Remove a user from super voice watch"""
         config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
-        target_obj = await hf.member_converter(ctx, member)
+        target_obj = await utils.member_converter(ctx, member)
         if not target_obj:
             try:
                 member_id = int(member)
@@ -983,9 +984,9 @@ class Admin(commands.Cog):
         try:
             config['users'].remove(member_id)
         except ValueError:
-            await hf.safe_send(ctx, "That user was not in the watchlist.")
+            await utils.safe_send(ctx, "That user was not in the watchlist.")
             return
-        await hf.safe_send(ctx, msg)
+        await utils.safe_send(ctx, msg)
 
     @super_voicewatch.command(name="list")
     async def super_voicewatch_list(self, ctx):
@@ -994,10 +995,10 @@ class Admin(commands.Cog):
         try:
             config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
         except KeyError:
-            await hf.safe_send(ctx, "Voice watchlist not set-up yet on this server.  Run `;super_voicewatch`")
+            await utils.safe_send(ctx, "Voice watchlist not set-up yet on this server.  Run `;super_voicewatch`")
             return
         if not config['users']:
-            await hf.safe_send(ctx, "The voice watchlist is empty")
+            await utils.safe_send(ctx, "The voice watchlist is empty")
             return
         for ID in config['users']:
             member = ctx.guild.get_member(ID)
@@ -1006,17 +1007,17 @@ class Admin(commands.Cog):
             else:
                 string += f"{ID}\n"
         try:
-            await hf.safe_send(ctx, string)
+            await utils.safe_send(ctx, string)
         except discord.HTTPException:
-            await hf.safe_send(ctx, string[0:2000])
-            await hf.safe_send(ctx, string[2000:])
+            await utils.safe_send(ctx, string[0:2000])
+            await utils.safe_send(ctx, string[2000:])
 
     @commands.command(hidden=True)
     @commands.guild_only()
     async def timed_voice_role(self, ctx):
         """A command for setting up a role to be added when a user is in voice for a certain amount of time"""
         # #############  how long do they need to stay in a channel #################################
-        q = await hf.safe_send(ctx, "Welcome to the setup module. This will give a role to a user if they've been "
+        q = await utils.safe_send(ctx, "Welcome to the setup module. This will give a role to a user if they've been "
                                     "in voice for sufficiently long. \n\n**First question: how long should they stay "
                                     "in voice to receive a role? (Please give a number of minutes).**\n\n"
                                     "Alternatively, type `cancel` at any time in this process to leave the module, or "
@@ -1028,17 +1029,17 @@ class Admin(commands.Cog):
             wait_time = int(msg.content)
             try:
                 if msg.content.casefold() == 'cancel':
-                    await hf.safe_send(ctx, "Exiting module")
+                    await utils.safe_send(ctx, "Exiting module")
                     return
                 if msg.content.casefold() == 'disable':
                     if str(ctx.guild.id) in self.bot.db['timed_voice_role']:
                         del self.bot.db['timed_voice_role'][str(ctx.guild.id)]
-                    await hf.safe_send(ctx, "The module has been disabled.")
+                    await utils.safe_send(ctx, "The module has been disabled.")
                     return
 
                 await msg.delete()
             except ValueError:
-                await hf.safe_send(ctx, "I failed to detect your time. Please start the command over and input a "
+                await utils.safe_send(ctx, "I failed to detect your time. Please start the command over and input a "
                                         "single number.")
                 return
             except discord.Forbidden:
@@ -1048,14 +1049,14 @@ class Admin(commands.Cog):
 
             # ####### should the role be removed when they leave #############################
 
-            q = await hf.safe_send(ctx, "Thanks. Next, should the role be removed when the user leaves voice chat? "
+            q = await utils.safe_send(ctx, "Thanks. Next, should the role be removed when the user leaves voice chat? "
                                         "Type `yes` or `no`.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
             try:
                 if msg.content.casefold() == 'cancel':
-                    await hf.safe_send(ctx, "Exiting module")
+                    await utils.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
                 if choice not in ['yes', 'no']:
@@ -1066,21 +1067,21 @@ class Admin(commands.Cog):
                     remove_when_leave = False
                 await msg.delete()
             except ValueError:
-                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
                                         "either exactly `yes` or `no`.")
                 return
             await q.delete()
 
             # ####### should the timer be reset for going into the afk channel #############################
 
-            q = await hf.safe_send(ctx, "Thanks. Next, should the role be removed if the user goes to the AFK channel? "
+            q = await utils.safe_send(ctx, "Thanks. Next, should the role be removed if the user goes to the AFK channel? "
                                         "Type `yes` or `no`.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
             try:
                 if msg.content.casefold() == 'cancel':
-                    await hf.safe_send(ctx, "Exiting module")
+                    await utils.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
                 if choice not in ['yes', 'no']:
@@ -1091,45 +1092,45 @@ class Admin(commands.Cog):
                     remove_when_afk = False
                 await msg.delete()
             except ValueError:
-                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
                                         "either exactly `yes` or `no`.")
                 return
             await q.delete()
 
             # ####### specify the role #############################
 
-            q = await hf.safe_send(ctx, "Thanks. Next, please specify the role that you want me to assign to "
+            q = await utils.safe_send(ctx, "Thanks. Next, please specify the role that you want me to assign to "
                                         "the users. Type the exact name of the role.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
             try:
                 if msg.content.casefold() == 'cancel':
-                    await hf.safe_send(ctx, "Exiting module")
+                    await utils.safe_send(ctx, "Exiting module")
                     return
                 choice = msg.content.casefold()
                 role: Optional[discord.Role] = discord.utils.find(lambda r: r.name.casefold() == choice,
                                                                   ctx.guild.roles)
                 if not role:
-                    await hf.safe_send(ctx, "I was not able to find that role. Please start the process over.")
+                    await utils.safe_send(ctx, "I was not able to find that role. Please start the process over.")
                     return
                 await msg.delete()
             except ValueError:
-                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
                                         "exactly the name of the role..")
                 return
             await q.delete()
 
             # ####### specify the channel #############################
 
-            q = await hf.safe_send(ctx, "Thanks. Finally, please specify the channel that you wish I watch. Type the "
+            q = await utils.safe_send(ctx, "Thanks. Finally, please specify the channel that you wish I watch. Type the "
                                         "name of the voice channel. Alternatively, type `none` to watch all channels.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
             try:
                 if msg.content.casefold() == 'cancel':
-                    await hf.safe_send(ctx, "Exiting module")
+                    await utils.safe_send(ctx, "Exiting module")
                     return
                 if msg.content.casefold() == 'none':
                     channel_id = None
@@ -1138,18 +1139,18 @@ class Admin(commands.Cog):
                     channel: Optional[discord.Role] = discord.utils.find(lambda c: c.name.casefold() == choice,
                                                                          ctx.guild.voice_channels)
                     if not channel:
-                        await hf.safe_send(ctx, "I was not able to find that channel. Please start the process over.")
+                        await utils.safe_send(ctx, "I was not able to find that channel. Please start the process over.")
                         return
                     channel_id = channel.id
                 await msg.delete()
             except ValueError:
-                await hf.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
+                await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
                                         "exactly the name of the channel.")
                 return
             await q.delete()
 
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, timeout_message)
+            await utils.safe_send(ctx, timeout_message)
             return
 
         self.bot.db['timed_voice_role'][str(ctx.guild.id)] = {'wait_time': wait_time,
@@ -1157,7 +1158,7 @@ class Admin(commands.Cog):
                                                               'remove_when_afk': remove_when_afk,
                                                               'channel': channel_id,
                                                               'role': role.id}
-        await hf.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
+        await utils.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
                                 f"You can run this command again at any time to change the settings or disable it.")
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
@@ -1165,12 +1166,12 @@ class Admin(commands.Cog):
         """Sets a custom prefix for the bot"""
         if prefix:
             self.bot.db['prefix'][str(ctx.guild.id)] = prefix
-            await hf.safe_send(ctx,
+            await utils.safe_send(ctx,
                                f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset`"
                                f" to reset it back to the default prefix of `;`")
         else:
             prefix = self.bot.db['prefix'].get(str(ctx.guild.id), ';')
-            await hf.safe_send(ctx, f"This is the command to set a custom prefix for the bot.  The current prefix is "
+            await utils.safe_send(ctx, f"This is the command to set a custom prefix for the bot.  The current prefix is "
                                     f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
                                     f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the "
                                     f"default prefix.")
@@ -1180,9 +1181,9 @@ class Admin(commands.Cog):
         try:
             prefix = self.bot.db['prefix']
             del prefix[str(ctx.guild.id)]
-            await hf.safe_send(ctx, "The command prefix for this guild has successfully been reset to `;`")
+            await utils.safe_send(ctx, "The command prefix for this guild has successfully been reset to `;`")
         except KeyError:
-            await hf.safe_send(ctx, "This guild already uses the default command prefix.")
+            await utils.safe_send(ctx, "This guild already uses the default command prefix.")
 
     @staticmethod
     def make_options_embed(list_in):  # makes the options menu
@@ -1204,13 +1205,13 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-        menu = await hf.safe_send(ctx, embed=emb_in)
+        menu = await utils.safe_send(ctx, embed=emb_in)
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=60.0,
                                           check=lambda x: x.content.casefold() in choices_in and x.author == ctx.author)
         except asyncio.TimeoutError:
-            await hf.safe_send(ctx, "Menu timed out")
+            await utils.safe_send(ctx, "Menu timed out")
             try:
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
@@ -1249,14 +1250,14 @@ class Admin(commands.Cog):
             try:
                 choice, menu = await self.wait_menu(ctx, menu, emb, choices)
             except discord.Forbidden:
-                await hf.safe_send(ctx,
+                await utils.safe_send(ctx,
                                    "I lack the ability to manage messages, which I require for the options module")
                 return
             if choice == 'time_out':
                 return
             elif choice == 'x':
                 await menu.delete()
-                await hf.safe_send(ctx, "Closing options menu")
+                await utils.safe_send(ctx, "Closing options menu")
                 return
 
             #           main > set mod role
@@ -1284,11 +1285,11 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
-                        instr_msg = await hf.safe_send(ctx,
+                        instr_msg = await utils.safe_send(ctx,
                                                        "Please input the exact name of the role you wish to set as "
                                                        "the mod role")
                         reply_msg = await self.bot.wait_for('message',
@@ -1300,11 +1301,11 @@ class Admin(commands.Cog):
                     elif choice == '2':
                         try:
                             del self.bot.db['mod_role'][str(ctx.guild.id)]
-                            await hf.safe_send(ctx, "Removed the setting for a mod role")
+                            await utils.safe_send(ctx, "Removed the setting for a mod role")
                         except KeyError:
-                            await hf.safe_send(ctx, "You currently don't have a mod role set")
+                            await utils.safe_send(ctx, "You currently don't have a mod role set")
                     elif choice == '3':
-                        instr_msg = await hf.safe_send(ctx,
+                        instr_msg = await utils.safe_send(ctx,
                                                        "Please input the exact name of the role you wish to set as "
                                                        "the submod role")
                         reply_msg = await self.bot.wait_for('message',
@@ -1316,9 +1317,9 @@ class Admin(commands.Cog):
                     elif choice == '4':
                         try:
                             del self.bot.db['submod_role'][str(ctx.guild.id)]
-                            await hf.safe_send(ctx, "Removed the setting for a submod role")
+                            await utils.safe_send(ctx, "Removed the setting for a submod role")
                         except KeyError:
-                            await hf.safe_send(ctx, "You currently don't have a submod role set")
+                            await utils.safe_send(ctx, "You currently don't have a submod role set")
 
             #           main > set mod channel
             elif choice == '2':
@@ -1341,7 +1342,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
@@ -1349,9 +1350,9 @@ class Admin(commands.Cog):
                     elif choice == '2':
                         try:
                             del config[str(ctx.guild.id)]
-                            await hf.safe_send(ctx, "Unset the mod channel")
+                            await utils.safe_send(ctx, "Unset the mod channel")
                         except KeyError:
-                            await hf.safe_send(ctx, "There is no mod channel set")
+                            await utils.safe_send(ctx, "There is no mod channel set")
                     elif choice == '3':
                         await ctx.invoke(self.bot.get_command('set_submod_channel'))
 
@@ -1373,11 +1374,11 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closing options menu")
+                        await utils.safe_send(ctx, "Closing options menu")
                         await menu.delete()
                         return
                     elif choice == '1':
-                        instr_msg = await hf.safe_send(ctx,
+                        instr_msg = await utils.safe_send(ctx,
                                                        "Please input the custom prefix you wish to use on this server")
                         try:
                             reply_msg = await self.bot.wait_for('message',
@@ -1387,7 +1388,7 @@ class Admin(commands.Cog):
                             await reply_msg.delete()
                             await ctx.invoke(self.set_prefix, reply_msg.content)
                         except asyncio.TimeoutError:
-                            await hf.safe_send(ctx, "Module timed out")
+                            await utils.safe_send(ctx, "Module timed out")
                             await instr_msg.delete()
                             return
                     elif choice == '2':
@@ -1415,7 +1416,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closing options menu")
+                        await utils.safe_send(ctx, "Closing options menu")
                         await menu.delete()
                         return
 
@@ -1445,7 +1446,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1479,7 +1480,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1514,7 +1515,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1550,7 +1551,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1584,7 +1585,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1617,7 +1618,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1651,7 +1652,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1686,7 +1687,7 @@ class Admin(commands.Cog):
                             elif choice == 'b':
                                 break
                             elif choice == 'x':
-                                await hf.safe_send(ctx, "Closing options menu")
+                                await utils.safe_send(ctx, "Closing options menu")
                                 await menu.delete()
                                 return
                             elif choice == '1':
@@ -1722,13 +1723,13 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
                     # set mod role
                     elif choice == '1':
-                        instr_msg = await hf.safe_send(ctx,
+                        instr_msg = await utils.safe_send(ctx,
                                                        "Please input the exact name of the role you wish to set as "
                                                        "the mod role")
                         reply_msg = await self.bot.wait_for('message',
@@ -1804,7 +1805,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1848,7 +1849,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1885,7 +1886,7 @@ class Admin(commands.Cog):
                     if choice == 'b':
                         break
                     elif choice == 'x':
-                        await hf.safe_send(ctx, "Closed options menu")
+                        await utils.safe_send(ctx, "Closed options menu")
                         await menu.delete()
                         return
 
@@ -1898,7 +1899,7 @@ class Admin(commands.Cog):
                         await ctx.invoke(self.super_watch_list)
 
             else:
-                await hf.safe_send(ctx, "Something went wrong")
+                await utils.safe_send(ctx, "Something went wrong")
                 return
 
     @commands.command()
@@ -1912,7 +1913,7 @@ class Admin(commands.Cog):
                 group = '0'
                 role_name = ' '.join(args[0:])
         except IndexError:
-            await hf.safe_send(ctx, "Type the name of the role you wish to make self assignable.")
+            await utils.safe_send(ctx, "Type the name of the role you wish to make self assignable.")
             return
         config = self.bot.db['SAR'].setdefault(str(ctx.guild.id), {'0': []})
         if re.search(r"\d{17,22}", role_name):
@@ -1920,17 +1921,17 @@ class Admin(commands.Cog):
         else:
             role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
-            await hf.safe_send(ctx, "The role with that name was not found")
+            await utils.safe_send(ctx, "The role with that name was not found")
             return None
         if group not in config:
             config[group] = []
         for config_group in config:
             if role.id in config[config_group]:
-                await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** Role "
+                await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** Role "
                                                            f"**{role.name}** is already in the list."))
                 return
         config[group].append(role.id)
-        await hf.safe_send(ctx, embed=hf.green_embed(f"**{str(ctx.author)}** Role "
+        await utils.safe_send(ctx, embed=utils.green_embed(f"**{str(ctx.author)}** Role "
                                                      f"**{role.name}** has been added to the list in group "
                                                      f"**{group}**."))
 
@@ -1943,12 +1944,12 @@ class Admin(commands.Cog):
         else:
             role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
-            await hf.safe_send(ctx, "Role not found")
+            await utils.safe_send(ctx, "Role not found")
             return
         for group in config:
             if role.id in config[group]:
                 config[group].remove(role.id)
-                await hf.safe_send(ctx, embed=hf.red_embed(f"**{str(ctx.author)}** Role "
+                await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** Role "
                                                            f"**{role.name}** has been removed from the list."))
 
     @commands.command()
@@ -1959,7 +1960,7 @@ class Admin(commands.Cog):
         if not channel:
             channel = self.bot.get_user(channel_id)
             if not channel:
-                await hf.safe_send(ctx, "Invalid ID")
+                await utils.safe_send(ctx, "Invalid ID")
                 return
         await channel.send(msg)
         await ctx.message.add_reaction("✅")
@@ -1992,18 +1993,18 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "I've closed the module.", delete_after=10.0)
+            await utils.safe_send(ctx, "I've closed the module.", delete_after=10.0)
         else:
             try:
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
+            await utils.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
 
     async def wordfilter_view(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
         if not config:
-            await menu.edit(embed=hf.red_embed("There are currently no logged words in this server's word filter."),
+            await menu.edit(embed=utils.red_embed("There are currently no logged words in this server's word filter."),
                             delete_after=10.0)
             return
         s = ""
@@ -2016,9 +2017,9 @@ class Admin(commands.Cog):
             if len(s + new_s) < 2048:
                 s += new_s
             else:
-                await hf.safe_send(ctx, embed=discord.Embed(description=s))
+                await utils.safe_send(ctx, embed=discord.Embed(description=s))
                 s = new_s
-        await hf.safe_send(ctx, embed=discord.Embed(description=s))
+        await utils.safe_send(ctx, embed=discord.Embed(description=s))
 
     async def wordfilter_add(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
@@ -2036,13 +2037,13 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
             return
 
         try:
             re.compile(msg.content)
         except sre_constants_error as e:
-            await menu.edit(embed=hf.red_embed(f"Your regex returned an error: `{e}`."))
+            await menu.edit(embed=utils.red_embed(f"Your regex returned an error: `{e}`."))
             return
 
         word = msg.content
@@ -2064,7 +2065,7 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
             return
 
         try:
@@ -2074,7 +2075,7 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "Please start over and input only a single number.")
+            await utils.safe_send(ctx, "Please start over and input only a single number.")
             return
 
         config[word] = minutes
@@ -2082,7 +2083,7 @@ class Admin(commands.Cog):
             await msg.delete()
         except (discord.NotFound, discord.Forbidden):
             pass
-        await menu.edit(embed=hf.green_embed(f"I will ban anyone who says this within **{minutes}** minutes of joining:"
+        await menu.edit(embed=utils.green_embed(f"I will ban anyone who says this within **{minutes}** minutes of joining:"
                                              f"```{word}```"))
 
     async def wordfilter_delete(self, ctx, menu):
@@ -2098,7 +2099,7 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
             return
 
         if msg.content in config:
@@ -2107,13 +2108,13 @@ class Admin(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
             del (config[msg.content])
-            await menu.edit(embed=hf.green_embed("Success! I've deleted that filter."))
+            await menu.edit(embed=utils.green_embed("Success! I've deleted that filter."))
         else:
             try:
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, embed=hf.red_embed("I couldn't find that filter. Please start over and try again."),
+            await utils.safe_send(ctx, embed=utils.red_embed("I couldn't find that filter. Please start over and try again."),
                                delete_after=10.0)
 
     @commands.group(invoke_without_command=True, aliases=['antiraid'])
@@ -2154,7 +2155,7 @@ class Admin(commands.Cog):
         elif resp == '2':
             await self.antispam_settings(ctx, menu)
         elif resp == '3':
-            await menu.edit(embed=hf.green_embed("Which channel do you wish to ignore? Please mention the channel."))
+            await menu.edit(embed=utils.green_embed("Which channel do you wish to ignore? Please mention the channel."))
             try:
                 msg: discord.Message = await self.bot.wait_for('message',
                                                                timeout=60.0,
@@ -2165,7 +2166,7 @@ class Admin(commands.Cog):
                     await menu.delete()
                 except (discord.NotFound, discord.Forbidden):
                     pass
-                await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+                await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
                 return
             await menu.delete()
             await self.antispam_ignore(ctx, menu, msg.content)
@@ -2178,24 +2179,24 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "I've closed the module.", delete_after=10.0)
+            await utils.safe_send(ctx, "I've closed the module.", delete_after=10.0)
         else:
             try:
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
+            await utils.safe_send(ctx, "I didn't understand your response. Please start over.", delete_after=10.0)
 
     async def antispam_toggle(self, ctx, menu: discord.Message, config):
         if config['enable']:
             config['enable'] = False
-            await menu.edit(embed=hf.red_embed("The antispam module has been disabled."))
+            await menu.edit(embed=utils.red_embed("The antispam module has been disabled."))
         else:
             await self.antispam_settings(ctx, menu)
         await ctx.invoke(self.antispam, menu)
 
     async def antispam_settings(self, ctx, menu: discord.Message):
-        await menu.edit(embed=hf.green_embed("`I should [ban/kick/mute] users who spam the same message [x] times "
+        await menu.edit(embed=utils.green_embed("`I should [ban/kick/mute] users who spam the same message [x] times "
                                              "in [y] seconds.`\n"
                                              "Please fill in the three blanks\n"
                                              "(example: `mute 5 10`)"))
@@ -2208,22 +2209,22 @@ class Admin(commands.Cog):
                 await menu.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+            await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
             return
         if len(msg.content.split()) != 3:
-            await hf.safe_send(ctx, "Invalid options given. Please start over the command and give three answers "
+            await utils.safe_send(ctx, "Invalid options given. Please start over the command and give three answers "
                                     "in one message.")
             return
         choices = msg.content.split()
         if choices[0].casefold() not in ['ban', 'kick', 'mute']:
-            await hf.safe_send(ctx, "Your choice for the punishment was not one of either `ban`, `kick`, or `mute`. "
+            await utils.safe_send(ctx, "Your choice for the punishment was not one of either `ban`, `kick`, or `mute`. "
                                     "Please start over the command and try again.")
             return
         try:
             message_threshhold = int(choices[1])
             time_threshhold = int(choices[2])
         except ValueError:
-            await hf.safe_send(ctx, "Your choice for either the message or time threshhold was not a number. Please "
+            await utils.safe_send(ctx, "Your choice for either the message or time threshhold was not a number. Please "
                                     "start over the command and try again.")
             return
         self.bot.db['antispam'][str(ctx.guild.id)]['enable'] = True
@@ -2231,7 +2232,7 @@ class Admin(commands.Cog):
         self.bot.db['antispam'][str(ctx.guild.id)]['message_threshhold'] = message_threshhold
         self.bot.db['antispam'][str(ctx.guild.id)]['time_threshhold'] = time_threshhold
 
-        await hf.safe_send(ctx, embed=hf.green_embed("Antispam has been configured!"), delete_after=10.0)
+        await utils.safe_send(ctx, embed=utils.green_embed("Antispam has been configured!"), delete_after=10.0)
         await ctx.invoke(self.antispam, menu)
 
     @antispam.command(name='ignore')
@@ -2243,25 +2244,25 @@ class Admin(commands.Cog):
         if re_result:
             channel_id = int(re_result.group(1))
         else:
-            await hf.safe_send(ctx, "I couldn't find that channel. Please mention the channel with #")
+            await utils.safe_send(ctx, "I couldn't find that channel. Please mention the channel with #")
             await ctx.invoke(self.antispam.invoke, menu)
             return
 
         if not channel_id or not self.bot.get_channel(channel_id):
-            await hf.safe_send(ctx, "Please mention a valid channel.")
+            await utils.safe_send(ctx, "Please mention a valid channel.")
             return
 
         if not self.bot.db['antispam'].get(str(ctx.guild.id), {}).get('enable', None):
-            await hf.safe_send(ctx, "This guild does not have antispam enabled")
+            await utils.safe_send(ctx, "This guild does not have antispam enabled")
             return
 
         config = self.bot.db['antispam'].get(str(ctx.guild.id))
         if channel_id in config['ignored']:
             config['ignored'].remove(channel_id)
-            await hf.safe_send(ctx, "That channel is no longer ignored.")
+            await utils.safe_send(ctx, "That channel is no longer ignored.")
         else:
             config['ignored'].append(channel_id)
-            await hf.safe_send(ctx, "That channel will be ignored in the future.")
+            await utils.safe_send(ctx, "That channel will be ignored in the future.")
 
         await ctx.invoke(self.antispam.invoke, menu)
 
@@ -2269,7 +2270,7 @@ class Admin(commands.Cog):
     async def antispam_list(self, ctx: commands.Context, menu: discord.Message,):
         """Lists ignored channels for antispam"""
         if not self.bot.db['antispam'].get(str(ctx.guild.id), {}).get('enable', None):
-            await hf.safe_send(ctx, "This guild does not have antispam enabled")
+            await utils.safe_send(ctx, "This guild does not have antispam enabled")
             return
 
         config = self.bot.db['antispam'].get(str(ctx.guild.id))
@@ -2281,11 +2282,11 @@ class Admin(commands.Cog):
                 continue
             channels += f"{channel.mention}\n"
 
-        await hf.safe_send(ctx, channels)
+        await utils.safe_send(ctx, channels)
         await ctx.invoke(self.antispam.invoke, menu)
 
     async def antispam_ban_override(self, ctx: commands.Context, menu: discord.Message, config: dict):
-        await menu.edit(embed=hf.green_embed("I should override my other selected settings and ban users that "
+        await menu.edit(embed=utils.green_embed("I should override my other selected settings and ban users that "
                                              "spam within `[X]` minutes of joining the server.\n\n"
                                              "Please input an integer number.\n"
                                              "Type `0` to disable the module.\n"
@@ -2302,7 +2303,7 @@ class Admin(commands.Cog):
                     await menu.delete()
                 except (discord.NotFound, discord.Forbidden):
                     pass
-                await hf.safe_send(ctx, "Menu timed out", delete_after=10.0)
+                await utils.safe_send(ctx, "Menu timed out", delete_after=10.0)
                 return
 
             if msg.content.casefold() == 'cancel':
@@ -2310,7 +2311,7 @@ class Admin(commands.Cog):
                     await menu.delete()
                 except (discord.NotFound, discord.Forbidden):
                     pass
-                await hf.safe_send(ctx, "Exiting menu", delete_after=10.0)
+                await utils.safe_send(ctx, "Exiting menu", delete_after=10.0)
                 return
 
             try:
@@ -2318,7 +2319,7 @@ class Admin(commands.Cog):
                 if minutes < 0:
                     raise ValueError
             except ValueError:
-                await hf.safe_send(ctx, "Please input a single number.")
+                await utils.safe_send(ctx, "Please input a single number.")
                 return
 
             try:
@@ -2375,10 +2376,10 @@ class Admin(commands.Cog):
                 msg += addition
 
         if first_msg:
-            await hf.safe_send(ctx, first_msg)
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, first_msg)
+            await utils.safe_send(ctx, msg)
         else:
-            await hf.safe_send(ctx, msg)
+            await utils.safe_send(ctx, msg)
 
 
 async def setup(bot):

@@ -1,14 +1,14 @@
+import asyncio
+import re
+import os
 from typing import Optional, List
+from datetime import timedelta
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from .utils import helper_functions as hf
-import asyncio
-from datetime import timedelta
-import re
-
-import os
+from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -28,7 +28,7 @@ class Submod(commands.Cog):
             return
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             if not ctx.message.content.endswith("help"):  # ignore if it's the help command
-                await hf.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
+                await utils.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         return True
 
@@ -46,7 +46,7 @@ class Submod(commands.Cog):
         Helpers on Sp-En server can ban users within an hour after they join the server.
         """
         if not args:
-            await hf.safe_send(ctx, ctx.command.help)
+            await utils.safe_send(ctx, ctx.command.help)
             return
 
         # Here is the shortcut setter for the context menu ban command.
@@ -74,7 +74,7 @@ class Submod(commands.Cog):
 
         targets: List[discord.Member] = []
         for user_id in user_ids:
-            target = await hf.member_converter(ctx, user_id)
+            target = await utils.member_converter(ctx, user_id)
             if target:
                 targets.append(target)
             else:
@@ -95,14 +95,14 @@ class Submod(commands.Cog):
                         targets.append(target)
                         continue
                     else:
-                        await hf.safe_send(ctx, f"I could not find the user {user_id}.")
+                        await utils.safe_send(ctx, f"I could not find the user {user_id}.")
                 except discord.NotFound:
-                    await hf.safe_send(ctx, f"I could not find the user {user_id}.")
+                    await utils.safe_send(ctx, f"I could not find the user {user_id}.")
                 except ValueError:
-                    await hf.safe_send(ctx, f"I could not find the user {user_id}.")
+                    await utils.safe_send(ctx, f"I could not find the user {user_id}.")
 
         if not targets:
-            await hf.safe_send(ctx, "I couldn't resolve any users to ban. Please check the IDs you gave again.")
+            await utils.safe_send(ctx, "I couldn't resolve any users to ban. Please check the IDs you gave again.")
             return
 
         if not reason:
@@ -119,7 +119,7 @@ class Submod(commands.Cog):
             # check if top role of target user is higher than Rai
             if hasattr(target, "top_role"):
                 if target.top_role > ctx.guild.me.top_role:
-                    await hf.safe_send(ctx,
+                    await utils.safe_send(ctx,
                                        f"I won't be able to ban {str(target)} as their top role is higher than mine.")
                     targets.remove(target)
                     continue
@@ -171,7 +171,7 @@ class Submod(commands.Cog):
                     em.add_field(name="Server for appealing your ban", value=ban_appeal_server_invite_link,
                                  inline=False)
         if not slash:
-            await hf.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
+            await utils.safe_send(ctx, f"You are about to ban {', '.join([t.mention for t in targets])}: ", embed=em)
         msg2 = "Do you wish to continue?  Options:\n" \
                "⠀・ `Yes` Silently ban the user\n" \
                "⠀・ `Send` Ban the user and send them the above notification\n" \
@@ -195,7 +195,7 @@ class Submod(commands.Cog):
                     pass
 
         if not slash:
-            msg2 = await hf.safe_send(ctx, msg2)
+            msg2 = await utils.safe_send(ctx, msg2)
 
             try:
                 msg = await self.bot.wait_for('message',
@@ -207,7 +207,7 @@ class Submod(commands.Cog):
                     await msg2.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
-                await hf.safe_send(ctx, "Timed out.  Canceling ban.")
+                await utils.safe_send(ctx, "Timed out.  Canceling ban.")
                 return
             content = msg.content.casefold()
             if content == 'no':
@@ -215,7 +215,7 @@ class Submod(commands.Cog):
                     await msg2.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
-                await hf.safe_send(ctx, "Canceling ban")
+                await utils.safe_send(ctx, "Canceling ban")
                 return
 
             try:
@@ -232,7 +232,7 @@ class Submod(commands.Cog):
 
         text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
         if len(text) > 512:
-            await hf.safe_send(ctx, f"Discord only allows bans with a length of 512 characters. With my included "
+            await utils.safe_send(ctx, f"Discord only allows bans with a length of 512 characters. With my included "
                                     f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
                                     f"length of your ban message. ")
             return
@@ -246,9 +246,9 @@ class Submod(commands.Cog):
         for target in targets:
             if 'send' in content:
                 try:
-                    await hf.safe_send(target, embed=em)
+                    await utils.safe_send(target, embed=em)
                 except discord.Forbidden:
-                    await hf.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
+                    await utils.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
 
             try:
                 # there was a bug where people using slash command and choosing to delete past messages didn't
@@ -264,7 +264,7 @@ class Submod(commands.Cog):
                 await ctx.guild.ban(target, reason=text, delete_message_days=delete)
                 successes.append(target)
             except discord.Forbidden:
-                await hf.safe_send(ctx, f"I couldn't ban {target.mention}. They're probably above me in the role list.")
+                await utils.safe_send(ctx, f"I couldn't ban {target.mention}. They're probably above me in the role list.")
                 continue
 
             if length:
@@ -284,7 +284,7 @@ class Submod(commands.Cog):
                                           length=length_str, reason=reason,
                                           silent=silent)
             modlog_entry.add_to_modlog()
-        await hf.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
+        await utils.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
 
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
                                 guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265, JP_SERVER_ID])
@@ -346,7 +346,7 @@ class Submod(commands.Cog):
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
 
         if not reason:
-            await hf.safe_send(ctx, "You must include a reason in your warning, please try again.")
+            await utils.safe_send(ctx, "You must include a reason in your warning, please try again.")
             return
 
         users: List[discord.User] = []
@@ -363,12 +363,12 @@ class Submod(commands.Cog):
                     if silent:
                         users.append(user)
                     else:
-                        await hf.safe_send(ctx, f"The user {user} is not a member of this server so I couldn't "
+                        await utils.safe_send(ctx, f"The user {user} is not a member of this server so I couldn't "
                                                 f"send the warning. I am aborting their warning.")
                         continue  # don't let code get to the addition of ModlogEntry object
 
             if not user:
-                await hf.safe_send(ctx, f"I could not find the user {user_id}.  For warnings and mutes, "
+                await utils.safe_send(ctx, f"I could not find the user {user_id}.  For warnings and mutes, "
                                         "please use either an ID or a mention to the user "
                                         "(this is to prevent mistaking people).")
 
@@ -381,7 +381,7 @@ class Submod(commands.Cog):
                                           reason=reason
                                           )
 
-            emb = hf.red_embed("")
+            emb = utils.red_embed("")
             emb.title = f"Warning from {ctx.guild.name}"
             emb.color = 0xffff00  # embed ff8800
 
@@ -393,7 +393,7 @@ class Submod(commands.Cog):
                 emb.add_field(name="Reason", value=reason[:1024], inline=False)
                 emb.add_field(name="Reason (cont.)", value=reason[1024:2048], inline=False)
             else:
-                await hf.safe_send(ctx, f"Your warning text is too long ({len(reason)} characters). Please write "
+                await utils.safe_send(ctx, f"Your warning text is too long ({len(reason)} characters). Please write "
                                         f"a message shorter than 2048 characters.")
                 return
 
@@ -411,7 +411,7 @@ class Submod(commands.Cog):
             # Send notification to warned user if not a log
             if not modlog_entry.silent:
                 try:
-                    await hf.safe_send(user, content, embed=emb)
+                    await utils.safe_send(user, content, embed=emb)
                 # if bot fails to send message to user, offer to send warning to a public channel
                 except discord.Forbidden:
                     try:
@@ -422,7 +422,7 @@ class Submod(commands.Cog):
                     except asyncio.TimeoutError:
                         return
                 except discord.HTTPException:
-                    await hf.safe_send(ctx, f"I cannot send messages to {user.mention}.")
+                    await utils.safe_send(ctx, f"I cannot send messages to {user.mention}.")
                     continue
 
             # Edit embed for internal logging view after sending initial embed to user
@@ -454,13 +454,13 @@ class Submod(commands.Cog):
             # Send notification to modlog channel if the modlog channel isn't current channel
             if modlog_channel:
                 if modlog_channel != ctx.channel:
-                    await hf.safe_send(modlog_channel, user.id, embed=emb)
+                    await utils.safe_send(modlog_channel, user.id, embed=emb)
 
             # Send notification (confirmation) to current channel
             if ephemeral:  # True if this came from context command
                 return emb  # send the embed back to be used in the ephemeral followup send
             else:
-                await hf.safe_send(ctx, embed=emb)
+                await utils.safe_send(ctx, embed=emb)
 
     async def attempt_public_warn(self, ctx, user, emb):
         if notif_channel_id := self.bot.db['modlog'] \
@@ -468,14 +468,14 @@ class Submod(commands.Cog):
                 .get("warn_notification_channel", None):
             notif_channel = self.bot.get_channel(notif_channel_id)
         else:
-            await hf.safe_send(ctx, "I was unable to send the warning to this user. "
+            await utils.safe_send(ctx, "I was unable to send the warning to this user. "
                                     "In the future you can type `;warn set` in a text channel in your "
                                     "server and I will offer to send a public warning to the user in "
                                     "these cases.")
             raise discord.Forbidden
 
         if notif_channel:
-            question = await hf.safe_send(ctx, f"I could not send a message to {user.mention}. "
+            question = await utils.safe_send(ctx, f"I could not send a message to {user.mention}. "
                                                f"Would you like to send a public warning to "
                                                f"{notif_channel.mention}?")
             await question.add_reaction('✅')
@@ -489,12 +489,12 @@ class Submod(commands.Cog):
                                                                      check=reaction_check,
                                                                      timeout=10)
             except asyncio.TimeoutError:
-                await hf.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
+                await utils.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
                 raise
             else:
                 if str(reaction_added) == '✅':
                     try:
-                        await hf.safe_send(notif_channel,
+                        await utils.safe_send(notif_channel,
                                            f"{user.mention}: Due to your privacy settings "
                                            f"disabling messages from bots, we are "
                                            f"delivering this warning in a "
@@ -502,12 +502,12 @@ class Submod(commands.Cog):
                                            f"error, please contact a mod.",
                                            embed=emb)
                     except discord.Forbidden:
-                        await hf.safe_send(ctx, "I can't send messages to the channel you have marked "
+                        await utils.safe_send(ctx, "I can't send messages to the channel you have marked "
                                                 "in this server as the warn notifications channel. Please "
                                                 "go to a new channel and type `;warns set`.")
                         raise discord.Forbidden
                 else:
-                    await hf.safe_send(ctx, f"I will not warn the user {user.mention}.")
+                    await utils.safe_send(ctx, f"I will not warn the user {user.mention}.")
                     raise ValueError(f"The reaction I detected was not ✅, I got {reaction_added}")
 
     @warn.command(name="set")
@@ -531,13 +531,13 @@ class Submod(commands.Cog):
                 channel = None
 
             if not channel:
-                await hf.safe_send(ctx, "I failed to find the channel you mentioned. Please try again.")
+                await utils.safe_send(ctx, "I failed to find the channel you mentioned. Please try again.")
                 return
         else:
             channel = ctx.channel
 
         config['warn_notification_channel'] = channel.id
-        await hf.safe_send(ctx, f"Set warning channel for users with DMs disabled to {channel.mention}.")
+        await utils.safe_send(ctx, f"Set warning channel for users with DMs disabled to {channel.mention}.")
 
     @commands.command(aliases=["cleanup", "bclr", "bc"])
     @commands.bot_has_permissions(manage_messages=True)
@@ -551,11 +551,11 @@ class Submod(commands.Cog):
         try:
             num_of_messages = int(num_of_messages)
         except ValueError:
-            await hf.safe_send(ctx, "Please input an integer number of messages")
+            await utils.safe_send(ctx, "Please input an integer number of messages")
             return
         if num_of_messages > 50:
             num_of_messages = 50
-            await hf.safe_send(ctx, "Setting number of messages to the maximum of `50`.", delete_after=3)
+            await utils.safe_send(ctx, "Setting number of messages to the maximum of `50`.", delete_after=3)
 
         await ctx.channel.purge(limit=num_of_messages, check=lambda m: m.author.bot and m.content[0:7] != "Setting",
                                 after=discord.utils.utcnow() - timedelta(minutes=60), oldest_first=False)
