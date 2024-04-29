@@ -8,10 +8,11 @@ import re
 import shutil
 import sys
 import traceback
+
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union, Tuple, Callable
 
 import aiohttp
 import discord
@@ -1463,4 +1464,26 @@ async def aiohttp_get(ctx: commands.Context, url: str) -> str:
     else:
         await safe_send(ctx, f'html_error: Error {response.status}: {response.reason} ({url})')
         return ''
-    
+
+
+def asyncio_task(func: Callable, *args, **kwargs):
+    async def wrapper():
+        try:
+            # Execute the async function
+            return await func(*args, **kwargs)
+        except Exception as e:
+            print(f"Exception in {func.__name__}: {e}")
+            # Handle exception here if needed
+            raise  # Re-raise the exception for the callback to catch
+
+    task = asyncio.create_task(wrapper())
+    task.add_done_callback(asyncio_task_done_callback)
+
+
+def asyncio_task_done_callback(task):
+    coro_name = task.get_coro().__qualname__
+    if task.exception():
+        print(f"Error in {coro_name}: {task.exception()}")
+        # Handle the exception or forward it to another function
+    else:
+        print(f"Task {coro_name} completed successfully.")

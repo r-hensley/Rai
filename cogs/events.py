@@ -155,7 +155,8 @@ class Events(commands.Cog):
         # await check_untagged_JHO_users()
         # add above function to asyncio event loop as a task
         # noinspection PyAsyncCall
-        asyncio.create_task(check_untagged_JHO_users())
+        # asyncio.create_task(check_untagged_JHO_users())
+        hf.asyncio_task(check_untagged_JHO_users)
         
         async def remove_from_waiting_list():
             if reaction.emoji == '🚫':
