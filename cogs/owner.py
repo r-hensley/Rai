@@ -375,9 +375,18 @@ class Owner(commands.Cog):
                 importlib.reload(sys.modules['cogs.database'])
             if cog in ['hf', 'helper_function']:
                 try:
-                    old_module = sys.modules['cogs.utils.helper_functions']
                     importlib.reload(sys.modules['cogs.utils.helper_functions'])
                     hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+                except Exception as e:
+                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                else:
+                    await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
+
+            elif cog == 'utils':
+                # reload file in cogs/utils/BotUtils/bot_utils.py
+                try:
+                    importlib.reload(sys.modules['cogs.utils.BotUtils.bot_utils'])
+                    utils.setup(bot=self.bot, loop=asyncio.get_event_loop())
                 except Exception as e:
                     await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
                 else:
