@@ -90,46 +90,50 @@ class Events(commands.Cog):
             native_japanese_role_id = 196765998706196480
             native_other_role_id = 248982130246418433
             cirilla_id = 581691615010226188
-            
+
             # is this the japanese server
             if reaction.message.guild.id != JP_SERVER_ID:
                 return
-                
+
+            # is emoji just a unicode string (not a custom emoji)
+            if isinstance(reaction.emoji, str):
+                return
+
             # is the reaction one of the language color reactions
             if reaction.emoji.id not in [other_lang_emoji_id, japanese_lang_emoji_id, english_lang_emoji_id]:
                 return
-            
+
             # was cirilla the one who reacted to the message
             if user.id != cirilla_id:
                 return
-            
+
             # is the user untagged
             user_role_ids = [role.id for role in user.roles]
             if (native_english_role_id in user_role_ids
                     or native_japanese_role_id in user_role_ids
                     or native_other_role_id in user_role_ids):
                 return
-            
+
             # wait 1 hour
             await asyncio.sleep(60 * 60)
-            
+
             # refresh author roles
             refreshed_author = reaction.message.channel.guild.get_member(reaction.message.author.id)
             refreshed_role_ids = [role.id for role in refreshed_author.roles]
-            
+
             # check if message author is still untagged
             if (native_english_role_id in refreshed_role_ids
                     or native_japanese_role_id in refreshed_role_ids
                     or native_other_role_id in refreshed_role_ids):
                 return
-            
+
             # send notification to NIF channel
             nif_channel = self.bot.get_channel(1227289089015943258)
             msg_content = reaction.message.content.replace("\n", ". ")
             msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
                    f"still untagged:\n>>> [{msg_content}](<{reaction.message.jump_url}>)")
             sent_msg = await nif_channel.send(msg)
-            
+
             # wait for the user to get tagged
             def on_member_update_check(m_before, m_after):
                 if m_after.id != refreshed_author.id:
@@ -140,13 +144,13 @@ class Events(commands.Cog):
                             or native_japanese_role_id in role_ids
                             or native_other_role_id in role_ids):
                         return True
-        
+
             try:
                 await self.bot.wait_for('member_update', check=on_member_update_check, timeout=60 * 60)
             except asyncio.TimeoutError:
                 pass
             else:
-                
+
                 new_msg = (f"User has been tagged now!\n"
                            f"~~User {refreshed_author.mention} has potentially sent a message with their native "
                            f"language and is still untagged~~:\n"
