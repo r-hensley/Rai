@@ -92,7 +92,7 @@ class Events(commands.Cog):
             cirilla_id = 581691615010226188
 
             # is this the japanese server
-            if reaction.message.guild.id != JP_SERVER_ID:
+            if getattr(reaction.message.guild, "id") != JP_SERVER_ID:
                 return
 
             # is emoji just a unicode string (not a custom emoji)
@@ -119,6 +119,8 @@ class Events(commands.Cog):
 
             # refresh author roles
             refreshed_author = reaction.message.channel.guild.get_member(reaction.message.author.id)
+            if not refreshed_author:
+                return
             refreshed_role_ids = [role.id for role in refreshed_author.roles]
 
             # check if message author is still untagged
