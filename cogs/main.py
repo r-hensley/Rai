@@ -1,0 +1,261 @@
+import json
+import sys
+import traceback
+
+import discord
+from discord.ext import commands, tasks
+import asyncio
+from datetime import datetime
+from .utils import helper_functions as hf
+from cogs.utils.BotUtils import bot_utils as utils
+
+
+import os
+
+dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+JP_SERV_ID = 189571157446492161
+SPAN_SERV_ID = 243838819743432704
+M_SERVER = 257984339025985546
+NADEKO_ID = 116275390695079945
+SPAN_WELCOME_CHAN_ID = 243838819743432704
+JP_SERV_JHO_ID = 189571157446492161
+BANS_CHANNEL_ID = 329576845949534208
+ABELIAN_ID = 414873201349361664
+
+TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
+BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
+
+
+class Main(commands.Cog):
+    """Main bot-central functions (error-handling, etc.)"""
+
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # if not self.stats:
+        #     hf.load_stats(self)
+
+        await hf.load_language_detection_model()
+        self.bot.language_detection = True
+
+        try:
+            AppInfo = await self.bot.application_info()
+            self.bot.owner_id = AppInfo.owner.id
+        except discord.HTTPException:
+            pass
+
+        test_channel = self.bot.get_channel(BOT_TEST_CHANNEL)
+
+        if test_channel:
+            ctxmsg = await test_channel.send("Almost done!")
+            self.bot.ctx = await self.bot.get_context(ctxmsg)
+            sync: commands.Command = self.bot.get_command("sync")
+            await self.bot.ctx.invoke(sync)
+        else:
+            ctxmsg = self.bot.ctx = None
+
+        try:  # in on_ready because there are many tasks in here that require a loaded bot
+            await self.bot.load_extension('cogs.background')
+            print('Loaded cogs.background')
+        except Exception:
+            print('Failed to load extension cogs.background.', file=sys.stderr)
+            traceback.print_exc()
+
+        print(f"Bot loaded (discord.py version {discord.__version__})")
+
+        t_finish = datetime.now()
+
+        if ctxmsg:
+            await ctxmsg.edit(content=f'Bot loaded (time: {t_finish - self.bot.t_start})')
+
+        await self.bot.change_presence(activity=discord.Game(';help for help'))
+
+        if not self.database_backups.is_running():
+            print("Starting database backups")
+            self.database_backups.start()
+
+    @tasks.loop(hours=24)
+    async def database_backups(self):
+        date = datetime.today().strftime("%Y%m%d-%H.%M")
+        with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
+            json.dump(self.bot.db, write_file)
+        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
+            json.dump(self.bot.stats, write_file)
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            # parsing or conversion failure is encountered on an argument to pass into a command.
+            await ctx.send("Failed to find the object you tried to look up.  Please try again")
+            return
+
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            if ctx.author == self.bot.user:
+                pass
+            else:
+                await ctx.send("You're sending that command too many times. Please wait a bit.")
+                return
+
+        elif isinstance(error, discord.DiscordServerError):
+            try:
+                await asyncio.sleep(5)
+                await ctx.send("There was a discord server error. Please try again.")
+            except discord.DiscordServerError:
+                return
+
+        elif isinstance(error, commands.NoPrivateMessage):
+            try:
+                await ctx.author.send("You can only use this in a guild.")
+                return
+            except discord.Forbidden:
+                pass
+
+        elif isinstance(error, discord.Forbidden):
+            try:
+                await ctx.author.send("Rai lacked permissions to do something there")
+            except discord.Forbidden:
+                pass
+
+        elif isinstance(error, commands.BotMissingPermissions):
+            msg = f"To do that command, Rai is missing the following permissions: " \
+                  f"`{'`, `'.join(error.missing_permissions)}`"
+            if 'send_messages' in msg and isinstance(ctx.channel, discord.Thread):
+                msg += "\n\nThis may be an error due to me lacking the permission to send messages in the " \
+                       "parent channel to this thread. Try granting me the missing permissions in the parent " \
+                       "channel as well."
+            try:
+                await ctx.send(msg)
+            except discord.Forbidden:
+                try:
+                    await ctx.author.send(msg)
+                except discord.Forbidden:
+                    pass
+            return
+
+        elif isinstance(error, commands.CommandInvokeError):
+            try:
+                await ctx.send("I couldn't execute the command. I probably have a bug.  "
+                               "This has been reported to the bot owner.")
+            except discord.Forbidden:
+                try:
+                    await ctx.author.send("I tried doing something but I lack permissions to send messages.  "
+                                          "I probably have a bug. This has been reported to the bot owner.")
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            pass
+
+        elif isinstance(error, commands.CommandNotFound):
+            # no command under that name is found
+            return
+
+        elif isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"This command is on cooldown.  Try again in {round(error.retry_after)} seconds.")
+            return
+
+        elif isinstance(error, commands.CheckFailure):
+            # the predicates in Command.checks have failed.
+            if ctx.command.name == 'global_blacklist':
+                return
+            if ctx.guild:
+                if str(ctx.guild.id) in self.bot.db['modsonly']:
+                    if self.bot.db['modsonly'][str(ctx.guild.id)]['enable']:
+                        if not hf.admin_check(ctx):
+                            return
+
+                # prevent users from using stats commands in spanish server learning channels, supress warnings
+                if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
+                    return
+
+            if ctx.command.cog.qualified_name in ['Admin', 'Logger', 'ChannelMods', 'Submod'] and \
+                    (str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel'):
+                try:
+                    await ctx.send(
+                        "Please set a mod channel or logging channel for Rai to send important error messages to"
+                        " by typing `;set_mod_channel` in some channel.")
+                except discord.Forbidden:
+                    try:
+                        await ctx.author.send("Rai lacks permission to send messages in that channel.")
+                    except discord.Forbidden:
+                        pass
+                return
+            try:
+                if not ctx.guild:
+                    raise discord.Forbidden
+                if str(ctx.guild.id) in self.bot.db['mod_role']:
+                    await ctx.send("You lack permissions to do that.")
+                else:
+                    await ctx.send(f"You lack the permissions to do that.  If you are a mod, try using "
+                                   f"`{self.bot.db['prefix'].get(str(ctx.guild.id), ';')}set_mod_role <role name>`")
+            except discord.Forbidden:
+                await ctx.author.send("I tried doing something but I lack permissions to send messages.")
+            return
+
+        elif isinstance(error, commands.MissingRequiredArgument):
+            # parsing a command and a parameter that is required is not encountered
+            msg = f"You're missing a required argument ({error.param}).  " \
+                  f"Try running `;help {ctx.command.qualified_name}`"
+            if error.param.name in ['args', 'kwargs']:
+                msg = msg.replace(f" ({error.param})", '')
+            try:
+                await ctx.send(msg)
+            except discord.Forbidden:
+                pass
+            return
+
+        elif isinstance(error, discord.Forbidden):
+            await ctx.send("I tried to do something I'm not allowed to do, so I couldn't complete your command :(")
+
+        elif isinstance(error, commands.MissingPermissions):
+            error_str = f"To do that command, you are missing the following permissions: " \
+                        f"`{'`, `'.join(error.missing_permissions)}`"
+            await ctx.send(error_str)
+            return
+
+        elif isinstance(error, commands.NotOwner):
+            await ctx.send("Only the bot owner can do that.")
+            return
+
+        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
+        e = discord.Embed(title='Command Error', colour=0xcc3366)
+        e.add_field(name='Name', value=qualified_name)
+        e.add_field(name='Command', value=ctx.message.content[:1000])
+        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
+
+        fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
+        if ctx.guild:
+            fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
+        e.add_field(name='Location', value=fmt, inline=False)
+
+        await utils.send_error_embed(self.bot, ctx, error, e)
+
+    @commands.Cog.listener()
+    async def on_error(self, event, *args, **kwargs):
+        e = discord.Embed(title='Event Error', colour=0xa32952)
+        e.add_field(name='Event', value=event)
+        e.description = f'```py\n{traceback.format_exc()}\n```'
+        e.timestamp = discord.utils.utcnow()
+
+        args_str = ['```py']
+        jump_url = ''
+        for index, arg in enumerate(args):
+            args_str.append(f'[{index}]: {arg!r}')
+            if isinstance(arg, discord.Message):
+                e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})')
+                fmt = f'Channel: {arg.channel} (ID: {arg.channel.id})'
+                if arg.guild:
+                    fmt = f'{fmt}\nGuild: {arg.guild} (ID: {arg.guild.id})'
+                e.add_field(name='Location', value=fmt, inline=False)
+                jump_url = arg.jump_url
+        args_str.append('```')
+        e.add_field(name='Args', value='\n'.join(args_str), inline=False)
+        try:
+            await self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL).send(jump_url, embed=e)
+        except AttributeError:
+            pass  # Set ID of TRACEBACK_LOGGING_CHANNEL at top of this file to a channel in your testing server
+        traceback.print_exc()
+
+
+async def setup(bot):
+    await bot.add_cog(Main(bot))
