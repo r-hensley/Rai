@@ -145,9 +145,13 @@ class ChannelMods(commands.Cog):
         Example: `;del 589654995956269086 589654963337166886 589654194189893642`"""
         try:
             await ctx.message.delete()
-            await utils.safe_send(ctx.author,
-                               f"I'm gonna delete your message to potentially keep your privacy, but in case "
-                               f"something goes wrong, here was what you sent: \n{ctx.message.content}")
+            try:
+                await utils.safe_send(ctx.author,
+                                      f"I'm gonna delete your message to potentially keep your privacy, "
+                                      f"but in case "
+                                      f"something goes wrong, here was what you sent: \n{ctx.message.content}")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
         except (discord.NotFound, AttributeError):
             pass
 
