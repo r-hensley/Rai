@@ -347,6 +347,49 @@ class ChannelMods(commands.Cog):
         emb = await ctx.invoke(warn, args=args)
         return emb
 
+    @commands.command()
+    async def evidence(self, ctx: commands.Context, *, args):
+        """This command will add evidence to the last log of a user.
+        Example: `;evidence 123456789012345678 <link to message or picture>`
+        Note, if it is a link to an image hosted in Discord, the link might break so message links are good."""
+        if not args:
+            await utils.safe_reply(ctx, "Please provide a user ID and a link to the evidence.")
+            return
+        split_args = args.split()
+        if len(split_args) == 1:
+            try:
+                int(split_args[0])
+            except ValueError:
+                await utils.safe_reply(ctx, "Please provide a valid user ID.")
+                return
+            else:
+                await utils.safe_reply(ctx, "Please provide a link to the evidence.")
+                return
+        user_id_str, *evidence = split_args
+        user_id = int(user_id_str)
+        evidence = ' '.join(evidence)
+        if not re.match(r'^\d{17,22}$', user_id_str):
+            await utils.safe_reply(ctx, "Please provide a valid user ID.")
+            return
+        url = True
+        if not re.match(r'^https?://', evidence):
+            url = False
+
+        modlog = self.bot.db['modlog'].get(str(ctx.guild.id), {}).get(str(user_id), [])
+        if not modlog:
+            await utils.safe_reply(ctx, "I couldn't find any logs for that user.")
+            return
+
+        most_recent_log = modlog[-1]
+        if url:
+            most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)"
+        else:
+            most_recent_log['reason'] += f"\n- {evidence}"
+
+        await utils.safe_reply(ctx.message, f"Added evidence to the last log for {user_id} (<@{user_id}>). "
+                                            f"New reason: "
+                                            f"\n>>> {most_recent_log['reason']}")
+
     # @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     # @hf.is_admin()
     # async def channel_mod(self, ctx, *, user):
