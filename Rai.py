@@ -1,5 +1,4 @@
 # -*- coding: utf8 -*-
-import logging
 import asyncio
 import sys
 import traceback
@@ -17,15 +16,7 @@ from cogs.utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
 from cogs.database import create_database_tables
 
-logging.basicConfig(level=logging.WARNING)
-# logger = logging.getLogger('discord')
-# logger.setLevel(logging.INFO)
-# handler = logging.FileHandler(
-#     filename=f'{dir_path}/log/{discord.utils.utcnow().strftime("%y%m%d_%H%M")}.log',
-#     encoding='utf-8',
-#     mode='a')
-# handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-# logger.addHandler(handler)
+
 
 # noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
 intents = discord.Intents.default()
