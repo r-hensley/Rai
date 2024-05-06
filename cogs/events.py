@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import re
 import string
@@ -92,7 +93,7 @@ class Events(commands.Cog):
             cirilla_id = 581691615010226188
 
             # is this the japanese server
-            if getattr(reaction.message.guild, "id") != JP_SERVER_ID:
+            if getattr(reaction.message.guild, "id", 0) != JP_SERVER_ID:
                 return
 
             # is emoji just a unicode string (not a custom emoji)
@@ -874,15 +875,17 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
-        async def auto_modlog():
-            if thread.owner == 713245294657273856:  # modbot
-                opening_msg = await thread.parent.fetch_message(987069662053416980)
-                user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
-                if user_id:
-                    ctx = await self.bot.get_context(opening_msg)
-                    modlog: commands.Command = self.bot.get_command("modlog")
-                    await ctx.invoke(modlog, id_in=user_id)
-        await auto_modlog()
+        # async def auto_modlog():
+        #     if thread.owner == 713245294657273856:  # modbot
+        #         print(1)
+        #         opening_msg = await thread.parent.fetch_message(987069662053416980)
+        #         print(2, opening_msg)
+        #         user_id = re.search(r"<@\d{17,22}>", opening_msg.content)
+        #         if user_id:
+        #             ctx = await self.bot.get_context(opening_msg)
+        #             modlog: commands.Command = self.bot.get_command("modlog")
+        #             await ctx.invoke(modlog, id_in=user_id)
+        # await auto_modlog()
 
         async def new_post_info():
             if not thread.parent.category:
@@ -1029,7 +1032,7 @@ class Events(commands.Cog):
         
         # if you want something to happen everytime you say something for debugging, put it here
         if msg.author.id == self.bot.owner_id:
-            pass
+            logging.warning("RAI_RYAN_TEST")
         
         if not self.bot.is_ready:
             return
@@ -1074,11 +1077,21 @@ class Events(commands.Cog):
                 else:
                     return
             else:
-                content = msg.content[25:]
-            if getattr(msg.channel.owner, "id", 0) != 713245294657273856:  # modbot
+                content = msg.content
+
+            MODBOT_ID = 713245294657273856
+            if getattr(msg.channel.owner, "id", 0) != MODBOT_ID:  # modbot
                 return
-            if msg.author.id != 713245294657273856:
+            if msg.author.id != MODBOT_ID:
                 return
+
+            # if it's the first message of the thread, ignore all the text past "Recent reports:"
+            if msg.id == msg.channel.id:
+                content = content.split("**__Recent reports:__**")[0]
+
+            # if it's NOT the first message, then ignore the >>> <@ID>: portion of the message
+            else:
+                content = re.sub(r">>> <@!?\d{17,22}>: ", "", content)
             
             # content = msg.content[25:]
             
