@@ -89,13 +89,34 @@ class Stats(commands.Cog):
 
     @commands.command(aliases=['uc'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def uchannels(self, ctx, *, member: str = None):
-        if not member:
+    async def uchannels(self, ctx: commands.Context, *, member_str: str = None):
+        if not member_str:
             member = ctx.author
+            joined = ctx.author.joined_at
         else:
-            member = await utils.member_converter(ctx, member)
+            member = await utils.member_converter(ctx, member_str)
             if not member:
+                joined = None
+                member = await utils.user_converter(ctx, member_str)
+                if not member:
+                    pass
+            else:
+                joined = member.joined_at
+
+        if isinstance(member, discord.Member):
+            member_id = member.id
+            name_str = f"{member.name} ({member.nick})"
+        elif isinstance(member, discord.User):
+            member_id = member.id
+            name_str = f"{member.name} (user left server)"
+        else:
+            try:
+                member_id = int(member_str)
+            except ValueError:
+                await utils.safe_reply(ctx, "I couldn't find the user.")
                 return
+            name_str = member_str
+
         try:
             config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
@@ -103,17 +124,17 @@ class Stats(commands.Cog):
 
         message_count = {}
         for day in config:
-            if str(member.id) in config[day]:
-                if 'channels' not in config[day][str(member.id)]:
+            if str(member_id) in config[day]:
+                if 'channels' not in config[day][str(member_id)]:
                     continue
-                user = config[day][str(member.id)]
+                user = config[day][str(member_id)]
                 for channel in user.get('channels', []):
                     message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
         sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
-        emb = discord.Embed(title=f'Usage stats for {member.name} ({member.nick})',
+        emb = discord.Embed(title=f'Usage stats for {name_str}',
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
-                            timestamp=member.joined_at)
+                            timestamp=joined)
         lb = ''
         index = 1
         total = 0
