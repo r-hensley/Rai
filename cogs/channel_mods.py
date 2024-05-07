@@ -1162,7 +1162,6 @@ class ChannelMods(commands.Cog):
             await utils.safe_send(ctx, embed=emb)  # Send the embed.
 
     @modlog.command(name="edit", aliases=['reason'])
-    @hf.is_admin()
     async def modlog_edit(self, ctx, user, index: int, *, reason):
         """Edit the reason for a selected modlog.  Example: `;ml edit ryry 2 trolling in voice channels`."""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
@@ -1180,15 +1179,37 @@ class ChannelMods(commands.Cog):
             await utils.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
+        log = config[index - 1]
+        jump_url = log.get('jump_url', None)
+
+        if not hf.admin_check(ctx):
+            if jump_url:
+                channel_id = int(jump_url.split('/')[-2])
+                message_id = int(jump_url.split('/')[-1])
+                try:
+                    message = await ctx.bot.get_channel(channel_id).fetch_message(message_id)
+                except discord.NotFound:
+                    await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                    return
+                else:
+                    if message.author != ctx.author:
+                        await utils.safe_send(ctx, f"Only admins (or the creator of the log) can edit the "
+                                                   f"reason for this entry.")
+                        return
+            else:
+                await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                return
+
         try:
-            old_reason = config[index - 1]['reason']
+            old_reason = log['reason']
         except IndexError:
             await utils.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
-                                    f"and try again.")
+                                       f"and try again.")
             return
+
         config[index - 1]['reason'] = reason
         await utils.safe_send(ctx, embed=utils.green_embed(f"Changed the reason for entry #{index} from "
-                                                     f"```{old_reason}```to```{reason}```"))
+                                                           f"```{old_reason}```to```{reason}```"))
 
     @commands.command()
     @hf.is_admin()
