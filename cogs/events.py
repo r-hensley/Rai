@@ -159,13 +159,13 @@ class Events(commands.Cog):
                            f"language and is still untagged~~:\n"
                            f">>> ~~[{msg_content}](<{reaction.message.jump_url}>)~~")
                 await sent_msg.edit(content=new_msg)
-                
+
         # await check_untagged_JHO_users()
         # add above function to asyncio event loop as a task
         # noinspection PyAsyncCall
         # asyncio.create_task(check_untagged_JHO_users())
         utils.asyncio_task(check_untagged_JHO_users)
-        
+
         async def remove_from_waiting_list():
             if reaction.emoji == '🚫':
                 if user == self.bot.user:
@@ -733,7 +733,7 @@ class Events(commands.Cog):
             # If voice lock not enabled on current server
             config = self.bot.db['voice_lock'].get(str(member.guild.id), {})
             joined_to = after.channel
-            if not config['categories'].get(str(joined_to.category.id), None):
+            if not config.get('categories', {}).get(str(joined_to.category.id), None):
                 return
 
             # A role which exempts the user from any requirements on joining voice
@@ -1020,7 +1020,7 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
         ctx = await self.bot.get_context(msg)
-        
+
         if msg.author.bot:
             # for BurdBot to post questions to AOTW
             if msg.author.id == 720900750724825138:  # BurdBot
@@ -1029,21 +1029,21 @@ class Events(commands.Cog):
                 pass
             else:
                 return
-        
+
         # if you want something to happen everytime you say something for debugging, put it here
         if msg.author.id == self.bot.owner_id:
-            logging.warning("RAI_RYAN_TEST")
+            pass
         
         if not self.bot.is_ready:
             return
-        
+
         ##########################################
-        
+
         if not msg.guild:  # all code after this has msg.guild requirement
             return
-        
+
         ##########################################
-        
+
         # ### ban users from sensitive_topics on spanish server
         async def ban_from_sens_top():
             banned_role_id = 1163181663459749978
@@ -1053,7 +1053,7 @@ class Events(commands.Cog):
                 return
             if role not in msg.author.roles:
                 return
-            
+
             try:
                 await msg.delete()
                 await msg.author.send("You are not allowed to use that channel. Here is the message you tried to send:")
@@ -1061,7 +1061,7 @@ class Events(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 pass
         await ban_from_sens_top()
-        
+
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
             if not isinstance(msg.channel, discord.Thread):
@@ -1070,7 +1070,7 @@ class Events(commands.Cog):
                     thread = msg.channel.get_thread(msg.id)
                 except AttributeError:
                     return
-                
+
                 if thread:
                     msg.channel = thread
                     content = msg.content
@@ -1092,11 +1092,11 @@ class Events(commands.Cog):
             # if it's NOT the first message, then ignore the >>> <@ID>: portion of the message
             else:
                 content = re.sub(r">>> <@!?\d{17,22}>: ", "", content)
-            
+
             # content = msg.content[25:]
-            
+
             modlog: commands.Command = self.bot.get_command("modlog")
-            
+
             # Search for direct mentions of IDs
             user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
             user_ids = set(user_ids)  # eliminate duplicate IDs
@@ -1112,7 +1112,7 @@ class Events(commands.Cog):
                     except discord.NotFound:
                         continue
                 await ctx.invoke(modlog, id_in=str(user_id))
-            
+
             # Search for usernamse like Ryry013#1234
             usernames = re.findall(r"(\S+)#(\d{4})", content)
             usernames = set(usernames)  # eliminate duplicate usernames
@@ -1122,22 +1122,22 @@ class Events(commands.Cog):
                     if user.id in user_ids:
                         continue
                     await ctx.invoke(modlog, id_in=str(user.id))
-        
+
         await post_modlog_in_reports()
-        
+
         # ### Replace tatsumaki/nadeko serverinfo posts
         async def replace_tatsumaki_posts():
             if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
                 if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
                     serverinfo: commands.Command = self.bot.get_command("serverinfo")
                     await ctx.invoke(serverinfo)
-        
+
         await replace_tatsumaki_posts()
-        
+
         async def log_ciri_warnings():
             if msg.guild.id != JP_SERVER_ID:
                 return
-            
+
             try:
                 first_character = msg.content[0]
                 first_word = msg.content.split()[0][1:]  # minus first character for potential command prefix
@@ -1146,10 +1146,10 @@ class Events(commands.Cog):
             except IndexError:
                 return
             args = hf.args_discriminator(args_str)
-            
+
             if first_character != ",":
                 return  # only look at ciri commands
-            
+
             if first_word in ['warn', 'log']:
                 if first_word == 'warn':
                     incident_type = "Warning"
@@ -1157,10 +1157,10 @@ class Events(commands.Cog):
                 else:
                     incident_type = "Log"
                     silent = True
-            
+
             elif first_word == 'ban':
                 ciri_id = 299335689558949888
-                
+
                 def ciri_check(_m: discord.Message) -> bool:
                     if _m.embeds:
                         e = _m.embeds[0]
@@ -1168,7 +1168,7 @@ class Events(commands.Cog):
                             return  # or else error in next line
                         if 'Banned' in e.description or "Cancelled" in e.description:
                             return _m.author.id == ciri_id and _m.channel == msg.channel and not e.title
-                
+
                 # Wait for final confirmation message after user has made a choice
                 try:
                     m2 = await self.bot.wait_for("message", timeout=30.0, check=ciri_check)
@@ -1177,13 +1177,13 @@ class Events(commands.Cog):
                 else:
                     if 'Banned' not in m2.embeds[0].description:
                         return  # user canceled ban
-                    
+
                     incident_type = 'Ban'
                     silent = False
-            
+
             else:
                 return
-            
+
             for user_id in args.user_ids:
                 user = msg.guild.get_member(int(user_id))
                 if not user:
@@ -1199,51 +1199,51 @@ class Events(commands.Cog):
                                               reason=args.reason
                                               )
                 modlog_entry.add_to_modlog()
-        
+
         await log_ciri_warnings()
-        
+
         if msg.author.bot:
             return
-        
+
         # ###############################################
         #
         # No more bots
         #
         # # ###############################################
-        
+
         async def wordsnake_channel():
             if msg.channel.id != 1089515759593603173:
                 return
-            
+
             if not hasattr(self.bot, 'last_wordsnake_word'):
                 self.bot.last_wordsnake_word = None
-            
+
             if not msg.content:
                 return
-            
+
             def add_word_to_database(word_to_add):
                 if 'wordsnake' not in self.bot.db:
                     self.bot.db['wordsnake'] = {word_to_add: 1}
                 else:
                     self.bot.db['wordsnake'][word_to_add] = self.bot.db['wordsnake'].setdefault(word_to_add, 0) + 1
-                
+
                 return self.bot.db['wordsnake'][word_to_add]
-            
+
             new_word = msg.content.split('\n')[0].casefold()
             new_word = new_word.translate(str.maketrans('', '', string.punctuation))  # remove punctuation
             new_word = new_word.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o") \
                 .replace("ú", "u")
             new_word = utils.rem_emoji_url(new_word)
-            
+
             if not new_word:
                 return
-            
+
             while new_word.endswith(" "):
                 new_word = new_word[:-1]
-            
+
             while new_word.startswith(" "):
                 new_word = new_word[1:]
-            
+
             if self.bot.last_wordsnake_word:
                 last_word = self.bot.last_wordsnake_word
                 if new_word[0] == last_word[-1]:
@@ -1254,7 +1254,7 @@ class Events(commands.Cog):
                     #     emoji = '⭐'
                     else:
                         emoji = None
-                    
+
                     if emoji:
                         try:
                             await msg.add_reaction(emoji)
@@ -1275,11 +1275,11 @@ class Events(commands.Cog):
                     except (discord.Forbidden, discord.HTTPException):
                         pass
                     return
-            
+
             self.bot.last_wordsnake_word = new_word
-        
+
         await wordsnake_channel()
-        
+
         # ### guild stats
         def guild_stats():
             config: dict = self.bot.db['guildstats']
@@ -1288,9 +1288,9 @@ class Events(commands.Cog):
             config = config[str(msg.guild.id)]['messages']
             date_str = discord.utils.utcnow().strftime("%Y%m%d")
             config[date_str] = config.setdefault(date_str, 0) + 1
-        
+
         guild_stats()
-        
+
         # automatic word filter
         async def wordfilter():
             """
@@ -1303,12 +1303,12 @@ class Events(commands.Cog):
             config = self.bot.db['wordfilter'][str(msg.guild.id)]
             if not config:
                 return
-            
+
             try:
                 time_ago = discord.utils.utcnow() - msg.author.joined_at
             except AttributeError:  # 'User' object has no attribute 'joined_at'
                 return
-            
+
             for filter_word in config:
                 if msg.content:
                     if re.search(filter_word, msg.content, flags=re.I):
@@ -1326,24 +1326,24 @@ class Events(commands.Cog):
                                 await msg.author.ban(reason=reason)
                             except (discord.Forbidden, discord.HTTPException):
                                 pass
-        
+
         await wordfilter()
-        
+
         """Ping me if someone says my name"""
-        
+
         async def mention_ping():
             cont = str(msg.content).casefold()
-            
+
             if msg.author.bot or msg.author.id == 202995638860906496:
                 return
-            
+
             to_check_words = ['ryry', 'ryan', 'らいらい', 'ライライ', '来雷', '雷来']
-            
+
             if msg.guild.id in [254463427949494292,  # french server
                                 970703212107661402,  # english server
                                 116379774825267202]:  # nihongo to eigo server
                 to_check_words.remove('ryan')  # There's a popular user named "Ryan" in these two servers
-            
+
             try:
                 ryry = msg.guild.get_member(202995638860906496)
                 if not ryry:
@@ -1355,10 +1355,10 @@ class Events(commands.Cog):
                     # probably a message in a forum channel thread without a parent channel
                     # breaks since pycord doesn't support forums yet
                     return
-            
+
             except AttributeError:
                 pass
-            
+
             found_word = False
             ignored_words = ['ryan gosling', 'ryan reynold']
             for ignored_word in ignored_words:
@@ -1367,12 +1367,12 @@ class Events(commands.Cog):
                 # if msg.guild:
                 #     if msg.guild.id == SP_SERVER_ID:
                 #         cont = re.sub(r'ryan', '', cont, flags=re.IGNORECASE)
-            
+
             for to_check_word in to_check_words:
                 # if word in cont.casefold():
                 if re.search(fr"(^| |\.){to_check_word}($|\W)", cont.casefold()):
                     found_word = True
-            
+
             if found_word:
                 spam_chan = self.bot.get_channel(RYRY_SPAM_CHAN)
                 await spam_chan.send(
@@ -1380,16 +1380,16 @@ class Events(commands.Cog):
                     f'\n{msg.content}'
                     f'\n{msg.jump_url}'[:2000])
         await mention_ping()
-        
+
         async def ori_mention_ping():
             cont = str(msg.content).casefold()
             ori_id = 581324505331400733
-            
+
             if msg.author.bot or msg.author.id == ori_id:
                 return
-            
+
             to_check_words = ['ori', 'fireside', 'oriana']
-            
+
             try:
                 ori = msg.guild.get_member(ori_id)
                 if not ori:
@@ -1401,20 +1401,20 @@ class Events(commands.Cog):
                     # probably a message in a forum channel thread without a parent channel
                     # breaks since pycord doesn't support forums yet
                     return
-            
+
             except AttributeError:
                 pass
-            
+
             found_word = False
             ignored_words = []
             for ignored_word in ignored_words:
                 if ignored_word in cont.casefold():  # why do people say these so often...
                     cont = re.sub(ignored_word, '', cont, flags=re.IGNORECASE)
-            
+
             for to_check_word in to_check_words:
                 if re.search(fr"(^| |\.){to_check_word}($|\W)", cont.casefold()):
                     found_word = True
-            
+
             if found_word:
                 spam_chan = self.bot.get_channel(1046904828015677460)
                 await spam_chan.send(
@@ -1422,7 +1422,7 @@ class Events(commands.Cog):
                     f'\n{msg.content}'
                     f'\n{msg.jump_url}'[:2000])
         await ori_mention_ping()
-        
+
         """Self mute"""
         try:
             if self.bot.db['selfmute'][str(msg.guild.id)][str(msg.author.id)]['enable']:
@@ -1432,7 +1432,7 @@ class Events(commands.Cog):
                     pass
         except KeyError:
             pass
-        
+
         """Owner self mute"""
         try:
             if self.bot.selfMute and msg.author.id == self.bot.owner_id:
@@ -1442,9 +1442,9 @@ class Events(commands.Cog):
                     pass
         except AttributeError:
             pass
-        
+
         """check for mutual servers of banned users"""
-        
+
         async def check_guilds():
             if msg.guild.id == MODCHAT_SERVER_ID:
                 async def check_user(content):
@@ -1460,16 +1460,16 @@ class Events(commands.Cog):
                                 users.append(user)
                     for user in users:
                         await hf.ban_check_servers(self.bot, bans_channel, user, ping=False, embed=None)
-                
+
                 await check_user(msg.content)
                 for embed in msg.embeds:
                     if embed.description:
                         await check_user(embed.description)
-        
+
         await check_guilds()
-        
+
         """chinese server banned words"""
-        
+
         async def chinese_server_banned_words():
             words = ['动态网自由门', '天安門', '天安门', '法輪功', '李洪志', 'Free Tibet', 'Tiananmen Square',
                      '反右派鬥爭', 'The Anti-Rightist Struggle', '大躍進政策', 'The Great Leap Forward', '文化大革命',
@@ -1497,7 +1497,7 @@ class Events(commands.Cog):
                                            "spam message.")
                     except discord.NotFound:
                         pass
-                    
+
                     try:
                         await asyncio.sleep(3)
                         await msg.author.ban(reason=f"Automatic ban: Chinese banned words spam\n"
@@ -1506,15 +1506,15 @@ class Events(commands.Cog):
                         await utils.safe_send(mod_channel,
                                            "I tried to ban someone for the Chinese spam message, but I lack "
                                            "the permission to ban users.")
-                    
+
                     await utils.safe_send(log_channel, f"Banned {msg.author} for the banned words spam message."
                                                     f"\nMessage was posted in {msg.channel.mention}.  Message:"
                                                     f"\n```{msg.content}"[:1850] + '```')
-                    
+
                     return
-        
+
         await chinese_server_banned_words()
-        
+
         # """spanish server welcome channel module"""
         #
         # async def smart_welcome(msg):
@@ -1623,15 +1623,15 @@ class Events(commands.Cog):
         #     await utils.safe_send(msg.channel, msg.author.mention + txt1 + txt2)
         #
         # await smart_welcome(msg)
-        
+
         async def mods_ping(message_in):
             """mods ping on spanish server"""
             if str(msg.guild.id) not in self.bot.db['staff_ping']:
                 return
-            
+
             if 'channel' not in self.bot.db['staff_ping'][str(msg.guild.id)]:
                 return
-            
+
             config = self.bot.db['staff_ping'][str(msg.guild.id)]
             staff_role_id = config.get("role")  # try to get role id from staff_ping db
             if not staff_role_id:  # no entry in staff_ping db
@@ -1643,7 +1643,7 @@ class Events(commands.Cog):
             staff_role = msg.guild.get_role(staff_role_id)
             if not staff_role:
                 return
-            
+
             if f"<@&{staff_role_id}>" in message_in.content:
                 edited_msg = re.sub(rf'<?@?&?{str(staff_role_id)}>? ?', '', message_in.content)
             else:
@@ -1652,19 +1652,19 @@ class Events(commands.Cog):
             users = re.findall(user_id_regex, edited_msg)
             users = ' '.join(users)
             edited_msg = re.sub(user_id_regex, "", edited_msg)
-            
+
             interactions = self.bot.get_cog("Interactions")  # get cog, then the function inside the cog
             notif = await interactions.staffping_code(ctx=ctx, users=users, reason=edited_msg)
-            
+
             if hasattr(self.bot, 'synced_reactions'):
                 self.bot.synced_reactions.append((notif, message_in))
             else:
                 self.bot.synced_reactions = [(notif, message_in)]
-            
+
             return
-        
+
         await mods_ping(msg)
-        
+
         async def ping_sesion_mod():
             """When the staff role is pinged on the Spanish server,
             this module will ping the Sesion Mod role as well"""
@@ -1680,7 +1680,7 @@ class Events(commands.Cog):
                     return
             else:
                 return
-            
+
             if msg.reference:
                 if type(msg.reference.resolved) == discord.Message:
                     await msg.reference.resolved.reply(ping)
@@ -1688,29 +1688,29 @@ class Events(commands.Cog):
                     await msg.reply(ping)
             else:
                 await msg.reply(ping)
-            
+
             if str(SESION_MOD_ROLE_ID) in msg.content:
                 await mods_ping(msg)
-        
+
         await ping_sesion_mod()
-        
+
         # ### super_watch
         async def super_watch():
             try:
                 config = self.bot.db['super_watch'][str(msg.guild.id)]
             except KeyError:
                 return
-            
+
             if not hasattr(msg.author, "guild"):
                 return  # idk why this should be an issue but it returned an error once
-            
+
             mentioned: Optional[discord.Member] = None
             for user_id in config['users']:
                 if user_id in msg.content:
                     user = msg.guild.get_member(int(user_id))
                     if user:
                         mentioned = user
-            
+
             if str(msg.author.id) in config['users'] or mentioned:
                 desc = "❗ "
                 which = 'sw'
@@ -1722,25 +1722,25 @@ class Events(commands.Cog):
                 which = 'new'
             else:
                 return
-            
+
             if mentioned:
                 desc += f"**{str(mentioned)}** ({mentioned.id}) mentioned by {str(msg.author)} ({msg.author.id})"
             else:
                 desc += f"**{str(msg.author)}** ({msg.author.id})"
             emb = discord.Embed(description=desc, color=0x00FFFF, timestamp=discord.utils.utcnow())
             emb.set_footer(text=f"#{msg.channel.name}")
-            
+
             link = f"\n([Jump URL]({msg.jump_url})"
             if which == 'sw':
                 if config['users'].get(str(msg.author.id), None):
                     link += f" － [Entry Reason]({config['users'][str(msg.author.id)]})"
             link += ')'
             emb.add_field(name="Message:", value=msg.content[:1024 - len(link)] + link)
-            
+
             await utils.safe_send(self.bot.get_channel(config['channel']), embed=emb)
-        
+
         await super_watch()
-        
+
         # ### Lang check: will check if above 3 characters + hardcore, or if above 15 characters + stats
         async def lang_check() -> (Optional[str], bool):
             detected_lang = None
@@ -1749,7 +1749,7 @@ class Events(commands.Cog):
                 return None, False
             stripped_msg = utils.rem_emoji_url(msg)
             check_lang = False
-            
+
             if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
                 if stripped_msg[0] not in '=;>' and len(stripped_msg) > 3:
                     if isinstance(msg.channel, discord.Thread):
@@ -1763,11 +1763,11 @@ class Events(commands.Cog):
                         if hardcore_role in msg.author.roles:
                             check_lang = True
                             is_hardcore = True
-            
+
             if str(msg.guild.id) in self.bot.stats:
                 if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
                     check_lang = True
-            
+
             if check_lang:
                 try:
                     if msg.guild.id in [SP_SERVER_ID, 1112421189739090101] and msg.channel.id != 817074401680818186:
@@ -1780,32 +1780,32 @@ class Events(commands.Cog):
                 except (HTTPError, TimeoutError, urllib.error.URLError):
                     pass
             return detected_lang, is_hardcore
-        
+
         lang, hardcore = await lang_check()
         lang: Optional[str]  # en, sp, None
         hardcore: bool
-        
+
         # ### Vader Sentiment Analysis
         async def vader_sentiment_analysis():
             if not msg.content:
                 return
-            
+
             if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
                 return
-            
+
             if lang != 'en' and msg.guild.id != RY_SERVER_ID:
                 return
-            
+
             to_calculate = msg.content
             show_result = False
             if msg.content.startswith(";sentiment "):
                 if not re.search(r"(?:;sentiment @)|(?:;sentiment <?@?!?\d{17,22}>?)", msg.content):
                     to_calculate = msg.content.replace(";sentiment ", "")
                     show_result = True
-            
+
             sentiment = self.sid.polarity_scores(to_calculate)
             # above returns a dict like {'neg': 0.0, 'neu': 1.0, 'pos': 0.0, 'compound': 0.0}
-            
+
             if show_result:
                 pos = sentiment['pos']
                 neu = sentiment['neu']
@@ -1816,30 +1816,30 @@ class Events(commands.Cog):
                                         f"\nNote this program is often wrong, and can only check English. If using "
                                         f"this command returned nothing, it means the program couldn't judge "
                                         f"your message.")
-            
+
             if msg.author.id == 352959699454263300:  # 352959699454263300
                 test_channel = self.bot.get_channel(1145205130560553060)
                 await utils.safe_send(test_channel, f"{msg.content}\n{sentiment}")
-            
+
             sentiment = sentiment['compound']
-            
+
             if 'sentiments' not in self.bot.db:
                 self.bot.db['sentiments'] = {}
-            
+
             if str(msg.guild.id) not in self.bot.db['sentiments']:
                 self.bot.db['sentiments'][str(msg.guild.id)] = {}
             config = self.bot.db['sentiments'][str(msg.guild.id)]
-            
+
             if str(msg.author.id) not in config:
                 config[str(msg.author.id)] = [sentiment]
             else:
                 config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
                 config[str(msg.author.id)].append(sentiment)
-        
+
         await vader_sentiment_analysis()
-        
+
         """Message counting"""
-        
+
         # 'stats':
         #     guild id: str:
         #         'enable' = True/False
@@ -1876,7 +1876,7 @@ class Events(commands.Cog):
         #                     channel2: 10}
         #                 ...}
         #             ...
-        
+
         async def msg_count():
             if msg.author.bot:
                 return
@@ -1884,7 +1884,7 @@ class Events(commands.Cog):
                 return
             if not self.bot.stats[str(msg.guild.id)]['enable']:
                 return
-            
+
             config = self.bot.stats[str(msg.guild.id)]
             date_str = discord.utils.utcnow().strftime("%Y%m%d")
             if date_str not in config['messages']:
@@ -1901,19 +1901,19 @@ class Events(commands.Cog):
                     return
             else:
                 return
-            
+
             # message count
             today.setdefault(author, {})
             today[author].setdefault('channels', {})
             today[author]['channels'][channel] = today[author]['channels'].get(channel, 0) + 1
-            
+
             # activity score
             # if "activity" not in config:
             #     config['activity'] = {date_str: {}}
             #
             # activity: dict = config['activity'].setdefault(date_str, {})
             today[author].setdefault('activity', {})
-            
+
             if not hasattr(self.bot, "last_message"):
                 self.bot.last_message = {}
             if author not in self.bot.last_message:
@@ -1925,7 +1925,7 @@ class Events(commands.Cog):
             if utcnow_timestamp - last_message_timestamp > 60:
                 today[author]['activity'][channel] = today[author]['activity'].get(channel, 0) + 5
                 self.bot.last_message[author][channel] = utcnow_timestamp
-            
+
             # emojis
             emojis = re.findall(r':([A-Za-z0-9_]+):', msg.content)
             for character in msg.content:
@@ -1933,7 +1933,7 @@ class Events(commands.Cog):
                     emojis.append(character)
                 if utils.is_ignored_emoji(character) and character not in self.ignored_characters:
                     self.ignored_characters.append(character)
-            
+
             if emojis:
                 today[author].setdefault('emoji', {})
                 for emoji in emojis:
@@ -1943,16 +1943,16 @@ class Events(commands.Cog):
             if lang:  # language is detected in separate lang_check function
                 today[author].setdefault('lang', {})
                 today[author]['lang'][lang] = today[author]['lang'].get(lang, 0) + 1
-        
+
         await msg_count()
-        
+
         """Database message counting"""
-        
+
         """Ultra Hardcore"""
         await hf.uhc_check(msg)
-        
+
         """Chinese server hardcore mode"""
-        
+
         async def cn_lang_check(check_hardcore_role=True):
             content = re.sub("^(>>>|>) .*$\n?", "", msg.content, flags=re.M)  # removes lines that start with a quote
             if len(content) > 3:
@@ -1961,14 +1961,14 @@ class Events(commands.Cog):
                         role = msg.guild.get_role(self.bot.db['hardcore'][str(msg.guild.id)]['role'])
                     except (KeyError, AttributeError):
                         return
-                    
+
                     if not hasattr(msg.author, 'roles'):
                         return
                     if role not in msg.author.roles:
                         return
-                
+
                 learning_eng = msg.guild.get_role(ENG_ROLE[msg.guild.id])  # this function is only called for two guilds
-                
+
                 ratio = utils.jpenratio(content)
                 if ratio is not None:  # it might be "0" so I can't do "if ratio"
                     if learning_eng in msg.author.roles:
@@ -1987,12 +1987,12 @@ class Events(commands.Cog):
                                 pass
                             if len(content) > 60:
                                 await hf.long_deleted_msg_notification(msg)
-        
+
         if msg.guild.id in [CH_SERVER_ID, CL_SERVER_ID]:
             try:
                 if msg.channel.id in self.bot.db['forcehardcore']:
                     await cn_lang_check(check_hardcore_role=False)
-                
+
                 else:
                     if isinstance(msg.channel, discord.Thread):
                         channel_id = msg.channel.parent.id
@@ -2005,9 +2005,9 @@ class Events(commands.Cog):
                         await cn_lang_check()
             except KeyError:
                 self.bot.db['forcehardcore'] = []
-        
+
         """Spanish server hardcore"""
-        
+
         async def spanish_server_hardcore():
             if not hardcore:  # this should be set in the lang_check function
                 return
@@ -2020,12 +2020,12 @@ class Events(commands.Cog):
             else:
                 eng_native = msg.guild.get_role(243853718758359040)
                 oth_native = msg.guild.get_role(247020385730691073)
-                
+
                 if eng_native or oth_native in msg.author.roles:
                     delete = 'english'
                 else:
                     delete = 'spanish'
-            
+
             if delete == 'spanish':  # learning English, delete all Spanish
                 if lang == 'es':
                     try:
@@ -2044,11 +2044,11 @@ class Events(commands.Cog):
                         return
                     if len(msg.content) > 30:
                         await hf.long_deleted_msg_notification(msg)
-        
+
         await spanish_server_hardcore()
-        
+
         """no filter hc"""
-        
+
         async def no_filter_hc():
             if msg.channel.id == 193966083886153729:
                 jpRole = msg.guild.get_role(196765998706196480)
@@ -2065,7 +2065,7 @@ class Events(commands.Cog):
                             await msg.delete()
                             await msg.author.send(f"I've deleted your message from {nf}. In that channel, Japanese "
                                                   "people must speak English only. Here is the message I deleted:")
-                            
+
                             await msg.author.send(f"```{msg.content[:1993]}```")
                         except (discord.NotFound, discord.Forbidden):
                             pass
@@ -2078,22 +2078,22 @@ class Events(commands.Cog):
                             await msg.author.send(f"```{msg.content[:1993]}```")
                         except (discord.NotFound, discord.Forbidden):
                             pass
-        
+
         await no_filter_hc()
-        
+
         """spanish server language switch"""
-        
+
         async def spanish_server_language_switch():
             if not lang:
                 return
-            
+
             if "*" in msg.content or msg.content.startswith(">"):
                 return  # exempt messages with "*" and quotes
-            
+
             ch = self.bot.get_channel(739127911650557993)
             if msg.channel != ch:
                 return
-            
+
             sp_nat_role = msg.guild.get_role(243854128424550401)
             if sp_nat_role in msg.author.roles:
                 if lang == 'es':
@@ -2101,32 +2101,32 @@ class Events(commands.Cog):
                         await msg.delete()
                     except (discord.Forbidden, discord.HTTPException):
                         pass
-            
+
             else:
                 if lang == 'en':
                     try:
                         await msg.delete()
                     except (discord.Forbidden, discord.HTTPException):
                         pass
-        
+
         await spanish_server_language_switch()
-        
+
         async def delete_messages_in_pinned_posts():
             if not msg.channel.category:
                 return
-            
+
             if msg.channel.category.id != 926269985846866010:
                 return
-            
+
             if not isinstance(msg.channel, discord.Thread):
                 return
-            
+
             if not isinstance(msg.channel.parent, discord.ForumChannel):
                 return
-            
+
             if not msg.channel.flags.pinned:
                 return
-            
+
             if not hf.submod_check(ctx):
                 await msg.delete()
                 try:
@@ -2136,7 +2136,7 @@ class Events(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     return
         await delete_messages_in_pinned_posts()
-        
+
         async def spanish_server_staff_ping_info_request():
             """This module will watch for users who ping Spanish server staff role (642782671109488641) and
             if they didn't include any text with their ping explaining the issue, it will ask them to do so in
@@ -2149,10 +2149,10 @@ class Events(commands.Cog):
                 return  # exempt staff channels
             if msg.author.bot:
                 return
-            
+
             # remove the staff ping from the message for the next part
             new_content = msg.content.replace(f"<@&642782671109488641>", "")
-            
+
             # if the message without the ping is less than 4 characters, it's likely just a ping with no text
             if len(new_content) < 4:
                 await ctx.reply("- Thank you for pinging staff. In the future, please also include a description of "
@@ -2162,9 +2162,9 @@ class Events(commands.Cog):
                                 "descripción del problema cuando envíes un ping al "
                                 "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
                                 "lo que está pasando.")
-        
+
         await spanish_server_staff_ping_info_request()
-        
+
         async def spanish_server_ban_for_adobe_spam_message():
             """This command will ban users who say the word 'Adobe' in the Spanish server if they have less
             than five messages in the last month."""
@@ -2188,9 +2188,9 @@ class Events(commands.Cog):
                                                       f"(Messages in last month: {recent_messages_count})")
             except (discord.Forbidden, discord.HTTPException):
                 pass
-        
+
         await spanish_server_ban_for_adobe_spam_message()
-        
+
         # ### antispam
         # ### WARNING: Has a 10 second code-stopping wait sequence inside, keep this as last in on_message
         async def antispam_check():
@@ -2203,10 +2203,10 @@ class Events(commands.Cog):
             if msg.channel.id in config['ignored']:
                 return
             spam_count = 1
-            
+
             def check(m):
                 return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
-            
+
             while spam_count < config['message_threshhold']:
                 try:
                     await self.bot.wait_for('message', timeout=config['time_threshhold'], check=check)
@@ -2214,19 +2214,19 @@ class Events(commands.Cog):
                     return
                 else:
                     spam_count += 1
-            
+
             reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshhold']} " \
                      f"times in {config['time_threshhold']} seconds."
-            
+
             action: str = config['action']
-            
+
             time_ago: timedelta = discord.utils.utcnow() - msg.author.joined_at
             if ban_threshhold := config.get('ban_override', 0):
                 if time_ago < timedelta(minutes=ban_threshhold):
                     action = 'ban'
                     mins_ago = int(time_ago.total_seconds())
                     reason = reason[:-1] + f" (joined {mins_ago} minutes ago)."
-            
+
             if action == 'ban':
                 try:
                     await msg.author.ban(reason=reason)
@@ -2241,7 +2241,7 @@ class Events(commands.Cog):
                 # prevents this code from running multiple times if they're spamming fast
                 if not hasattr(self.bot, "spammer_mute"):
                     self.bot.spammer_mute = []  # a temporary list
-                
+
                 if (spammer_mute_entry := (msg.guild.id, msg.author.id)) in self.bot.spammer_mute:
                     try:
                         await msg.delete()
@@ -2250,13 +2250,13 @@ class Events(commands.Cog):
                     return
                 else:
                     self.bot.spammer_mute.append(spammer_mute_entry)  # will remove at end of function
-                
+
                 try:
                     # execute the 1h mute command
                     ctx.author = msg.guild.me
                     mute_command: commands.Command = self.bot.get_command('mute')
                     await ctx.invoke(mute_command, args=f"1h {str(msg.author.id)} {reason}")
-                    
+
                     # notify in mod channel if it is set
                     if str(msg.guild.id) in self.bot.db['mod_channel']:
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
@@ -2266,21 +2266,21 @@ class Events(commands.Cog):
                             await utils.safe_send(mod_channel, msg.author.id,
                                                embed=utils.red_embed(f"Muted for 1h: {str(msg.author)} for {reason}\n"
                                                                   f"[Jump URL]({msg.jump_url})"))
-                
+
                 # skip if something went wrong
                 except (discord.Forbidden, discord.HTTPException):
                     pass
-                
+
                 # remove from temporary list after all actions done
                 self.bot.spammer_mute.remove(spammer_mute_entry)
-            
+
             def purge_check(m):
                 return m.author == msg.author and m.content == msg.content
-            
+
             await msg.channel.purge(limit=50, check=purge_check)
-        
+
         await antispam_check()
-        
+
         # WARNING: DONT ADD CODE HERE
         # The above function has a ten second wait time, so all new code must go above it
 
