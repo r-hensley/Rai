@@ -12,16 +12,16 @@ from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
 
 
-class IgnoreRateLimitFilter(logging.Filter):
-    def filter(self, record):
-        logging.warning("TEST")
-        if "We are being rate limited" in record.getMessage():
-            print("Ignoring: We are being rate limited.")
-            return False
-        if "Shard ID None has successfully RESUMED" in record.getMessage():
-            print("Ignoring: Shard has successfully RESUMED.")
-            return False
-        return True
+# class IgnoreRateLimitFilter(logging.Filter):
+#     def filter(self, record):
+#         logging.warning("TEST")
+#         if "We are being rate limited" in record.getMessage():
+#             print("Ignoring: We are being rate limited.")
+#             return False
+#         if "Shard ID None has successfully RESUMED" in record.getMessage():
+#             print("Ignoring: Shard has successfully RESUMED.")
+#             return False
+#         return True
 
 
 # logging.basicConfig(level=logging.WARNING)
@@ -37,24 +37,24 @@ class IgnoreRateLimitFilter(logging.Filter):
 # Get the logger for "discord.http"
 # logger = logging.getLogger('discord.http')
 
-logger = logging.getLogger('discord')
-logger.setLevel(logging.WARNING)
-logging.getLogger('discord.http').setLevel(logging.INFO)
-
-handler = logging.handlers.RotatingFileHandler(
-    filename='discord.log',
-    encoding='utf-8',
-    maxBytes=32 * 1024 * 1024,  # 32 MiB
-    backupCount=5,  # Rotate through 5 files
-)
-
-dt_fmt = '%Y-%m-%d %H:%M:%S'
-formatter = logging.Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', dt_fmt, style='{')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-# Add the filter to the logger
-logger.addFilter(IgnoreRateLimitFilter())
+# logger = logging.getLogger('discord')
+# logger.setLevel(logging.WARNING)
+# logging.getLogger('discord.http').setLevel(logging.INFO)
+#
+# handler = logging.handlers.RotatingFileHandler(
+#     filename='discord.log',
+#     encoding='utf-8',
+#     maxBytes=32 * 1024 * 1024,  # 32 MiB
+#     backupCount=5,  # Rotate through 5 files
+# )
+#
+# dt_fmt = '%Y-%m-%d %H:%M:%S'
+# formatter = logging.Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', dt_fmt, style='{')
+# handler.setFormatter(formatter)
+# logger.addHandler(handler)
+#
+# # Add the filter to the logger
+# logger.addFilter(IgnoreRateLimitFilter())
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERV_ID = 189571157446492161
@@ -77,8 +77,7 @@ class Main(commands.Cog):
         self.bot = bot
 
     def cog_load(self):
-        # self.logging_setup()
-        pass
+        self.logging_setup()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -124,21 +123,24 @@ class Main(commands.Cog):
             print("Starting database backups")
             self.database_backups.start()
 
-    @tasks.loop(hours=24)
-    async def database_backups(self):
-        date = datetime.today().strftime("%Y%m%d-%H.%M")
-        with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
-            json.dump(self.bot.db, write_file)
-        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
-            json.dump(self.bot.stats, write_file)
+    @staticmethod
+    def logging_setup():
+        class IgnoreRateLimitFilter(logging.Filter):
+            def filter(self, record):
+                if "We are being rate limited" in record.getMessage():
+                    print("Ignoring: We are being rate limited.")
+                    return False
+                if "Shard ID None has successfully RESUMED" in record.getMessage():
+                    print("Ignoring: Shard has successfully RESUMED.")
+                    return False
+                return True
 
-    def logging_setup(self):
         logger = logging.getLogger('discord')
         logger.setLevel(logging.WARNING)
         logging.getLogger('discord.http').setLevel(logging.INFO)
 
         handler = logging.handlers.RotatingFileHandler(
-            filename='discord.log',
+            filename=f"{dir_path}/log/{discord.utils.utcnow().strftime('%y%m%d_%H%M')}.log",
             encoding='utf-8',
             maxBytes=32 * 1024 * 1024,  # 32 MiB
             backupCount=5,  # Rotate through 5 files
@@ -149,8 +151,20 @@ class Main(commands.Cog):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
+        for logger_filter in logger.filters:
+            print(f"Removing filter: {logger_filter} from logger")
+            logger.removeFilter(logger_filter)
+
         # Add the filter to the logger
         logger.addFilter(IgnoreRateLimitFilter())
+
+    @tasks.loop(hours=24)
+    async def database_backups(self):
+        date = datetime.today().strftime("%Y%m%d-%H.%M")
+        with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
+            json.dump(self.bot.db, write_file)
+        with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
+            json.dump(self.bot.stats, write_file)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
