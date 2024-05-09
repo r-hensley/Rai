@@ -1533,7 +1533,7 @@ class Logger(commands.Cog):
 
             guild = before.guild
             attempts = 0
-            time_left = None
+            time_left: int = 0
             timeout_length_str = None
             reason = None
             author = None
@@ -1545,14 +1545,17 @@ class Logger(commands.Cog):
                         author = entry.user
                         if author == guild.me:
                             return  # A timeout by Rai, probably in the mute command. Let that command handle the modlog
-                        time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
+                        if after.timed_out_until:
+                            time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
+                        else:
+                            time_left = 0
                         reason = entry.reason
 
                         if reason:
                             if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
                                 return
 
-                        if time_left < 70:  # 60 SEC
+                        if 0 < time_left < 70:  # 60 SEC
                             timeout_length_str = "1m"
                         elif 250 < time_left < 350:  # 5 MIN = 300 SEC
                             timeout_length_str = "5m"
