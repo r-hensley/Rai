@@ -356,24 +356,48 @@ class ChannelMods(commands.Cog):
             await utils.safe_reply(ctx, "Please provide a user ID and a link to the evidence.")
             return
         split_args = args.split()
+
+        # if there's only one argument, it should be the evidence; search for the ID in the message history
         if len(split_args) == 1:
             try:
+                # works if this is the ID
                 int(split_args[0])
             except ValueError:
-                await utils.safe_reply(ctx, "Please provide a valid user ID.")
-                return
+                id = await self.check_for_id_reference(ctx)
+                if not id:
+                    await utils.safe_reply(ctx, "Please provide a valid user ID.")
+                    return
+                else:
+                    user_id = id
+                    user_id_str = str(user_id)
+                    evidence = split_args[0]  # since there was only one arg passed and it was the evidence
             else:
+                # int(id) worked, so no evidence was given
                 await utils.safe_reply(ctx, "Please provide a link to the evidence.")
                 return
-        user_id_str, *evidence = split_args
-        user_id = int(user_id_str)
-        evidence = ' '.join(evidence)
+        else:
+            # there were multiple arguments passed
+            user_id_str, *evidence = split_args
+            evidence = ' '.join(evidence)
+
+        # check to make sure the ID is actually an ID
         if not re.match(r'^\d{17,22}$', user_id_str):
-            await utils.safe_reply(ctx, "Please provide a valid user ID.")
-            return
+            possible_id = await self.check_for_id_reference(ctx)
+            if possible_id:
+                user_id = possible_id
+                evidence = ' '.join(split_args)
+            else:
+                await utils.safe_reply(ctx, "Please provide a valid user ID.")
+                return
+        else:
+            user_id = int(user_id_str)
+
         url = True
         if not re.match(r'^https?://', evidence):
             url = False
+
+        # Replace any lone instance of the word "ctx" in the evidence with a link to the jump_url of the ctx message
+        evidence = re.sub(r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
 
         modlog = self.bot.db['modlog'].get(str(ctx.guild.id), {}).get(str(user_id), [])
         if not modlog:
@@ -389,6 +413,22 @@ class ChannelMods(commands.Cog):
         await utils.safe_reply(ctx.message, f"Added evidence to the last log for {user_id} (<@{user_id}>). "
                                             f"New reason: "
                                             f"\n>>> {most_recent_log['reason']}")
+
+    async def check_for_id_reference(self, ctx: commands.Context):
+        """This will check the last five messages for any message starting with ;log, ;mute, or ;warn and pull
+        the ID out"""
+        async for message in ctx.channel.history(limit=15, oldest_first=False):
+            if message.author == ctx.author:
+                if message.content.startswith((';log', ';mute', ';warn', ';ban')):
+                    id_str = message.content.split()[1]
+                    # remove <@...> if it's there
+                    id_str = re.sub(r'<@!?(\d+)>', r'\1', id_str)
+                    try:
+                        id = int(id_str)
+                    except ValueError:
+                        return
+                    else:
+                        return id
 
     # @commands.command(aliases=['channel_helper', 'cm', 'ch'])
     # @hf.is_admin()
