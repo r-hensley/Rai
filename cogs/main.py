@@ -137,7 +137,8 @@ class Main(commands.Cog):
 
         logger = logging.getLogger('discord')
         logger.setLevel(logging.WARNING)
-        logging.getLogger('discord.http').setLevel(logging.INFO)
+        logger_http = logging.getLogger('discord.http')
+        logger_http.setLevel(logging.INFO)
 
         handler = logging.handlers.RotatingFileHandler(
             filename=f"{dir_path}/log/{discord.utils.utcnow().strftime('%y%m%d_%H%M')}.log",
@@ -151,12 +152,12 @@ class Main(commands.Cog):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-        for logger_filter in logger.filters:
+        for logger_filter in logger_http.filters:
             print(f"Removing filter: {logger_filter} from logger")
-            logger.removeFilter(logger_filter)
+            logger_http.removeFilter(logger_filter)
 
         # Add the filter to the logger
-        logger.addFilter(IgnoreRateLimitFilter())
+        logger_http.addFilter(IgnoreRateLimitFilter())
 
     @tasks.loop(hours=24)
     async def database_backups(self):
