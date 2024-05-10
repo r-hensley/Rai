@@ -1720,7 +1720,11 @@ class ChannelMods(commands.Cog):
             return
         role = guild.get_role(config['role'])
         if not role:
-            await utils.safe_send(ctx, "I could not find the mute role. Maybe it has been deleted?")
+            await utils.safe_send(ctx, f"I could not find the mute role "
+                                       f"(guild_id: {guild.id}, role_id: {config['role']}). "
+                                       f"Maybe it has been deleted?")
+            # delete the role from the database
+            del self.bot.db['mutes'][str(guild.id)]
             return
 
         voice_role = None
