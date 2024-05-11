@@ -1013,8 +1013,6 @@ class Events(commands.Cog):
         reason = (f"{rule_description}\n"
                   f">>> {formatted_content}")
 
-        print(execution.action.duration, type(execution.action.duration))
-
         hf.add_to_modlog(None, [member, guild], modlog_type, reason, silent, execution.action.duration)
 
     @commands.Cog.listener()
