@@ -287,7 +287,11 @@ class Questions(commands.Cog):
                         pass
                     return
 
-        log_message = await utils.safe_send(log_channel, embed=emb)
+        try:
+            log_message = await utils.safe_send(log_channel, embed=emb)
+        except discord.Forbidden:
+            await utils.safe_send(ctx, "I lack the ability to send messages in the log channel.")
+            return
 
         try:
             await self._delete_log(ctx)
