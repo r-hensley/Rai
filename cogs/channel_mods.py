@@ -265,6 +265,10 @@ class ChannelMods(commands.Cog):
             return
 
         log_message = await utils.safe_send(channel, str(msg.author.id), embed=emb)
+        if not log_message:
+            # error
+            await utils.safe_send(ctx, "I couldn't send the log message to the submod channel.")
+            return
         for msg in msgs:
             await hf.send_attachments_to_thread_on_message(log_message, msg)
         if embeds:
