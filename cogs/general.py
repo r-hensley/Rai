@@ -1446,6 +1446,20 @@ class General(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             pass
 
+    @commands.command(hidden=True)
+    @commands.check(lambda ctx: ctx.author.id in [216848576549093376, 354352443502493706, 202995638860906496]
+                                and ctx.guild.id == SP_SERVER_ID if ctx.guild else False)
+    async def admin(self, ctx):
+        """Allows chosen users to add/remove admin role"""
+        # Current users: Jaleel, Evil, Ryan
+        admin_role = ctx.guild.get_role(243854949522472971)
+        if admin_role in ctx.author.roles:
+            await ctx.author.remove_roles(admin_role)
+            await ctx.message.add_reaction('❌')
+        else:
+            await ctx.author.add_roles(admin_role)
+            await ctx.message.add_reaction('✅')
+
 
 async def setup(bot):
     await bot.add_cog(General(bot))
