@@ -34,7 +34,8 @@ except FileNotFoundError:
     with open(f'{dir_path}/.env', 'w') as f:
         f.write(txt)
     print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
-          "for tracebacks and logging, put channel IDs in those.\n"
+          "for tracebacks and "
+          ", put channel IDs in those.\n"
           "There is also a spot for your GCSE api key if you have one, \n"
           "but if you don't you can leave that blank.")
     exit()
