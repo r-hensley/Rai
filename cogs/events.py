@@ -1809,10 +1809,6 @@ class Events(commands.Cog):
                                         f"this command returned nothing, it means the program couldn't judge "
                                         f"your message.")
 
-            if msg.author.id == 352959699454263300:  # 352959699454263300
-                test_channel = self.bot.get_channel(1145205130560553060)
-                await utils.safe_send(test_channel, f"{msg.content}\n{sentiment}")
-
             sentiment = sentiment['compound']
 
             if 'sentiments' not in self.bot.db:
