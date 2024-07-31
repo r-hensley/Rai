@@ -914,28 +914,7 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        """auto role"""
-
-        async def auto_role():
-            if member.guild.id == SPAN_SERV_ID:
-                category_roles = [member.guild.get_role(802629332425375794),
-                                  member.guild.get_role(802657919400804412),
-                                  member.guild.get_role(1002681814734880899)]
-
-                for role in category_roles.copy():
-                    if not role:
-                        category_roles.remove(role)
-
-                if (discord.utils.utcnow() - member.created_at) > timedelta(weeks=2):
-                    try:
-                        await member.add_roles(*category_roles)
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
-
-        await auto_role()
-
         """welcome message"""
-
         async def welcome_message():
             guild = str(member.guild.id)
             _welcome_channel: Optional[discord.TextChannel] = None
@@ -1044,11 +1023,6 @@ class Logger(commands.Cog):
                     stage_visitor = member.guild.get_role(645021058184773643)
                     if stage_visitor in list_of_readd_roles:
                         list_of_readd_roles.remove(stage_visitor)
-                    if member.guild.id == SPAN_SERV_ID:
-                        # Category roles
-                        list_of_readd_roles.append(member.guild.get_role(802629332425375794))
-                        list_of_readd_roles.append(member.guild.get_role(802657919400804412))
-                        list_of_readd_roles.append(member.guild.get_role(1002681814734880899))
                     try:
                         for role in list_of_readd_roles:
                             try:
@@ -1314,7 +1288,6 @@ class Logger(commands.Cog):
                             role.id in [249695630606336000,  # jp server new user role
                                         member.guild.id,  # the "@everyone" role
                                         645021058184773643,  # jp server "stage visitor" role
-                                        802629332425375794, 802657919400804412, 1002681814734880899,  # category roles
                                         590163584856752143]:  # awesome supporter role (jp server)
 
                         pass
@@ -1635,32 +1608,6 @@ class Logger(commands.Cog):
                         await utils.safe_send(event_helpers_channel, str(after.id), embed=emb)
 
         await check_timeouts()
-
-        # ######### Role change #############
-        async def check_role_change():
-            if after.guild.id != SPAN_SERV_ID:
-                return
-
-            category_roles = [after.guild.get_role(802629332425375794),
-                              after.guild.get_role(802657919400804412),
-                              after.guild.get_role(1002681814734880899)]
-            native_lang_roles = [after.guild.get_role(243853718758359040),  # eng native
-                                 after.guild.get_role(243854128424550401),  # sp native
-                                 after.guild.get_role(247020385730691073)]  # other native
-
-            lang_role_change = False
-            for role in native_lang_roles:
-                if role not in before.roles and role in after.roles:
-                    lang_role_change = True
-                    break
-
-            if lang_role_change:
-                try:
-                    await after.add_roles(*category_roles)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
-
-        await check_role_change()
 
     # ############### reaction removals #####################
 
