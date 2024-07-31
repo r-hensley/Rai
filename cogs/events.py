@@ -1528,12 +1528,6 @@ class Events(commands.Cog):
         #     english_role = msg.guild.get_role(243853718758359040)
         #     spanish_role = msg.guild.get_role(243854128424550401)
         #     other_role = msg.guild.get_role(247020385730691073)
-        #     category_roles = [msg.guild.get_role(802629332425375794),
-        #                       msg.guild.get_role(802657919400804412),
-        #                       msg.guild.get_role(1002681814734880899)]
-        #     for role in category_roles:
-        #         if not role:
-        #             category_roles.remove(role)
         #     for role in [english_role, spanish_role, other_role]:
         #         if role in msg.author.roles:
         #             return  # ignore messages by users with tags already

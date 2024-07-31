@@ -168,7 +168,7 @@ class Main(commands.Cog):
             json.dump(self.bot.stats, write_file)
 
     @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send("Failed to find the object you tried to look up.  Please try again")
@@ -249,6 +249,11 @@ class Main(commands.Cog):
 
                 # prevent users from using stats commands in spanish server learning channels, supress warnings
                 if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
+                    return
+
+            if ctx.command.name == "reply":
+                # prevent erroneous command errors for server in which the "Nostradamus" bot is present
+                if 567855500939493395 in [m.id for m in ctx.guild.members]:
                     return
 
             if ctx.command.cog.qualified_name in ['Admin', 'Logger', 'ChannelMods', 'Submod'] and \
