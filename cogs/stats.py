@@ -667,6 +667,8 @@ class Stats(commands.Cog):
             config = self.bot.stats[str(ctx.guild.id)]['hidden']
         except KeyError:
             return
+
+        # hide/unhide current channel
         if not flag:
             channel_id: str = str(ctx.channel.id)
             if channel_id in config:
@@ -678,6 +680,8 @@ class Stats(commands.Cog):
                 config.append(channel_id)
                 await utils.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
                                         f"When someone calls their stats page, it will not be shown.")
+
+        # view list of channels
         elif flag in ['list', 'view'] and config:
             msg = 'List of channels currently hidden:\n'
             c_id: str
@@ -688,6 +692,8 @@ class Stats(commands.Cog):
                     continue
                 msg += f"{channel.mention} ({channel.id})\n"
             await utils.safe_send(ctx, msg)
+
+        # hide a specified channel
         else:
             if re.findall(r"^<#\d{17,22}>$", flag):
                 flag = flag[2:-1]
