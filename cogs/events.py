@@ -136,6 +136,13 @@ class Events(commands.Cog):
             msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
                    f"still untagged:\n>>> [{msg_content}](<{reaction.message.jump_url}>)")
             sent_msg = await nif_channel.send(msg)
+            
+            # go through last 50 messages in current channel and search for messages starting with
+            # "User has been tagged now" by this bot and delete those messages
+            async for msg in reaction.message.channel.history(limit=50):
+                if msg.author == self.bot.user and msg.content.startswith("User has been tagged now"):
+                    await msg.delete()
+                    break
 
             # wait for the user to get tagged
             def on_member_update_check(m_before, m_after):
