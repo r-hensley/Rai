@@ -139,7 +139,7 @@ class Events(commands.Cog):
             
             # go through last 50 messages in current channel and search for messages starting with
             # "User has been tagged now" by this bot and delete those messages
-            async for msg in reaction.message.channel.history(limit=50):
+            async for msg in nif_channel.history(limit=50):
                 if msg.author == self.bot.user and msg.content.startswith("User has been tagged now"):
                     await msg.delete()
                     break
