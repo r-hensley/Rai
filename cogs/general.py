@@ -1447,11 +1447,12 @@ class General(commands.Cog):
             pass
 
     @commands.command(hidden=True)
-    @commands.check(lambda ctx: ctx.author.id in [216848576549093376, 354352443502493706, 202995638860906496]
+    @commands.check(lambda ctx: ctx.author.id in [216848576549093376, 354352443502493706, 202995638860906496,
+                                                  698304824667537458]
                                 and ctx.guild.id == SP_SERVER_ID if ctx.guild else False)
     async def admin(self, ctx):
         """Allows chosen users to add/remove admin role"""
-        # Current users: Jaleel, Evil, Ryan
+        # Current users: Jaleel, Evil, Ryan, Jelly
         admin_role = ctx.guild.get_role(243854949522472971)
         if admin_role in ctx.author.roles:
             await ctx.author.remove_roles(admin_role)
