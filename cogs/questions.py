@@ -1539,7 +1539,6 @@ class Questions(commands.Cog):
         """Search the grammar database at [bunpro](https://bunpro.jp/grammar_points).
         Use: `;bunpro/;bp <search term>`.
         """
-
         if not search:
             # await utils.safe_send(ctx, "You have to input a search term!")
             return
@@ -1548,15 +1547,12 @@ class Questions(commands.Cog):
         html = await utils.aiohttp_get(ctx, 'https://bunpro.jp/grammar_points')
 
         soup = BeautifulSoup(html, 'html.parser')
-
+        
         def fancyfind(tag):
-            if 'class' not in tag.attrs:
-                return
-
-            if not tag['class'][0] == 'lessons-tile_gp':
-                return
-
-            return True
+            # Check if the tag is a <li> and has the 'js_search-tile_index' class
+            if tag.name == 'li' and 'js_search-tile_index' in tag.get('class', []):
+                return True
+            return False
 
         results = soup.find_all(fancyfind)
         grammar_points = []
@@ -1565,18 +1561,22 @@ class Questions(commands.Cog):
 
             # get jlpt level
             for class_ in result['class']:
-                if class_.startswith('search-option--jlpt_'):  # ...--jlpt_N5, N4, etc
-                    jlpt_level = class_[20:]  # take just "N5" part at end of class title
+                if class_.startswith('js_search-option_jlptN'):  # Updated to match new class structure
+                    jlpt_level = class_[-2:]  # This will extract "N5", "N4", etc.
 
             # get url link and explanation text
             for content in result.contents:
                 if content.name == 'a':
                     link = "https://bunpro.jp/" + content['href']
-                    explanation = content['title']
+                    try:
+                        explanation = content['title']
+                    except KeyError:
+                        print(link, content)
 
             # get japanese_title and english_title
-            bad_split = result.text.split('\n')  # result looks like '\n\n\n\n\nだ\nTo be\n\n\n\n\n\n\n\n'
-            good_split = [i for i in bad_split if i]  # bad_split looks like ['', '', 'だ', 'To be', '', '', '']
+            # bad_split = result.text.split('\n')  # result looks like '\n\n\n\n\nだ\nTo be\n\n\n\n\n\n\n\n'
+            # good_split = [i for i in bad_split if i]  # bad_split looks like ['', '', 'だ', 'To be', '', '', '']
+            good_split = [i.strip() for i in result.stripped_strings]  # Use stripped_strings to clean up white space
             japanese_title = good_split[0]  # "だ"
             english_title = good_split[1]  # "To be"
 
