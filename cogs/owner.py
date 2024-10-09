@@ -787,6 +787,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def raise_error(self, ctx):
         """Raises an error for testing purposes"""
+        print("raising error")
         raise Exception
     
     @commands.command()
