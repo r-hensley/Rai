@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import io
+import logging
 import os
 import re
 import sys
@@ -570,6 +571,7 @@ def _pre_load_language_detection_model():
     english = []
     spanish = []
     if not os.path.exists(f'{dir_path}/cogs/utils/principiante.csv'):
+        logging.error("Language detection model not loaded, missing csv files")
         return  # Ask Ryry013 for the language files needed to make this work
     for csv_name in ['principiante.csv', 'avanzado.csv', 'beginner.csv', 'advanced.csv']:
         with open(f"{dir_path}/cogs/utils/{csv_name}", newline='', encoding='utf-8') as csvfile:
