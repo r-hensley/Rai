@@ -3,6 +3,11 @@ gitignore/
 database_backups/
 old_stuff/
 banned_img/
+venv/
+*.sqlite
+cogs/test.py
+cogs/welcome.py
+cogs/new_years_stats.py
 
 # Test Rai
 local/
