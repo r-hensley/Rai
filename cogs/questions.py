@@ -1373,6 +1373,7 @@ class Questions(commands.Cog):
         await utils.safe_send(ctx, embed=emb)
 
     @commands.command()
+    @commands.check(lambda ctx: ctx.guild.id != 116379774825267202)
     async def neko(self, ctx, *search):
         """Search the grammar database at itazuraneko. Use: `;neko <search term>`. Optionally, add a tag at the end
         to specify which grammar dictionary you want to search (options: `-basic`, `-intermediate`, `-advanced`,
@@ -1533,6 +1534,17 @@ class Questions(commands.Cog):
         emb.description = desc
         msg = await utils.safe_send(ctx, embed=emb)
         await wait_for_delete(msg)
+
+    @neko.error
+    async def neko_error(self, ctx, error):
+        # Return error message if check fails
+        if isinstance(error, commands.CheckFailure):
+            if ctx.guild.id == 116379774825267202:
+                await utils.safe_send(ctx, "This command is disabled in this server.")
+            else:
+                raise error
+        else:
+            raise error
 
     @commands.command(aliases=['bp'])
     async def bunpro(self, ctx, search):
