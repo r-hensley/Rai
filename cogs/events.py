@@ -133,6 +133,7 @@ class Events(commands.Cog):
             # send notification to NIF channel
             nif_channel = self.bot.get_channel(1227289089015943258)
             msg_content = reaction.message.content.replace("\n", ". ")
+            msg_content = utils.rem_emoji_url(msg_content)
             msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
                    f"still untagged:\n>>> [{msg_content}](<{reaction.message.jump_url}>)")
             sent_msg = await nif_channel.send(msg)
@@ -142,7 +143,7 @@ class Events(commands.Cog):
             async for msg in nif_channel.history(limit=50):
                 if msg.author == self.bot.user and msg.content.startswith("User has been tagged now"):
                     await msg.delete()
-                    break
+                    await hf.send_to_test_channel(f"Deleted following message: {msg.content}")
 
             # wait for the user to get tagged
             def on_member_update_check(m_before, m_after):
@@ -156,7 +157,7 @@ class Events(commands.Cog):
                         return True
 
             try:
-                await self.bot.wait_for('member_update', check=on_member_update_check, timeout=60 * 60)
+                await self.bot.wait_for('member_update', check=on_member_update_check, timeout=3 * 60 * 60)
             except asyncio.TimeoutError:
                 pass
             else:
