@@ -1159,6 +1159,11 @@ class General(commands.Cog):
                                         "`,selfmute` or `,sm`.")
                 return
 
+        if ctx.channel.id != 247135634265735168 and ctx.guild.id == SP_SERVER_ID:
+            await utils.safe_reply(ctx, "Please use the selfmute command in the bot channel: "
+                                       "<#247135634265735168>")
+            return
+
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
