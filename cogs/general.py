@@ -1190,7 +1190,7 @@ class General(commands.Cog):
             unmute_time = discord.utils.utcnow() - delta_obj
         else:
             unmute_time = discord.utils.utcnow() + delta_obj
-        if delta_obj.total_seconds() > 28 * 24 * 60 * 60:  # if length is longer than 28d
+        if not neg and delta_obj.total_seconds() > 28 * 24 * 60 * 60:  # if length is longer than 28d
             await utils.safe_send(ctx, "Please choose a time less than 28d")
             return
 
@@ -1201,7 +1201,8 @@ class General(commands.Cog):
                         f"Is this really what you want to do? The mods of this server CANNOT undo "
                         f"this.\nType 'Yes' to confirm.")
         else:
-            conf_msg = (f"You are about to irreversibly mute yourself for... -{delta_str}? You want to mute yourself " 
+            delta_str = "-" + delta_str
+            conf_msg = (f"You are about to irreversibly mute yourself for... {delta_str}? You want to mute yourself "
                         f"for negative time? Well, the mods of the server cannot undo this. Type 'yes' to confirm.")
         conf = await utils.safe_reply(ctx.message, conf_msg)
 
