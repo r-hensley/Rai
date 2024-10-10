@@ -835,9 +835,18 @@ class Events(commands.Cog):
             # Only function on Spanish server
             if member.guild.id != SP_SERVER_ID:
                 return
+            
+            # only work if after channel *has* a user_limit
+            if after.channel.user_limit == 0:
+                return
 
             # watch for users joining full voice rooms
             if len(after.channel.members) <= after.channel.user_limit:
+                return
+            
+            # only work if member does not have permission to view staff channel already (exempt mods)
+            staff_channel = self.bot.get_channel(913886469809115206)
+            if staff_channel.permissions_for(member).view_channel:
                 return
 
             # discord.AuditLogAction.member_move
@@ -847,16 +856,16 @@ class Events(commands.Cog):
                                                      after=discord.utils.utcnow() - timedelta(seconds=15),
                                                      oldest_first=False):
                 if log.extra.channel == after.channel:
-                    staff_channel = self.bot.get_channel(913886469809115206)
+                    
                     emb = utils.red_embed(f"The user {member.mention} ({member.id}) has potentially moved themselves "
                                        f"into a full channel ({after.channel.mention}). Please check this.")
                     if before.channel.members:
-                        list_of_before_users = '- ' + '\n -'.join([m.mention for m in before.channel.members])
+                        list_of_before_users = '- ' + '\n- '.join([m.mention for m in before.channel.members])
                     else:
                         list_of_before_users = ''
 
                     if after.channel.members:
-                        list_of_after_users = '- ' + '\n -'.join([m.mention for m in after.channel.members])
+                        list_of_after_users = '- ' + '\n- '.join([m.mention for m in after.channel.members])
                     else:
                         list_of_after_users = ''
 
