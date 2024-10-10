@@ -1018,8 +1018,8 @@ class Events(commands.Cog):
             modlog_type = "AutoMod Timeout"
             rule_description += "\nUser was **timed out** for this"
         else:
-            # return  # only log mutes
-            pass
+            return  # only log mutes
+            # pass  # log everything, including non-mutes
 
         if execution.matched_content:
             formatted_content = execution.content.replace(execution.matched_content,
