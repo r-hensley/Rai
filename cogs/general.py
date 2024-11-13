@@ -671,7 +671,7 @@ class General(commands.Cog):
             await utils.safe_send(ctx, "This user is not currently in the GBL.")
 
         try:
-            del self.bot.db['global_blacklist']['votes2'][str(target_id)]
+            del self.bot.db['global_blacklist']['votes'][str(target_id)]
         except ValueError:
             pass
         except KeyError:
@@ -729,8 +729,10 @@ class General(commands.Cog):
         list_of_ids = []
         reason = "None"
         for arg_index in range(len(args)):
-            if re.search(r'\d{17,22}', args[arg_index]):
-                list_of_ids.append(str(args[arg_index]))
+            potential_id = re.search(r'\d{17,22}', args[arg_index])
+            if potential_id:
+                # using regex, add to list_of_ids just the ID digits (ignore characters around it)
+                list_of_ids.append(potential_id.group())
             else:
                 reason = ' '.join(args[arg_index:])
                 break
@@ -773,14 +775,14 @@ class General(commands.Cog):
                 await utils.safe_send(ctx, f"{user} is already on the blacklist")
                 continue
 
-            if user not in config['votes2']:  # 0 votes
-                config['votes2'][user] = {'votes': [user_residency], 'message': 0}
+            if user not in config['votes']:  # 0 votes
+                config['votes'][user] = {'votes': [user_residency], 'message': 0}
                 msg = await post_vote_notification(user_obj, reason)
-                config['votes2'][user]['message'] = msg.id
+                config['votes'][user]['message'] = msg.id
                 continue
 
-            if user in config['votes2']:  # 1, 2, or 3 votes
-                list_of_votes = config['votes2'][user]['votes']
+            if user in config['votes']:  # 1, 2, or 3 votes
+                list_of_votes = config['votes'][user]['votes']
                 if user_residency in list_of_votes:
                     try:
                         await utils.safe_send(ctx.author, f"{user} - Someone from your server already voted")
@@ -788,7 +790,7 @@ class General(commands.Cog):
                         await utils.safe_send(ctx, f"{user} - Someone from your server already voted")
                     continue
 
-                message = await channel.fetch_message(config['votes2'][user]['message'])
+                message = await channel.fetch_message(config['votes'][user]['message'])
                 emb = message.embeds[0]
                 title_str = emb.title
                 result = re.search(r'(\((.*)\))? \((.) votes?\)', title_str)
@@ -798,10 +800,10 @@ class General(commands.Cog):
                 if num_of_votes in '1':  # 1-->2
                     emb.title = emb.title.replace('vote', 'votes')
                 if num_of_votes in '12':  # 1-->2 or 2-->3
-                    config['votes2'][user]['votes'].append(user_residency)
+                    config['votes'][user]['votes'].append(user_residency)
                 if num_of_votes == '3':  # 2-->3
                     emb.color = discord.Color(int('ff0000', 16))
-                    del config['votes2'][user]
+                    del config['votes'][user]
                     config['blacklist'].append(int(user))
                 emb.set_field_at(0, name=emb.fields[0].name, value=emb.fields[0].value + f', {ctx.author.name}')
                 await message.edit(embed=emb)

@@ -27,6 +27,7 @@ CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
+MODBOT_ID = 713245294657273856
 
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
@@ -330,13 +331,15 @@ class Events(commands.Cog):
                 ctx.reacted_user_id = payload.user_id
                 user_id = message.embeds[0].title.split(' ')[0]
                 config = self.bot.db['global_blacklist']
-                if user_id not in config['votes2']:
+                if user_id not in config['votes']:
                     return
                 if str(payload.user_id) in config['residency']:
                     voting_guild_id = config['residency'][str(payload.user_id)]
-                    if voting_guild_id not in config['votes2'][user_id]['votes']:
+                    if voting_guild_id not in config['votes'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
                             blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
+                            # ignore below error in pycharm "Expected Type"
+                            # noinspection PyTypeChecker
                             await ctx.invoke(blacklist_add, args=user_id)
                 else:
                     print('not in residency')
@@ -363,7 +366,7 @@ class Events(commands.Cog):
                     return
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
-                    if user_id not in config['blacklist'] and str(user_id) not in config['votes2']:
+                    if user_id not in config['blacklist'] and str(user_id) not in config['votes']:
                         blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
                         await ctx.invoke(blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
@@ -783,13 +786,13 @@ class Events(commands.Cog):
                 f"server for at least {str(time)} hours before they can join a voice channel. " \
                 "Until then, please enjoy our other channels. Note, if you are a member that has been " \
                 "in our server before and you just rejoined, " \
-                "then you can message <@713245294657273856> to gain special permission to join the voice channels." \
+                f"then you can message <@{MODBOT_ID}> to gain special permission to join the voice channels." \
                 "\n\n" \
                 "Todavía no puedes unirte a los canales de voz de este servidor. Requerimos que los usuarios " \
                 f"lleven al menos {time} horas en el servidor antes de poder unirse a un canal de voz. Mientras tanto, " \
                 "por favor, disfruta de nuestros otros canales. No obstante, si eres un miembro que ya ha " \
                 "estado en nuestro servidor y acabas de unirte nuevamente, puedes enviar un mensaje a " \
-                "<@713245294657273856> para obtener un permiso especial para unirte a los canales de voz. "
+                f"<@{MODBOT_ID}> para obtener un permiso especial para unirte a los canales de voz. "
             try:
                 await utils.safe_send(member, t)
             except discord.Forbidden:
@@ -894,7 +897,7 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
         # async def auto_modlog():
-        #     if thread.owner == 713245294657273856:  # modbot
+        #     if thread.owner == MODBOT_ID:  # modbot
         #         print(1)
         #         opening_msg = await thread.parent.fetch_message(987069662053416980)
         #         print(2, opening_msg)
@@ -1041,7 +1044,7 @@ class Events(commands.Cog):
             # for BurdBot to post questions to AOTW
             if msg.author.id == 720900750724825138:  # BurdBot
                 pass
-            elif msg.author.id == 713245294657273856:  # modbot
+            elif msg.author.id == MODBOT_ID:  # modbot
                 pass
             else:
                 return
@@ -1095,7 +1098,6 @@ class Events(commands.Cog):
             else:
                 content = msg.content
 
-            MODBOT_ID = 713245294657273856
             if getattr(msg.channel.owner, "id", 0) != MODBOT_ID:  # modbot
                 return
             if msg.author.id != MODBOT_ID:
