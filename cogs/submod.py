@@ -114,7 +114,7 @@ class Submod(commands.Cog):
             if hasattr(target, "joined_at"):  # will be false if the user is not in the server
                 joined_at = discord.utils.utcnow() - target.joined_at
             else:
-                joined_at = timedelta(minutes=61)  # arbitrarily bigger than 60 to fail the conditional
+                joined_at = timedelta(hours=25)  # arbitrarily bigger than 24 to fail the conditional
 
             # check if top role of target user is higher than Rai
             if hasattr(target, "top_role"):
@@ -129,7 +129,7 @@ class Submod(commands.Cog):
             if hf.admin_check(ctx):
                 perms = True
             else:
-                if joined_at < timedelta(minutes=60):
+                if joined_at < timedelta(hours=24):
                     if ctx.guild.id == JP_SERVER_ID:
                         jp_staff_role = 543721608506900480
                         if ctx.guild.get_role(jp_staff_role) in ctx.author.roles:
@@ -230,11 +230,14 @@ class Submod(commands.Cog):
         else:  # if slash command
             content = 'send'
 
-        text = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** {reason}"
+        author_tag = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** "
+        text = f"{author_tag}{reason}"
         if len(text) > 512:
-            await utils.safe_send(ctx, f"Discord only allows bans with a length of 512 characters. With my included "
-                                    f"author tag, you are allowed {513 - len(text)} characters. Please reduce the "
-                                    f"length of your ban message. ")
+            await utils.safe_send(ctx, f"Discord only allows bans with a length of __512 characters__. With my included "
+                                    f"author tag, you are allowed __{512 - len(author_tag)} characters__. Please reduce the "
+                                    f"length of your ban message by __{len(text) - 512} characters__. \n\nAlternatively, "
+                                       f"consider sending the full length of the ban text as a separate warning "
+                                       f"immediately before the ban itself if reducing characters would be difficult.")
             return
 
         if content.endswith('-s'):  # these will be parsed in the on_member_ban event in logger.py
