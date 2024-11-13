@@ -11,6 +11,7 @@ from urllib.error import HTTPError
 import discord
 from discord.ext import commands
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from emoji import is_emoji
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -1934,7 +1935,7 @@ class Events(commands.Cog):
             # emojis
             emojis = re.findall(r':([A-Za-z0-9_]+):', msg.content)
             for character in msg.content:
-                if utils.is_emoji(character):
+                if is_emoji(character):
                     emojis.append(character)
                 if utils.is_ignored_emoji(character) and character not in self.ignored_characters:
                     self.ignored_characters.append(character)

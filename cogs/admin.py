@@ -9,6 +9,7 @@ import aiohttp
 import discord
 import io
 from discord.ext import commands
+from emoji import is_emoji
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -213,7 +214,7 @@ class Admin(commands.Cog):
 
         # ######## emoji #############
         if len(emoji) == 1:
-            if utils.generous_is_emoji(emoji):
+            if is_emoji(emoji):
                 pass
             else:
                 await utils.safe_send(ctx, f"I couldn't detect your emoji {emoji}. Please start over.")
