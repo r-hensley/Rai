@@ -145,7 +145,6 @@ class Events(commands.Cog):
             async for msg in nif_channel.history(limit=50):
                 if msg.author == self.bot.user and msg.content.startswith("User has been tagged now"):
                     await msg.delete()
-                    await hf.send_to_test_channel(f"Deleted following message: {msg.content}")
 
             # wait for the user to get tagged
             def on_member_update_check(m_before, m_after):
