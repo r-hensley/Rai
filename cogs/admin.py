@@ -2381,6 +2381,49 @@ class Admin(commands.Cog):
             await utils.safe_send(ctx, msg)
         else:
             await utils.safe_send(ctx, msg)
+            
+    @commands.command()
+    @commands.guild_only()
+    @commands.bot_has_permissions(ban_members=True)
+    async def unban(self, ctx: commands.Context, *users):
+        """Unban users from the server via IDs.
+        
+        Usage: `;unban <user_id> <user_id> ...`
+        
+        Examples:
+        - `;unban 123456789012345678`
+        - `;unban <@123456789012345678> 123456789012345678`"""
+        if not users:
+            await utils.safe_reply(ctx, "Please input the user IDs you wish to unban.")
+            # send command's help document (and ignore pycharm warning)
+            # noinspection PyTypeChecker
+            await ctx.invoke(self.bot.get_command('help'), 'unban')
+            return
+        
+        # use regex to extract IDs from <@ID> or <@!ID> format, or directly parse if already an ID
+        user_ids = []
+        for user in users:
+            re_result = re.search(r"<@!?(\d{17,22})>", user)  # Match <@123456789012345678> or <@!123456789012345678>
+            if re_result:
+                user_ids.append(int(re_result.group(1)))
+            else:
+                try:
+                    # Fallback to direct integer parsing if it's a plain ID
+                    user_ids.append(int(user))
+                except ValueError:
+                    await utils.safe_reply(ctx, f"Invalid user ID: {user}")
+                    continue
+        
+        for user_id in user_ids:
+            try:
+                await ctx.guild.unban(discord.Object(id=user_id))
+            except discord.NotFound:
+                await utils.safe_reply(ctx, f"User with ID {user_id} not found")
+            except discord.Forbidden:
+                await utils.safe_reply(ctx, f"I don't have permission to unban user with ID {user_id} "
+                                            f"(<@{user_id}>)")
+            else:
+                await utils.safe_reply(ctx, f"User with ID {user_id} (<@{user_id}>) has been unbanned")
 
 
 async def setup(bot):
