@@ -1,4 +1,5 @@
 import io
+import random
 import sqlite3
 import sys
 from typing import Union
@@ -758,7 +759,12 @@ class Stats(commands.Cog):
                              f"to 1000 messages) is **{user_sentiment}**." \
                              f"\n([What is a 'sentiment rating'?]" \
                              f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
-            await utils.safe_reply(ctx.message, embed=utils.green_embed(reply_text))
+            emb = utils.green_embed(reply_text)
+            footer_msg = ["Check the leaderboard with ;slb", "Sentiment is only recorded for English messages",
+                          "Users with at least 1000 English messages calculated with sentiment will appear in the "
+                          "leaderboard"]
+            emb.set_footer(text=random.choice(footer_msg))
+            await utils.safe_reply(ctx.message, embed=emb)
 
     @commands.command(aliases=['slb'])
     async def sentiment_leaderboard(self, ctx, negative=None):
@@ -766,7 +772,7 @@ class Stats(commands.Cog):
          server among those that have at least 1000 messages."""
         # give admins ability to pull most *negative* users
         reverse = True
-        if negative in ['negative', 'neg']:
+        if negative in ['negative', 'neg', 'least', '-l']:
             if hf.admin_check(ctx):
                 reverse = False
 
@@ -775,13 +781,12 @@ class Stats(commands.Cog):
         for user_id in sentiments_dict:
             user_sentiment = sentiments_dict[user_id]
             if len(user_sentiment) == 1000:
-                user = await utils.member_converter(ctx, user_id)
-                if not user:
+                member = await utils.member_converter(ctx, user_id)
+                if not member:
                     continue
-                user_sentiments.append((user, round(sum(user_sentiment), 2)))
+                user_sentiments.append((member, round(sum(user_sentiment), 2)))
 
         user_sentiments.sort(key=lambda x: x[1], reverse=reverse)
-        user_sentiments = user_sentiments[:25]
 
         if reverse:
             des = "Users with highest sentiment rating (most positive users)"
@@ -790,10 +795,18 @@ class Stats(commands.Cog):
 
         emb = utils.green_embed(des)
         pos = 1
-        for user in user_sentiments:
-            emb.add_field(name=f"{pos}) {str(user[0])}", value=user[1])
+        found_author = False
+        for member_tuple in user_sentiments:
+            if member_tuple[0] == ctx.author:
+                found_author = True
+            if pos <= 25:
+                emb.add_field(name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
+            else:
+                if found_author:
+                    emb.set_field_at(24, name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
+                    break
             pos += 1
-
+        
         await utils.safe_reply(ctx.message, embed=emb)
 
     @commands.command(aliases=['ac'])
