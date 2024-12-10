@@ -1372,8 +1372,16 @@ class Questions(commands.Cog):
                              )
         await utils.safe_send(ctx, embed=emb)
 
+    @staticmethod
+    def neko_check(ctx: commands.Context):
+        if ctx.guild:
+            if ctx.guild.id != 116379774825267202:
+                return True
+        else:
+            return True
+
     @commands.command()
-    @commands.check(lambda ctx: ctx.guild.id != 116379774825267202)
+    @commands.check(neko_check)
     async def neko(self, ctx, *search):
         """Search the grammar database at itazuraneko. Use: `;neko <search term>`. Optionally, add a tag at the end
         to specify which grammar dictionary you want to search (options: `-basic`, `-intermediate`, `-advanced`,
