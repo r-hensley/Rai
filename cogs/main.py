@@ -75,6 +75,7 @@ class Main(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.bot.on_error = self.on_error
 
     def cog_load(self):
         self.logging_setup()
@@ -318,7 +319,6 @@ class Main(commands.Cog):
 
         await utils.send_error_embed(self.bot, ctx, error, e)
 
-    @commands.Cog.listener()
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
         e.add_field(name='Event', value=event)
