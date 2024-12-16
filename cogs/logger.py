@@ -547,8 +547,6 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        if ';report' in message.content:
-            return  # for keeping anonymous reports anonymous
         if not message.guild or message.author.bot:
             return
         guild = str(message.guild.id)
@@ -573,7 +571,8 @@ class Logger(commands.Cog):
             log_message = await utils.safe_send(channel, embed=await self.make_delete_embed(message))
             await hf.send_attachments_to_thread_on_message(log_message, message)
         except discord.Forbidden:
-            await self.module_disable_notification(message.guild, guild_config, 'message deletes')
+            # await self.module_disable_notification(message.guild, guild_config, 'message deletes')
+            pass
 
     @commands.Cog.listener()
     async def on_raw_bulk_message_delete(self, payload):
