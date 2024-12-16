@@ -306,6 +306,16 @@ class General(commands.Cog):
     async def hardcore(self, ctx: commands.Context):
         """Adds/removes the hardcore role from you."""
         role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
+        if ctx.guild.id == SP_SERVER_ID:
+            learning_eng = ctx.guild.get_role(247021017740869632)
+            learning_sp = ctx.guild.get_role(297415063302832128)
+            if learning_eng not in ctx.author.roles and learning_sp not in ctx.author.roles:
+                await utils.safe_send(ctx, "You need to have a learning role to use this command.")
+                return
+            elif learning_eng in ctx.author.roles and learning_sp in ctx.author.roles:
+                await utils.safe_send(ctx, "You have both learning roles. "
+                                           "Please remove one before using this command.")
+                return
         if role in ctx.author.roles:
             await ctx.author.remove_roles(role)
             try:
