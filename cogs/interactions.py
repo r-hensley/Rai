@@ -779,10 +779,12 @@ class Interactions(commands.Cog):
                            i.application_id == interaction.application_id
 
                 try:
-                    await ctx.bot.wait_for('interaction', timeout=20.0, check=check)
+                    await ctx.bot.wait_for('interaction', timeout=60 * 60, check=check)
                     reason = modal.reason
                     await ctx.invoke(mute, args=f"{str(message.author.id)} 1h {reason}")
                 except asyncio.TimeoutError:
+                    await interaction.followup.send("You took too long to respond. Logging will not complete. "
+                                                    "Please try again.", ephemeral=True)
                     return
 
             else:
@@ -808,10 +810,12 @@ class Interactions(commands.Cog):
                            i.application_id == interaction.application_id
 
                 try:
-                    await ctx.bot.wait_for('interaction', timeout=20.0, check=modal_return_check)
+                    await ctx.bot.wait_for('interaction', timeout=60 * 60, check=modal_return_check)
                     reason = modal.reason
                     await ctx.invoke(mute, args=f"{str(member.id)} 1h {reason}")
                 except asyncio.TimeoutError:
+                    await interaction.followup.send("You took too long to respond. Logging will not complete. "
+                                                    "Please try again.", ephemeral=True)
                     return
 
             else:
@@ -911,8 +915,10 @@ class Interactions(commands.Cog):
                     return i.type == discord.InteractionType.modal_submit and \
                            i.application_id == interaction.application_id
 
-                await ctx.bot.wait_for("interaction", timeout=20.0, check=modal_return_check)
+                await ctx.bot.wait_for("interaction", timeout=60 * 60, check=modal_return_check)
             except asyncio.TimeoutError:
+                await interaction.followup.send("You took too long to respond. Logging will not complete. "
+                                                "Please try again.", ephemeral=True)
                 pass
             else:
                 nonlocal reason  # to make the below line assign to the outer scope variable rather than making new one
@@ -953,10 +959,10 @@ class Interactions(commands.Cog):
                    i.application_id == interaction.application_id
 
         try:
-            await ctx.bot.wait_for("interaction", timeout=60.0, check=check)
+            await ctx.bot.wait_for("interaction", timeout=60 * 60, check=check)
             reason = modal.reason
             # Add > to make the whole message quoted
-            # Replace [] with () to guarantee the markdown hyperlink works
+            # Replace [] with () to guarantee the Markdown hyperlink works
             content = "> " + message.content
             content = content.replace("\n", "\n> ").replace("[", "(").replace("]", ")")
             text = f"{message.author.id} Logging following message: \n{content[:200]}"
@@ -971,6 +977,8 @@ class Interactions(commands.Cog):
             emb = await ctx.invoke(log, args=text)
             await interaction.followup.send(embed=emb, ephemeral=True)
         except asyncio.TimeoutError:
+            await interaction.followup.send("You took too long to respond. Logging will not complete. "
+                                            "Please try again.", ephemeral=True)
             return
 
     change = app_commands.Group(name="change", description="Change a setting in the server",
