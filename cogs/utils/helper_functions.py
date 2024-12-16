@@ -903,7 +903,32 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
     """This command creates a thread on a log message and uploads all the attachments from an "attachment_message"
     to a thread on the log message"""
     thread = None
+    files = []
+    embeds = []
     if attachments_message.attachments:
+        for attachment in attachments_message.attachments:
+            try:
+                file = await attachment.to_file(filename=attachment.filename,
+                                                description=attachment.description,
+                                                use_cached=True,
+                                                spoiler=True)
+            except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+                try:
+                    file = await attachment.to_file(filename=attachment.filename,
+                                                    description=attachment.description,
+                                                    spoiler=True)
+                except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+                    file = None
+            
+            files.append((file, attachment))
+
+    if attachments_message.embeds:
+        for embed in attachments_message.embeds:
+            # posting an image expands the image to an embed without title or desc., send those into the thread
+            if embed.url and embed.thumbnail and not embed.title and not embed.description:
+                embeds.append(embed.url)
+                
+    if files or embeds:
         try:
             # Either get the thread on a message or create a new thread
             if thread := log_message.guild.get_thread(log_message.id):
@@ -912,58 +937,41 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                 thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
         except (discord.Forbidden, discord.HTTPException):
             pass
+    else:
+        return
+    
+    for file_tuple in files:
+        # file_tuple is tuple (file, attachment)
+        file = file_tuple[0]
+        attachment = file_tuple[1]
+        if file:
+            try:
+                await utils.safe_send(thread, file=file)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                try:
+                    await utils.safe_send(thread, f"Error attempting to send {attachment.filename} "
+                                                  f"({attachment.proxy_url}): {e}")
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
         else:
-            for attachment in attachments_message.attachments:
-                try:
-                    file = await attachment.to_file(filename=attachment.filename,
-                                                    description=attachment.description,
-                                                    use_cached=True,
-                                                    spoiler=True)
-                except discord.HTTPException:
-                    try:
-                        file = await attachment.to_file(filename=attachment.filename,
-                                                        description=attachment.description,
-                                                        spoiler=True)
-                    except discord.Forbidden:
-                        file = None
-
-                if file:
-                    try:
-                        await utils.safe_send(thread, file=file)
-                    except (discord.Forbidden, discord.HTTPException) as e:
-                        try:
-                            await utils.safe_send(thread, f"Error attempting to send {attachment.filename} "
-                                                    f"({attachment.proxy_url}): {e}")
-                        except (discord.Forbidden, discord.HTTPException):
-                            pass
-                else:
-                    file_info = f"Failed to download file: {attachment.filename} - {attachment.description}\n" \
-                                f"{attachment.proxy_url}"
-                    try:
-                        await utils.safe_send(thread, file_info)
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
-
-            # archive after uploading all attachments
-            await thread.edit(archived=True)
-
-    if attachments_message.embeds:
-        for embed in attachments_message.embeds:
-            # posting an image expands the image to an embed without title or desc., send those into the thread
-            if embed.url and embed.thumbnail and not embed.title and not embed.description:
-                if not thread:
-                    # Either get the thread on a message or create a new thread
-                    if thread := log_message.guild.get_thread(log_message.id):
-                        pass
-                    else:
-                        thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
-                try:
-                    await utils.safe_send(thread, embed.url)
-                except (discord.Forbidden, discord.HTTPException) as e:
-                    try:
-                        await utils.safe_send(thread, f"Error attempting to send attached link to message: {e}")
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
+            file_info = f"Failed to download file: {attachment.filename} - {attachment.description}\n" \
+                        f"{attachment.proxy_url}"
+            try:
+                await utils.safe_send(thread, file_info)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        
+    for embed in embeds:
+        try:
+            await utils.safe_send(thread, embed.url)
+        except (discord.Forbidden, discord.HTTPException) as e:
+            try:
+                await utils.safe_send(thread, f"Error attempting to send attached link to message: {e}")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+            
+    # archive after uploading all attachments
+    await thread.edit(archived=True)
 
 
 def convert_to_datetime(input_str: str) -> Optional[datetime]:
