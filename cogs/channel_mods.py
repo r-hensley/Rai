@@ -857,6 +857,7 @@ class ChannelMods(commands.Cog):
 
             rai_emoji = str(self.bot.get_emoji(858486763802853387))
             if banned:
+                emb.color = 0x141414  # very dark black, but not completely black
                 if unban_date:
                     emb.description = (f"{rai_emoji} **`Current Status`** Temporarily Banned "
                                        f"(unban <t:{int(unban_date.timestamp())}:R>)")
@@ -864,6 +865,7 @@ class ChannelMods(commands.Cog):
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
+                emb.color = utils.red_embed("").color
                 if voice_unmute_date:
                     emb.description = (f"{rai_emoji} **`Current Status`** "
                                        f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
@@ -871,6 +873,7 @@ class ChannelMods(commands.Cog):
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
+                emb.color = utils.red_embed("").color
                 if unmute_date:
                     emb.description = (f"{rai_emoji} **`Current Status`** "
                                        f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
@@ -878,6 +881,7 @@ class ChannelMods(commands.Cog):
                     emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Muted"
 
             elif timeout:
+                emb.color = utils.red_embed("").color
                 if member.timed_out_until:
                     emb.description = (f"{rai_emoji} **`Current Status`** "
                                        f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
@@ -885,6 +889,7 @@ class ChannelMods(commands.Cog):
                     pass
 
             elif not member:
+                emb.color = utils.grey_embed("").color
                 if muted and not banned:
                     emb.description += " (user has left the server)"
                 elif not muted and not banned:
@@ -991,7 +996,26 @@ class ChannelMods(commands.Cog):
 
                 emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                    f"{invite} {invite_author_str}"
-
+        
+        #
+        #
+        # ############ Current Language Roles ############
+        #
+        #
+        if member:
+            # go down user roles starting from top and get highest language role
+            eng_role_id = 243853718758359040
+            sp_role_id = 243854128424550401
+            ol_role_id = 247020385730691073
+            roles = [eng_role_id, sp_role_id, ol_role_id]
+            found_roles = []
+            for role in member.roles:
+                if role.id in roles:
+                    found_roles.append(role)
+            if found_roles:
+                emb.description += "\n**`Current Language Roles`** : " + ", ".join([r.mention for r in found_roles])
+        
+        
         #
         #
         # ############ Footer / Timestamp ############
@@ -1014,7 +1038,7 @@ class ChannelMods(commands.Cog):
             if user_id in config:  # Modlog entries
                 config = config[user_id]
             else:  # No entries
-                emb.color = utils.red_embed("").color
+                emb.color = utils.grey_embed("").color
                 emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
                 config = []
         else:  # Non-existent user
