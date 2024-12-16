@@ -58,20 +58,7 @@ async def on_tree_error(interaction: discord.Interaction, error: discord.app_com
         e.add_field(name="Extras", value=f"```{interaction.extras}```")
 
     await utils.send_error_embed(interaction.client, interaction, error, e)
-
-
-class Point(NamedTuple):
-    x: int
-    y: int
-
-
-class Questionnaire(ui.Modal, title='Questionnaire Response'):
-    name = ui.TextInput(label='User(s) to report (short field)', style=discord.TextStyle.short)
-    answer = ui.TextInput(label='Description of incident (paragraph field)', style=discord.TextStyle.paragraph)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message('Your report has been sent to the mod team!', ephemeral=True)
-
+    
 
 class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
     default_reason = "Muted with command shortcut"
@@ -114,13 +101,6 @@ class LogReason(ui.Modal, title='Input Log Reason'):
         await interaction.response.send_message("I'll attempt to log the message now.", ephemeral=True)
 
 
-class PointTransformer(app_commands.Transformer):
-    @classmethod
-    async def transform(cls, interaction: discord.Interaction, value: str) -> Point:
-        (x, _, y) = value.partition(',')
-        return Point(x=int(x.strip()), y=int(y.strip()))
-
-
 class Interactions(commands.Cog):
     """A module for Discord interactions such as slash commands and context commands"""
 
@@ -154,116 +134,6 @@ class Interactions(commands.Cog):
             await ctx.message.add_reaction("♻")
         except (discord.HTTPException, discord.Forbidden, discord.NotFound):
             await utils.safe_send(ctx, "**`interactions: commands synced`**", delete_after=5.0)
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_GUILD)
-    async def modal(self, interaction: discord.Interaction):
-        """Sends a modal (hopefully)"""
-        await interaction.response.send_modal(Questionnaire())
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_GUILD)
-    async def buttons(self, interaction: discord.Interaction):
-        """Adds buttons to a message"""
-        button_1 = ui.Button(style=discord.ButtonStyle.primary,
-                             label="Primary button",
-                             row=0)
-        button_2 = ui.Button(style=discord.ButtonStyle.secondary,
-                             label="Secondary button",
-                             row=0)
-        dropdown = ui.Select(placeholder="Default placeholder text",  # shows if no options are selected
-                             options=[
-                                 discord.SelectOption(label="Choice 1",
-                                                      value="Choice 1 value",
-                                                      description="Choice 1 description",
-                                                      emoji="🍏",
-                                                      default=False),
-                                 discord.SelectOption(label="Choice 2",
-                                                      value="Choice 2 value",
-                                                      description="Choice 2 description",
-                                                      emoji="🍎")
-                             ],
-                             row=1,
-                             min_values=1,
-                             max_values=2)
-
-        view = utils.RaiView()
-        view.add_item(button_1)
-        view.add_item(button_2)
-        view.add_item(dropdown)
-
-        await interaction.response.send_message("UI elements will be attached to this", view=view)
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_GUILD)
-    async def fruits_app_command(self, interaction: discord.Interaction, fruits: str):
-        await interaction.response.send_message(f'Your favourite fruit seems to be {fruits}')
-
-    @fruits_app_command.autocomplete('fruits')
-    async def fruits_autocomplete(
-            self,
-            _,
-            current: str,
-    ) -> List[app_commands.Choice[str]]:
-        fruits = ['Banana', 'Pineapple', 'Apple', 'Watermelon', 'Melon', 'Cherry']
-        return [
-            app_commands.Choice(name=fruit, value=fruit)
-            for fruit in fruits if current.lower() in fruit.lower()
-        ]
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    @app_commands.describe(member='the member to ban')
-    async def ban_describe(self, interaction: discord.Interaction, member: discord.Member):
-        """Describes the given parameters by their name using the key of the keyword argument as the name."""
-        await interaction.response.send_message(f'Banned {member}')
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    @app_commands.rename(the_member_to_ban='memberrrr')
-    async def ban_rename(self, interaction: discord.Interaction, the_member_to_ban: discord.Member):
-        """Renames the given parameters by their name using the key of the keyword argument as the name."""
-        await interaction.response.send_message(f'Banned {the_member_to_ban}')
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    @app_commands.describe(fruits='fruits to choose from')
-    @app_commands.choices(fruits=[
-        app_commands.Choice(name='apple', value=1),
-        app_commands.Choice(name='banana', value=2),
-        app_commands.Choice(name='cherry', value=3),
-    ])
-    async def fruit_choice(self, interaction: discord.Interaction, fruits: app_commands.Choice[int]):
-        """Instructs the given parameters by their name to use the given choices for their choices."""
-        await interaction.response.send_message(f'Your favourite fruit is {fruits.name}.')
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    async def graph(
-            self,
-            interaction: discord.Interaction,
-            point: app_commands.Transform[Point, PointTransformer],
-    ):
-        """The base class that allows a type annotation in an application command parameter to map
-        into a AppCommandOptionType and transform the raw value into one from this type.
-
-        This class is customisable through the overriding of classmethod() in the class and by using
-        it as the second type parameter of the Transform class. For example, to convert
-        a string into a custom pair type:
-
-        A type annotation that can be applied to a parameter to customise the behaviour of an option type
-        by transforming with the given Transformer. This requires the usage of two generic parameters,
-        the first one is the type you’re converting to and the second one is the type of the
-        Transformer actually doing the transformation.
-
-        During type checking time this is equivalent to typing.Annotated so type checkers
-        understand the intent of the code."""
-        await interaction.response.send_message(str(point))
-
-    @app_commands.command()
-    @app_commands.guilds(FEDE_TESTER_SERVER_ID, RY_SERVER_ID)
-    async def range(self, interaction: discord.Interaction, value: app_commands.Range[int, 10, 12]):
-        await interaction.response.send_message(f'Your value is {value}', ephemeral=True)
 
     @app_commands.command()
     @app_commands.guilds(SP_GUILD)
