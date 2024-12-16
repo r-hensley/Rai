@@ -751,28 +751,28 @@ async def send_to_test_channel(*content):
 
 
 @app_commands.context_menu(name="Delete and log")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions(manage_messages=True)
 async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
     await Interactions.delete_and_log(interaction, message)
 
 
 @app_commands.context_menu(name="Mute user (1h)")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
     await Interactions.context_message_mute(interaction, message)
 
 
 @app_commands.context_menu(name="Mute user (1h)")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
     await Interactions.context_member_mute(interaction, member)
 
 
 @app_commands.context_menu(name="Ban user")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def ban_and_clear_message(interaction: discord.Interaction,
                                 message: discord.Message):  # message commands return the message
@@ -780,7 +780,7 @@ async def ban_and_clear_message(interaction: discord.Interaction,
 
 
 @app_commands.context_menu(name="Ban user")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def ban_and_clear_member(interaction: discord.Interaction,
                                member: discord.User):  # message commands return the message
@@ -788,7 +788,7 @@ async def ban_and_clear_member(interaction: discord.Interaction,
 
 
 @app_commands.context_menu(name="View modlog")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def context_view_modlog(interaction: discord.Interaction, member: discord.Member):
     modlog = here.bot.get_command("modlog")
@@ -798,17 +798,18 @@ async def context_view_modlog(interaction: discord.Interaction, member: discord.
 
 
 @app_commands.context_menu(name="View user stats")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def context_view_user_stats(interaction: discord.Interaction, member: discord.Member):
+    # async def user(self, ctx, *, member_in: str = None, post_embed=True):
     user = here.bot.get_command("user")
     ctx = await commands.Context.from_interaction(interaction)
-    embed = await ctx.invoke(user, member=str(member.id), post_embed=False)
+    embed = await ctx.invoke(user, member_in=str(member.id), post_embed=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @app_commands.context_menu(name="Get ID from message")
-@app_commands.guilds(SP_SERV_GUILD)
+@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions()
 async def get_id_from_message(interaction: discord.Interaction, message: discord.Message):
     ids = re.findall(r"\d{17,22}", message.content)
@@ -836,6 +837,8 @@ async def hf_sync():
     for command in commands_in_file:
         # if command.name not in command_names_in_tree:
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
+        here.bot.tree.add_command(command, guild=JP_SERV_GUILD, override=True)
+
 
     # Try to sync
     try:
