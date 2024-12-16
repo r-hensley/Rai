@@ -907,7 +907,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
     to a thread on the log message"""
     thread = None
     files = []
-    embeds = []
+    embed_urls = []
     if attachments_message.attachments:
         for attachment in attachments_message.attachments:
             try:
@@ -929,9 +929,9 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
         for embed in attachments_message.embeds:
             # posting an image expands the image to an embed without title or desc., send those into the thread
             if embed.url and embed.thumbnail and not embed.title and not embed.description:
-                embeds.append(embed.url)
+                embed_urls.append(embed.url)
                 
-    if files or embeds:
+    if files or embed_urls:
         try:
             # Either get the thread on a message or create a new thread
             if thread := log_message.guild.get_thread(log_message.id):
@@ -964,9 +964,9 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
             except (discord.Forbidden, discord.HTTPException):
                 pass
         
-    for embed in embeds:
+    for embed_url in embed_urls:
         try:
-            await utils.safe_send(thread, embed.url)
+            await utils.safe_send(thread, embed_url)
         except (discord.Forbidden, discord.HTTPException) as e:
             try:
                 await utils.safe_send(thread, f"Error attempting to send attached link to message: {e}")
