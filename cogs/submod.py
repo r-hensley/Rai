@@ -509,9 +509,10 @@ class Submod(commands.Cog):
                                                 "in this server as the warn notifications channel. Please "
                                                 "go to a new channel and type `;warns set`.")
                         raise discord.Forbidden
-                else:
+                elif str(reaction_added) == '❌':
                     await utils.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                    raise ValueError(f"The reaction I detected was not ✅, I got {reaction_added}")
+                else:
+                    raise ValueError(f"The reaction I detected was not ✅❌, I got {reaction_added}")
 
     @warn.command(name="set")
     @hf.is_submod()
