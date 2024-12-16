@@ -847,7 +847,7 @@ class Interactions(commands.Cog):
                     await member.remove_roles(voice_approved_role)
                     await button_interaction.response.send_message(
                         f"I've successfully removed the role from {member.mention}.",
-                        ephemeral=True)
+                        ephemeral=False)
                     await interaction.edit_original_response(content="⁣", embed=None, view=None)
 
                 async def keep_callback(button_interaction: discord.Interaction):
@@ -861,7 +861,7 @@ class Interactions(commands.Cog):
                 remove_button.callback = remove_callback
                 keep_button.callback = keep_callback
 
-                await interaction.response.send_message(embed=emb, view=view, ephemeral=False)
+                await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
 
                 async def on_timeout():
                     await interaction.edit_original_response(view=None)
