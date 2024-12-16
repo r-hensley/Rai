@@ -1038,9 +1038,10 @@ class ChannelMods(commands.Cog):
             if user_id in config:  # Modlog entries
                 config = config[user_id]
             else:  # No entries
+                config = []
+            if len(config) == 0:
                 emb.color = utils.grey_embed("").color
                 emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
-                config = []
         else:  # Non-existent user
             config = []
 
