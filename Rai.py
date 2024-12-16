@@ -121,6 +121,9 @@ class Rai(Bot):
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
+            
+        if os.getenv("OWNER_ID") == "202995638860906496":
+            await self.load_extension('cogs.rl.rl')
 
         await create_database_tables()
 

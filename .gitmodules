@@ -1,3 +1,6 @@
 [submodule "cogs/utils/BotUtils"]
 	path = cogs/utils/BotUtils
 	url = git@github.com:r-hensley/BotUtils.git
+[submodule "cogs/rl"]
+	path = cogs/rl
+	url = git@github.com:r-hensley/rl.git
