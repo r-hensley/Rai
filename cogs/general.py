@@ -1443,10 +1443,6 @@ class General(commands.Cog):
         # temporarily lock for one minute to prevent OP from accidentally opening their closed thread
         await ctx.channel.edit(archived=True, locked=True)
 
-        await asyncio.sleep(60)
-        await ctx.channel.edit(archived=False, locked=False)
-        await ctx.channel.edit(archived=True)
-
     @commands.command()
     @commands.check(doneq_check)
     async def doneq(self, ctx: commands.Context):
