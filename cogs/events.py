@@ -1518,7 +1518,7 @@ class Events(commands.Cog):
                     try:
                         await asyncio.sleep(3)
                         await msg.author.ban(reason=f"Automatic ban: Chinese banned words spam\n"
-                                                    f"{msg.content[:100]}", delete_message_days=1)
+                                                    f"{msg.content[:100]}", delete_message_seconds=1*60*60*24)
                     except discord.Forbidden:
                         await utils.safe_send(mod_channel,
                                            "I tried to ban someone for the Chinese spam message, but I lack "

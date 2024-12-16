@@ -264,7 +264,7 @@ class Submod(commands.Cog):
                     except (discord.Forbidden, discord.HTTPException):
                         pass
 
-                await ctx.guild.ban(target, reason=text, delete_message_days=delete)
+                await ctx.guild.ban(target, reason=text, delete_message_seconds=delete*60*60*24)
                 successes.append(target)
             except discord.Forbidden:
                 await utils.safe_send(ctx, f"I couldn't ban {target.mention}. They're probably above me in the role list.")
