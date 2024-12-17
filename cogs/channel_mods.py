@@ -788,7 +788,7 @@ class ChannelMods(commands.Cog):
 
             # Check DB for voice mute entry
             voice_muted = False
-            voice_unmute_date: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
+            voice_unmute_time_left_str: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
@@ -852,6 +852,8 @@ class ChannelMods(commands.Cog):
                 name = f"{str(user)} ({user.nick})\n{user_id}"
             else:
                 name = f"{str(user)}\n{user_id}"
+                
+            
 
             emb.set_author(name=name, icon_url=user.display_avatar.replace(static_format="png").url)
 
@@ -859,31 +861,31 @@ class ChannelMods(commands.Cog):
             if banned:
                 emb.color = 0x141414  # very dark black, but not completely black
                 if unban_date:
-                    emb.description = (f"{rai_emoji} **`Current Status`** Temporarily Banned "
+                    emb.description += (f"{rai_emoji} **`Current Status`** Temporarily Banned "
                                        f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
-                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Banned"
+                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
                 emb.color = utils.red_embed("").color
                 if voice_unmute_date:
-                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"{rai_emoji} **`Current Status`** "
                                        f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
+                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
                 emb.color = utils.red_embed("").color
                 if unmute_date:
-                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"{rai_emoji} **`Current Status`** "
                                        f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description = f"{rai_emoji} **`Current Status`** Indefinitely Muted"
+                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Muted"
 
             elif timeout:
                 emb.color = utils.red_embed("").color
                 if member.timed_out_until:
-                    emb.description = (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"{rai_emoji} **`Current Status`** "
                                        f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
                 else:
                     pass
@@ -893,9 +895,9 @@ class ChannelMods(commands.Cog):
                 if muted and not banned:
                     emb.description += " (user has left the server)"
                 elif not muted and not banned:
-                    emb.description = f"{rai_emoji} **`Current Status`** : User is not in server"
+                    emb.description += f"{rai_emoji} **`Current Status`** : User is not in server"
             else:
-                emb.description = f"{rai_emoji} **`Current Status`** : No active incidents"
+                emb.description += f"{rai_emoji} **`Current Status`** : No active incidents"
 
         #
         #
@@ -1015,6 +1017,8 @@ class ChannelMods(commands.Cog):
             if found_roles:
                 emb.description += "\n**`Current Language Roles`** : " + ", ".join([r.mention for r in found_roles])
         
+        if member:
+            emb.description += f"\n{member.mention}\n"
         
         #
         #
