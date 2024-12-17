@@ -702,10 +702,12 @@ class Interactions(commands.Cog):
         """Approve a new user for entering the voice chats before they've waited the typical two hours."""
         voice_approved_role = interaction.guild.get_role(978148690873167973)
         try:
+            await interaction.response.defer(ephemeral=False)
+            
             if voice_approved_role not in member.roles:
                 await member.add_roles(voice_approved_role)
-                await interaction.response.send_message(f"I've successfully attached the role to {member.mention}.",
-                                                        ephemeral=False)
+                await interaction.followup.send(f"I've successfully attached the role to {member.mention}.",
+                                                ephemeral=False)
 
             else:
                 emb = utils.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
@@ -714,8 +716,9 @@ class Interactions(commands.Cog):
                 view = utils.RaiView()
 
                 async def remove_callback(button_interaction: discord.Interaction):
+                    await button_interaction.response.defer(ephemeral=False)
                     await member.remove_roles(voice_approved_role)
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         f"I've successfully removed the role from {member.mention}.",
                         ephemeral=False)
                     await interaction.edit_original_response(content="⁣", embed=None, view=None)
@@ -731,7 +734,7 @@ class Interactions(commands.Cog):
                 remove_button.callback = remove_callback
                 keep_button.callback = keep_callback
 
-                await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
+                await interaction.followup.send(embed=emb, view=view, ephemeral=True)
 
                 async def on_timeout():
                     await interaction.edit_original_response(view=None)
