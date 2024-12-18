@@ -45,11 +45,6 @@ class Owner(commands.Cog):
         else:
             return ctx.author.id == self.bot.owner_id
 
-    def get_syntax_error(self, e):
-        if e.text is None:
-            return f'```py\n{e.__class__.__name__}: {e}\n```'
-        return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
-
     @commands.command()
     async def guildstats(self, ctx):
         """Checks stats on various guilds that the bot is on"""
@@ -170,16 +165,16 @@ class Owner(commands.Cog):
         path = split[0]
         set_to = split[1]
 
-        def process_arg(arg):
-            if arg.startswith('ctx'):
+        def process_arg(_arg):
+            if _arg.startswith('ctx'):
                 obj = ctx
-                for attr in arg.split('.'):
+                for attr in _arg.split('.'):
                     if attr == 'ctx':
                         continue
                     obj = getattr(obj, attr)
                 return str(obj)
             else:
-                return arg
+                return _arg
 
         for arg in path.split()[:-1]:
             try:
@@ -255,7 +250,7 @@ class Owner(commands.Cog):
         await utils.safe_send(ctx, f'```\n{msg[:1993]}```')
 
     @commands.command(aliases=['cdb'], hidden=True)
-    async def change_database(self, ctx):
+    async def change_database(self, _):
         """Change database in some way"""
         config = self.bot.db['stats']
         for guild in config:
@@ -309,7 +304,7 @@ class Owner(commands.Cog):
         await ctx.message.add_reaction('♻')
 
     @commands.command(hidden=True)
-    async def saveMessages(self, ctx):
+    async def save_messages(self, ctx):
         """Saves all messages in a channel to a text file"""
         print('Saving messages')
         with codecs.open(f'{ctx.message.channel}_messages.txt', 'w', 'utf-8') as file:
@@ -318,10 +313,10 @@ class Owner(commands.Cog):
                 try:
                     file.write(f'    ({msg.created_at}) {msg.author.name} - {msg.content}\n')
                 except UnicodeEncodeError:
-                    def BMP(s):
+                    def bmp(s):
                         return "".join((i if ord(i) < 10000 else '\ufffd' for i in s))
 
-                    file.write(f'    ({msg.created_at}) {BMP(msg.author.name)} - {BMP(msg.content)}\n')
+                    file.write(f'    ({msg.created_at}) {bmp(msg.author.name)} - {bmp(msg.content)}\n')
 
     @commands.command(hidden=True)
     async def restart(self, ctx):
@@ -405,7 +400,8 @@ class Owner(commands.Cog):
                 else:
                     await utils.safe_send(ctx, f' **`{cog}: SUCCESS`**', delete_after=5.0)
 
-    def cleanup_code(self, content):  # credit Danny
+    @staticmethod
+    def cleanup_code(content):  # credit Danny
         """Automatically removes code blocks from the code."""
         # remove triple quotes + py\n
         if content.startswith("```") and content.endswith("```"):
@@ -450,9 +446,9 @@ class Owner(commands.Cog):
     @commands.command(hidden=True, name='eval')
     async def _eval(self, ctx, *, body: str):
         """Evaluates a code"""
-
+        
         body = body.replace('self.bot', 'bot')
-
+        
         env = {
             'bot': self.bot,
             'ctx': ctx,
@@ -462,35 +458,37 @@ class Owner(commands.Cog):
             'message': ctx.message,
             '_': self._last_result
         }
-
+        
         env.update(globals())
-
+        
         body = self.cleanup_code(body)
         #  these are the default quotation marks on iOS, but they cause SyntaxError: invalid character in identifier
         body = body.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
         stdout = io.StringIO()
-
+        
         to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
-
+        
         try:
             exec(to_compile, env)
         except Exception as e:
             return await utils.safe_send(ctx, f'```py\n{e.__class__.__name__}: {e}\n```')
-
+        
         func = env['func']
+        # noinspection PyBroadException
         try:
             with redirect_stdout(stdout):
                 ret = await func()
-        except Exception as e:
+        except Exception as _:
             value = stdout.getvalue()
             await utils.safe_send(ctx, f'```py\n{value}{traceback.format_exc()}\n```')
         else:
             value = stdout.getvalue()
+            # noinspection PyBroadException
             try:
                 await ctx.message.add_reaction('\u2705')
             except:
                 pass
-
+            
             if ret is None:
                 if value:
                     try:
@@ -506,7 +504,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def count_emoji(self, ctx):
         """Counts the most commonly used emojis"""
-        pattern = re.compile('<a?:[A-Za-z0-9\_]+:[0-9]{17,20}>')
+        pattern = re.compile('<a?:[A-Za-z0-9_]+:[0-9]{17,20}>')
         channel_list = ctx.guild.channels
         emoji_dict = {}
         print('counting')
@@ -556,7 +554,7 @@ class Owner(commands.Cog):
         print(f'>>finding messages<<')
         channel = self.bot.get_channel(277384105245802497)
         name_to_id = {role.name: role.id for role in channel.guild.roles}
-        id_to_role = {role.id: role for role in channel.guild.roles}
+        # id_to_role = {role.id: role for role in channel.guild.roles}
         # self.bot.messages = await channel.history(limit=None, after=discord.utils.utcnow() - timedelta(days=60)).flatten()
         config = self.bot.db['joins'][str(channel.guild.id)]['readd_roles']
         config['users'] = {}
@@ -707,13 +705,7 @@ class Owner(commands.Cog):
                     pass
 
     @commands.command()
-    async def initcontext(self, ctx):
-        @self.bot.message_command(guild_ids=[275146036178059265], name="Test 3")
-        async def show_id(ctx, message: discord.Message):  # message commands return the message
-            await ctx.respond(f"{ctx.author.name}, here'sssssss the message id: {message.id}!")
-
-    @commands.command()
-    async def console(self, ctx):
+    async def console(self, _):
         print("Hello")
 
     @commands.command()
@@ -764,7 +756,7 @@ class Owner(commands.Cog):
             await utils.safe_send(ctx, "Failed to parse user")
             return
 
-        channel_message_id = re.findall(r"https:\/\/(?:.*\.)?.*\.com\/channels\/\d{17,22}\/(\d{17,22})\/(\d{17,22})",
+        channel_message_id = re.findall(r"https://(?:.*\.)?.*\.com/channels/\d{17,22}/(\d{17,22})/(\d{17,22})",
                                         jump_url)
         if channel_message_id:
             channel_id = int(channel_message_id[0][0])
@@ -789,7 +781,7 @@ class Owner(commands.Cog):
         await ctx.message.add_reaction("✅")
 
     @commands.command()
-    async def raise_error(self, ctx):
+    async def raise_error(self, _):
         """Raises an error for testing purposes"""
         print("raising error")
         raise Exception
