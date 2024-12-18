@@ -1158,6 +1158,11 @@ class General(commands.Cog):
         Examples:
         - `;selfmute 3h`   Mute yourself for three hours
         - `;selfmute 5d12h`    Mute yourself for 5d12h"""
+        # redirect owner usage to owner.self_mute_owner()
+        if ctx.author.id == self.bot.owner_id:
+            owner_cog = self.bot.get_cog('Owner')
+            if owner_cog:
+                await owner_cog.self_mute_owner(ctx, time)
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
             await utils.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
                                     "but Rai currently lacks the `Manage Messages` permission, so you can't use this "
