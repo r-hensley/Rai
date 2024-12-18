@@ -4,9 +4,11 @@ import aiohttp, async_timeout
 from datetime import datetime, timezone
 import traceback
 import discord
+import psutil
 from discord.ext import commands, tasks
 from bs4 import BeautifulSoup
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 RYRY_SPAM_CHAN = 275879535977955330
 
@@ -15,9 +17,9 @@ class Background(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # self.risk_check
-        self.bot.bg_tasks = [self.check_rawmangas, self.check_desync_voice, self.unban_users,
-                             self.unmute_users, self.unselfmute_users, self.delete_old_stats_days, self.check_lovehug,
-                             self.check_downed_tasks, self.save_db]
+        self.bot.bg_tasks = [self.check_desync_voice, self.unban_users,
+                             self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
+                             self.check_downed_tasks, self.save_db, self.show_memory_usage]
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 task.start()
@@ -75,113 +77,6 @@ class Background(commands.Cog):
         await utils.dump_json('db')
         await utils.dump_json('stats')
 
-    @tasks.loop(minutes=10.0)
-    async def risk_check(self):
-        config = self.bot.db['risk']
-        url = f"https://www.conquerclub.com/game.php?game={config['id']}"
-        try:
-            with async_timeout.timeout(10):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        r = resp
-                        data = await resp.text()
-        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            return f'invalid_url:  Your URL was invalid ({url})'
-        if str(r.url) != url:  # the page went down so it redirected to the home page
-            return f'invalid_url:  Your URL was invalid ({url})'
-        if r.status != 200:
-            try:
-                return f'html_error: Error {r.status_code}: {r.reason} ({url})'
-            except AttributeError:
-                return f'html_error: {r.reason} ({url})'
-        soup = BeautifulSoup(data, 'html.parser')
-        # ben guthrie: 470244907848564738
-        # players = [91687077510418432, 459846740313505794, 759136587677564990, 264462341003935756, 760555982618361876,
-        #            760991500355239967, 202995638860906496, 266382095906111488, 122584263378993152, 551867033499992086]
-        # players = [91687077510418432, 760555982618361876, 122584263378993152, 760991500355239967, 551867033499992086,
-        #            521914355219169281, 202995638860906496, 264462341003935756, 459846740313505794, 759136587677564990]
-        players = [91687077510418432, 264462341003935756, 759136587677564990, 122584263378993152, 459846740313505794,
-                   760555982618361876, 470244907848564738]
-        risk_ch = self.bot.get_channel(815485283721674752)
-
-        log = soup.find('div', attrs={'id': "log"}).get_text()
-        log = re.sub("2021-..-.. ..:..:.. - ", '\n', log).split('\n')
-        if log[-1][-1] == ' ':
-            log[-1] = log[-1][:-1]
-        try:
-            last_event = log.index(config['log'][-1])
-        except ValueError:
-            last_event = -1
-        for event in log[last_event + 1:]:
-            for emphasis in ["Gogatron", "Uoktem", "tronk", "drshrub", "snafuuu", "rahuligan", "Ryry013", "dumpyDirac",
-                             "supagorilla", "tvbrown", 'davis.zackaria', 'AegonTargaryenVI']:
-                event = event.replace(emphasis, f"**{emphasis}**")
-            if "reinforced" in event:
-                event = f"♻️ {event}"
-            elif "troops" in event:
-                event = f"👥 {event}"
-            elif "assaulted" in event:
-                event = f"⚔️ {event}"
-            elif "ended the turn" in event:
-                event = f"__⏩ {event}__\n⠀"  # invisible non-space character at end of this line
-            if event:
-                await utils.safe_send(risk_ch, event)
-        config['log'] = log[-20:]
-
-        for li in soup.find_all('li'):
-            try:
-                status = li['class'][0]
-                if status == 'status_green':
-                    player_index = int(li['id'].split('_')[-1]) - 1
-                    player_id = players[player_index]
-
-                    if config['current_player'] == player_index:
-                        break
-                    else:
-                        current_player = config['current_player']
-                        if player_index - current_player == 1 or (player_index == 0 and current_player == 6):
-                            # the game has advanced by one player, note though that it skips by 2 per turn
-                            config['current_player'] = player_index
-                        elif player_index == current_player:
-                            # the game has not advanced
-                            break
-                        else:
-                            # this means people are playing at a rate of less than five mins per turn (maybe in voice
-                            # together), so the bot should wait until a player has spent more than five minutes
-                            # without making a move before notifying the user. If there's no change after five mins.,
-                            # the above player_index - current_player == 1 condition will trigger.
-                            config['current_player'] = player_index - 1
-                            break
-
-                    if config['sub'].get(str(player_id), False):
-                        player_name = f"<@{player_id}>"
-                    else:
-                        player_name = risk_ch.guild.get_member(int(player_id)).display_name
-                    await utils.safe_send(risk_ch, f"✅ It is {player_name}'s turn! <{url}>")
-            except KeyError:
-                pass
-
-    @risk_check.error
-    async def risk_check_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(hours=1.0)
-    async def check_rawmangas(self):
-        time = discord.utils.utcnow()
-        config = self.bot.db['rawmangas']
-        for manga in config:
-            if time.weekday() != config[manga]['update']:
-                continue
-            if not 20 < time.hour < 21:
-                continue
-            for user_id in config[manga]['subscribers']:
-                user = self.bot.get_user(user_id)
-                await utils.safe_send(user, f"New manga chapter possibly: {manga}/{str(int(config[manga]['last'])+1)}")
-            config[manga]['last'] += 1
-
-    @check_rawmangas.error
-    async def check_rawmangas_error(self, error):
-        await self.handle_error(error)
 
     @tasks.loop(minutes=5.0)
     async def check_desync_voice(self):
@@ -388,52 +283,7 @@ class Background(commands.Cog):
     async def delete_old_stats_days_error(self, error):
         await self.handle_error(error)
 
-    @tasks.loop(hours=1)
-    async def check_lovehug(self):
-        return
-        # for url in self.bot.db['lovehug']:
-        #     result = await self.lovehug_get_chapter(url)
-        #     if type(result) == str:
-        #         if 'invalid_url' in result:
-        #             await utils.safe_send(self.bot.get_channel(TRACEBACKS_CHAN), f"lovehug error for {url}: {result}")
-        #         continue
-        #     if not result:
-        #         return
-        #     try:
-        #         chapter = f"{url}{result['href']}"
-        #     except TypeError:
-        #         raise
-        #     if chapter == self.bot.db['lovehug'][url]['last']:
-        #         continue
-        #     for user in self.bot.db['lovehug'][url]['subscribers']:
-        #         u = self.bot.get_user(user)
-        #         await utils.safe_send(u, f"New chapter: {url}{result['href']}")
-        #     self.bot.db['lovehug'][url]['last'] = chapter
-
-    @staticmethod
-    async def lovehug_get_chapter(url):
-        try:
-            with async_timeout.timeout(10):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        r = resp
-                        data = await resp.text()
-        except (aiohttp.InvalidURL, aiohttp.ClientConnectorError):
-            return f'invalid_url:  Your URL was invalid ({url})'
-        if str(r.url) != url:  # the page went down so it redirected to the home page
-            return f'invalid_url:  Your URL was invalid ({url})'
-        if r.status != 200:
-            try:
-                return f'html_error: Error {r.status_code}: {r.reason} ({url})'
-            except AttributeError:
-                return f'html_error: {r.reason} ({url})'
-        soup = BeautifulSoup(data, 'html.parser')
-        return soup.find('a', attrs={'title': re.compile("Chapter.*")})
-
-    @check_lovehug.error
-    async def check_lovehug_error(self, error):
         await self.handle_error(error)
-
 
 async def setup(bot):
     await bot.add_cog(Background(bot))
