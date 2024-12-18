@@ -1163,6 +1163,7 @@ class General(commands.Cog):
             owner_cog = self.bot.get_cog('Owner')
             if owner_cog:
                 await owner_cog.self_mute_owner(ctx, time)
+                return
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
             await utils.safe_send(ctx, "This command works by manually deleting all the messages of the self-muted user, "
                                     "but Rai currently lacks the `Manage Messages` permission, so you can't use this "
