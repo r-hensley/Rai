@@ -542,12 +542,14 @@ class Owner(commands.Cog):
         print(emoji_dict)
         print(emoji_list)
 
-    @commands.command()
-    async def selfMute(self, ctx, hour: float, minute: float):
+    @commands.command(hidden=True)
+    async def self_mute_owner(self, ctx, time: str):
         """Irreversibly mutes the bot owner for x amount of minutes"""
+        _, (days, hours, minutes) = hf.parse_time(time)
+        hours += days * 24
         self.bot.selfMute = True
-        await utils.safe_send(ctx, f'Muting {ctx.author} for {hour} hours and {minute} minutes (he chose to do this).')
-        self.bot.selfMute = await asyncio.sleep(hour * 3600 + minute * 60, False)
+        await utils.safe_send(ctx, f'Muting {ctx.author} for {hours} hours and {minutes} minutes (he chose to do this).')
+        self.bot.selfMute = await asyncio.sleep(hours * 3600 + minutes * 60, False)
 
     @commands.command(aliases=['fd'])
     async def get_left_users(self, ctx):
