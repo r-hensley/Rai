@@ -321,7 +321,7 @@ class Main(commands.Cog):
 
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
-        e.add_field(name='Event', value=event)
+        e.add_field(name='Event', value=str(event)[:1024])
         e.description = f'```py\n{traceback.format_exc()}\n```'
         e.timestamp = discord.utils.utcnow()
 
@@ -330,14 +330,15 @@ class Main(commands.Cog):
         for index, arg in enumerate(args):
             args_str.append(f'[{index}]: {arg!r}')
             if isinstance(arg, discord.Message):
-                e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})')
+                e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})'[:1024])
                 fmt = f'Channel: {arg.channel} (ID: {arg.channel.id})'
                 if arg.guild:
                     fmt = f'{fmt}\nGuild: {arg.guild} (ID: {arg.guild.id})'
-                e.add_field(name='Location', value=fmt, inline=False)
+                e.add_field(name='Location', value=fmt[:1024], inline=False)
                 jump_url = arg.jump_url
-        args_str.append('```')
-        e.add_field(name='Args', value='\n'.join(args_str), inline=False)
+        joined_args_str = '\n'.join(args_str)
+        joined_args_str = joined_args_str[:1021] + '```'
+        e.add_field(name='Args', value=joined_args_str[:1024], inline=False)
         try:
             await self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL).send(jump_url, embed=e)
         except AttributeError:
