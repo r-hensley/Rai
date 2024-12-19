@@ -48,5 +48,32 @@ class TestSplitText(unittest.TestCase):
                   'non proident, sunt in culpa qui officia deserunt', 'mollit anim id est laborum.']
         self.assertEqual(split_text_into_segments(s, 50), result)
         
+    def test_eight(self):
+        s = ("""Traceback (most recent call last):
+  File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/client.py", line 449, in _run_event
+    await coro(*args, **kwargs)
+  File "/home/pi/Documents/Rai/cogs/logger.py", line 586, in on_raw_message_edit
+    await self.log_raw_payload(payload)
+  File "/home/pi/Documents/Rai/cogs/logger.py", line 814, in log_raw_payload
+    await self.log_edit_event(old_message.to_discord_message(), new_message, levenshtein_distance, logging_channel)
+  File "/home/pi/Documents/Rai/cogs/logger.py", line 442, in log_edit_event
+    await utils.safe_send(channel, embed=emb)
+  File "/home/pi/Documents/Rai/cogs/utils/BotUtils/bot_utils.py", line 153, in safe_send
+    return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/abc.py", line 1618, in send
+    data = await state.http.send_message(channel.id, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/http.py", line 758, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 50035): Invalid Form Body
+In embeds.0.footer.icon_url: Not a well formed URL.""")
+        result = ['Traceback (most recent call last):\n  File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/client.py", line 449, in _run_event\n    await coro(*args, **kwargs)\n  File "/home/pi/Documents/Rai/cogs/logger.py", line 586, in on_raw_message_edit\n    await self.log_raw_payload(payload)\n  File "/home/pi/Documents/Rai/cogs/logger.py", line 814, in log_raw_payload\n    await self.log_edit_event(old_message.to_discord_message(), new_message, levenshtein_distance, logging_channel)',
+ 'File "/home/pi/Documents/Rai/cogs/logger.py", line 442, in log_edit_event\n    await utils.safe_send(channel, embed=emb)\n  File "/home/pi/Documents/Rai/cogs/utils/BotUtils/bot_utils.py", line 153, in safe_send\n    return await destination.send(content, embed=embed, delete_after=delete_after, file=file, view=view)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+ 'File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/abc.py", line 1618, in send\n    data = await state.http.send_message(channel.id, params=params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/pi/Documents/bot-venv/lib/python3.11/site-packages/discord/http.py", line 758, in request\n    raise HTTPException(response, data)\ndiscord.errors.HTTPException: 400 Bad Request (error code: 50035): Invalid Form Body',
+ 'In embeds.0.footer.icon_url: Not a well formed URL.']
+        # split every 500
+        self.assertEqual(split_text_into_segments(s, 500), result)
+        
 if __name__ == '__main__':
     unittest.main()
