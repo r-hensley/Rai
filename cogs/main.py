@@ -124,6 +124,10 @@ class Main(commands.Cog):
             print("Starting database backups")
             self.database_backups.start()
 
+        # build MessageQueue
+        if not hasattr(self.bot, "message_queue"):
+            self.bot.message_queue = hf.MessageQueue(maxlen=20000)
+
     @staticmethod
     def logging_setup():
         class IgnoreRateLimitFilter(logging.Filter):

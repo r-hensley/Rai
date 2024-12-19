@@ -1038,6 +1038,14 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
         ctx = await self.bot.get_context(msg)
+        
+        async def log_bot_messages():
+            if not getattr(self.bot, "bot_message_queue", None):
+                self.bot.bot_message_queue = hf.MessageQueue(maxlen=100)
+            if msg.author.bot:
+                self.bot.bot_message_queue.add_message(msg)
+        
+        await log_bot_messages()
 
         if msg.author.bot:
             # for BurdBot to post questions to AOTW
@@ -1059,26 +1067,10 @@ class Events(commands.Cog):
 
         if not msg.guild:  # all code after this has msg.guild requirement
             return
+        
+        # bots are still allowed below, go one more section down to find no bots + guilds only section
 
         ##########################################
-
-        # ### ban users from sensitive_topics on spanish server
-        async def ban_from_sens_top():
-            banned_role_id = 1163181663459749978
-            sensitive_topics_id = 1030545378577219705
-            role = msg.guild.get_role(banned_role_id)
-            if msg.channel.id != sensitive_topics_id:
-                return
-            if role not in msg.author.roles:
-                return
-
-            try:
-                await msg.delete()
-                await msg.author.send("You are not allowed to use that channel. Here is the message you tried to send:")
-                await msg.author.send(msg.content)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
-        await ban_from_sens_top()
 
         # ### Call modlog when people in reports mention IDs or usernames
         async def post_modlog_in_reports():
@@ -1218,6 +1210,9 @@ class Events(commands.Cog):
                 modlog_entry.add_to_modlog()
 
         await log_ciri_warnings()
+        
+        
+        
 
         if msg.author.bot:
             return
@@ -1227,6 +1222,39 @@ class Events(commands.Cog):
         # No more bots
         #
         # # ###############################################
+        
+        # ### Add to MessageQueue
+        async def add_to_message_queue():
+            if not getattr(self.bot, "message_queue", None):
+                self.bot.message_queue = hf.MessageQueue(maxlen=50000)
+                
+            # only add messages to queue for servers that have edited messages or deleted messages logging enabled
+            if not any([self.bot.db['deletes'].get(str(msg.guild.id), {}).get('enable', False),
+                        self.bot.db['edits'].get(str(msg.guild.id), {}).get('enable', False)]):
+                return
+            self.bot.message_queue.add_message(msg)
+        
+        await add_to_message_queue()
+        
+        # ### ban users from sensitive_topics on spanish server
+        async def ban_from_sens_top():
+            banned_role_id = 1163181663459749978
+            sensitive_topics_id = 1030545378577219705
+            role = msg.guild.get_role(banned_role_id)
+            if msg.channel.id != sensitive_topics_id:
+                return
+            if role not in msg.author.roles:
+                return
+            
+            try:
+                await msg.delete()
+                await msg.author.send(
+                    "You are not allowed to use that channel. Here is the message you tried to send:")
+                await msg.author.send(msg.content)
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        
+        await ban_from_sens_top()
 
         async def wordsnake_channel():
             if msg.channel.id != 1089515759593603173:
