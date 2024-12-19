@@ -19,7 +19,7 @@ class Background(commands.Cog):
         # self.risk_check
         self.bot.bg_tasks = [self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.show_memory_usage]
+                             self.check_downed_tasks, self.save_db]
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 task.start()
@@ -281,8 +281,6 @@ class Background(commands.Cog):
 
     @delete_old_stats_days.error
     async def delete_old_stats_days_error(self, error):
-        await self.handle_error(error)
-
         await self.handle_error(error)
 
 async def setup(bot):
