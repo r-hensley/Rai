@@ -790,6 +790,8 @@ class Logger(commands.Cog):
             else:  # edits
                 author_id = payload.data['author']['id']
                 author = self.bot.get_user(int(author_id))
+                if author.bot:
+                    return
                 print(f"Pulled from old edit data: {author} ({author_id})")
                 old_message = hf.MiniMessage(message_id=payload.message_id,
                                              content="<Old message content not known>",
