@@ -55,6 +55,7 @@ BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 
 t_start = datetime.now()
 
+max_messages = 10000
 
 def prefix(bot: commands.Bot, msg: discord.Message) -> str:
     if bot.user.name == "Rai":
@@ -72,7 +73,8 @@ def prefix(bot: commands.Bot, msg: discord.Message) -> str:
 class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix,
-                         help_command=None, intents=intents, max_messages=10000)
+                         help_command=None, intents=intents, max_messages=max_messages)
+        self.max_messages = max_messages
         self.db = {}
         self.stats = {}
         self.language_detection = False
@@ -113,6 +115,7 @@ class Rai(Bot):
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv']
 
+        # cogs.background is loaded in main.py
         for extension in initial_extensions:
             try:
                 print(f"Loaded {extension}")
