@@ -7,10 +7,12 @@ import os
 import re
 import sys
 import unittest
+from collections import deque
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Union, Tuple, Callable
+from typing import Optional, List, Union, Tuple, Callable, Iterable
+from unittest.mock import Mock
 
 import discord
 import numpy as np
@@ -230,7 +232,7 @@ def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) ->
 
 
 def format_interval(interval: Union[timedelta, int, float], show_minutes=True,
-                    show_seconds=False) -> str:
+                    show_seconds=False, include_spaces=True) -> str:
     """
     Display a time interval in a format like "10d 2h 5m"
     :param interval: time interval as a timedelta or as seconds
@@ -261,8 +263,9 @@ def format_interval(interval: Union[timedelta, int, float], show_minutes=True,
     if seconds and show_seconds:
         components.append(f"{seconds}s")
 
+    space = " " if include_spaces else ""
     if components:
-        return " ".join(f"{sign}{component}" for component in components)
+        return space.join(f"{sign}{component}" for component in components)
     else:
         if show_seconds:
             unit = 's'
@@ -311,8 +314,9 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
     :param time: a string like "2d3h" or "10h"
-    :return: *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
-    *length*: a list with ints [days, hours, minutes]
+    :return: Two things:
+    - *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
+    - *length*: a list with ints [days, hours, minutes]
     """
     time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$',
                         time)  # group 2, 4, 6, 8: years, days, hours, minutes
@@ -1029,15 +1033,418 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
         return message
 
 
+from typing import List, Optional
+from datetime import datetime
 
+
+class MiniMessage:
+    """
+    A lightweight representation of a Discord message, designed to store minimal
+    information for reduced memory usage. Useful for caching and analysis without
+    retaining unnecessary objects.
+    
+    Attributes:
+        message_id (int): The unique ID of the message.
+        content (str): The content of the message.
+        author_id (int): The ID of the author of the message.
+        channel_id (int): The ID of the channel where the message was sent.
+        guild_id (Optional[int]): The ID of the guild (server), if applicable.
+        attachments (List[dict]): A list of attachment dictionaries containing only URLs.
+        
+    Properties:
+        created_at: The creation timestamp of the message.
+        id: The unique ID of the message.
+        
+        
+    Methods:
+        to_dict: Convert the MiniMessage to a dictionary for easy storage or JSON serialization.
+        from_discord_message: Create a MiniMessage object from a discord.py Message object.
+    """
+    def __init__(
+        self,
+        message_id: int,
+        content: str,
+        author_id: int,
+        channel_id: int,
+        guild_id: Optional[int] = None,
+        attachments: Optional[List[dict]] = None,
+    ):
+        """
+        A minimal message object for reduced memory usage.
+
+        Args:
+            message_id (int): The unique ID of the message.
+            content (str): The content of the message.
+            author_id (int): The ID of the author of the message.
+            channel_id (int): The ID of the channel where the message was sent.
+            guild_id (Optional[int]): The ID of the guild (server), if applicable.
+            attachments (Optional[List[dict]]): A list of attachment dictionaries containing only URLs.
+        """
+        self.message_id = int(message_id)
+        self.content = content
+        self.author_id = int(author_id)
+        self.channel_id = int(channel_id)
+        self.guild_id = int(guild_id) if guild_id else None
+        if not self.guild_id:
+            channel = here.bot.get_channel(self.channel_id)
+            if channel:
+                self.guild_id = getattr(channel.guild, "id", None)
+        
+        # Simplify attachments to just URLs and proxy URLs
+        self.attachments = [
+            {"url": attachment.get("url", ""), "proxy_url": attachment.get("proxy_url", "")}
+            for attachment in (attachments or [])
+        ]
+
+    @property
+    def created_at(self) -> datetime:
+        """The creation timestamp of the message."""
+        return discord.utils.snowflake_time(self.message_id)
+
+    @property
+    def id(self) -> int:
+        """The unique ID of the message."""
+        return self.message_id
+
+    def to_dict(self):
+        """Convert the MiniMessage to a dictionary for easy storage or JSON serialization."""
+        return {
+            "message_id": self.message_id,
+            "content": self.content,
+            "author_id": self.author_id,
+            "channel_id": self.channel_id,
+            "guild_id": self.guild_id,
+            "attachments": self.attachments,
+        }
+
+    def to_discord_message(self) -> discord.Message:
+        """
+        Convert the MiniMessage to a discord.py Message object.
+
+        Returns:
+            discord.Message: A discord.py message object (a mock, though)
+        """
+        # Mock the author (user)
+        author = here.bot.get_user(self.author_id)
+        if not author:
+            author = Mock(spec=discord.User)
+            author.id = self.author_id
+            author.name = "Unknown User"  # Placeholder name
+            author.bot = False
+            
+        guild = here.bot.get_guild(self.guild_id) if self.guild_id else None
+        channel = None
+        if not guild:
+            guild = Mock(spec=discord.Guild)
+            guild.id = self.guild_id
+            guild.name = "Unknown Server"
+        
+        # Resolve channel
+        if guild:
+            channel = guild.get_channel_or_thread(self.channel_id)
+            if not channel:
+                channel = here.bot.get_channel(self.channel_id)
+        if not channel:
+            channel = Mock(spec=discord.TextChannel)
+            channel.id = self.channel_id
+            channel.name = "Unknown Channel"  # Placeholder name
+            channel.guild = guild
+        
+        # Mock attachments
+        attachments = [
+            Mock(spec=discord.Attachment,
+                 url=attachment["url"],
+                 proxy_url=attachment.get("proxy_url", ""),
+                 filename=attachment['url'].split('/')[-1] if attachment['url'] else "")
+            for attachment in self.attachments
+        ]
+        
+        # Mock the Message object
+        message = Mock(spec=discord.Message)
+        message.id = self.message_id
+        message.channel = channel
+        message.author = author
+        message.content = self.content
+        message.created_at = self.created_at
+        message.attachments = attachments
+        message.guild = channel.guild if hasattr(channel, 'guild') else None
+        message.embeds = []
+        message.mentions = []
+        message.role_mentions = []
+        message.channel_mentions = []
+        message.reference = None
+        message.reactions = []
+        
+        return message
+        
+        # author = here.bot.get_user(self.author_id)
+        # if not author:
+        #     author = discord.Object(id=self.author_id)
+        # channel = here.bot.get_channel_or_thread(self.channel_id)
+        # if not channel:
+        #     channel = discord.Object(id=self.channel_id)
+        # message = discord.PartialMessage(
+        #     id=self.message_id,
+        #     channel=channel
+        # )
+        # message.content = self.content
+
+    @classmethod
+    def from_discord_message(cls, message: discord.Message) -> "MiniMessage":
+        """
+        Create a MiniMessage object from a discord.py Message object.
+
+        Args:
+            message (discord.Message): A discord.py message object.
+
+        Returns:
+            MiniMessage: A simplified version of the message.
+        """
+        attachments = [
+            {"url": attachment.url, "proxy_url": attachment.proxy_url}
+            for attachment in message.attachments
+        ]
+        
+        # posting an image expands the image to an embed without title or desc.
+        attachments += [
+            {"url": embed.url, "proxy_url": ""}
+            for embed in message.embeds
+        ]
+        
+        return cls(
+            message_id=message.id,
+            content=message.content,
+            author_id=message.author.id,
+            channel_id=message.channel.id,
+            guild_id=message.guild.id if message.guild else None,
+            attachments=attachments,
+        )
+    
+    @classmethod
+    def from_mini_message(cls, message: "MiniMessage"):
+        """Used to update a MiniMessage in an old list to a new structure when MiniMessage is updated."""
+        return cls(
+            message_id=message.message_id,
+            content=message.content,
+            author_id=message.author_id,
+            channel_id=message.channel_id,
+            guild_id=message.guild_id,
+            attachments=message.attachments,
+        )
+    
+    def __repr__(self):
+        """A clean string representation for debugging."""
+        if len(self.content) > 20:
+            content = f"{self.content[:20]}..."
+        else:
+            content = self.content
+        content = content.replace("\n", " ").replace("`", "")
+        date_str = self.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        return (
+            f"<MiniMessage id={self.message_id}, author_id={self.author_id}, "
+            f"channel_id={self.channel_id}, guild_id={self.guild_id}, "
+            f"content='{content}', created_at={date_str}>"
+        )
+    
+    def __sizeof__(self) -> int:
+        """
+        Calculate the memory usage of the MiniMessage object.
+        :return: The memory usage in bytes.
+        """
+        return (
+            sys.getsizeof(self.message_id)
+            + sys.getsizeof(self.content)
+            + sys.getsizeof(self.author_id)
+            + sys.getsizeof(self.channel_id)
+            + sys.getsizeof(self.guild_id)
+            + sys.getsizeof(self.created_at)
+            + sum(sys.getsizeof(attachment) for attachment in self.attachments)
+            + sys.getsizeof(self.attachments)
+        )
+
+
+class MessageQueue(deque[MiniMessage]):
+    """
+    A queue of MiniMessage objects with a maximum length to prevent memory overflow.
+    
+    Properties:
+        depth (str): The time difference between the oldest and newest messages.
+        memory_usage (str): The memory usage of the queue.
+        average_message_length (float): The average length of messages in the queue.
+        
+    Methods:
+        add_message: Add a MiniMessage to the queue.
+        get_recent_messages: Retrieve the most recent messages.
+        to_dict_list: Convert all messages in the queue to a list of dictionaries.
+        find_by_author: Find all messages by a specific author.
+        change_length: Change the maximum length of the queue by creating a new queue and returning
+    """
+    def __init__(self, iterable: Iterable = (), maxlen: Optional[int] = None):
+        """
+        Create a new MessageQueue object.
+        
+        :param iterable: Any iterable, for example, a list or deque, including potentially just another MessageQueue.
+        :param maxlen: The maximum length of the queue.
+        """
+        # MessageQueue(message_queue)  # give message queue with same maxlen (this does nothing)
+        # MessageQueue(message_queue, maxlen=1000)  # give message queue with new maxlen
+        # MessageQueue(maxlen=1000)  # create new message queue with maxlen 1000
+        # MessageQueue()  # create new message queue with default maxlen
+        if maxlen == 0:
+            raise ValueError("Parameter `maxlen` cannot be 0.")
+        
+        default_maxlen = 10000
+        if isinstance(iterable, MessageQueue):
+            maxlen = maxlen or iterable.maxlen
+            super().__init__(iterable, maxlen=maxlen)
+        else:
+            maxlen = maxlen or default_maxlen
+            super().__init__(iterable, maxlen=maxlen)
+        
+    @property
+    def depth(self) -> str:
+        """Find time difference between oldest and newest message in the queue."""
+        if len(self) < 2:
+            return "0s"
+        return format_interval(self[-1].created_at - self[0].created_at)
+    
+    @property
+    def memory_usage(self) -> str:
+        """Calculate the memory usage of the queue."""
+        size = self.__sizeof__()
+        out = ""
+        if size < 1024:
+            out += f"{size} B"
+        elif size < 1024 ** 2:
+            out += f"{size / 1024:.2f} KB"
+        elif size < 1024 ** 3:
+            out += f"{size / 1024 ** 2:.2f} MB"
+        else:
+            out += f"{size / 1024 ** 3:.2f} GB"
+        
+        size_per_msg = size / len(self)
+        if size_per_msg < 1024:
+            out += f" ({size_per_msg:.2f} B/msg, {self.average_message_length:.1f} char/msg)"
+        elif size_per_msg < 1024 ** 2:
+            out += f" ({size_per_msg / 1024:.2f} KB/msg, {self.average_message_length:.1f} char/msg)"
+        elif size_per_msg < 1024 ** 3:
+            out += f" ({size_per_msg / 1024 ** 2:.2f} MB/msg, {self.average_message_length:.1f} char/msg)"
+        else:
+            out += f" ({size_per_msg / 1024 ** 3:.2f} GB/msg, {self.average_message_length:.1f} char/msg)"
+        
+        return out
+    
+    @property
+    def average_message_length(self) -> float:
+        """Calculate the average message length of the queue."""
+        return sum(len(msg.content) for msg in self) / len(self)
+
+    def add_message(self, message: Union[MiniMessage, discord.Message]) -> None:
+        """Add a MiniMessage to the queue."""
+        if isinstance(message, discord.Message):
+            message = MiniMessage.from_discord_message(message)
+        if not isinstance(message, MiniMessage):
+            raise TypeError(f"Expected `MiniMessage` or `discord.Message`, got {type(message).__name__}")
+        self.append(message)
+        
+    def get_recent_messages(self, count: int = 10) -> List[MiniMessage]:
+        """Retrieve the most recent messages."""
+        return list(self)[-count:]
+
+    def to_dict_list(self) -> List[dict]:
+        """Convert all messages in the queue to a list of dictionaries."""
+        return [message.to_dict() for message in self]
+
+    def find_by_author(self, author: Union[int, discord.User, discord.Member]) -> List[MiniMessage]:
+        """Find all messages by a specific author."""
+        if isinstance(author, (discord.User, discord.Member)):
+            author_id = author.id
+        elif isinstance(author, int):
+            author_id = author
+        else:
+            raise TypeError(f"Expected `int`, `discord.User`, or `discord.Member`, got {type(author).__name__}")
+        
+        return [msg for msg in self if msg.author_id == author_id]
+    
+    def find_by_channel(self, channel: Union[int, discord.abc.Messageable]) -> List[MiniMessage]:
+        """Find all messages in a specific channel."""
+        if isinstance(channel, (discord.abc.Messageable, discord.abc.GuildChannel, discord.abc.PrivateChannel)):
+            channel_id = channel.id
+        elif isinstance(channel, int):
+            channel_id = channel
+        else:
+            raise TypeError(f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
+        return [msg for msg in self if msg.channel_id == channel_id]
+    
+    def find_by_guild(self, guild: Union[int, discord.Guild]) -> List[MiniMessage]:
+        """Find all messages in a specific guild."""
+        if isinstance(guild, discord.Guild):
+            guild_id = guild.id
+        elif isinstance(guild, int):
+            guild_id = guild
+        else:
+            raise TypeError(f"Expected `int` or `discord.Guild`, got {type(guild).__name__}")
+        return [msg for msg in self if msg.guild_id == guild_id]
+    
+    def find(self, *args, **kwargs) -> List[MiniMessage]:
+        """Find all messages that match the given criteria. The criteria are passed as keyword arguments.
+        
+        Example:
+            - find(author_id=1234567890, guild_id=1234567890): Find messages by a specific author in a specific guild.
+            - find(author_id=1234567890, channel_id=1234567890): Find messages by a specific author in a specific channel.
+            - find(message_id=1234567890): Find a message by its ID.
+            - find(1234567890): Find a message by its ID.
+            - find(discord.User): Find messages by a specific author.
+            - find(discord.Guild, discord.User): Find messages by a specific author in a specific guild.
+        """
+        for arg in args:
+            if isinstance(arg, (discord.User, discord.Member)):
+                kwargs["author_id"] = arg.id
+            elif isinstance(arg, discord.Guild):
+                kwargs["guild_id"] = arg.id
+            elif isinstance(arg, (discord.abc.Messageable, discord.abc.GuildChannel, discord.abc.PrivateChannel)):
+                kwargs["channel_id"] = arg.id
+            elif isinstance(arg, int):
+                kwargs["message_id"] = arg
+            elif potential_id := re.search(r"^\d{17,22}$", str(arg)):
+                kwargs["message_id"] = int(potential_id.group())
+            else:
+                raise TypeError(f"Expected some kind of ID or discord object, got {type(arg).__name__}")
+        return [msg for msg in self if all(getattr(msg, key) == value for key, value in kwargs.items())]
+    
+    def change_length(self, new_length: int) -> "MessageQueue":
+        """Change the maximum length of the queue by creating a new queue and returning it."""
+        if len(self) > new_length:
+            sliced_queue = list(self)[-new_length:]
+        else:
+            sliced_queue = list(self)
+        return MessageQueue(sliced_queue, maxlen=new_length)
+    
+    def __repr__(self) -> str:
+        """Print a preview of the last ten items in the list"""
+        return (
+            f"<MessageQueue: "
+            f"{len(self)} messages ー "
+            f"{self.depth} depth ー "
+            f"{self.memory_usage}>"
+        )
+    
+    def __sizeof__(self) -> int:
+        """Calculate the memory usage of the queue."""
+        return sys.getsizeof(super()) + sum(sys.getsizeof(msg) for msg in self)
+    
+    
+    
 def split_text_into_segments(text, segment_length=1024) -> List[str]:
     """Split a long text into segments of a specified length."""
     segments = []
     while len(text) > segment_length:
-        # Find the last space before the segment limit to avoid breaking words
-        split_index = text.rfind(' ', 0, segment_length)
-        if split_index == -1:  # If no space is found, split at segment_length
-            split_index = segment_length
+        # Find the last new line before the segment limit to avoid breaking words
+        split_index = text.rfind('\n', 0, segment_length)
+        if split_index == -1:  # If no new line is found, split at space
+            split_index = text.rfind(' ', 0, segment_length)
+            if split_index == -1:  # If no space is found, split at the limit
+                split_index = segment_length
         segments.append(text[:split_index])
         text = text[split_index:].lstrip()  # Remove leading spaces in the next segment
     segments.append(text)  # Append the last segment
