@@ -256,14 +256,6 @@ class Submod(commands.Cog):
             try:
                 # there was a bug where people using slash command and choosing to delete past messages didn't
                 # actually see the messages get deleted
-                log_channel = self.bot.get_channel(283403586006941697)
-                if log_channel:
-                    try:
-                        await log_channel.send(f"Ban by {ctx.author}, target: {target}, "
-                                               f"message delete option: {delete}")
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
-
                 await ctx.guild.ban(target, reason=text, delete_message_seconds=delete*60*60*24)
                 successes.append(target)
             except discord.Forbidden:
