@@ -9,6 +9,7 @@ import re
 import os
 import importlib
 import datetime
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run
 from contextlib import redirect_stdout
@@ -802,6 +803,52 @@ class Owner(commands.Cog):
                 if account in member_ids:
                     await utils.safe_send(ctx, f"{account} is in {guild.name}")
         await utils.safe_send(ctx, "Done")
+        
+    @commands.command()
+    async def queue(self, ctx):
+        """Prints information about the messages deque: self.bot.messages_queue"""
+        queue: hf.MessageQueue = self.bot.message_queue
+        # the __repr__ method produces some good info, but there it is constricted greatly for readability.
+        # Here, expand a bit more with more space, better formatting, and more info.
+        # __repr__ gives: <MessageQueue: 2453 messages ー 45m depth ー 858.61 KB (358.42 B/msg, 33.1 char/msg)>
+        bot_cache_len = len(self.bot.cached_messages)
+        bot_cache_depth = hf.format_interval(
+            self.bot.cached_messages[-1].created_at - self.bot.cached_messages[0].created_at)
+        msg = f"Queue length: {len(queue)} (bot len: {bot_cache_len})\n"
+        msg += f"Queue depth: {queue.depth} (bot depth: {bot_cache_depth})\n"
+        msg += f"Queue size: {queue.memory_usage}\n"
+        
+        # calculate the top five most common guilds
+        guild_count = Counter()
+        for message in queue:
+            guild_count[message.guild_id] += 1
+            
+        guild_count = guild_count.most_common(10)
+        msg += "Top 10 guilds:\n"
+        for guild_id, count in guild_count:
+            guild = self.bot.get_guild(guild_id)
+            percentage = count / len(queue) * 100
+            msg += f"- {guild.name} ({percentage:.2f}%): {count}\n"
+            
+        await utils.safe_send(ctx, msg)
+            
+        
+    @commands.command(aliases=['queue_reload', 'reloadqueue'])
+    async def reload_queue(self, ctx):
+        """Reloads the message queue in the case that I've changed the code inside the message queue class definition"""
+        self.bot.message_queue = hf.MessageQueue(self.bot.message_queue)
+        await ctx.message.add_reaction("✅")
+    
+    @commands.command(aliases=['reloadqueuemessages'])
+    async def reload_queue_messages(self, ctx):
+        """Reloads all the message objects in a queue"""
+        new_message_queue = hf.MessageQueue(maxlen=self.bot.message_queue.maxlen)
+        for message in self.bot.message_queue:
+            new_message_queue.append(hf.MiniMessage.from_mini_message(message))
+        self.bot.message_queue = new_message_queue
+        await ctx.message.add_reaction("✅")
+        
+        
 
 
 async def setup(bot):
