@@ -74,10 +74,10 @@ class Rai(Bot):
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix,
                          help_command=None, intents=intents, max_messages=max_messages)
-        self.max_messages = max_messages
-        self.db = {}
-        self.stats = {}
-        self.language_detection = False
+        self.max_messages: int = max_messages
+        self.db: dict = {}
+        self.stats: dict = {}
+        self.language_detection: bool = False
         self.t_start = t_start
         print('starting loading of jsons')
 

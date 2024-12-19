@@ -29,9 +29,16 @@ from cogs.utils.BotUtils import bot_utils as utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
-here = sys.modules[__name__]
-here.bot = None
-here.loop = None
+# here = sys.modules[__name__]
+# here.bot = None
+# here.loop = None
+
+class Here:
+    def __init__(self):
+        self.bot: Optional[commands.Bot] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+
+here = Here()
 
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
@@ -46,6 +53,7 @@ JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 def setup(bot: commands.Bot, loop: asyncio.AbstractEventLoop):
     """This command is run in the setup_hook function in Rai.py"""
+    global here
     if here.bot is None:
         here.bot = bot
     else:
@@ -235,6 +243,7 @@ def format_interval(interval: Union[timedelta, int, float], show_minutes=True,
                     show_seconds=False, include_spaces=True) -> str:
     """
     Display a time interval in a format like "10d 2h 5m"
+    :param include_spaces: whether to include spaces between the components
     :param interval: time interval as a timedelta or as seconds
     :param show_minutes: whether to add the minutes to the string
     :param show_seconds: whether to add the seconds to the string
@@ -599,23 +608,23 @@ def _pre_load_language_detection_model():
                 for row in reader:
                     english.append(row[2])
 
-    def make_set(english, spanish, pipeline=None):
+    def make_set(_english, _spanish, pipeline=None):
         if pipeline:
-            eng_pred = pipeline.predict(english)
-            sp_pred = pipeline.predict(spanish)
+            eng_pred = pipeline.predict(_english)
+            sp_pred = pipeline.predict(_spanish)
             new_english = []
             new_spanish = []
-            for i in range(len(english)):
+            for i in range(len(_english)):
                 if eng_pred[i] == 'en':
-                    new_english.append(english[i])
-            for i in range(len(spanish)):
+                    new_english.append(_english[i])
+            for i in range(len(_spanish)):
                 if sp_pred[i] == 'sp':
-                    new_spanish.append(spanish[i])
-            spanish = new_spanish
-            english = new_english
+                    new_spanish.append(_spanish[i])
+            _spanish = new_spanish
+            _english = new_english
 
-        x = np.array(english + spanish)
-        y = np.array(['en'] * len(english) + ['sp'] * len(spanish))
+        x = np.array(_english + _spanish)
+        y = np.array(['en'] * len(_english) + ['sp'] * len(_spanish))
 
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.05, random_state=42)
         cnt = CountVectorizer(analyzer='char', ngram_range=(2, 2))
@@ -1449,3 +1458,11 @@ def split_text_into_segments(text, segment_length=1024) -> List[str]:
         text = text[split_index:].lstrip()  # Remove leading spaces in the next segment
     segments.append(text)  # Append the last segment
     return segments
+
+
+async def unusual_dm_activity(guild_id: int, user_id: int):
+    """Pull from http data whether the user is currently flagged for unusual DM activity"""
+    data = await here.bot.http.get_member(guild_id, user_id)
+    # noinspection PyTypedDict
+    if data.get('unusual_dm_activity'):  # certainly exists, just not defined in TypedDict yet
+        return True
