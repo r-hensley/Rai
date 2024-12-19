@@ -326,7 +326,6 @@ class Main(commands.Cog):
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
         e.add_field(name='Event', value=str(event)[:1024])
-        e.description = f'```py\n{traceback.format_exc()}\n```'
         e.timestamp = discord.utils.utcnow()
 
         args_str = ['```py']
@@ -343,8 +342,21 @@ class Main(commands.Cog):
         joined_args_str = '\n'.join(args_str)
         joined_args_str = joined_args_str[:1021] + '```'
         e.add_field(name='Args', value=joined_args_str[:1024], inline=False)
+        
+        message_content = f'{traceback.format_exc()}'
+        message_content_list = hf.split_text_into_segments(message_content, 1900)
+        traceback_channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL)
         try:
-            await self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL).send(jump_url, embed=e)
+            if len(message_content_list) > 1:
+                for index, segment in enumerate(message_content_list):
+                    if index == 0:
+                        await traceback_channel.send(f"{jump_url}\n```py\n{segment}```")
+                    elif index != len(message_content_list) - 1:
+                        await traceback_channel.send(f"```py\n{segment}```")
+                    else:
+                        await traceback_channel.send(f"```py\n{segment}```", embed=e)
+            else:
+                await traceback_channel.send(f"{jump_url}\n```py\n{message_content}```", embed=e)
         except AttributeError:
             pass  # Set ID of TRACEBACK_LOGGING_CHANNEL at top of this file to a channel in your testing server
         traceback.print_exc()
