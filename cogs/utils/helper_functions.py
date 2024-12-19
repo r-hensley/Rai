@@ -1,10 +1,12 @@
 import asyncio
 import csv
+import importlib
 import io
 import logging
 import os
 import re
 import sys
+import unittest
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -51,6 +53,16 @@ def setup(bot: commands.Bot, loop: asyncio.AbstractEventLoop):
         here.loop = loop
     else:
         pass
+    
+    test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
+    test_module = importlib.reload(test_module)
+    suite = unittest.TestLoader().loadTestsFromModule(test_module)
+    test_runner = unittest.TextTestRunner(verbosity=1)
+    # Verbosity:
+    # 0 (quiet): you just get the total numbers of tests executed and the global result
+    # 1 (default): you get the same plus a dot for every successful test or a F for every failure
+    # 2 (verbose): you get the help string of every test and the result
+    test_runner.run(suite)
 
 
 _lock = asyncio.Lock()
@@ -1017,3 +1029,16 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
         return message
 
 
+
+def split_text_into_segments(text, segment_length=1024) -> List[str]:
+    """Split a long text into segments of a specified length."""
+    segments = []
+    while len(text) > segment_length:
+        # Find the last space before the segment limit to avoid breaking words
+        split_index = text.rfind(' ', 0, segment_length)
+        if split_index == -1:  # If no space is found, split at segment_length
+            split_index = segment_length
+        segments.append(text[:split_index])
+        text = text[split_index:].lstrip()  # Remove leading spaces in the next segment
+    segments.append(text)  # Append the last segment
+    return segments
