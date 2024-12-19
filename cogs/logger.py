@@ -8,7 +8,7 @@ import re
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
 
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Union
 
 import os
 
@@ -409,34 +409,35 @@ class Logger(commands.Cog):
         await utils.safe_send(ctx, f'Successfully set Levenshtein Distance limit to {distance_limit}.')
 
     @staticmethod
-    def make_edit_embed(before, after, levenshtein_distance):
+    async def log_edit_event(before: discord.Message, after, levenshtein_distance: int, channel: discord.abc.Messageable):
         author = before.author
         time_dif = round((discord.utils.utcnow() - before.created_at).total_seconds(), 1)
+        time_dif_str = hf.format_interval(time_dif, show_seconds=True, include_spaces=True)
         emb = discord.Embed(
             description=f'**{str(author)}** (M{author.id})'
-                        f'\n**Message edited after {time_dif} seconds.** [(LD={levenshtein_distance})]'
+                        f'\n**Message edited after {time_dif_str}.** [(LD={levenshtein_distance})]'
                         f'(https://en.wikipedia.org/wiki/Levenshtein_distance) - ([Jump URL]({after.jump_url}))',
             colour=0xFF9933,
             timestamp=discord.utils.utcnow()
         )
-
-        if len(before.content) > 0 and len(after.content) > 0:
-            if len(before.content) < 1025:
-                emb.add_field(name='**Before:**', value=before.content)
+        
+        before_str_segments = hf.split_text_into_segments(before.content, 1024)
+        after_str_segments = hf.split_text_into_segments(after.content, 1024)
+        for i in range(len(before_str_segments)):
+            if i == 0:
+                emb.add_field(name=f'**Before:**', value=before_str_segments[i])
             else:
-                emb.add_field(name='**Before:** (Part 1):', value=before.content[:1000])
-                emb.add_field(name='**Before:** (Part 2):', value=before.content[1000:2000])
-
-            if len(after.content) < 1025:
-                emb.add_field(name='**After:**', value=after.content)
+                emb.add_field(name=f'**Before:** (Part {i+1})', value=before_str_segments[i])
+        for i in range(len(after_str_segments)):
+            if i == 0:
+                emb.add_field(name=f'**After:**', value=after_str_segments[i])
             else:
-                emb.add_field(name='**After:** (Part 1)', value=after.content[:1000])
-                emb.add_field(name='**After:** (Part 2)', value=after.content[1000:2000])
-
+                emb.add_field(name=f'**After:** (Part {i+1})', value=after_str_segments[i])
+        
         emb.set_footer(text=f'#{before.channel.name}',
                        icon_url=before.author.display_avatar.replace(static_format="png").url)
 
-        return emb
+        await utils.safe_send(channel, embed=emb)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -466,8 +467,7 @@ class Logger(commands.Cog):
                     if levenshtein_distance > distance_limit:
                         channel = self.bot.get_channel(guild_config["channel"])
                         try:
-                            await utils.safe_send(channel, embed=self.make_edit_embed(before, after,
-                                                                                   levenshtein_distance))
+                            await self.log_edit_event(before, after, levenshtein_distance, channel)
                         except discord.Forbidden:
                             return
         await hf.uhc_check(after)
@@ -500,9 +500,10 @@ class Logger(commands.Cog):
                                f'Enabled delete logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;delete_logging`.')
 
-    async def make_delete_embed(self, message):
+    async def log_delete_event(self, message: discord.Message, channel: discord.abc.Messageable):
         author = message.author
         time_dif = round((discord.utils.utcnow() - message.created_at).total_seconds(), 1)
+        time_dif_str = hf.format_interval(time_dif, show_seconds=True, include_spaces=True)
         jump_url = ''
         if hasattr(message.channel, "history"):
             try:
@@ -512,7 +513,7 @@ class Logger(commands.Cog):
                 pass  # somehow got discord.errors.NotFound: 404 Not Found (error code: 10003): Unknown Channel
         emb = discord.Embed(
             description=f'**{str(author)}** (M{author.id})'
-                        f'\n**Message deleted after {time_dif} seconds.** ([Jump URL]({jump_url}))',
+                        f'\n**Message deleted after {time_dif_str}.** ([Jump URL]({jump_url}))',
             colour=0xDB3C3C,
             timestamp=discord.utils.utcnow()
         )
@@ -542,8 +543,9 @@ class Logger(commands.Cog):
 
         emb.set_footer(text=f'#{message.channel.name}',
                        icon_url=message.author.display_avatar.replace(static_format="png").url)
-
-        return emb
+        
+        log_message = await utils.safe_send(channel, embed=emb)
+        await hf.send_attachments_to_thread_on_message(log_message, message)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -568,12 +570,255 @@ class Logger(commands.Cog):
             return
 
         try:
-            log_message = await utils.safe_send(channel, embed=await self.make_delete_embed(message))
-            await hf.send_attachments_to_thread_on_message(log_message, message)
+            await self.log_delete_event(message, channel)
         except discord.Forbidden:
             # await self.module_disable_notification(message.guild, guild_config, 'message deletes')
             pass
 
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        await self.log_raw_payload(payload)
+        
+    @commands.Cog.listener()
+    async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
+        await self.log_raw_payload(payload)
+        
+    
+    async def old_log_raw_payload(self, payload: Union[discord.RawMessageUpdateEvent, discord.RawMessageDeleteEvent]):
+        """Logs a raw message update or delete event"""
+        await asyncio.sleep(3)
+        commands_channel = self.bot.get_channel(553194280047607819)
+        if not commands_channel:
+            return
+        
+        if isinstance(payload, discord.RawMessageUpdateEvent):
+            event_type = "edits"
+            
+            timestamps = [payload.data.get('timestamp', None), payload.data.get('edited_timestamp', None)]
+            
+            if not payload.data.get('edited_timestamp', None):
+                time_now = discord.utils.utcnow()
+                snowflake_timestamp = discord.utils.snowflake_time(payload.message_id)
+                time_diff_str = hf.format_interval(time_now - snowflake_timestamp, show_seconds=True)
+                # await commands_channel.send(f"Found raw edited message ({time_diff_str} ago) ({payload.message_id}) "
+                #                             f"with no edited_timestamp - <#{payload.channel_id}> ({payload.guild_id}), "
+                #                             f"author: <@{payload.data['author']['id']}>")
+                return
+        elif isinstance(payload, discord.RawMessageDeleteEvent):
+            event_type = "deletes"
+        else:
+            raise ValueError("Invalid payload type")
+            
+        # if no guild, it's a DM
+        if not payload.guild_id:
+            return
+        guild_id_str = str(payload.guild_id)
+        
+        try:
+            if not self.bot.db[event_type][guild_id_str]['enable']:
+                return
+        except KeyError:
+            return
+        
+        # if message is in bot_message_queue, ignore it
+        bot_message_queue = getattr(self.bot, 'bot_message_queue', None)
+        if bot_message_queue:
+            bot_message_list = bot_message_queue.find(payload.message_id)
+            if bot_message_list:
+                bot_msg = bot_message_list[0]
+                if bot_msg.channel_id == 553194280047607819:
+                    return
+                to_send = (f"Found bot message ({bot_msg.message_id}) in bot_message_queue, "
+                                            f"author: <@{bot_msg.author_id}>, content: {bot_msg.content}, "
+                                            f"channel: <#{bot_msg.channel_id}>, guild: {bot_msg.guild_id}, "
+                                            f"\npayload: {type(payload)}")
+                if hasattr(payload, 'data'):
+                    if 'content' in payload.data:
+                        to_send += f"\nContent: {payload.data['content']}\n\n"
+                    else:
+                        to_send += f"\nNO CONTENT DATA\n\n"
+                        
+                    timestamp_1 = discord.utils.snowflake_time(payload.message_id)
+                    timestamp_2 = payload.data.get('timestamp', None)
+                    timestamp_3 = payload.data.get('edited_timestamp', None)
+                    timestamp_4 = payload.data.get('embeds', [None])[0].get('timestamp', None)
+                    to_send += (f"Timestamp 1 (snowflake): {timestamp_1}\n"
+                                f"Timestamp 2 (payload timestamp): {timestamp_2}\n"
+                                f"Timestamp 3 (payload edited_timestamp): {timestamp_3}\n"
+                                f"Timestamp 4 (payload embeds timestamp): {timestamp_4}\n")
+                    
+                    to_send += f"\nData: {getattr(payload, 'data', '')}"
+                # await commands_channel.send(to_send[:2000])
+                return
+        
+        # if message is in bot.cached_messages, ignore it here
+        for msg in self.bot.cached_messages:
+            if msg.id == payload.message_id:
+                # await commands_channel.send(f"Found message ({msg.id}) in bot.cached_messages, "
+                #                             f"author: <@{msg.author.id}>, content: {msg.content}, "
+                #                             f"channel: <#{msg.channel.id}>, guild: {msg.guild.id}, "
+                #                             f"\npayload: {type(payload)}")
+                return
+        
+        guild_config: dict = self.bot.db[event_type][guild_id_str]
+        logging_channel = self.bot.get_channel(int(guild_config['channel']))
+        if not logging_channel:
+            del (guild_config['channel'])  # if the mods deleted the logging channel
+            return
+        
+        try:
+            message_channel = self.bot.get_channel(payload.channel_id)
+            message = await message_channel.fetch_message(payload.message_id)
+            await commands_channel.send(f"Found message ({message.id}) in channel: {message_channel.name} ({message_channel.id})")
+        except discord.NotFound:
+            # Send to the log channel a simple embed showing channel_id, guild_id, message_id
+            for msg in self.bot.cached_messages:
+                if msg.id == payload.message_id:
+                    await commands_channel.send(f"It failed to find it once, but... "
+                    f"Found message ({msg.id}) in bot.cached_messages")
+                    
+            for msg in self.bot.message_queue.copy():
+                if msg.message_id == payload.message_id:
+                    await commands_channel.send(f"It failed to find it once, but... "
+                    f"Found message ({msg.id}) in bot.message_queue")
+                    
+            time_since_msg = (discord.utils.utcnow() - discord.utils.snowflake_time(payload.message_id))
+            time_since_msg_str = hf.format_interval(time_since_msg, show_seconds=True)
+            emb = discord.Embed(
+                title=f"Raw message {event_type}",
+                description=f"Message ID: {payload.message_id}\n"
+                            f"Channel ID: {payload.channel_id}\n"
+                            f"Time since message: {time_since_msg_str}",)
+            if event_type == "Update":
+                emb.colour = 0x00FF00
+            elif event_type == "Delete":
+                emb.colour = 0xFF0000
+            
+            await utils.safe_send(commands_channel, embed=emb)
+            
+            # check self.bot.message_queue (hf.MessageQueue type)
+            mini_message_list: list[hf.MiniMessage] = self.bot.message_queue.find(payload.message_id)
+            if mini_message_list:
+                mini_message = mini_message_list[0]
+                emb = discord.Embed()
+                emb.colour = 0x0000FF
+                emb.description = (f"Found above message in message_queue. Extra information:\n"
+                                   f"Message ID: {mini_message.message_id}\n"
+                                   f"Channel ID: {mini_message.channel_id}\n"
+                                   f"Guild ID: {mini_message.guild_id}\n"
+                                   f"Author ID: {mini_message.author_id}\n"
+                                   f"Content: {mini_message.content}")
+                await utils.safe_send(commands_channel, embed=emb)
+    
+    async def log_raw_payload(self, payload: Union[discord.RawMessageDeleteEvent, discord.RawMessageUpdateEvent]):
+        """This is going to be the real version of new_log_raw_payload. The function above is almost completley
+        just debug stuff.
+
+        Ignore bot messages, messages in DMs, and messages in the message cache.
+
+        Messages that are sent and immediately deleted by a bot will be removed from the message cache by Discord.py
+        so searching for them in the message cache won't work. The solution to avoid that is to ignore messages that
+        are less than five seconds old since deletion."""
+        if isinstance(payload, discord.RawMessageUpdateEvent):
+            event_type = "edits"
+        elif isinstance(payload, discord.RawMessageDeleteEvent):
+            event_type = "deletes"
+        else:
+            raise ValueError("Invalid payload type")
+        
+        # ignore messages in DMs
+        if not payload.guild_id:
+            return
+        
+        # ignore guilds that have this kind of logging disabled
+        guild_id_str = str(payload.guild_id)
+        try:
+            if not self.bot.db[event_type][guild_id_str]['enable']:
+                return
+        except KeyError:
+            return
+        
+        # if message is in bot_message_queue, ignore it
+        bot_message_queue = getattr(self.bot, 'bot_message_queue', None)
+        if bot_message_queue:
+            bot_message_list = bot_message_queue.find(payload.message_id)
+            if bot_message_list:
+                return # ignore bot messages
+        
+        # ignore edits that don't have an edited_timestamp
+        original_timestamp = discord.utils.snowflake_time(payload.message_id)
+        if event_type == "edits":
+            if not payload.data.get('edited_timestamp', None):
+                return
+            else:
+                # discord sends timestamps in ISO 8601 format
+                timestamp_iso_string: str = payload.data['edited_timestamp']
+                edited_timestamp: datetime = discord.utils.parse_time(timestamp_iso_string)
+        
+        # ignore messages that are less than five seconds old since deletion
+        # they probably were sent and immediately deleted by a bot, thus immediately being removed from the cache
+        # before it could be checked here
+        if (discord.utils.utcnow() - original_timestamp).total_seconds() < 5:
+            return
+        
+        # for bot messages: if message is in bot.cached_messages, ignore it here
+        for msg in self.bot.cached_messages:
+            if msg.id == payload.message_id:
+                return
+            
+        guild_config: dict = self.bot.db[event_type][guild_id_str]
+        logging_channel = self.bot.get_channel(int(guild_config['channel']))
+        if not logging_channel:
+            return
+        
+        # try to get old message from bot.message_queue
+        mini_message_list: list[hf.MiniMessage] = self.bot.message_queue.find(payload.message_id)
+        if mini_message_list:
+            old_message = mini_message_list[0]
+        else:
+            if event_type == "deletes":
+                age = hf.format_interval(discord.utils.utcnow() - original_timestamp)
+                emb = utils.red_embed(f"**A very old message was deleted.** This is all I know:\n"
+                                      f"Message ID: {payload.message_id}\n"
+                                      f"Channel ID: {payload.channel_id}\n"
+                                      f"Approximate link: https://discord.com/channels/"
+                                      f"{logging_channel.guild.id}/{payload.channel_id}/{payload.message_id}")
+                emb.timestamp = original_timestamp
+                emb.set_footer(text=f"{age} ago")
+                await utils.safe_send(logging_channel, embed=emb)
+                return
+            else:  # edits
+                author_id = payload.data['author']['id']
+                author = self.bot.get_user(int(author_id))
+                print(f"Pulled from old edit data: {author} ({author_id})")
+                old_message = hf.MiniMessage(message_id=payload.message_id,
+                                             content="<Old message content not known>",
+                                             author_id=payload.data['author']['id'],
+                                             channel_id=payload.channel_id,
+                                             guild_id=payload.guild_id)
+                if not hasattr(self.bot, "after_edit_content"):
+                    self.bot.after_edit_content = []
+                self.bot.after_edit_content.append(payload.data)
+                
+            
+        # for a deleted message event, old_message is the message that was deleted
+        # for a message edit event, old_message is the message before the edit
+        if event_type == "deletes":
+            old_message_dmsg = old_message.to_discord_message()
+            await self.log_delete_event(old_message_dmsg, logging_channel)
+            
+        elif event_type == "edits":
+            # get the new message from the cache
+            message_channel = self.bot.get_channel(payload.channel_id)
+            try:
+                new_message = await message_channel.fetch_message(payload.message_id)
+            except discord.NotFound:
+                return
+            distance_limit = guild_config.get("distance_limit", 3)
+            levenshtein_distance = LDist(old_message.content, new_message.content)
+            if levenshtein_distance > distance_limit:
+                await self.log_edit_event(old_message.to_discord_message(), new_message, levenshtein_distance, logging_channel)
+            
     @commands.Cog.listener()
     async def on_raw_bulk_message_delete(self, payload):
         if not payload.guild_id:
@@ -2190,33 +2435,6 @@ class Logger(commands.Cog):
             except discord.Forbidden:
                 pass
             return
-
-        # if audit_entry.user.id == self.bot.owner_id:
-        #     print(audit_entry.target)
-        #     print("    Before values:")
-        #     for attr, val in dict(audit_entry.before).items():
-        #         print(attr, val)
-        #     if audit_entry.before.deny:
-        #         print("    Before deny")
-        #         for i in audit_entry.before.deny:
-        #             print(i)
-        #     if audit_entry.before.allow:
-        #         print("    Before allow")
-        #         for i in audit_entry.before.allow:
-        #             print(i)
-        #     print()
-        #     print("    After values")
-        #     for attr, val in dict(audit_entry.after).items():
-        #         print(attr, val)
-        #     if audit_entry.after.deny:
-        #         print("    After deny")
-        #         for i in audit_entry.before.deny:
-        #             print(i)
-        #     if audit_entry.after.allow:
-        #         print("    After allow")
-        #         for i in audit_entry.before.allow:
-        #             print(i)
-        #     print()
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
