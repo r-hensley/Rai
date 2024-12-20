@@ -1189,10 +1189,6 @@ class MiniMessage:
             mock_attachment.url = attachment["url"]
             mock_attachment.proxy_url = attachment.get("proxy_url", "")
             mock_attachment.filename = urlparse(attachment["url"]).path.split("/")[-1] if attachment["url"] else ""
-
-            # override to_file method, download the file through the url and return a discord.File object
-            # noinspection PyTypeChecker
-            mock_attachment.to_file = discord.Attachment.to_file
             attachments.append(mock_attachment)
             
         embeds = []
@@ -1211,7 +1207,6 @@ class MiniMessage:
         message.attachments = attachments
         message.embeds = embeds
         message.guild = channel.guild if hasattr(channel, 'guild') else None
-        message.embeds = []
         message.mentions = []
         message.role_mentions = []
         message.channel_mentions = []
