@@ -777,7 +777,7 @@ class Logger(commands.Cog):
             old_message = mini_message_list[0]
         else:
             if event_type == "deletes":
-                age = hf.format_interval(discord.utils.utcnow() - original_timestamp)
+                age = hf.format_interval(discord.utils.utcnow() - original_timestamp, show_seconds=True)
                 emb = utils.red_embed(f"**A message was deleted.** This is all I know:\n")
                 
                 # check if the message that wasn't found was within the queue's depth

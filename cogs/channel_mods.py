@@ -71,7 +71,7 @@ class ChannelMods(commands.Cog):
     mods, see `;help channel_mod`. Submods and admins can also use these commands."""
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
     async def cog_check(self, ctx):
         # only usable in guilds
@@ -1045,7 +1045,7 @@ class ChannelMods(commands.Cog):
                 config = []
             if len(config) == 0:
                 emb.color = utils.grey_embed("").color
-                emb.description += "\n\n***>> NO MODLOG ENTRIES << ***"
+                emb.description += "\n***>> NO MODLOG ENTRIES << ***"
         else:  # Non-existent user
             config = []
 
