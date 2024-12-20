@@ -790,7 +790,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
                                          "05db50c66e4dcc67d129838e1b9d739a/raw/spy.pet%2520accounts"):
-        id_list_str = await utils.aiohttp_get(ctx, url)
+        id_list_str = await utils.aiohttp_get_text(ctx, url)
         if not id_list_str:
             await utils.safe_send(ctx, "Failed to get list")
             return
@@ -839,7 +839,7 @@ class Owner(commands.Cog):
         self.bot.message_queue = hf.MessageQueue(self.bot.message_queue)
         await ctx.message.add_reaction("✅")
     
-    @commands.command(aliases=['reloadqueuemessages'])
+    @commands.command(aliases=['reloadqueuemessages', 'rqm'])
     async def reload_queue_messages(self, ctx):
         """Reloads all the message objects in a queue"""
         new_message_queue = hf.MessageQueue(maxlen=self.bot.message_queue.maxlen)
