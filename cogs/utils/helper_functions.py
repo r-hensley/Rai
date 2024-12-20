@@ -1490,12 +1490,29 @@ def split_text_into_segments(text, segment_length=1024) -> List[str]:
     return segments
 
 
-async def unusual_dm_activity(guild_id: int, user_id: int):
-    """Pull from http data whether the user is currently flagged for unusual DM activity"""
+async def excessive_dm_activity(guild_id: int, user_id: int) -> Optional[datetime]:
+    """Pull from http data whether the user is currently flagged for 'excessive DMs'"""
     data = await here.bot.http.get_member(guild_id, user_id)
     # noinspection PyTypedDict
-    if data.get('unusual_dm_activity'):  # certainly exists, just not defined in TypedDict yet
-        return True
+    unusual_dm_activity_res = data.get('unusual_dm_activity_until')  # certainly exists, just not defined in TypedDict yet
+    if unusual_dm_activity_res:
+        flag_until: Optional[datetime] = discord.utils.parse_time(unusual_dm_activity_res)  # timestamp in ISO 8601 format
+        return flag_until
+    
+
+async def suspected_spam_activity_flag(guild_id: int, user_id: int) -> bool:
+    """Need to check 'public_flags' attr of bot.http.get_member()['user'], returns an integer which can be put into
+    discord.Flags.PublicUserFlags._from_value(<int>), this is the "suspected spam activity" flag.
+    Can also do `fetch_user()` --> `user.public_flags.spammer`."""
+    data = await here.bot.http.get_member(guild_id, user_id)
+    user_public_flags_int = data.get('user').get('public_flags')
+    
+    if user_public_flags_int:
+        # noinspection PyProtectedMember
+        flags: discord.PublicUserFlags = discord.flags.PublicUserFlags._from_value(user_public_flags_int)
+        return flags.spammer
+    
+
 async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.File]:
     """Mock the to_file method of discord.Attachment to download the file through the URL and return a discord.File."""
     if not to_use_url:

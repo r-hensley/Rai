@@ -245,6 +245,18 @@ class Submod(commands.Cog):
         if content.endswith('-c'):
             text = '⠀' + text
 
+        # check all targets for flags
+        # 1. await hf.unusual_dm_activity(guildid, targetid) --> Optional[datetime]
+        # 2. target.public_flags.spammer --> bool  # Flagged for potential spamming activities
+        flags = {}
+        any_flags = False
+        for target in targets:
+            flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
+            flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
+            if flag_one or flag_two:
+                any_flags = True
+            flags[target.id] = (flag_one, flag_two)
+
         successes = []
         for target in targets:
             if 'send' in content:
@@ -254,8 +266,6 @@ class Submod(commands.Cog):
                     await utils.safe_send(ctx, f"{target.mention} has PMs disabled so I didn't send the notification.")
 
             try:
-                # there was a bug where people using slash command and choosing to delete past messages didn't
-                # actually see the messages get deleted
                 await ctx.guild.ban(target, reason=text, delete_message_seconds=delete*60*60*24)
                 successes.append(target)
             except discord.Forbidden:
@@ -279,7 +289,25 @@ class Submod(commands.Cog):
                                           length=length_str, reason=reason,
                                           silent=silent)
             modlog_entry.add_to_modlog()
-        await utils.safe_send(ctx, f"Successfully banned {', '.join([member.mention for member in successes])}")
+        
+        if not any_flags:  # simple message
+            conf = f"Successfully banned {', '.join([member.mention for member in successes])}"
+        else:
+            conf = f"Successfully banned the following users:\n"
+            print(flags)
+            for member in successes:
+                if flags[member.id][0] and not flags[member.id][1]:
+                    conf += f"- {member.mention} ***(Was flagged for suspected spam activity)***\n"
+                elif not flags[member.id][0] and flags[member.id][1]:
+                    conf += f"- {member.mention} ***(Was flagged for excessive DMs at one point)***\n"
+                elif flags[member.id][0] and flags[member.id][1]:
+                    conf += (f"- {member.mention} ***(Was flagged for both excessive DM activity "
+                             f"and potential spamming activities)***\n")
+                else:
+                    conf += f"- {member.mention}\n"
+            conf += f"-# ||<@{self.bot.owner_id}>||\n"
+            
+        await utils.safe_send(ctx, conf)
 
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
                                 guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265, JP_SERVER_ID])
