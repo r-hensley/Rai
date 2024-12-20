@@ -294,7 +294,6 @@ class Submod(commands.Cog):
             conf = f"Successfully banned {', '.join([member.mention for member in successes])}"
         else:
             conf = f"Successfully banned the following users:\n"
-            print(flags)
             for member in successes:
                 if flags[member.id][0] and not flags[member.id][1]:
                     conf += f"- {member.mention} ***(Was flagged for suspected spam activity)***\n"
