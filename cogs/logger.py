@@ -27,7 +27,7 @@ class Logger(commands.Cog):
     """Logs stuff"""
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.bot.recently_removed_members = {}
 
     async def cog_check(self, ctx):
@@ -778,8 +778,14 @@ class Logger(commands.Cog):
         else:
             if event_type == "deletes":
                 age = hf.format_interval(discord.utils.utcnow() - original_timestamp)
-                emb = utils.red_embed(f"**A very old message was deleted.** This is all I know:\n"
-                                      f"Message ID: {payload.message_id}\n"
+                emb = utils.red_embed(f"**A message was deleted.** This is all I know:\n")
+                
+                # check if the message that wasn't found was within the queue's depth
+                if self.bot.message_queue[0].created_at < original_timestamp:
+                    # this message theoretically should've been in the queue
+                    # if it's not, that means it's most likely a bot message, so it wasn't recorded
+                    emb.description += f"*(it's possible this was an old bot message that was deleted)*\n"
+                emb.description += (f"Message ID: {payload.message_id}\n"
                                       f"Channel ID: {payload.channel_id}\n"
                                       f"Approximate link: https://discord.com/channels/"
                                       f"{logging_channel.guild.id}/{payload.channel_id}/{payload.message_id}")
@@ -1752,7 +1758,7 @@ class Logger(commands.Cog):
 
             guild = before.guild
             attempts = 0
-            time_left: int = 0
+            time_left: float = 0
             timeout_length_str = None
             reason = None
             author = None
@@ -2194,7 +2200,7 @@ class Logger(commands.Cog):
                         pass
                     else:
                         emb = crosspost_msg.embeds[0]
-                        emb.color = 0xFFFFFE  # for some reason, FFFFFF defaults to black, and FFFFFE is fine
+                        emb.colour = 0xFFFFFE  # for some reason, FFFFFF defaults to black, and FFFFFE is fine
                         emb.description.replace('\n', '~~\n')
                         emb.description = f"UNBANNED {discord.utils.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')}\n" \
                                           f"~~{emb.description}~~"

@@ -11,8 +11,9 @@ from collections import deque
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Union, Tuple, Callable, Iterable
+from typing import Optional, List, Union, Tuple, Iterable
 from unittest.mock import Mock
+from urllib.parse import urlparse
 
 import discord
 import numpy as np
@@ -473,7 +474,7 @@ def database_toggle(guild: discord.Guild, module_dict: dict):
 
 async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
     in_servers_msg = f"__I have found the user {str(member)} ({member.id}) in the following guilds:__"
-    guilds: list[list[discord.Guild, int, str]] = []
+    guilds: list[tuple[discord.Guild, int, str]] = []
     if member in bans_channel.guild.members:
         ping = False
     for guild in bot.guilds:  # type: discord.Guild
@@ -490,7 +491,7 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
                             break
                 except KeyError:
                     pass
-            guilds.append([guild, messages, day])
+            guilds.append((guild, messages, day))
 
     for guild_entry in guilds:  # discord.Guild, number_of_messages: int, last_message_day: str
         in_servers_msg += f"\n**{guild_entry[0].name}**"
@@ -922,6 +923,7 @@ def text_to_file(text: str, filename) -> discord.File:
         write_file.write(text)
         write_file.seek(0)
         filename = filename
+        # noinspection PyTypeChecker
         file = discord.File(write_file, filename=filename)
 
     return file
@@ -936,25 +938,34 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
     if attachments_message.attachments:
         for attachment in attachments_message.attachments:
             try:
-                file = await attachment.to_file(filename=attachment.filename,
-                                                description=attachment.description,
-                                                use_cached=True,
-                                                spoiler=True)
-            except (discord.HTTPException, discord.NotFound, discord.Forbidden):
-                try:
+                if isinstance(attachment, Mock):
+                    file = await mock_to_file(attachment.proxy_url or attachment.url, spoiler=True)
+                else:
                     file = await attachment.to_file(filename=attachment.filename,
                                                     description=attachment.description,
+                                                    use_cached=True,
                                                     spoiler=True)
-                except (discord.HTTPException, discord.NotFound, discord.Forbidden):
-                    file = None
+            except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+                if isinstance(attachment, Mock):
+                    file = await mock_to_file(attachment.url, spoiler=True)
+                else:
+                    try:
+                        file = await attachment.to_file(filename=attachment.filename,
+                                                        description=attachment.description,
+                                                        spoiler=True, use_cached=False)
+                    except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+                        file = None
             
             files.append((file, attachment))
 
     if attachments_message.embeds:
         for embed in attachments_message.embeds:
-            # posting an image expands the image to an embed without title or desc., send those into the thread
-            if embed.url and embed.thumbnail and not embed.title and not embed.description:
+            if isinstance(embed, Mock):
                 embed_urls.append(embed.url)
+            else:
+                # posting an image expands the image to an embed without title or desc., send those into the thread
+                if embed.url and embed.thumbnail and not embed.title and not embed.description:
+                    embed_urls.append(embed.url)
                 
     if files or embed_urls:
         try:
@@ -1077,6 +1088,7 @@ class MiniMessage:
         channel_id: int,
         guild_id: Optional[int] = None,
         attachments: Optional[List[dict]] = None,
+        embeds: Optional[List[dict]] = None
     ):
         """
         A minimal message object for reduced memory usage.
@@ -1103,6 +1115,11 @@ class MiniMessage:
         self.attachments = [
             {"url": attachment.get("url", ""), "proxy_url": attachment.get("proxy_url", "")}
             for attachment in (attachments or [])
+        ]
+        
+        self.embeds = [
+            {"url": embed.get("url", "")}
+            for embed in (embeds or [])
         ]
 
     @property
@@ -1160,13 +1177,29 @@ class MiniMessage:
             channel.guild = guild
         
         # Mock attachments
-        attachments = [
-            Mock(spec=discord.Attachment,
-                 url=attachment["url"],
-                 proxy_url=attachment.get("proxy_url", ""),
-                 filename=attachment['url'].split('/')[-1] if attachment['url'] else "")
-            for attachment in self.attachments
-        ]
+        # attachments = [MockAttachment(attachment["url"],
+        #                               proxy_url=attachment.get("proxy_url", ""),
+        #                               filename=attachment["url"].split("/")[-1])
+        #                for attachment in self.attachments]
+        # discord.Attachment.to_file()
+        
+        attachments = []
+        for attachment in self.attachments:
+            mock_attachment = Mock(spec=discord.Attachment)
+            mock_attachment.url = attachment["url"]
+            mock_attachment.proxy_url = attachment.get("proxy_url", "")
+            mock_attachment.filename = urlparse(attachment["url"]).path.split("/")[-1] if attachment["url"] else ""
+
+            # override to_file method, download the file through the url and return a discord.File object
+            # noinspection PyTypeChecker
+            mock_attachment.to_file = discord.Attachment.to_file
+            attachments.append(mock_attachment)
+            
+        embeds = []
+        for embed in self.embeds:
+            mock_embed = Mock(spec=discord.Embed)
+            mock_embed.url = embed["url"]
+            embeds.append(mock_embed)
         
         # Mock the Message object
         message = Mock(spec=discord.Message)
@@ -1176,6 +1209,7 @@ class MiniMessage:
         message.content = self.content
         message.created_at = self.created_at
         message.attachments = attachments
+        message.embeds = embeds
         message.guild = channel.guild if hasattr(channel, 'guild') else None
         message.embeds = []
         message.mentions = []
@@ -1215,9 +1249,9 @@ class MiniMessage:
         ]
         
         # posting an image expands the image to an embed without title or desc.
-        attachments += [
-            {"url": embed.url, "proxy_url": ""}
-            for embed in message.embeds
+        embeds = [
+            {"url": embed.url}
+            for embed in message.embeds if embed.url and embed.thumbnail and not embed.title and not embed.description
         ]
         
         return cls(
@@ -1227,6 +1261,7 @@ class MiniMessage:
             channel_id=message.channel.id,
             guild_id=message.guild.id if message.guild else None,
             attachments=attachments,
+            embeds=embeds
         )
     
     @classmethod
@@ -1466,3 +1501,21 @@ async def unusual_dm_activity(guild_id: int, user_id: int):
     # noinspection PyTypedDict
     if data.get('unusual_dm_activity'):  # certainly exists, just not defined in TypedDict yet
         return True
+async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.File]:
+    """Mock the to_file method of discord.Attachment to download the file through the URL and return a discord.File."""
+    if not to_use_url:
+        raise ValueError(f"Attachment URL ({to_use_url}) not found.")
+
+    # Download the file using my async utils.aiohttp_get_text()
+    data = await utils.aiohttp_get(to_use_url)
+
+    if not data:
+        return
+
+    # Create a discord.File object
+    filename = urlparse(to_use_url).path.split("/")[-1]
+    # TypeError: a bytes-like object is required, not 'ClientResponse'
+    return discord.File(io.BytesIO(data),
+                        filename=filename,
+                        spoiler=spoiler,
+                        description="No description")
