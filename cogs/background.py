@@ -67,10 +67,10 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
-        if not self.bot.db:
+        if getattr(self.bot, 'db', None) is None:
             print("main database not yet fully loaded, so delaying database saving")
             return
-        if not self.bot.stats:
+        if getattr(self.bot, 'stats', None) is None:
             print("stats database not yet fully loaded, so delaying database saving")
             return
 
