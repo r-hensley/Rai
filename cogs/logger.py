@@ -1,3 +1,5 @@
+from collections import deque
+
 import aiohttp.client_exceptions
 import discord
 from discord.ext import commands
@@ -549,6 +551,10 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
+        if not hasattr(self.bot, "deletion_tracker"):
+            self.bot.deletion_tracker = deque(maxlen=20)
+        self.bot.deletion_tracker.append(message.id)
+
         if not message.guild or message.author.bot:
             return
         guild = str(message.guild.id)
@@ -577,139 +583,15 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        await asyncio.sleep(0.2)  # to give on_message_delete time to potentially add a message to the deletion_tracker
+        if payload.message_id in getattr(self.bot, "deletion_tracker", []):
+            return
         await self.log_raw_payload(payload)
         
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
         await self.log_raw_payload(payload)
-        
-    
-    async def old_log_raw_payload(self, payload: Union[discord.RawMessageUpdateEvent, discord.RawMessageDeleteEvent]):
-        """Logs a raw message update or delete event"""
-        await asyncio.sleep(3)
-        commands_channel = self.bot.get_channel(553194280047607819)
-        if not commands_channel:
-            return
-        
-        if isinstance(payload, discord.RawMessageUpdateEvent):
-            event_type = "edits"
-            
-            timestamps = [payload.data.get('timestamp', None), payload.data.get('edited_timestamp', None)]
-            
-            if not payload.data.get('edited_timestamp', None):
-                time_now = discord.utils.utcnow()
-                snowflake_timestamp = discord.utils.snowflake_time(payload.message_id)
-                time_diff_str = hf.format_interval(time_now - snowflake_timestamp, show_seconds=True)
-                # await commands_channel.send(f"Found raw edited message ({time_diff_str} ago) ({payload.message_id}) "
-                #                             f"with no edited_timestamp - <#{payload.channel_id}> ({payload.guild_id}), "
-                #                             f"author: <@{payload.data['author']['id']}>")
-                return
-        elif isinstance(payload, discord.RawMessageDeleteEvent):
-            event_type = "deletes"
-        else:
-            raise ValueError("Invalid payload type")
-            
-        # if no guild, it's a DM
-        if not payload.guild_id:
-            return
-        guild_id_str = str(payload.guild_id)
-        
-        try:
-            if not self.bot.db[event_type][guild_id_str]['enable']:
-                return
-        except KeyError:
-            return
-        
-        # if message is in bot_message_queue, ignore it
-        bot_message_queue = getattr(self.bot, 'bot_message_queue', None)
-        if bot_message_queue:
-            bot_message_list = bot_message_queue.find(payload.message_id)
-            if bot_message_list:
-                bot_msg = bot_message_list[0]
-                if bot_msg.channel_id == 553194280047607819:
-                    return
-                to_send = (f"Found bot message ({bot_msg.message_id}) in bot_message_queue, "
-                                            f"author: <@{bot_msg.author_id}>, content: {bot_msg.content}, "
-                                            f"channel: <#{bot_msg.channel_id}>, guild: {bot_msg.guild_id}, "
-                                            f"\npayload: {type(payload)}")
-                if hasattr(payload, 'data'):
-                    if 'content' in payload.data:
-                        to_send += f"\nContent: {payload.data['content']}\n\n"
-                    else:
-                        to_send += f"\nNO CONTENT DATA\n\n"
-                        
-                    timestamp_1 = discord.utils.snowflake_time(payload.message_id)
-                    timestamp_2 = payload.data.get('timestamp', None)
-                    timestamp_3 = payload.data.get('edited_timestamp', None)
-                    timestamp_4 = payload.data.get('embeds', [None])[0].get('timestamp', None)
-                    to_send += (f"Timestamp 1 (snowflake): {timestamp_1}\n"
-                                f"Timestamp 2 (payload timestamp): {timestamp_2}\n"
-                                f"Timestamp 3 (payload edited_timestamp): {timestamp_3}\n"
-                                f"Timestamp 4 (payload embeds timestamp): {timestamp_4}\n")
-                    
-                    to_send += f"\nData: {getattr(payload, 'data', '')}"
-                # await commands_channel.send(to_send[:2000])
-                return
-        
-        # if message is in bot.cached_messages, ignore it here
-        for msg in self.bot.cached_messages:
-            if msg.id == payload.message_id:
-                # await commands_channel.send(f"Found message ({msg.id}) in bot.cached_messages, "
-                #                             f"author: <@{msg.author.id}>, content: {msg.content}, "
-                #                             f"channel: <#{msg.channel.id}>, guild: {msg.guild.id}, "
-                #                             f"\npayload: {type(payload)}")
-                return
-        
-        guild_config: dict = self.bot.db[event_type][guild_id_str]
-        logging_channel = self.bot.get_channel(int(guild_config['channel']))
-        if not logging_channel:
-            del (guild_config['channel'])  # if the mods deleted the logging channel
-            return
-        
-        try:
-            message_channel = self.bot.get_channel(payload.channel_id)
-            message = await message_channel.fetch_message(payload.message_id)
-            await commands_channel.send(f"Found message ({message.id}) in channel: {message_channel.name} ({message_channel.id})")
-        except discord.NotFound:
-            # Send to the log channel a simple embed showing channel_id, guild_id, message_id
-            for msg in self.bot.cached_messages:
-                if msg.id == payload.message_id:
-                    await commands_channel.send(f"It failed to find it once, but... "
-                    f"Found message ({msg.id}) in bot.cached_messages")
-                    
-            for msg in self.bot.message_queue.copy():
-                if msg.message_id == payload.message_id:
-                    await commands_channel.send(f"It failed to find it once, but... "
-                    f"Found message ({msg.id}) in bot.message_queue")
-                    
-            time_since_msg = (discord.utils.utcnow() - discord.utils.snowflake_time(payload.message_id))
-            time_since_msg_str = hf.format_interval(time_since_msg, show_seconds=True)
-            emb = discord.Embed(
-                title=f"Raw message {event_type}",
-                description=f"Message ID: {payload.message_id}\n"
-                            f"Channel ID: {payload.channel_id}\n"
-                            f"Time since message: {time_since_msg_str}",)
-            if event_type == "Update":
-                emb.colour = 0x00FF00
-            elif event_type == "Delete":
-                emb.colour = 0xFF0000
-            
-            await utils.safe_send(commands_channel, embed=emb)
-            
-            # check self.bot.message_queue (hf.MessageQueue type)
-            mini_message_list: list[hf.MiniMessage] = self.bot.message_queue.find(payload.message_id)
-            if mini_message_list:
-                mini_message = mini_message_list[0]
-                emb = discord.Embed()
-                emb.colour = 0x0000FF
-                emb.description = (f"Found above message in message_queue. Extra information:\n"
-                                   f"Message ID: {mini_message.message_id}\n"
-                                   f"Channel ID: {mini_message.channel_id}\n"
-                                   f"Guild ID: {mini_message.guild_id}\n"
-                                   f"Author ID: {mini_message.author_id}\n"
-                                   f"Content: {mini_message.content}")
-                await utils.safe_send(commands_channel, embed=emb)
-    
+
     async def log_raw_payload(self, payload: Union[discord.RawMessageDeleteEvent, discord.RawMessageUpdateEvent]):
         """This is going to be the real version of new_log_raw_payload. The function above is almost completley
         just debug stuff.
@@ -750,16 +632,13 @@ class Logger(commands.Cog):
         if event_type == "edits":
             if not payload.data.get('edited_timestamp', None):
                 return
-            else:
-                # discord sends timestamps in ISO 8601 format
-                timestamp_iso_string: str = payload.data['edited_timestamp']
-                edited_timestamp: datetime = discord.utils.parse_time(timestamp_iso_string)
+                
         
         # ignore messages that are less than five seconds old since deletion
         # they probably were sent and immediately deleted by a bot, thus immediately being removed from the cache
         # before it could be checked here
-        if (discord.utils.utcnow() - original_timestamp).total_seconds() < 5:
-            return
+        # if (discord.utils.utcnow() - original_timestamp).total_seconds() < 5:
+        #     return
         
         # for bot messages: if message is in bot.cached_messages, ignore it here
         for msg in self.bot.cached_messages:
@@ -794,12 +673,22 @@ class Logger(commands.Cog):
                 await utils.safe_send(logging_channel, embed=emb)
                 return
             else:  # edits
+                # there's weird events where messages from like 1000's of days in the past get edited randomly
+                # I think it's discord reloading the embeds for some reason
+                # so if the edited timestamp is more than 10 seconds in the past, ignore it
+                # discord sends timestamps in ISO 8601 format
+                timestamp_iso_string: str = payload.data['edited_timestamp']
+                edited_timestamp: datetime = discord.utils.parse_time(timestamp_iso_string)
+                if (discord.utils.utcnow() - edited_timestamp).total_seconds() > 10:
+                    content = "<Old message content not known> (potentially no change)"
+                else:
+                    content = "<Old message content not known>"
                 author_id = payload.data['author']['id']
                 author = self.bot.get_user(int(author_id))
                 if author.bot:
                     return
                 old_message = hf.MiniMessage(message_id=payload.message_id,
-                                             content="<Old message content not known>",
+                                             content=content,
                                              author_id=payload.data['author']['id'],
                                              channel_id=payload.channel_id,
                                              guild_id=payload.guild_id)
