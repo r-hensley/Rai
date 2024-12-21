@@ -1361,7 +1361,7 @@ class MessageQueue(deque[MiniMessage]):
         else:
             out += f"{size / 1024 ** 3:.2f} GB"
         
-        size_per_msg = size / len(self)
+        size_per_msg = size / len(self) if len(self) else 0
         if size_per_msg < 1024:
             out += f" ({size_per_msg:.2f} B/msg, {self.average_message_length:.1f} char/msg)"
         elif size_per_msg < 1024 ** 2:
@@ -1376,7 +1376,7 @@ class MessageQueue(deque[MiniMessage]):
     @property
     def average_message_length(self) -> float:
         """Calculate the average message length of the queue."""
-        return sum(len(msg.content) for msg in self) / len(self)
+        return sum(len(msg.content) for msg in self) / len(self) if len(self) else 0
 
     def add_message(self, message: Union[MiniMessage, discord.Message]) -> None:
         """Add a MiniMessage to the queue."""
@@ -1460,7 +1460,7 @@ class MessageQueue(deque[MiniMessage]):
         return MessageQueue(sliced_queue, maxlen=new_length)
     
     def __repr__(self) -> str:
-        """Print a preview of the last ten items in the list"""
+        """Print a preview of the list"""
         return (
             f"<MessageQueue: "
             f"{len(self)} messages ー "
