@@ -227,14 +227,26 @@ class ChannelMods(commands.Cog):
                     if embed.title or embed.description or embed.fields:
                         embeds.append(embed)
                         emb.add_field(name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
-            if msg.content:
+            split_message_content = hf.split_text_into_segments(msg.content, 900)
+            for index, segment in enumerate(split_message_content):
+                if not segment:
+                    continue
+                if index == 0:
+                    if len(split_message_content) == 1:
+                        emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
+                                      value=f"{segment} ([Jump URL]({jump_url}))")
+                    else:
+                        emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
+                                      value=f"{segment}")
+                elif index == len(split_message_content) - 1:
+                    emb.add_field(name="continued", value=f"{segment} ([Jump URL]({jump_url}))")
+                else:
+                    emb.add_field(name="continued", value=f"{segment}")
+            if not msg.content:
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
-                              value=f"{msg.content}"[:1008 - len(jump_url)] + f" ([Jump URL]({jump_url}))")
-            if msg.content[1009:]:
-                emb.add_field(name="continued", value=f"...{msg.content[1009 - len(jump_url):len(jump_url) + 1024]}")
-            if msg.attachments and not msg.content:
-                emb.description = f"Attachments by {str(msg.author)} ({msg.author.id}) in below thread"
-            if msg.attachments and msg.content:
+                                value=f"Message had no content. ([Jump URL]({jump_url}))")
+            
+            if msg.attachments:
                 emb.description = "Attachments in below thread"
             # if msg.attachments:
             #     x = [f"{att.filename}: {att.proxy_url}" for att in msg.attachments]
