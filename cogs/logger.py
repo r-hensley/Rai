@@ -685,6 +685,11 @@ class Logger(commands.Cog):
                     content = "<Old message content not known>"
                 author_id = payload.data['author']['id']
                 author = self.bot.get_user(int(author_id))
+                if not author:
+                    try:
+                        author = await self.bot.fetch_user(author_id)
+                    except discord.NotFound:
+                        return
                 if author.bot:
                     return
                 old_message = hf.MiniMessage(message_id=payload.message_id,
