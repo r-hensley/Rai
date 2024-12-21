@@ -966,18 +966,31 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                 # posting an image expands the image to an embed without title or desc., send those into the thread
                 if embed.url and embed.thumbnail and not embed.title and not embed.description:
                     embed_urls.append(embed.url)
-                
-    if files or embed_urls:
-        try:
+       
+    found_anything = any([f[0] for f in files] + embed_urls)
+    if files + embed_urls:
+        if found_anything:
             # Either get the thread on a message or create a new thread
             if thread := log_message.guild.get_thread(log_message.id):
                 pass
             else:
-                thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
-        except (discord.Forbidden, discord.HTTPException):
-            pass
+                try:
+                    thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
+                except (discord.Forbidden, discord.HTTPException):
+                    await log_message.reply("I was unable to create a thread to upload attachments to.")
+        else:
+            log_message_embed = log_message.embeds[0]
+            if "Was unable to download the" not in log_message_embed.description:
+                log_message_embed.description = "Was unable to download the files attached to the message:\n"
+            for embed_url in embed_urls:
+                log_message_embed.description += f"- {embed_url}\n"
+            for attachment in attachments_message.attachments:
+                log_message_embed.description += f"- {attachment.filename}\n"
+            await log_message.edit(embed=log_message_embed)
+            return
     else:
-        return
+        return  # no files or embed urls were found
+    
     
     for file_tuple in files:
         # file_tuple is tuple (file, attachment)
