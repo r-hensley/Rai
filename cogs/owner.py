@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run
 from contextlib import redirect_stdout
 from ast import literal_eval
+from typing import Union
 
 import discord
 from discord.ext import commands
@@ -154,113 +155,112 @@ class Owner(commands.Cog):
                         except discord.Forbidden as e:
                             await utils.safe_send(ctx, e)
                         return
-
+    
     @commands.command(aliases=['db'])
-    async def database(self, ctx, depth, *, args):
-        """Shows or edits database"""
-        config = self.bot.db
-        if '=' in args:
-            args = f"{depth} {args}"
-            depth = 1
-        split = args.split(' = ') + ['']  # append is to make sure split[1] always has a target
-        path = split[0]
-        set_to = split[1]
+    async def database(self, ctx, depth: int = 1, *, path: str = ""):
+        """
+        Command to preview the structure of the bot's database.
+        This helps in understanding the hierarchical structure without focusing on the actual data.
 
-        def process_arg(_arg):
-            if _arg.startswith('ctx'):
-                obj = ctx
-                for attr in _arg.split('.'):
-                    if attr == 'ctx':
-                        continue
-                    obj = getattr(obj, attr)
-                return str(obj)
-            else:
-                return _arg
-
-        for arg in path.split()[:-1]:
-            try:
-                config = config[process_arg(arg)]
-            except KeyError:
-                await utils.safe_send(ctx, f"Invalid arg: `{arg}`")
-                return
-
-        if set_to:
-            config[path.split()[-1]] = literal_eval(set_to)
-            await utils.safe_send(ctx, f"```\n{config[path.split()[-1]]}"[:1997]+"```")
-            return
-
+        :param ctx: The context of the command invocation.
+        :param depth: The depth of database hierarchy to preview (default is 1).
+        :param path: The starting path in the database to explore.
+        """
         try:
-            config = config[process_arg(path.split()[-1])]
-        except KeyError:
-            await ctx.send(f"Couldn't find {path.split()[-1]} in the database.")
-            return
-        msg = ''
-        for key in config:
-            if type(key) == str:
-                key_str = f'\"{key}\"'
-            else:
-                key_str = key
-            msg += f"{key_str}\n"
-
-            if int(depth) >= 2:
-                if isinstance(config[key], dict):
-                    for key_2 in config[key]:
-                        if type(key_2) == str:
-                            key_2_str = f'\"{key_2}\"'
-                        else:
-                            key_2_str = key_2
-                        msg += f"\t{key_2_str}\n"
-
-                        if int(depth) >= 3:
-                            if isinstance(config[key][key_2], dict):
-                                for key_3 in config[key][key_2]:
-                                    if type(key_3) == str:
-                                        key_3_str = f'\"{key_3}\"'
-                                    else:
-                                        key_3_str = key_3
-                                    msg += f"\t\t{key_3_str}\n"
-
-                                    if int(depth) >= 4:
-                                        if isinstance(config[key][key_2][key_3], dict):
-                                            for key_4 in config[key][key_2][key_3]:
-                                                if type(key_4) == str:
-                                                    key_4_str = f'\"{key_4}\"'
-                                                else:
-                                                    key_4_str = key_4
-                                                msg += f"\t\t\t{key_4_str}\n"
-
-                                        else:
-                                            if type(config[key][key_2][key_3]) == str:
-                                                s = f"\"{config[key][key_2][key_3]}\""
-                                            else:
-                                                s = config[key][key_2][key_3]
-                                            msg = msg[:-1] + f": {s}\n"
-                            else:
-                                if type(config[key][key_2]) == str:
-                                    s = f"\"{config[key][key_2]}\""
-                                else:
-                                    s = config[key][key_2]
-                                msg = msg[:-1] + f": {s}\n"
-                else:
-                    if type(config[key]) == str:
-                        s = f"\"{config[key]}\""
+            # Validate depth
+            if depth < 1 or depth > 4:
+                await ctx.send("Depth must be between 1 and 4.")
+                return
+            
+            async def validate_path(_path):
+                _config = self.bot.db
+                if _path:
+                    keys = _path.split()
+                    for key in keys:
+                        # if I pass a key like "ctx.guild.id", return the actual value of ctx.guild.id as a str
+                        if key.startswith("ctx"):
+                            try:
+                                key = str(eval(key))
+                            except Exception as e:
+                                await ctx.send(f"An error occurred: {e}")
+                                return
+                        _config = _config.get(key)
+                        if _config is None:
+                            await ctx.send(f"Path '{' '.join(keys[:keys.index(key) + 1])}' does not exist in the database.")
+                            return
+                return _config
+            config = await validate_path(path)
+            
+            # Function to recursively extract keys up to the specified depth
+            def extract_structure(data, current_depth):
+                if current_depth > depth or not isinstance(data, dict):
+                    print(type(data))
+                    return None
+                
+                _structure = {}
+                cutoff = 5
+                key: str  # in my database, the dict keys are always strings
+                value: Union[dict, list, int, str, bool]
+                for i, (key, value) in enumerate(data.items()):
+                    print(type(data), type(key), type(value))
+                    if len(data) > 10:
+                        cutoff_here = 5
                     else:
-                        s = config[key]
-                    msg = msg[:-1] + f": {s}\n"
-
-        await utils.safe_send(ctx, f'```\n{msg[:1993]}```')
-
+                        cutoff_here = len(data)
+                    if i >= cutoff_here:  # Limit to cutoff # of elements per level
+                        _structure[f"...{len(data) - cutoff} more"] = "..."
+                        break
+                    if isinstance(value, dict):
+                        _structure[key] = extract_structure(value, current_depth + 1) or "{...}"
+                    elif isinstance(value, list):
+                        if value:
+                            if isinstance(value[0], dict):
+                                _structure[key] = extract_structure(value[0], current_depth + 1) or "[{...}, {...}, ...]"
+                            else:
+                                _structure[key] = f"[{value[0]}, {value[1]}, ...]"
+                        else:
+                            _structure[key] = "[]"  # Empty list
+                    elif isinstance(value, str):
+                        _structure[key] = value[:35] + "..." if len(value) > 35 else value
+                    else:
+                        _structure[key] = value  # Non-dict value, probably str, int, bool
+                return _structure
+            
+            # Extract the structure and format for display
+            structure = extract_structure(config, 1)
+            if structure is None:
+                await ctx.send("The path exists but contains no data to display.")
+                return
+            
+            # Use JSON for pretty printing
+            import json
+            formatted_structure = json.dumps(structure, indent=2)
+            
+            # Split the output into chunks Discord can send
+            chunks = [formatted_structure[i:i + 1900] for i in range(0, len(formatted_structure), 1900)]
+            for i, chunk in enumerate(chunks[:3]):
+                await ctx.send(f"```json\n{chunk}```")
+            if len(chunks) > 3:
+                await ctx.send(f"Output truncated. Showing only the first 3 messages.")
+        
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+    
     @commands.command(aliases=['cdb'], hidden=True)
     async def change_database(self, _):
-        """Change database in some way"""
-        config = self.bot.db['stats']
-        for guild in config:
-            guild_config = config[guild]['voice']['total_time']
-            for day in guild_config:
-                for user in guild_config[day]:
-                    if isinstance(guild_config[day][user], list):
-                        guild_config[day][user] = guild_config[day][user][0] * 60 + guild_config[day][user][1]
-        print('done')
+        """Change database in some way; modify this command each time it needs to be ran"""
+        run_command = False
+        if run_command:
+            config = self.bot.db['stats']
+            for guild in config:
+                guild_config = config[guild]['voice']['total_time']
+                for day in guild_config:
+                    for user in guild_config[day]:
+                        if isinstance(guild_config[day][user], list):
+                            guild_config[day][user] = guild_config[day][user][0] * 60 + guild_config[day][user][1]
+            print('done')
+        else:
+            print('Command not run')
 
     @commands.command(hidden=True)
     async def check_voice_users(self, ctx):
