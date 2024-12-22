@@ -1,8 +1,9 @@
 import asyncio
 import re
 import os
-from typing import Optional, List
-from datetime import timedelta
+from collections import Counter
+from typing import Optional, List, Union
+from datetime import timedelta, datetime, timezone
 
 import discord
 from discord import app_commands
@@ -21,7 +22,7 @@ class Submod(commands.Cog):
     """Help"""
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -588,7 +589,55 @@ class Submod(commands.Cog):
             await ctx.message.delete()
         except (discord.Forbidden, discord.NotFound):
             pass
-
+        
+    # command to calculate users with most incidents in last 30 days
+    @commands.command(aliases=["topwarns", "topwarn", "topwarners", "topwarning"])
+    @hf.is_submod()
+    async def topwarnings(self, ctx: commands.Context, days=30):
+        """Shows the top 10 users with the most warnings in the last 30 days."""
+        config = self.bot.db['modlog'].get(str(ctx.guild.id), {})
+        if not config:
+            await utils.safe_send(ctx, "This guild does not have any modlogs")
+            return
+        top_warnings = Counter()
+        for user_id, entries in config.items():
+            if not isinstance(entries, list):
+                continue
+            user_warnings = 0
+            for entry in entries:
+                # "date": "2019/07/10 03:14 UTC"
+                time_str = entry['date']
+                time_datetime = datetime.strptime(time_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                if (discord.utils.utcnow() - time_datetime).days < days:
+                    user_warnings += 1
+            if user_warnings:
+                top_warnings[user_id] = user_warnings
+        sorted_warnings = sorted(top_warnings.items(), key=lambda x: x[1], reverse=True)
+        top_ten = sorted_warnings[:10]
+        emb = discord.Embed(title=f"Top 10 Users with Most Logs in Last {days} Days")
+        emb.description = ""
+        for user_id, warnings in top_ten:
+            user: Union[discord.User, discord.Member] = ctx.guild.get_member(int(user_id))
+            if not user:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except discord.NotFound:
+                    pass
+            try:
+                ban_status = await ctx.guild.fetch_ban(user)
+            except (discord.NotFound, discord.Forbidden):
+                ban_status = None
+            if user in ctx.guild.members:
+                emb.description += f"- {user.display_name} / {user.name} ({user.mention}) - {warnings} logs\n"
+            elif ban_status:
+                emb.description += (f"- {user.display_name} / {user.name} - "
+                                    f"{warnings} logs **(banned user)**\n")
+            elif user and not user in ctx.guild.members:
+                emb.description += f"- {user.name} - {warnings} logs (user not in server)\n"
+            else:
+                emb.description += f"- {user.id} - {warnings} logs (user could not be found)\n"
+        await utils.safe_send(ctx, embed=emb)
+    
 
 async def setup(bot):
     await bot.add_cog(Submod(bot))
