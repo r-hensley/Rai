@@ -864,40 +864,37 @@ class ChannelMods(commands.Cog):
                 name = f"{str(user)} ({user.nick})\n{user_id}"
             else:
                 name = f"{str(user)}\n{user_id}"
-                
-            
 
             emb.set_author(name=name, icon_url=user.display_avatar.replace(static_format="png").url)
 
-            rai_emoji = str(self.bot.get_emoji(858486763802853387))
             if banned:
                 emb.color = 0x141414  # very dark black, but not completely black
                 if unban_date:
-                    emb.description += (f"{rai_emoji} **`Current Status`** Temporarily Banned "
+                    emb.description += (f"**`Current Status`** Temporarily Banned "
                                        f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Banned"
+                    emb.description += f"**`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
                 emb.color = utils.red_embed("").color
                 if voice_unmute_date:
-                    emb.description += (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"**`Current Status`** "
                                        f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Voice Muted"
+                    emb.description += f"**`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
                 emb.color = utils.red_embed("").color
                 if unmute_date:
-                    emb.description += (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"**`Current Status`** "
                                        f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"{rai_emoji} **`Current Status`** Indefinitely Muted"
+                    emb.description += f"**`Current Status`** Indefinitely Muted"
 
             elif timeout:
                 emb.color = utils.red_embed("").color
                 if member.timed_out_until:
-                    emb.description += (f"{rai_emoji} **`Current Status`** "
+                    emb.description += (f"**`Current Status`** "
                                        f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
                 else:
                     pass
@@ -907,9 +904,9 @@ class ChannelMods(commands.Cog):
                 if muted and not banned:
                     emb.description += " (user has left the server)"
                 elif not muted and not banned:
-                    emb.description += f"{rai_emoji} **`Current Status`** : User is not in server"
+                    emb.description += f"**`Current Status`** : User is not in server"
             else:
-                emb.description += f"{rai_emoji} **`Current Status`** : No active incidents"
+                emb.description += f"**`Current Status`** : No active incidents"
 
         #
         #
@@ -1031,6 +1028,20 @@ class ChannelMods(commands.Cog):
         
         if member:
             emb.description += f"\n{member.mention}\n"
+            
+            #
+            #
+            # ############ Check for excessive DMs / suspected spam activity user flags ############
+            #
+            #
+            excessive_dms_flag = await hf.excessive_dm_activity(ctx.guild.id, user_id)
+            suspected_spam_flag = await hf.suspected_spam_activity_flag(ctx.guild.id, user_id)
+            if excessive_dms_flag or suspected_spam_flag:
+                emb.description += "\n⚠️ **__User Flags__** ⚠️\n"
+            if excessive_dms_flag:
+                emb.description += "**`Excessive DMs`** : User has been flagged for excessive DMs\n"
+            if suspected_spam_flag:
+                emb.description += "**`Suspected Spam`** : User has been flagged for suspected spam activity\n"
         
         #
         #
