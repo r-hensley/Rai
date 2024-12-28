@@ -1192,7 +1192,7 @@ class ChannelMods(commands.Cog):
             await ctx.message.add_reaction('✅')
 
         else:  # -all was not called, and so there are specific indices to delete:
-            def invalid_indices_check(check_index):
+            def invalid_indices_check(check_index: str):
                 """For indices that are strings or not greater than 0"""
                 if not check_index.isdigit():  # is not a digit
                     return True
@@ -1200,10 +1200,10 @@ class ChannelMods(commands.Cog):
                     if int(check_index) < 1:  # if index is 0 or negative
                         return True
 
-            def not_found_check(check_index, config):
+            def not_found_check(check_index: str, _config: dict):
                 """For indices not in config"""
                 if check_index.isdigit():
-                    if int(check_index) >= len(config):
+                    if int(check_index) > len(_config):
                         return True  # called index is out of range of list
 
             def indices_check(check_index, not_found):
@@ -1215,13 +1215,16 @@ class ChannelMods(commands.Cog):
                                      if invalid_indices_check(i)]  # list of non-digit arguments
             not_found_indices: list = [i for i in indices
                                        if not_found_check(i, config)]  # list of indices not found in modlog
-            indices: list = [i for i in indices
-                             if indices_check(i, not_found_indices)]  # list of valid arguments
+            valid_indices: list = [i for i in indices
+                                   if indices_check(i, not_found_indices)]  # list of valid arguments
             removed_indices: list = []  # eventual list of modlog entries successfully removed
-            indices.sort(key=int)  # Sort it numerically
+            valid_indices.sort(key=int)  # Sort it numerically
+            assert len(valid_indices) + len(invalid_indices) + len(not_found_indices) == len(indices), \
+            (f"Indices don't add up: {len(valid_indices)=} + {len(invalid_indices)=} + {len(not_found_indices)=} "
+             f"!= {len(indices)=}")
 
             n = 1
-            for index in indices:  # For every index in the list...
+            for index in valid_indices:  # For every index in the list...
                 del config[int(index) - n]  # delete them from the user's modlog.
                 n += 1  # For every deleted log, the next ones will be shifted by -1. Therefore,
                 # add 1 every time a log gets deleted to counter that.
