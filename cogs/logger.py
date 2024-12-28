@@ -710,7 +710,7 @@ class Logger(commands.Cog):
             
         elif event_type == "edits":
             # get the new message from the cache
-            message_channel = self.bot.get_channel(payload.channel_id)
+            message_channel = self.bot.get_guild(payload.guild_id).get_channel_or_thread(payload.channel_id)
             try:
                 new_message = await message_channel.fetch_message(payload.message_id)
             except discord.NotFound:

@@ -949,14 +949,11 @@ class Interactions(commands.Cog):
     @staticmethod
     async def log_message(interaction: discord.Interaction,
                           message: discord.Message):
-        ctx = await commands.Context.from_interaction(interaction)
-        # ctx.author = interaction.user
-        log = ctx.bot.get_command("log")
-
         modal = LogReason()
-
         await interaction.response.send_modal(modal)
-
+        ctx = await commands.Context.from_interaction(interaction)
+        log = ctx.bot.get_command("log")
+        
         def check(i):
             return i.type == discord.InteractionType.modal_submit and \
                    i.application_id == interaction.application_id

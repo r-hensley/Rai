@@ -430,7 +430,7 @@ class Submod(commands.Cog):
                              member_four: discord.Member = None,
                              member_id_four: str = None,):
         """Pass arguments received into the ban command."""
-        ctx = await hf.interaction_to_context(interaction)
+        ctx = await commands.Context.from_interaction(interaction)
         members = ' '.join([m.mention for m in [member, member_two, member_three, member_four] if m])
         member_ids = ' '.join(i for i in [member_id, member_id_two, member_id_three, member_id_four] if i)
         if not members and not member_ids:
