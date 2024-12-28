@@ -91,7 +91,7 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
                     continue
                 msgs += sum([user['channels'][c] for c in user['channels']])
         return msgs
-    except KeyError:
+    except (KeyError, AttributeError):
         return 0
 
 
@@ -99,6 +99,8 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
     days: dict[datetime, int] = {}
     first_day: Optional[datetime] = None
     last_day: Optional[datetime] = None
+    if not hasattr(here.bot, 'stats'):
+        return {}
     try:
         config = here.bot.stats[str(guild.id)]['messages']
         for day_str in config:  # day looks like yyyymmdd: 20230401
@@ -113,7 +115,7 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
                 if 'channels' not in user:
                     continue
                 days[date] += sum([user['channels'][c] for c in user['channels']])
-    except KeyError:
+    except (KeyError, AttributeError):
         return {}
 
     if len(days) == 0:
@@ -156,8 +158,8 @@ def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: st
     Else, returns (total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count)"""
     try:
         config = here.bot.stats[str(guild.id)]['messages']
-    except KeyError:
-        return
+    except (KeyError, AttributeError):
+        return {}
 
     # ### Collect all the data from the database ###
     emoji_dict = {emoji.name: emoji for emoji in guild.emojis}
@@ -221,7 +223,7 @@ def count_activity(member_id: int, guild: discord.Guild) -> int:
                     continue
                 activity_score += sum([user['activity'][c] for c in user['activity']])
         return activity_score
-    except KeyError:
+    except (KeyError, AttributeError):
         return 0
 
 
@@ -230,7 +232,10 @@ def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) ->
     if isinstance(guild_id, discord.Guild):
         guild_id: int = guild_id.id
     assert isinstance(guild_id, int)
-    voice_config: dict = here.bot.stats[str(guild_id)]['voice']['total_time']
+    try:
+        voice_config: dict = here.bot.stats[str(guild_id)]['voice']['total_time']
+    except (KeyError, AttributeError):
+        return 0
     voice_time_minutes: int = 0
     for day in voice_config:
         if str(member_id) in voice_config[day]:
@@ -1550,48 +1555,3 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
                         filename=filename,
                         spoiler=spoiler,
                         description="No description")
-
-
-async def interaction_to_context(interaction: discord.Interaction) -> Union[Mock, commands.Context]:
-    """
-    Converts a discord.Interaction object to a commands.Context object.
-
-    Parameters:
-        interaction (discord.Interaction): The interaction object to convert.
-
-    Returns:
-        commands.Context: A context object equivalent to the interaction.
-    """
-    # Mock the author (user)
-    author = interaction.user
-    
-    # Mock the channel
-    channel = interaction.channel
-    
-    # Mock the message
-    mock_message = Mock(spec=commands.Context)
-    mock_message.id = None  # No ID for interaction-based mock message
-    mock_message.content = ""  # Slash commands don't have message content
-    mock_message.author = author
-    mock_message.channel = channel
-    mock_message.guild = interaction.guild
-    
-    mock_context = Mock(spec=commands.Context)
-    mock_context.bot = here.bot
-    mock_context.message = mock_message
-    mock_context.guild = interaction.guild
-    mock_context.author = author
-    mock_context.channel = channel
-    mock_context.command = interaction.data.get("name")
-    
-    # Attach the interaction to the context for further use
-    mock_context.interaction = interaction
-    
-    # Redirect ctx.send to use channel.send
-    async def send_override(*args, **kwargs):
-        return await mock_context.channel.send(*args, **kwargs)
-    
-    mock_context.send = send_override
-    
-    return mock_context
-    
