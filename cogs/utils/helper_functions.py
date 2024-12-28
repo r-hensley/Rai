@@ -699,29 +699,29 @@ class ModlogEntry:
         return config
 
 
-def args_discriminator(args: str):
+@dataclass
+class Args:
+    def __init__(self,
+                 user_ids: List[int],
+                 time_string: str,
+                 length: List[int],
+                 time_arg: str,
+                 time_obj: datetime,
+                 reason: str):
+        self.user_ids = user_ids  # list of users
+        self.time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
+        self.length = length  # list of [days, hours, minutes]
+        self.time_arg = time_arg
+        self.time_obj = time_obj
+        self.reason = reason
+
+
+def args_discriminator(args: str) -> Args:
     """
     Takes in a string of args and pulls out IDs and times then leaves the reason.
     :param args: A string containing all the args
     :return: Class object with list 'users', time, reason
     """
-
-    @dataclass
-    class Args:
-        def __init__(self,
-                     user_ids: List[int],
-                     time_string: str,
-                     length: List[int],
-                     time_arg: str,
-                     time_obj: datetime,
-                     reason: str):
-            self.user_ids = user_ids  # list of users
-            self.time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
-            self.length = length  # list of [days, hours, minutes]
-            self.time_arg = time_arg
-            self.time_obj = time_obj
-            self.reason = reason
-
     # I could do *args which gives a list, but it creates errors when there are unmatched quotes in the command
     args_list = args.split()
 
@@ -1550,3 +1550,48 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
                         filename=filename,
                         spoiler=spoiler,
                         description="No description")
+
+
+async def interaction_to_context(interaction: discord.Interaction) -> Union[Mock, commands.Context]:
+    """
+    Converts a discord.Interaction object to a commands.Context object.
+
+    Parameters:
+        interaction (discord.Interaction): The interaction object to convert.
+
+    Returns:
+        commands.Context: A context object equivalent to the interaction.
+    """
+    # Mock the author (user)
+    author = interaction.user
+    
+    # Mock the channel
+    channel = interaction.channel
+    
+    # Mock the message
+    mock_message = Mock(spec=commands.Context)
+    mock_message.id = None  # No ID for interaction-based mock message
+    mock_message.content = ""  # Slash commands don't have message content
+    mock_message.author = author
+    mock_message.channel = channel
+    mock_message.guild = interaction.guild
+    
+    mock_context = Mock(spec=commands.Context)
+    mock_context.bot = here.bot
+    mock_context.message = mock_message
+    mock_context.guild = interaction.guild
+    mock_context.author = author
+    mock_context.channel = channel
+    mock_context.command = interaction.data.get("name")
+    
+    # Attach the interaction to the context for further use
+    mock_context.interaction = interaction
+    
+    # Redirect ctx.send to use channel.send
+    async def send_override(*args, **kwargs):
+        return await mock_context.channel.send(*args, **kwargs)
+    
+    mock_context.send = send_override
+    
+    return mock_context
+    
