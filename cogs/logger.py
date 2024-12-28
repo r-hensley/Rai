@@ -423,8 +423,30 @@ class Logger(commands.Cog):
             timestamp=discord.utils.utcnow()
         )
         
-        before_str_segments = hf.split_text_into_segments(before.content, 1024)
-        after_str_segments = hf.split_text_into_segments(after.content, 1024)
+        emb.set_footer(text=f'#{before.channel.name}',
+                       icon_url=before.author.display_avatar.replace(static_format="png").url)
+   
+        # try to remove text from beginning or end in the case that the embed is long
+        iteration_counter = 0
+        before_content = before.content
+        after_content = after.content
+        while len(emb) + len(before_content) + len(after_content) > 5900:
+            iteration_counter += 1
+            if iteration_counter == 20:
+                raise ValueError("Infinite loop")  # infinite loop
+            if before_content[:100] == after_content[:100]:
+                before_content = "[...] " + before_content[100:]
+                after_content = "[...] " + after_content[100:]
+                continue
+            elif before_content[-100:] == after_content[-100:]:
+                before_content = before_content[:-100] + " [...]"
+                after_content = after_content[:-100] + " [...]"
+                continue
+            else:
+                break
+                    
+        before_str_segments = hf.split_text_into_segments(before_content, 1024)
+        after_str_segments = hf.split_text_into_segments(after_content, 1024)
         for i in range(len(before_str_segments)):
             if i == 0:
                 emb.add_field(name=f'**Before:**', value=before_str_segments[i])
@@ -436,9 +458,12 @@ class Logger(commands.Cog):
             else:
                 emb.add_field(name=f'**After:** (Part {i+1})', value=after_str_segments[i])
         
-        emb.set_footer(text=f'#{before.channel.name}',
-                       icon_url=before.author.display_avatar.replace(static_format="png").url)
-
+        iteration = 0
+        while len(emb) > 6000:
+            iteration += 1
+            if iteration == 20:
+                raise ValueError("Infinite loop")  # infinite loop
+            emb.remove_field(0)
         await utils.safe_send(channel, embed=emb)
 
     @commands.Cog.listener()
