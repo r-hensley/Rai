@@ -9,7 +9,7 @@ import re
 import os
 import importlib
 import datetime
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run
 from contextlib import redirect_stdout
@@ -18,6 +18,8 @@ from typing import Union
 
 import discord
 from discord.ext import commands
+from matplotlib import pyplot as plt, cm
+from matplotlib.colors import Normalize
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -850,8 +852,105 @@ class Owner(commands.Cog):
             new_message_queue.append(hf.MiniMessage.from_mini_message(message))
         self.bot.message_queue = new_message_queue
         await ctx.message.add_reaction("✅")
+    
+    @commands.command()
+    async def mostbansdate(self, ctx: commands.Context):
+        """Finds the date of the most bans"""
         
+        from collections import Counter
+        import discord
+        import io
+        from datetime import timedelta
+        import matplotlib.pyplot as plt
         
+        seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
+        daily_bans = Counter()
+        
+        # save bans locally, so I don't keep spamming audit log
+        if not hasattr(self.bot, 'ban_log_history'):
+            self.bot.ban_log_history = []
+        
+        # Fetch bans and count per day
+        last_date = None
+        processed_count = 0
+        modlog_channel = self.bot.get_channel(598367270678560780)
+        if not self.bot.ban_log_history:
+            async for message in modlog_channel.history(limit=None, oldest_first=False):
+                processed_count += 1
+                if not message.embeds:
+                    continue
+                if "was `banned`" not in (message.embeds[0].description or ''):
+                    continue
+                if message.created_at.year not in [2022, 2023, 2024]:
+                    break
+                self.bot.ban_log_history.append(message.id)
+                ban_date = message.created_at.strftime("%m%d")
+                if ban_date != last_date:
+                    print(f"[{processed_count}] Processing bans for {message.created_at.year}{ban_date}")
+                    ban_count_last_day = daily_bans[last_date] if last_date else 0
+                    if ban_count_last_day > 20:
+                        print(f"Detected a day with {ban_count_last_day} bans: {last_date}")
+                    last_date = ban_date
+                daily_bans[ban_date] += 1
+        else:
+            print("Using cached ban log history")
+            bans_this_day = 0
+            for message_id in self.bot.ban_log_history:
+                processed_count += 1
+                ban_date = discord.utils.snowflake_time(message_id)
+                if ban_date.year not in [2024]:
+                    continue
+                if not last_date:
+                    last_date = ban_date
+                bans_this_day += 1
+                if ban_date.day != last_date.day:
+                    ban_date_str = last_date.strftime("%m%d")
+                    if bans_this_day < 50:  # ignore outlier days
+                        daily_bans[ban_date_str] += bans_this_day
+                    bans_this_day = 0
+                    last_date = ban_date
+        
+        # sort daily_bans by date
+        daily_bans = dict(sorted(daily_bans.items(), key=lambda item: item[0]))
+        
+        # Plot data
+        days = list(daily_bans.keys())
+        counts = [daily_bans[day] for day in days]
+        
+        # Calculate 7-day running average. For values at end of list, just loop back to beginning
+        running_avg = []
+        avg_calculator = deque([counts[0]]*7, maxlen=7)
+        
+        for day, count in zip(days, counts):
+            avg_calculator.append(count)
+            running_avg.append(sum(avg_calculator) / 7)
+        assert len(running_avg) == len(days) == len(counts), (f"Length mismatch: "
+                                                              f"{len(running_avg)=}, {len(days)=}, {len(counts)=}")
+        
+        norm = Normalize(vmin=min(counts), vmax=max(counts))
+        colors = cm.viridis(norm(counts))  # Use a colormap (e.g., viridis)
+        
+        fig, ax = plt.subplots(figsize=(10, 6))  # Adjust figure size
+        fig: plt.Figure
+        ax: plt.Axes
+        ax.bar(days, running_avg, color=colors, label="Daily Bans (7 day average)", alpha=0.6)
+        ax.set_xlabel("Date (MMDD)")
+        step = max(len(days) // 7, 1)
+        ax.set_xticks(ticks=range(0, len(days), step), labels=[days[i] for i in range(0, len(days), step)], rotation=70)
+        ax.set_ylabel("Number of Bans")
+        ax.set_title("Ban Counts (Rolling Average)")
+        sm = cm.ScalarMappable(norm=norm, cmap=cm.viridis)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax)
+        cbar.set_label("Number of Bans")
+        plt.tight_layout()
+        
+        # Save and send the plot
+        with io.BytesIO() as plot_buffer:
+            plt.savefig(plot_buffer, format="png")
+            plot_buffer.seek(0)
+            await ctx.send(file=discord.File(plot_buffer, "bans_plot.png"))
+        plt.close()
 
 
 async def setup(bot):
