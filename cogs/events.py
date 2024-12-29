@@ -1146,18 +1146,21 @@ class Events(commands.Cog):
         async def log_ciri_warnings():
             if msg.guild.id != JP_SERVER_ID:
                 return
+            
+            if not msg.content.startswith(","):
+                return  # only look at ciri commands
 
             try:
-                first_character = msg.content[0]
                 first_word = msg.content.split()[0][1:]  # minus first character for potential command prefix
                 args_list = msg.content.split()[1:]
                 args_str = ' '.join(args_list)
             except IndexError:
                 return
+            
+            if first_word not in ['warn', 'log', 'ban']:
+                return
+            
             args = hf.args_discriminator(args_str)
-
-            if first_character != ",":
-                return  # only look at ciri commands
 
             if first_word in ['warn', 'log']:
                 if first_word == 'warn':
@@ -1174,7 +1177,7 @@ class Events(commands.Cog):
                     if _m.embeds:
                         e = _m.embeds[0]
                         if not e.description:
-                            return  # or else error in next line
+                            return False  # or else error in next line
                         if 'Banned' in e.description or "Cancelled" in e.description:
                             return _m.author.id == ciri_id and _m.channel == msg.channel and not e.title
 
