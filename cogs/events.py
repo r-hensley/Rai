@@ -1046,6 +1046,35 @@ class Events(commands.Cog):
                 self.bot.bot_message_queue.add_message(msg)
         
         await log_bot_messages()
+        
+        # log unique Rai tracebacks
+        async def log_rai_tracebacks():
+            traceback_channel_id = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
+            if msg.channel.id != traceback_channel_id:
+                return
+            if not msg.author == self.bot.user:
+                return
+            traceback = msg.content.split("```py")
+            if not traceback:
+                return
+            traceback = traceback[1][:-3]  # last three characters are final ```, take those off too
+            if 'rai_tracebacks' not in self.bot.db:
+                self.bot.db['rai_tracebacks'] = []
+            if traceback in self.bot.db['rai_tracebacks']:
+                return
+            self.bot.db['rai_tracebacks'].append(traceback)
+            new_tracebacks_channel = self.bot.get_channel(1322798523279867935)
+            try:
+                await new_tracebacks_channel.send(msg.content, embeds=msg.embeds)
+            except (discord.HTTPException, discord.Forbidden):
+                return
+        
+        try:
+            await log_rai_tracebacks()
+        except Exception as e:
+            print("Exception in log_rai_tracebacks:", e)
+            # don't propagate error because it could lead to an infinite loop of Rai trying to log the error created
+            # by the above function itself
 
         if msg.author.bot:
             # for BurdBot to post questions to AOTW

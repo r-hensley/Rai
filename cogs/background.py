@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import aiohttp, async_timeout
@@ -11,6 +12,8 @@ from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 
 RYRY_SPAM_CHAN = 275879535977955330
+TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
+
 
 
 class Background(commands.Cog):
@@ -33,7 +36,8 @@ class Background(commands.Cog):
         print('Error in background task:', file=sys.stderr)
         traceback.print_tb(error.__traceback__)
         print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-        channel = self.bot.get_channel(554572239836545074)
+        # get traceback channel ID from env
+        channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL_ID)
         exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
         traceback_text = f'```py\n{exc}\n```'
         message = f'<@202995638860906496> Error in background task:\n{traceback_text}'
