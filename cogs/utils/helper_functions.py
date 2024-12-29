@@ -360,6 +360,11 @@ def parse_time(time: str) -> Tuple[str, list[int]]:
 
     else:
         return '', []
+    total_days = length[0] + length[1] / 24 + length[2] / 1440
+    # catch c integer overflow
+    if total_days > 1000000:
+        # reset to just 1000000 - 1 days
+        length = [999999, 0, 0]
     finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
     time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     return time_string, length

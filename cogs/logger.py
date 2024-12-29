@@ -538,6 +538,10 @@ class Logger(commands.Cog):
                     jump_url = msg.jump_url
             except discord.NotFound:
                 pass  # somehow got discord.errors.NotFound: 404 Not Found (error code: 10003): Unknown Channel
+            except asyncio.TimeoutError:
+                # rare timeout from discord API, just try again once
+                async for msg in message.channel.history(limit=1, before=message):
+                    jump_url = msg.jump_url
         emb = discord.Embed(
             description=f'**{str(author)}** (M{author.id})'
                         f'\n**Message deleted after {time_dif_str}.** ([Jump URL]({jump_url}))',
