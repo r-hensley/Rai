@@ -6,7 +6,7 @@ from typing import Optional, List, Union
 from datetime import timedelta, datetime, timezone
 
 import discord
-from discord import app_commands
+from discord import app_commands, Interaction
 from discord.ext import commands
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -335,6 +335,16 @@ class Submod(commands.Cog):
             self.ctx = ctx
             self.silent = None
             self.confirmed = None
+            self.command_caller = ctx.author if isinstance(ctx, commands.Context) \
+                else ctx.user  # Store the command caller
+            
+        async def interaction_check(self, interaction: Interaction) -> bool:
+            if interaction.user == self.command_caller:
+                return True
+            else:
+                await interaction.response.send_message("Only the person who initiated the ban can interact with this.",
+                                                        ephemeral=True)
+                return False
             
         def get_embed(self) -> discord.Embed:
             """The embed that will be sent to the user"""
@@ -407,7 +417,6 @@ class Submod(commands.Cog):
                                                     embed=self.get_embed(),
                                                     view=self)
    
-            
     @discord.app_commands.command(name="ban", description="Ban a user from the server.")
     @app_commands.describe(reason="The reason for the ban",
                            member="The user to ban",member_id="The ID of the user to ban",
@@ -418,17 +427,17 @@ class Submod(commands.Cog):
     @commands.has_permissions(ban_members=True)
     @app_commands.default_permissions()
     @app_commands.guilds(SP_SERV_ID)
-    async def slash_cmd_ban2(self,
-                             interaction: discord.Interaction,
-                             reason: str = "No reason provided",
-                             member: discord.Member = None,
-                             member_id: str = None,
-                             member_two: discord.Member = None,
-                             member_id_two: str = None,
-                             member_three: discord.Member = None,
-                             member_id_three: str = None,
-                             member_four: discord.Member = None,
-                             member_id_four: str = None,):
+    async def slash_cmd_ban(self,
+                            interaction: discord.Interaction,
+                            reason: str = "No reason provided",
+                            member: discord.Member = None,
+                            member_id: str = None,
+                            member_two: discord.Member = None,
+                            member_id_two: str = None,
+                            member_three: discord.Member = None,
+                            member_id_three: str = None,
+                            member_four: discord.Member = None,
+                            member_id_four: str = None,):
         """Pass arguments received into the ban command."""
         ctx = await commands.Context.from_interaction(interaction)
         members = ' '.join([m.mention for m in [member, member_two, member_three, member_four] if m])
@@ -438,7 +447,6 @@ class Submod(commands.Cog):
             return
         await interaction.response.send_message("Starting ban process...", ephemeral=True)
         await self.prefix_cmd_ban(ctx, args_in=f"{members} {member_ids} {reason}")
-
         
     @commands.command(name="ban")
     @commands.bot_has_permissions(ban_members=True)
@@ -535,18 +543,10 @@ class Submod(commands.Cog):
         
         view = self.BanConfirmationView(targets, reason, length=length, time_string=time_string, ctx=ctx)
         confirmation_msg = await ctx.send(content=view.get_message_content(), embed=view.get_embed(), view=view)
-        
-        await view.wait()
+        await view.wait()  # wait for response to view to complete
         
         flags = {}
         any_flags = False
-        for target in targets:
-            flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
-            flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
-            if flag_one or flag_two:
-                any_flags = True
-            flags[target.id] = (flag_one, flag_two)
-        
         if view.confirmed:
             successes = []
             failures = []
@@ -560,12 +560,14 @@ class Submod(commands.Cog):
                     await utils.safe_send(ctx, f"I couldn't ban {target.mention}: `{e}`")
                     failures.append(target)
                 else:
+                    # calculate length of temporary ban
                     if length:
                         config = self.bot.db['bans'].setdefault(str(ctx.guild.id),
                                                                 {'enable': False, 'channel': None, 'timed_bans': {}})
                         timed_bans = config.setdefault('timed_bans', {})
                         timed_bans[str(target.id)] = time_string
                     
+                    # format length string and add to modlog
                     if length:
                         length_str = f"{length[0]}d{length[1]}h"
                     else:
@@ -577,39 +579,49 @@ class Submod(commands.Cog):
                                                   length=length_str, reason=reason,
                                                   silent=view.silent)
                     modlog_entry.add_to_modlog()
+                    
+                    # check for user account flags
+                    flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
+                    flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
+                    if flag_one or flag_two:
+                        any_flags = True
+                    flags[target.id] = (flag_one, flag_two)
             
             # check for if any of the users have flags for spamming or excessive DM activity
-            if any_flags:
-                flag_msg = "The following users were flagged for potential spamming or excessive DM activity:\n"
-                for member in successes:
-                    if flags[member.id][0] and not flags[member.id][1]:
-                        flag_msg += f"- {member.mention} ***(Was flagged for suspected spam activity)***\n"
-                    elif not flags[member.id][0] and flags[member.id][1]:
-                        flag_msg += f"- {member.mention} ***(Was flagged for excessive DMs at one point)***\n"
-                    elif flags[member.id][0] and flags[member.id][1]:
-                        flag_msg += (f"- {member.mention} ***(Was flagged for both excessive DM activity "
-                                 f"and potential spamming activities)***\n")
-                flag_msg += f"-# ||<@{self.bot.owner_id}>||\n"
-                await confirmation_msg.reply(flag_msg)
-
-            embed = discord.Embed(
-                title="Ban Successful",
-                description=f"Successfully banned {', '.join(user.mention for user in successes)}",
-                color=0x00FF00
-            )
-            if failures:
-                embed.add_field(
-                    name="Failed to Ban",
-                    value=", ".join(user.mention for user in failures),
-                    inline=False)
-            await confirmation_msg.edit(embed=embed, view=None)
-        else:
-            embed = discord.Embed(
-                title="Ban Cancelled",
-                description="The ban operation was cancelled.",
-                color=0xFFA500
-            )
-            await confirmation_msg.edit(content=None, embed=embed, view=None)
+            if successes:
+                if any_flags:
+                    flag_msg = "The following users were flagged for potential spamming or excessive DM activity:\n"
+                    for member in successes:
+                        if flags[member.id][0] and not flags[member.id][1]:
+                            flag_msg += f"- {member.mention} ***(Was flagged for suspected spam activity)***\n"
+                        elif not flags[member.id][0] and flags[member.id][1]:
+                            flag_msg += f"- {member.mention} ***(Was flagged for excessive DMs at one point)***\n"
+                        elif flags[member.id][0] and flags[member.id][1]:
+                            flag_msg += (f"- {member.mention} ***(Was flagged for both excessive DM activity "
+                                     f"and potential spamming activities)***\n")
+                    flag_msg += f"-# ||<@{self.bot.owner_id}>||\n"
+                    await confirmation_msg.reply(flag_msg)
+    
+                embed = discord.Embed(
+                    title="Ban Successful",
+                    description=f"Successfully banned {', '.join(user.mention for user in successes)}",
+                    color=0x00FF00
+                )
+                if failures:
+                    embed.add_field(
+                        name="Failed to Ban",
+                        value=", ".join(user.mention for user in failures),
+                        inline=False)
+                await confirmation_msg.edit(embed=embed, view=None)
+                
+                return
+        
+        embed = discord.Embed(
+            title="Ban Cancelled",
+            description="The ban operation was cancelled.",
+            color=0xFFA500
+        )
+        await confirmation_msg.edit(content=None, embed=embed, view=None)
 
     
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
