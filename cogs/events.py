@@ -1062,6 +1062,11 @@ class Events(commands.Cog):
                 self.bot.db['rai_tracebacks'] = []
             if traceback in self.bot.db['rai_tracebacks']:
                 return
+            
+            # replace parts of the traceback that could change per traceback
+            traceback = re.sub(r"\d{17,22}", "ID", traceback)
+            traceback = re.sub(r"line \d+", "line LINE", traceback)
+            traceback = re.sub(r"File \".+?\"", "File \"FILE\"", traceback)
             self.bot.db['rai_tracebacks'].append(traceback)
             new_tracebacks_channel = self.bot.get_channel(1322798523279867935)
             try:
