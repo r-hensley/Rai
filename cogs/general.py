@@ -1467,8 +1467,12 @@ class General(commands.Cog):
             pass
 
     @commands.command(hidden=True)
-    @commands.check(lambda ctx: ctx.author.id in [216848576549093376, 354352443502493706, 202995638860906496,
-                                                  698304824667537458, 371093267410059264]
+    @commands.check(lambda ctx: ctx.author.id in [216848576549093376,  # jaleel
+                                                  354352443502493706,  # evil
+                                                  202995638860906496,  # ryan
+                                                  698304824667537458,  # jelemeno
+                                                  371093267410059264,  # rize
+                                                  ]
                                 and ctx.guild.id == SP_SERVER_ID if ctx.guild else False)
     async def admin(self, ctx):
         """Allows chosen users to add/remove admin role"""
