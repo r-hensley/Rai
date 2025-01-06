@@ -1774,12 +1774,25 @@ class Logger(commands.Cog):
 
             # send second notification for sesion mods
             event_helper = guild.get_role(830821949382983751)
+            voice_mod = guild.get_role(1228581686443507722)
             event_host = guild.get_role(874020674124021760)
-            if event_helper in author.roles or event_host in author.roles:
-                if author.top_role in [event_helper, event_host]:
+            if {event_helper, voice_mod, event_host} & set(author.roles):  # if any of the lower helper roles exist
+                trial_staff = guild.get_role(591745589054668817)
+                server_helper = guild.get_role(258819531193974784)
+                admin = guild.get_role(243854949522472971)
+                if not {trial_staff, server_helper, admin} & set(author.roles):  # check to make sure no higher roles
                     event_helpers_channel = guild.get_channel(861337623636475944)
                     if event_helpers_channel:
                         await utils.safe_send(event_helpers_channel, str(after.id), embed=emb)
+                        await utils.safe_send(event_helpers_channel,
+                                              f"{author.mention}: \n- If you have any extra information to add "
+                                              f"for this timeout for us, please let us know here when you get the "
+                                              f"chance. For example, why you muted, what was happening when you muted, "
+                                              f"etc. Thanks!\n"
+                                              f"- Si tienes alguna información extra que añadir para este tiempo "
+                                              f"de espera para nosotros, por favor háznoslo saber aquí cuando "
+                                              f"tengas la oportunidad. Por ejemplo, por qué lo silenciaste, "
+                                              f"qué estaba pasando cuando lo silenciaste, etc. ¡Gracias!")
 
         await check_timeouts()
 
