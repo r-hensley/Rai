@@ -1546,10 +1546,13 @@ class Logger(commands.Cog):
         else:
             return
 
-        for g in self.bot.guilds:
+        async def get_mutual_guilds():
+            return before.mutual_guilds
+        
+        mutual_guilds_task = utils.asyncio_task(get_mutual_guilds)
+        mutual_guilds = await mutual_guilds_task
+        for g in mutual_guilds:
             guild = str(g.id)
-            if before not in g.members:
-                continue  # don't worry about guilds without this member
             if not self.bot.db['nicknames'].get(guild, {'enable': False})['enable']:
                 continue  # if the guild doesn't have username changes enabled
 
