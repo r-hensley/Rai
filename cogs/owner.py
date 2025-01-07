@@ -486,7 +486,12 @@ class Owner(commands.Cog):
                 ret = await func()
         except Exception as _:
             value = stdout.getvalue()
-            await utils.safe_send(ctx, f'```py\n{value}{traceback.format_exc()}\n```')
+            to_send = f'\n{value}{traceback.format_exc()}\n'
+            to_send_segments = hf.split_text_into_segments(to_send, 1990)
+            for segment in to_send_segments[:5]:
+                await utils.safe_send(ctx, f'```py\n{segment}\n```')
+            if len(to_send_segments) > 5:
+                await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
         else:
             value = stdout.getvalue()
             # noinspection PyBroadException
@@ -497,15 +502,18 @@ class Owner(commands.Cog):
             
             if ret is None:
                 if value:
-                    try:
-                        await utils.safe_send(ctx, f'```py\n{value}\n```')
-                    except discord.HTTPException:
-                        st = f'```py\n{value}\n```'
-                        await utils.safe_send(ctx, 'Result over 2000 characters')
-                        await utils.safe_send(ctx, st[0:1996] + '\n```')
+                    segments = hf.split_text_into_segments(value, 1990)
+                    for segment in segments[:5]:
+                        await utils.safe_send(ctx, f'```py\n{segment}\n```')
+                    if len(segments) > 5:
+                        await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
             else:
                 self._last_result = ret
-                await utils.safe_send(ctx, f'```py\n{value}{ret}\n```')
+                segments = hf.split_text_into_segments(f"{value}{ret}", 1990)
+                for segment in segments[:5]:
+                    await utils.safe_send(ctx, f'```py\n{segment}\n```')
+                if len(segments) > 5:
+                    await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
 
     @commands.command()
     async def count_emoji(self, ctx):
