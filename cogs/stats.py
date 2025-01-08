@@ -862,59 +862,53 @@ class Stats(commands.Cog):
     async def process_message_pool(self, message_pool: list[discord.Message]):
         async with asqlite.connect(rf'{dir_path}/database.db') as c:
             async with c.transaction():
-                res = await c.execute("SELECT guild_id, rai_id FROM guilds")
-                guilds: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
-                res = await c.execute("SELECT channel_id, rai_id FROM channels")
-                channels: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
-                res = await c.execute("SELECT user_id, rai_id FROM users")
-                users: list[Union[tuple, sqlite3.Row]] = await res.fetchall()
-        # b = [msg.guild.id for msg in message_pool]
-        # a = [(i[0], type(i[0]), i[0] in b) for i in guilds]
-        # print(b)
-        # print(a)
-        # print("current guilds logged: \n", [i[0] for i in guilds])
-        new_guild_ids = {msg.guild.id for msg in message_pool
-                         if msg.guild.id not in [g_id[0] for g_id in guilds]}
-        guild_dict = dict(guilds)  # {discord_guild_id: rai_id}
-        new_channel_ids = {msg.channel.id for msg in message_pool
-                           if msg.channel.id not in [c_id[0] for c_id in channels]}
-        channel_dict = dict(channels)  # {discord_channel_id: rai_id}
-        new_user_ids = {msg.author.id for msg in message_pool
-                        if msg.author.id not in [u_id[0] for u_id in users]}
-        user_dict = dict(users)  # {discord_user_id: rai_id}
-        # print("new_guild_ids:", new_guild_ids, sep="\n")
-        # print("new_channel_ids:", new_channel_ids, sep="\n")
-        # print("new_user_ids:", new_user_ids, sep="\n")
-
+                res_guilds = await c.execute("SELECT guild_id, rai_id FROM guilds")
+                res_channels = await c.execute("SELECT channel_id, rai_id FROM channels")
+                res_users = await c.execute("SELECT user_id, rai_id FROM users")
+                
+                guilds: list[Union[tuple, sqlite3.Row]] = await res_guilds.fetchall()
+                channels: list[Union[tuple, sqlite3.Row]] = await res_channels.fetchall()
+                users: list[Union[tuple, sqlite3.Row]] = await res_users.fetchall()
+        
+        existing_guilds = {g_id[0] for g_id in guilds}
+        existing_channels = {c_id[0] for c_id in channels}
+        existing_users = {u_id[0] for u_id in users}
+        
+        new_guild_ids = {msg.guild.id for msg in message_pool if msg.guild.id not in existing_guilds}
+        new_channel_ids = {msg.channel.id for msg in message_pool if msg.channel.id not in existing_channels}
+        new_user_ids = {msg.author.id for msg in message_pool if msg.author.id not in existing_users}
+        
+        guild_dict = {g_id[0]: g_id[1] for g_id in guilds}  # Create only once
+        channel_dict = {c_id[0]: c_id[1] for c_id in channels}
+        user_dict = {u_id[0]: u_id[1] for u_id in users}
+        
         async with asqlite.connect(rf'{dir_path}/database.db') as c:
             async with c.transaction():
-                for guild_id in new_guild_ids:
-                    await c.execute(f"INSERT INTO guilds (guild_id) VALUES (?)", (guild_id,))
-                    res = await c.execute("SELECT last_insert_rowid()")
-                    rai_id = (await res.fetchone())[0]
-                    guild_dict[guild_id] = rai_id
-                    # print(f"added new guild - {guild_id}: {rai_id}")
-                    # await c.executemany(f"INSERT INTO guilds (guild_id) VALUES (?)", new_guild_ids)
-
-                for channel_id in new_channel_ids:
-                    await c.execute(f"INSERT INTO channels (channel_id) VALUES (?)", (channel_id,))
-                    res = await c.execute("SELECT last_insert_rowid()")
-                    rai_id = (await res.fetchone())[0]
-                    channel_dict[channel_id] = rai_id
-                    # print(f"added new channel - {channel_id}: {rai_id}")
-                    # await c.executemany(f"INSERT INTO channels (channel_id) VALUES (?)", new_channel_ids)
-
-                for user_id in new_user_ids:
-                    await c.execute(f"INSERT INTO users (user_id) VALUES (?)", (user_id,))
-                    res = await c.execute("SELECT last_insert_rowid()")
-                    rai_id = (await res.fetchone())[0]
-                    user_dict[user_id] = rai_id
-                    # print(f"added new user - {user_id}: {rai_id}")
-                    # await c.executemany(f"INSERT INTO users (user_id) VALUES (?)", new_user_ids)
-
-                # print("guilds:", guild_dict)
-                # print("channels:", channel_dict)
-                # print("users:", user_dict)
+                # Batch insert new guilds
+                if new_guild_ids:
+                    await c.executemany("INSERT INTO guilds (guild_id) VALUES (?)",
+                                        [(guild_id,) for guild_id in new_guild_ids])
+                    # Update guild_dict with new Rai IDs to use below when inserting messages
+                    placeholders = ", ".join("?" for _ in new_guild_ids)
+                    query = f"SELECT guild_id, rai_id FROM guilds WHERE guild_id IN ({placeholders})"
+                    res = await c.execute(query, tuple(new_guild_ids))
+                    guild_dict.update({row[0]: row[1] for row in await res.fetchall()})
+                
+                if new_channel_ids:
+                    await c.executemany("INSERT INTO channels (channel_id) VALUES (?)",
+                                        [(channel_id,) for channel_id in new_channel_ids])
+                    placeholders = ", ".join("?" for _ in new_channel_ids)
+                    query = f"SELECT channel_id, rai_id FROM channels WHERE channel_id IN ({placeholders})"
+                    res = await c.execute(query, tuple(new_channel_ids))
+                    channel_dict.update({row[0]: row[1] for row in await res.fetchall()})
+                    
+                if new_user_ids:
+                    await c.executemany("INSERT INTO users (user_id) VALUES (?)",
+                                        [(user_id,) for user_id in new_user_ids])
+                    placeholders = ", ".join("?" for _ in new_user_ids)
+                    query = f"SELECT user_id, rai_id FROM users WHERE user_id IN ({placeholders})"
+                    res = await c.execute(query, tuple(new_user_ids))
+                    user_dict.update({row[0]: row[1] for row in await res.fetchall()})
 
                 param_list = [
                     (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id], channel_dict[msg.channel.id], 'en')
@@ -922,13 +916,6 @@ class Stats(commands.Cog):
                 query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
                         f"VALUES (?, ?, ?, ?, ?)"
                 await c.executemany(query, param_list)
-        # print("Finished processing pool")
-
-        # for message in message_pool:
-        #     print('\n', f"{counter}/100", message.author, message.content)
-        #     await add_message_to_database(message)
-        #     counter += 1
-        #     sys.stdout.flush()
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
