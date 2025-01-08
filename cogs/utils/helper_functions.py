@@ -1,9 +1,11 @@
 import asyncio
+import cProfile
 import csv
 import importlib
 import io
 import logging
 import os
+import pstats
 import re
 import sys
 import unittest
@@ -11,6 +13,7 @@ from collections import deque
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from typing import Optional, List, Union, Tuple, Iterable
 from unittest.mock import Mock
 from urllib.parse import urlparse
@@ -1560,3 +1563,54 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
                         filename=filename,
                         spoiler=spoiler,
                         description="No description")
+
+
+def profileit(sleep_time: float = 0.0):
+    print(f"Profiling decorator with sleep time {sleep_time}")
+    def decorator(func):
+        print(f"Profiling decorator for {func.__name__}")
+        if not hasattr(here.bot, 'profiling_decorators'):
+            here.bot.profiling_decorators = set()
+        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            prof = cProfile.Profile()
+            prof.enable()
+            try:
+                retval = await func(*args, **kwargs)
+            finally:
+                prof.disable()
+                s = io.StringIO()
+                ps = pstats.Stats(prof, stream=s).sort_stats(pstats.SortKey.TIME)
+                ps.print_stats()
+                total_string = s.getvalue()
+                total_string_split = total_string.split('\n')
+                # looks like this, with "newlines" turning into "" in the split (adding extra list elements)
+                #          11351 function calls in 1.001 seconds
+                #    Ordered by: internal time
+                #    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+                #        12    0.513    0.043    0.513    0.043 {method 'poll' of 'select.epoll' objects}
+                #         1    0.476    0.476    0.476    0.476 {method 'enable' of '_lsprof.Profiler' objects}
+                #         1    0.004    0.004    0.008    0.008 /home/pi/Documents/bot-venv/lib/python3.11/site-...)
+                #     10000    0.004    0.000    0.004    0.000 /home/pi/Documents/bot-venv/lib/python3.11/site-...)
+                total_time = float(total_string_split[0].split()[-2])
+                if total_time - sleep_time < 0.01:
+                    return
+                print('!\n!')
+                print(f"Profiling {func.__name__}")
+                print(total_string_split[0])
+                print(total_string_split[1])
+                print(total_string_split[2])
+                print(total_string_split[3])
+                print(total_string_split[4])
+                for line in total_string_split[5:]:
+                    if not line:
+                        continue
+                    tottime = float(line.split()[1])
+                    if tottime > 0:
+                        print(line)
+            return retval
+    
+        return async_wrapper if asyncio.iscoroutinefunction(func) else func
+    
+    return decorator
