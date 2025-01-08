@@ -1167,6 +1167,7 @@ class MiniMessage:
             "channel_id": self.channel_id,
             "guild_id": self.guild_id,
             "attachments": self.attachments,
+            "embeds": self.embeds,
         }
 
     def to_discord_message(self) -> discord.Message:
@@ -1326,6 +1327,10 @@ class MiniMessage:
             + sum(sys.getsizeof(attachment) for attachment in self.attachments)
             + sys.getsizeof(self.attachments)
         )
+    
+    def __dict__(self) -> dict:
+        """Convert the MiniMessage to a dictionary for easy storage or JSON serialization."""
+        return self.to_dict()
 
 
 class MessageQueue(deque[MiniMessage]):
@@ -1358,12 +1363,19 @@ class MessageQueue(deque[MiniMessage]):
         if maxlen == 0:
             raise ValueError("Parameter `maxlen` cannot be 0.")
         
-        default_maxlen = 10000
+        default_maxlen = 100000
         if isinstance(iterable, MessageQueue):
             maxlen = maxlen or iterable.maxlen
             super().__init__(iterable, maxlen=maxlen)
         else:
             maxlen = maxlen or default_maxlen
+            if isinstance(iterable, list) and iterable:
+                if isinstance(iterable[0], dict):
+                    iterable = [MiniMessage(**msg) for msg in iterable]
+                elif isinstance(iterable[0], MiniMessage):
+                    pass  # passed a list of MiniMessages rather than a MessageQueue of MiniMessages
+                else:
+                    raise TypeError(f"Expected list of `MiniMessage` or `dict`, got {type(iterable[0]).__name__}")
             super().__init__(iterable, maxlen=maxlen)
         
     @property
@@ -1498,8 +1510,16 @@ class MessageQueue(deque[MiniMessage]):
         """Calculate the memory usage of the queue."""
         return sys.getsizeof(super()) + sum(sys.getsizeof(msg) for msg in self)
     
+    def __dict__(self) -> list[dict]:
+        """Convert the MessageQueue to a list of dictionaries."""
+        return [msg.to_dict() for msg in self]
     
-    
+    @classmethod
+    def from_dict(cls, data):
+        """Create a MessageQueue object from a list of dictionaries."""
+        return cls([MiniMessage(**msg_kwargs) for msg_kwargs in data])
+
+
 def split_text_into_segments(text, segment_length=1024) -> List[str]:
     """Split a long text into segments of a specified length."""
     segments = []
@@ -1566,9 +1586,7 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
 
 
 def profileit(sleep_time: float = 0.0):
-    print(f"Profiling decorator with sleep time {sleep_time}")
     def decorator(func):
-        print(f"Profiling decorator for {func.__name__}")
         if not hasattr(here.bot, 'profiling_decorators'):
             here.bot.profiling_decorators = set()
         here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
