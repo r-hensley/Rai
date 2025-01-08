@@ -1,35 +1,61 @@
+import asyncio
 import os
-import re
 import sys
-import aiohttp, async_timeout
+
 from datetime import datetime, timezone
 import traceback
 import discord
-import psutil
 from discord.ext import commands, tasks
-from bs4 import BeautifulSoup
 from cogs.utils.BotUtils import bot_utils as utils
-from .utils import helper_functions as hf
 
 RYRY_SPAM_CHAN = 275879535977955330
 TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 
 
-
 class Background(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # self.risk_check
-        self.bot.bg_tasks = [self.check_desync_voice, self.unban_users,
+        self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db]
+                             self.check_downed_tasks, self.save_db, self.check_heartbeat,
+                             self.purposeful_block}
+        self.bot.running_tasks = []
+        task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
+        for task in asyncio.all_tasks():
+            # looks like:
+            # discord-ext-tasks: Background.save_db
+            # discord.py: on_message
+            # discord.py: on_command
+            # discord-ext-tasks: Background.check_downed_tasks
+            # discord-ext-tasks: Background.delete_old_stats_days
+            # Task-25755
+            # Task-29581
+            # discord-ext-tasks: Background.unselfmute_users
+            # discord.py: on_message
+            # [ ... ]
+            name = task.get_name().replace("discord-ext-tasks: Background.", "")
+            # now "name" is the same as the name of the coro here in this file (e.g. "save_db")
+            if name in task_names:
+                task.cancel()
+            
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 task.start()
+                self.bot.running_tasks.append(task)
+                
+        for task in self.bot.running_tasks:
+            # remove tasks that are finished from the list
+            if not task.is_running():
+                self.bot.running_tasks.remove(task)
 
     def cog_unload(self):
         for task in self.bot.bg_tasks:
             task.cancel()
+            
+        for task in self.bot.running_tasks:
+            # remove tasks that are finished from the list
+            if not task.is_running():
+                self.bot.running_tasks.remove(task)
 
     async def handle_error(self, error):
         error = getattr(error, 'original', error)
@@ -71,17 +97,21 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
-        if getattr(self.bot, 'db', None) is None:
-            print("main database not yet fully loaded, so delaying database saving")
-            return
-        if getattr(self.bot, 'stats', None) is None:
-            print("stats database not yet fully loaded, so delaying database saving")
-            return
-
-        await utils.dump_json('db')
-        await utils.dump_json('stats')
-
-
+        if getattr(self.bot, 'db', None):
+            await utils.dump_json('db')
+        else:
+            print("main database not yet fully loaded, so skipping db saving")
+        
+        if getattr(self.bot, 'stats', None):
+            await utils.dump_json('stats')
+        else:
+            print("stats database not yet fully loaded, so skipping stats saving")
+            
+        if getattr(self.bot, 'message_queue', None):
+            await utils.dump_json('message_queue')
+        else:
+            print("message queue not yet fully loaded, so skipping message queue saving")
+    
     @tasks.loop(minutes=5.0)
     async def check_desync_voice(self):
         config = self.bot.stats
@@ -286,6 +316,7 @@ class Background(commands.Cog):
     @delete_old_stats_days.error
     async def delete_old_stats_days_error(self, error):
         await self.handle_error(error)
+    
 
 async def setup(bot):
     await bot.add_cog(Background(bot))

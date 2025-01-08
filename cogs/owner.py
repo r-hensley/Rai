@@ -292,6 +292,7 @@ class Owner(commands.Cog):
         """Saves the database"""
         await utils.dump_json('db')
         await utils.dump_json('stats')
+        await utils.dump_json('message_queue')
         await ctx.message.add_reaction('\u2705')
 
     @commands.command(aliases=['rdb'], hidden=True)

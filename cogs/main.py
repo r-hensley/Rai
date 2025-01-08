@@ -73,7 +73,7 @@ BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 class Main(commands.Cog):
     """Main bot-central functions (error-handling, etc.)"""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot.on_error = self.on_error
 
@@ -126,10 +126,9 @@ class Main(commands.Cog):
 
         # build MessageQueue
         if not hasattr(self.bot, "message_queue"):
-            self.bot.message_queue = hf.MessageQueue(maxlen=20000)
+            self.bot.message_queue = hf.MessageQueue(maxlen=100000)
 
-    @staticmethod
-    def logging_setup():
+    def logging_setup(self):
         class IgnoreRateLimitFilter(logging.Filter):
             def filter(self, record):
                 if "We are being rate limited" in record.getMessage():
@@ -139,11 +138,34 @@ class Main(commands.Cog):
                     print("Ignoring: Shard has successfully RESUMED.")
                     return False
                 return True
+            
+        class IgnoreAsyncioSSLHandshakeError(logging.Filter):
+            def filter(self, record):
+                # ignore these three logs:
+                # DEBUG:asyncio:<asyncio.sslproto.SSLProtocol object at 0x0000017D8B142D70> starts SSL handshake
+                # DEBUG:asyncio:<asyncio.sslproto.SSLProtocol object at 0x0000017D8B142D70>: SSL handshake took 31.0 ms
+                # DEBUG:asyncio:<asyncio.TransportSocket fd=2628, family=AddressFamily.AF_INET,
+                #   type=SocketKind.SOCK_STREAM, proto=6, laddr=('10.110.118.58', 60112),
+                #   raddr=('162.159.135.232', 443)> connected to None:None:
+                #   (<asyncio.sslproto._SSLProtocolTransport object at 0x0000017D8B959F60>,
+                #   <aiohttp.client_proto.ResponseHandler object at 0x0000017D8B959E40>)
+                ignored_strings = ["starts SSL handshake", "SSL handshake took", "connected to None:None",
+                                   "received EOF", "address info discord.com", "address info gateway"]
+                for string in ignored_strings:
+                    if string in record.getMessage():
+                        return False
+                return True
 
+        # Order of logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
         logger = logging.getLogger('discord')
         logger.setLevel(logging.WARNING)
         logger_http = logging.getLogger('discord.http')
         logger_http.setLevel(logging.INFO)
+        logger_asyncio = logging.getLogger('asyncio')
+        logger_asyncio.setLevel(logging.DEBUG)
+        logger_root = logging.getLogger('root')
+        logger_root.setLevel(logging.DEBUG)
+        self.bot.loop.set_debug(True)
 
         handler = logging.handlers.RotatingFileHandler(
             filename=f"{dir_path}/log/{discord.utils.utcnow().strftime('%y%m%d_%H%M')}.log",
@@ -155,14 +177,51 @@ class Main(commands.Cog):
         dt_fmt = '%Y-%m-%d %H:%M:%S'
         formatter = logging.Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', dt_fmt, style='{')
         handler.setFormatter(formatter)
+        
+        for handler in logger.handlers[:]:
+            if isinstance(handler, logging.handlers.RotatingFileHandler):
+                handler.close()
+                logger.removeHandler(handler)
         logger.addHandler(handler)
+    
+        # example using colors for console logging
+        # from: https://stackoverflow.com/questions/384076/how-can-i-color-python-logging-output
+        # class CustomFormatter(logging.Formatter):
+        #
+        #     grey = "\x1b[38;20m"
+        #     yellow = "\x1b[33;20m"
+        #     red = "\x1b[31;20m"
+        #     bold_red = "\x1b[31;1m"
+        #     reset = "\x1b[0m"
+        #     format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+        #
+        #     FORMATS = {
+        #         logging.DEBUG: grey + format + reset,
+        #         logging.INFO: grey + format + reset,
+        #         logging.WARNING: bold_red + format + reset,
+        #         logging.ERROR: red + format + reset,
+        #         logging.CRITICAL: bold_red + format + reset
+        #     }
+        #
+        #     def format(self, record):
+        #         log_fmt = self.FORMATS.get(record.levelno)
+        #         formatter = logging.Formatter(log_fmt)
+        #         return formatter.format(record)
+        #
+        # asyncio_handler = logging.StreamHandler()
+        # asyncio_handler.setLevel(logging.DEBUG)
+        # asyncio_handler.setFormatter(CustomFormatter())
+        # logger_asyncio.addHandler(asyncio_handler)  # add logic to clean old handlers if used
 
-        for logger_filter in logger_http.filters:
-            print(f"Removing filter: {logger_filter} from logger")
+        for logger_filter in logger_http.filters[:]:
             logger_http.removeFilter(logger_filter)
+            
+        for logger_filter in logger_asyncio.filters[:]:
+            logger_asyncio.removeFilter(logger_filter)
 
         # Add the filter to the logger
         logger_http.addFilter(IgnoreRateLimitFilter())
+        logger_asyncio.addFilter(IgnoreAsyncioSSLHandshakeError())
 
     @tasks.loop(hours=24)
     async def database_backups(self):

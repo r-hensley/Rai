@@ -80,7 +80,6 @@ class Rai(Bot):
         self.language_detection: bool = False
         self.t_start = t_start
         print('starting loading of jsons')
-
         # Create json files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
             db = open(f"{dir_path}/db.json", 'w')
@@ -106,10 +105,16 @@ class Rai(Bot):
             print("Creating new stats database.")
             json.dump({}, db)
             db.close()
-
+        if not os.path.exists(f"{dir_path}/message_queue.json"):
+            db = open(f"{dir_path}/message_queue.json", 'w')
+            print("Creating new message_queue database.")
+            json.dump({}, db)
+            db.close()
+            
     async def setup_hook(self):
         utils.load_db(self, 'db')
         utils.load_db(self, 'stats')
+        utils.load_db(self, 'message_queue')
         
         hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
         utils.setup(bot=self, loop=asyncio.get_event_loop())

@@ -159,7 +159,6 @@ class Message(commands.Cog):
                 await msg.ctx.invoke(serverinfo)
     
     @on_message_function(allow_bots=True)
-    @hf.profileit(sleep_time=1)
     async def post_modlog_in_reports(self, msg: RaiMessage):
         if not isinstance(msg.channel, discord.Thread):
             await asyncio.sleep(1)
@@ -295,9 +294,6 @@ class Message(commands.Cog):
     # ### Add to MessageQueue
     @on_message_function()
     async def add_to_message_queue(self, msg: RaiMessage):
-        if not getattr(self.bot, "message_queue", None):
-            self.bot.message_queue = hf.MessageQueue(maxlen=50000)
-        
         # only add messages to queue for servers that have edited messages or deleted messages logging enabled
         if not any([self.bot.db['deletes'].get(str(msg.guild.id), {}).get('enable', False),
                     self.bot.db['edits'].get(str(msg.guild.id), {}).get('enable', False)]):
