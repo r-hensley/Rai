@@ -379,10 +379,24 @@ class Owner(commands.Cog):
             if cog in ['hf', 'helper_function']:
                 try:
                     importlib.reload(sys.modules['cogs.utils.helper_functions'])
-                    hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
                 except Exception as e:
                     await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
                 else:
+                    hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+                    if hasattr(self.bot, "profiling_decorators"):
+                        # looks like cogs.message, cogs.events, etc
+                        decorators = self.bot.profiling_decorators.copy()
+                        self.bot.profiling_decorators = set()  # reset set to allow potentially for removal of old ones
+                        for decorator_cog in decorators:
+                            try:
+                                await self.bot.reload_extension(decorator_cog)
+                            except Exception as e:
+                                await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                            else:
+                                await utils.safe_send(ctx,
+                                                      f'**`{decorator_cog}: SUCCESS`** (decorator follow-up)',
+                                                      delete_after=5.0)
+                           
                     await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
 
             elif cog == 'utils':
