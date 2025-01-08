@@ -17,8 +17,7 @@ class Background(commands.Cog):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.check_heartbeat,
-                             self.purposeful_block}
+                             self.check_downed_tasks, self.save_db}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
