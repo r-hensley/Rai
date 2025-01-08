@@ -110,10 +110,14 @@ class Rai(Bot):
     async def setup_hook(self):
         utils.load_db(self, 'db')
         utils.load_db(self, 'stats')
+        
+        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+        utils.setup(bot=self, loop=asyncio.get_event_loop())
 
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
-                              'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv']
+                              'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
+                              'cogs.dictionary']
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:
@@ -130,8 +134,7 @@ class Rai(Bot):
 
         await create_database_tables()
 
-        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
-        utils.setup(bot=self, loop=asyncio.get_event_loop())
+        
 
 
 def run_bot():
