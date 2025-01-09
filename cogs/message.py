@@ -142,6 +142,13 @@ class Message(commands.Cog):
                 continue
             if (not rai_message.guild) and (not func_info['allow_dms']):
                 continue
+            # ignore any non-standard discord user messages
+            if rai_message.webhook_id:
+                continue
+            if not rai_message.type in [discord.MessageType.default, discord.MessageType.reply]:
+                continue
+            if rai_message.guild and not isinstance(rai_message.author, discord.Member):
+                continue
             t1 = time.monotonic()
             await func_info['func'](self, rai_message)
             t2 = time.monotonic()
