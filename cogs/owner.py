@@ -498,7 +498,9 @@ class Owner(commands.Cog):
         # noinspection PyBroadException
         try:
             with redirect_stdout(stdout):
-                ret = await func()
+                ret = await asyncio.wait_for(func(), 2)
+        except asyncio.TimeoutError:
+            return await utils.safe_send(ctx, 'Evaluation timed out.')
         except Exception as _:
             value = stdout.getvalue()
             to_send = f'\n{value}{traceback.format_exc()}\n'
