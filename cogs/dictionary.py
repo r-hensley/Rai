@@ -8,6 +8,8 @@ import discord
 from bs4 import BeautifulSoup
 from discord.ext import commands
 
+import re
+
 from cogs.utils.BotUtils import bot_utils as utils
 
 class Dictionary(commands.Cog):
@@ -33,8 +35,8 @@ class Dictionary(commands.Cog):
         logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
         # noinspection PyUnresolvedReferences
-        word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        url = f"https://dle.rae.es/{word}/"
+        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
+        url = f"https://dle.rae.es/{formatted_word}/"
         headers = OrderedDict({
             'Host': "dle.rae.es",
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0'
@@ -73,36 +75,21 @@ class Dictionary(commands.Cog):
         for footer_item in footer:
             footer_item.decompose()
 
-        # Remove the examples (to be fixed)
+        # Find all elements with the 'h' class (They're example sentences)
         examples = article.find_all("span", class_="h")
+        # Directly wrap the content with asterisks to italicize it
         for example in examples:
-            example.decompose()
+            example_text = example.get_text(strip=False)
+            example.string = f"*{example_text}*"
 
-        # Iterate through each list item
+            # Iterate through each list item
         for i, definition_item in enumerate(
                 definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]),
                 start=1):
-            abbr = definition_item.find_all("abbr", class_=["g", "d", "c"])
-            # Exclude specific titles
-            filtered_abbr = [
-                ab for ab in abbr
-                if not any(ab.get("title", "").startswith(exclude) for exclude in
-                           ["usado también como", "Usado también como", "usado más como", "Usado más como",
-                            "Por extensión", "por extensión", "Aplicado a", "aplicado a"])
-            ]
-            abbr_text = " ".join([ab.text.strip() for ab in filtered_abbr]) if filtered_abbr else ""
-
-            # Remove the number before the definition
-            numbers = definition_item.find_all("span", class_="n_acep")
-            for number in numbers:
-                number.decompose()
-
-            # Extract the main definition text
-            definition_text = str(i) + ". " + abbr_text + " " + " ".join(
-                span.text.strip() for span in definition_item.find_all(["span", "a"])
-            )
-
-            definitions.append(definition_text + ".")
+            definition_text = ' '.join(definition_item.stripped_strings)
+            # Remove extra spaces before periods and commas
+            definition_text = re.sub(r'\s+([.,])', r'\1', definition_text)
+            definitions.append(definition_text)
 
         final_result = "\n".join(definitions)
 
