@@ -9,13 +9,68 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 
 import re
+import asyncio
 
 from cogs.utils.BotUtils import bot_utils as utils
+
+# Silence asyncio warnings
+logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 class Dictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        
+
+    async def send_embeds(self, ctx, embeds, copyright_text):
+        if not embeds:
+            return
+
+        # Send the embed without any reactions if there is only a single page
+        if len(embeds) == 1:
+            embed = embeds[0]
+            embed.set_footer(text=f"Page 1 of 1 | {copyright_text} | Command by jobcuenca")
+            await utils.safe_reply(ctx, embed=embed)
+            return
+
+        current_page = 0
+
+        #Set footer for the first page
+        embed = embeds[current_page]
+        embed.set_footer(text=f"Page {current_page + 1} of {len(embeds)} | {copyright_text} | Command by jobcuenca")
+
+        message = await utils.safe_reply(ctx, embed=embeds[current_page])
+
+        # Add navigation reactions
+        await message.add_reaction("⬅️")  # Previous
+        await message.add_reaction("➡️")  # Next
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+
+                # Remove user reaction to keep it clean
+                await message.remove_reaction(reaction.emoji, user)
+
+                if str(reaction.emoji) == "⬅️" and current_page > 0:
+                    current_page -= 1
+                elif str(reaction.emoji) == "➡️" and current_page < len(embeds) - 1:
+                    current_page += 1
+
+                embed = embeds[current_page]
+
+                # Update page number in footer
+                embed.set_footer(text=f"Page {current_page+1} of {len(embeds)} | {copyright_text} | Command by jobcuenca")
+
+                await message.edit(embed=embeds[current_page])
+
+            except asyncio.TimeoutError:
+                break
+
+        # Clean up reactions after timeout
+        await message.clear_reactions()
+
     @commands.command(aliases=['rae'])
     async def get_rae_results(self, ctx, *, word: str):
         """
@@ -46,61 +101,61 @@ class Dictionary(commands.Cog):
         resp = await urlopen_task
         webpage = resp.read()
         soup = BeautifulSoup(webpage, "lxml")
+        articles = soup.find_all('article', class_="o-main__article")
 
         # Check if the word exists by looking for the main article
-        if soup:
-            main_article = soup.find("article",
-                                     class_="o-main__article")
-            if not main_article:
-                embedded_error = discord.Embed(
-                    title="Palabra no encontrada",
-                    description=f'La palabra `{word}` no existe en el diccionario. '
-                                f'Por favor verifique que la palabra esté escrita correctamente.',
-                    color=0xFF5733
-                )
-                await utils.safe_reply(ctx, embed=embedded_error)
-                return
+        if not articles:
+            embedded_error = discord.Embed(
+                title="Palabra no encontrada",
+                description=f'La palabra `{word}` no existe en el diccionario. '
+                            f'Por favor verifique que la palabra esté escrita correctamente.',
+                color=0xFF5733
+            )
+            await utils.safe_reply(ctx, embed=embedded_error)
+            return
 
-        article = soup.find("article")
-        title = article.find("h1", class_="c-page-header__title").text.strip()
-        definitions = []
         # in headers: <meta name="rights" content="Real Academia Española © Todos los derechos reservados">
         copyright_text = resp.headers.get("rights", "Real Academia Española © Todos los derechos reservados")
 
-        # Find the ordered list containing definitions
-        definitions_list = article.find("ol", class_="c-definitions")
+        embeds = []
 
-        # Remove the entire footer section (with synonyms, etc.)
-        footer = article.find_all("div", class_="c-definitions__item-footer")
-        for footer_item in footer:
-            footer_item.decompose()
+        for i, article in enumerate(articles, start=1):
+            title = article.find("h1", class_="c-page-header__title").text.strip()
+            definitions = []
 
-        # Find all elements with the 'h' class (They're example sentences)
-        examples = article.find_all("span", class_="h")
-        # Directly wrap the content with asterisks to italicize it
-        for example in examples:
-            example_text = example.get_text(strip=False)
-            example.string = f"*{example_text}*"
+            # Find the ordered list containing definitions
+            definitions_list = article.find("ol", class_="c-definitions")
 
-            # Iterate through each list item
-        for i, definition_item in enumerate(
-                definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]),
-                start=1):
-            definition_text = ' '.join(definition_item.stripped_strings)
-            # Remove extra spaces before periods and commas
-            definition_text = re.sub(r'\s+([.,])', r'\1', definition_text)
-            definitions.append(definition_text)
+            # Remove the entire footer section (with synonyms, etc.)
+            footer = article.find_all("div", class_="c-definitions__item-footer")
+            for footer_item in footer:
+                footer_item.decompose()
 
-        final_result = "\n".join(definitions)
+            # Find all elements with the 'h' class (They're example sentences)
+            examples = article.find_all("span", class_="h")
+            # Directly wrap the content with asterisks to italicize it
+            for example in examples:
+                example_text = example.get_text(strip=False)
+                example.string = f"*{example_text}*"
 
-        embedded_result = discord.Embed(title=title, url=url,
-                                        description=f'{final_result}',
-                                        color=discord.Color.blue())
-        
-        embedded_result.set_footer(text=f"{copyright_text} | Command by jobcuenca",)
+                # Iterate through each list item
+            for i, definition_item in enumerate(
+                    definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]),
+                    start=1):
+                definition_text = ' '.join(definition_item.stripped_strings)
+                # Remove extra spaces before periods and commas
+                definition_text = re.sub(r'\s+([.,)|])', r'\1', definition_text)
+                definitions.append(definition_text)
 
-        await utils.safe_reply(ctx, embed=embedded_result)
+            final_result = "\n".join(definitions)
+
+            embedded_result = discord.Embed(title=title, url=url,
+                                            description=f'{final_result}',
+                                            color=discord.Color.blue())
+
+            embeds.append(embedded_result)
+
+        await self.send_embeds(ctx, embeds, copyright_text)
 
 async def setup(bot):
     await bot.add_cog(Dictionary(bot))
-        
