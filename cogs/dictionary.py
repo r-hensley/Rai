@@ -21,47 +21,75 @@ class Dictionary(commands.Cog):
         self.bot = bot
 
     async def send_embeds(self, ctx, embeds, copyright_text):
+        timeout = 45
         if not embeds:
             return
 
         # Send the embed without any reactions if there is only a single page
         if len(embeds) == 1:
             embed = embeds[0]
-            embed.set_footer(text=f"Page 1 of 1 | {copyright_text} | Command by jobcuenca")
-            await utils.safe_reply(ctx, embed=embed)
+            embed.set_footer(text=f"Página 1 de 1 | {copyright_text} | Comando de jobcuenca")
+            message = await utils.safe_reply(ctx, embed=embed)
+
+            await message.add_reaction("❌")  # Close/delete
+
+            def check(reaction, reactor):
+                return reactor == ctx.author and str(reaction.emoji) == "❌" and reaction.message.id == message.id
+
+            while True:
+                try:
+                    reactions, user = await self.bot.wait_for("reaction_add", timeout=timeout, check=check)
+
+                    # Remove user reaction to keep it clean
+                    await message.remove_reaction(reactions.emoji, user)
+
+                    if str(reactions.emoji) == "❌":
+                        message = await message.delete()
+                        return
+
+                except asyncio.TimeoutError:
+                    break
+
+            # Clean up reactions after timeout
+            await message.clear_reactions()
             return
 
         current_page = 0
 
-        #Set footer for the first page
+        # Set footer for the first page
         embed = embeds[current_page]
-        embed.set_footer(text=f"Page {current_page + 1} of {len(embeds)} | {copyright_text} | Command by jobcuenca")
+        embed.set_footer(text=f"Página {current_page + 1} de {len(embeds)} | {copyright_text} | Comando de jobcuenca")
 
         message = await utils.safe_reply(ctx, embed=embeds[current_page])
 
         # Add navigation reactions
         await message.add_reaction("⬅️")  # Previous
         await message.add_reaction("➡️")  # Next
+        await message.add_reaction("❌")  # Close/delete
 
-        def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
+        def check(reaction, reactor):
+            return reactor == ctx.author and str(reaction.emoji) in ["⬅️", "➡️", "❌"] and reaction.message.id == message.id
 
         while True:
             try:
-                reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+                reactions, user = await self.bot.wait_for("reaction_add", timeout=timeout, check=check)
 
                 # Remove user reaction to keep it clean
-                await message.remove_reaction(reaction.emoji, user)
+                await message.remove_reaction(reactions.emoji, user)
 
-                if str(reaction.emoji) == "⬅️" and current_page > 0:
+                if str(reactions.emoji) == "⬅️" and current_page > 0:
                     current_page -= 1
-                elif str(reaction.emoji) == "➡️" and current_page < len(embeds) - 1:
+                elif str(reactions.emoji) == "➡️" and current_page < len(embeds) - 1:
                     current_page += 1
+                elif str(reactions.emoji) == "❌":
+                    message = await message.delete()
+                    return
 
                 embed = embeds[current_page]
 
                 # Update page number in footer
-                embed.set_footer(text=f"Page {current_page+1} of {len(embeds)} | {copyright_text} | Command by jobcuenca")
+                embed.set_footer(
+                    text=f"Página {current_page + 1} de {len(embeds)} | {copyright_text} | Comando de jobcuenca")
 
                 await message.edit(embed=embeds[current_page])
 
