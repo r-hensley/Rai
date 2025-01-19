@@ -233,6 +233,7 @@ class Main(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        print("command error", ctx, error)
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
             await ctx.send("Failed to find the object you tried to look up.  Please try again")
@@ -382,10 +383,13 @@ class Main(commands.Cog):
 
         await utils.send_error_embed(self.bot, ctx, error, e)
 
+    @commands.Cog.listener()
     async def on_error(self, event, *args, **kwargs):
         e = discord.Embed(title='Event Error', colour=0xa32952)
         e.add_field(name='Event', value=str(event)[:1024])
         e.timestamp = discord.utils.utcnow()
+        await hf.send_to_test_channel(f"on_error, "
+                                      f"{(type(args[0]), isinstance(args[0], discord.Message)) if args else ''}")
 
         args_str = ['```py']
         jump_url = ''
