@@ -21,7 +21,7 @@ class Dictionary(commands.Cog):
         self.bot = bot
 
     async def send_embeds(self, ctx, embeds, copyright_text):
-        timeout = 45
+        timeout = 60
         if not embeds:
             return
 
@@ -166,7 +166,7 @@ class Dictionary(commands.Cog):
                 example_text = example.get_text(strip=False)
                 example.string = f"*{example_text}*"
 
-                # Iterate through each list item
+            # Iterate through each list item
             for i, definition_item in enumerate(
                     definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]),
                     start=1):
@@ -175,13 +175,19 @@ class Dictionary(commands.Cog):
                 definition_text = re.sub(r'\s+([.,)|])', r'\1', definition_text)
                 definitions.append(definition_text)
 
-            final_result = "\n".join(definitions)
+            # Split an article into multiple pages/embeds if the number of entries exceeds 10
+            chunk_size = 10
+            chunks = [definitions[i:i + chunk_size] for i in range(0, len(definitions), chunk_size)]
 
-            embedded_result = discord.Embed(title=title, url=url,
-                                            description=f'{final_result}',
-                                            color=discord.Color.blue())
-
-            embeds.append(embedded_result)
+            for i, chunk in enumerate(chunks):
+                description = "\n".join(chunk)
+                embed = discord.Embed(
+                    title=title,
+                    url=url,
+                    description=description,
+                    color=discord.Color.blue()
+                )
+                embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, copyright_text)
 
