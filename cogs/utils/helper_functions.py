@@ -1079,8 +1079,27 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
         return message
 
 
-from typing import List, Optional
-from datetime import datetime
+class RaiMessage(discord.Message):
+    # noinspection PyMissingConstructor
+    def __init__(self, discord_message: discord.Message):
+        # Wrap the original discord.Message
+        self.discord_message = discord_message
+        
+        # Add custom attributes
+        self.ctx: Optional[commands.Context] = None
+        self.lang: Optional[str] = None  # en, sp, None
+        self.hardcore: Optional[bool] = None
+    
+    def __getattr__(self, name):
+        """
+        Delegate attribute access to the wrapped discord_message.
+
+        This is only called when the attribute is not found in RaiMessage.
+        For example:
+        - "msg.lang" returns this class's attribute.
+        - "msg.author" returns "self.discord_message.author".
+        """
+        return getattr(self.discord_message, name)
 
 
 class MiniMessage:
