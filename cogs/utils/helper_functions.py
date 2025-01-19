@@ -8,6 +8,7 @@ import os
 import pstats
 import re
 import sys
+import time
 import unittest
 from collections import deque
 
@@ -39,7 +40,8 @@ dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fi
 
 class Here:
     def __init__(self):
-        self.bot: Optional[commands.Bot] = None
+        from Rai import Rai
+        self.bot: Optional[Rai] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
 
 here = Here()
@@ -55,7 +57,7 @@ SP_SERV_GUILD = discord.Object(SP_SERV_ID)
 JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 
-def setup(bot: commands.Bot, loop: asyncio.AbstractEventLoop):
+def setup(bot, loop: asyncio.AbstractEventLoop):
     """This command is run in the setup_hook function in Rai.py"""
     global here
     if here.bot is None:
@@ -242,8 +244,8 @@ def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) ->
     voice_time_minutes: int = 0
     for day in voice_config:
         if str(member_id) in voice_config[day]:
-            time = voice_config[day][str(member_id)]
-            voice_time_minutes += time
+            day_voice_time = voice_config[day][str(member_id)]
+            voice_time_minutes += day_voice_time
     voice_time_seconds = voice_time_minutes * 60
     return voice_time_seconds
 
@@ -328,16 +330,16 @@ def add_to_modlog(ctx: Optional[commands.Context],
     return config
 
 
-def parse_time(time: str) -> Tuple[str, list[int]]:
+def parse_time(time_in: str) -> Tuple[str, list[int]]:
     """
     Parses time from a string and returns a datetime formatted string plus a number of days and hours
-    :param time: a string like "2d3h" or "10h"
+    :param time_in: a string like "2d3h" or "10h"
     :return: Two things:
     - *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
     - *length*: a list with ints [days, hours, minutes]
     """
     time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$',
-                        time)  # group 2, 4, 6, 8: years, days, hours, minutes
+                        time_in)  # group 2, 4, 6, 8: years, days, hours, minutes
     if time_re:
         if years := time_re.group(2):
             years: int = int(years)
@@ -945,7 +947,6 @@ def text_to_file(text: str, filename) -> discord.File:
 async def send_attachments_to_thread_on_message(log_message: discord.Message, attachments_message: discord.Message):
     """This command creates a thread on a log message and uploads all the attachments from an "attachment_message"
     to a thread on the log message"""
-    thread = None
     files = []
     embed_urls = []
     if attachments_message.attachments:
@@ -1079,8 +1080,27 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
         return message
 
 
-from typing import List, Optional
-from datetime import datetime
+class RaiMessage(discord.Message):
+    # noinspection PyMissingConstructor
+    def __init__(self, discord_message: discord.Message):
+        # Wrap the original discord.Message
+        self.discord_message = discord_message
+        
+        # Add custom attributes
+        self.ctx: Optional[commands.Context] = None
+        self.lang: Optional[str] = None  # en, sp, None
+        self.hardcore: Optional[bool] = None
+    
+    def __getattr__(self, name):
+        """
+        Delegate attribute access to the wrapped discord_message.
+
+        This is only called when the attribute is not found in RaiMessage.
+        For example:
+        - "msg.lang" returns this class's attribute.
+        - "msg.author" returns "self.discord_message.author".
+        """
+        return getattr(self.discord_message, name)
 
 
 class MiniMessage:
@@ -1632,3 +1652,22 @@ def profileit(sleep_time: float = 0.0):
         return async_wrapper if asyncio.iscoroutinefunction(func) else func
     
     return decorator
+
+def basic_timer(func):
+    @wraps(func)
+    async def async_wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        retval = await func(*args, **kwargs)
+        end = time.perf_counter()
+        print(f"{func.__name__} took {end - start:.3f}s (basic_timer)")
+        return retval
+    
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        retval = func(*args, **kwargs)
+        end = time.perf_counter()
+        print(f"{func.__name__} took {end - start:.3f}s (basic_timer)")
+        return retval
+    
+    return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper

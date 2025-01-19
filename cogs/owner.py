@@ -1,5 +1,6 @@
 import textwrap
 import asyncio
+import time
 import traceback
 import io
 import sys
@@ -381,7 +382,7 @@ class Owner(commands.Cog):
                 try:
                     importlib.reload(sys.modules['cogs.utils.helper_functions'])
                 except Exception as e:
-                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                    await self.reload_error(ctx, cog, e)
                 else:
                     hf.setup(bot=self.bot, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
                     if hasattr(self.bot, "profiling_decorators"):
@@ -392,13 +393,13 @@ class Owner(commands.Cog):
                             try:
                                 await self.bot.reload_extension(decorator_cog)
                             except Exception as e:
-                                await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                                await self.reload_error(ctx, decorator_cog, e)
                             else:
                                 await utils.safe_send(ctx,
                                                       f'**`{decorator_cog}: SUCCESS`** (decorator follow-up)',
                                                       delete_after=5.0)
                            
-                    await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
+                    await self.reload_success(ctx, cog)
 
             elif cog == 'utils':
                 # reload file in cogs/utils/BotUtils/bot_utils.py
@@ -406,9 +407,9 @@ class Owner(commands.Cog):
                     importlib.reload(sys.modules['cogs.utils.BotUtils.bot_utils'])
                     utils.setup(bot=self.bot, loop=asyncio.get_event_loop())
                 except Exception as e:
-                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                    await self.reload_error(ctx, cog, e)
                 else:
-                    await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
+                    await self.reload_success(ctx, cog)
 
             else:
                 try:
@@ -417,9 +418,22 @@ class Owner(commands.Cog):
                         sync = self.bot.get_command('sync')
                         await ctx.invoke(sync)
                 except Exception as e:
-                    await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
+                    print(ctx, cog, e)
+                    await self.reload_error(ctx, cog, e)
                 else:
-                    await utils.safe_send(ctx, f' **`{cog}: SUCCESS`**', delete_after=5.0)
+                    await self.reload_success(ctx, cog)
+                  
+    @staticmethod
+    async def reload_success(ctx, cog):
+        await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
+        
+    @staticmethod
+    async def reload_error(ctx, cog, e):
+        err = traceback.format_exc()
+        err_first_line = f'{cog} - **`ERROR:`** {type(e).__name__} - {e}\n'
+        remaining_char = 1990 - len(err_first_line)
+        err = err_first_line + f"```py\n{err[:remaining_char]}```"
+        await utils.safe_send(ctx, err)
 
     @staticmethod
     def cleanup_code(content):  # credit Danny
@@ -498,7 +512,9 @@ class Owner(commands.Cog):
         # noinspection PyBroadException
         try:
             with redirect_stdout(stdout):
-                ret = await func()
+                ret = await asyncio.wait_for(func(), 2)
+        except asyncio.TimeoutError:
+            return await utils.safe_send(ctx, 'Evaluation timed out.')
         except Exception as _:
             value = stdout.getvalue()
             to_send = f'\n{value}{traceback.format_exc()}\n'
@@ -974,7 +990,6 @@ class Owner(commands.Cog):
             plot_buffer.seek(0)
             await ctx.send(file=discord.File(plot_buffer, "bans_plot.png"))
         plt.close()
-
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))

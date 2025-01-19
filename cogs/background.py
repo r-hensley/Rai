@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import time
 
 from datetime import datetime, timezone
 import traceback
@@ -17,7 +18,7 @@ class Background(commands.Cog):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db}
+                             self.check_downed_tasks, self.save_db, self.heartbeat_check}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -315,6 +316,15 @@ class Background(commands.Cog):
     @delete_old_stats_days.error
     async def delete_old_stats_days_error(self, error):
         await self.handle_error(error)
+        
+    @tasks.loop(seconds=5)
+    async def heartbeat_check(self):
+        t1 = time.perf_counter()
+        for _ in range(8):
+            await asyncio.sleep(0.25)
+        t2 = time.perf_counter()
+        if t2 - t1 > 2.1:
+            print(f"heartbeat took {t2 - t1:.3f} seconds")
     
 
 async def setup(bot):
