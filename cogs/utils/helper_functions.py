@@ -1653,21 +1653,28 @@ def profileit(sleep_time: float = 0.0):
     
     return decorator
 
-def basic_timer(func):
-    @wraps(func)
-    async def async_wrapper(*args, **kwargs):
-        start = time.perf_counter()
-        retval = await func(*args, **kwargs)
-        end = time.perf_counter()
-        print(f"{func.__name__} took {end - start:.3f}s (basic_timer)")
-        return retval
+def basic_timer(time_allowance: float = 0):
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            retval = await func(*args, **kwargs)
+            end = time.perf_counter()
+            diff = end - start
+            if diff > time_allowance:
+                print(f"{func.__name__} took {diff:.3f}s (basic_timer)")
+            return retval
+        
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            retval = func(*args, **kwargs)
+            end = time.perf_counter()
+            diff = end - start
+            if diff > time_allowance:
+                print(f"{func.__name__} took {diff:.3f}s (basic_timer)")
+            return retval
+        
+        return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
     
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start = time.perf_counter()
-        retval = func(*args, **kwargs)
-        end = time.perf_counter()
-        print(f"{func.__name__} took {end - start:.3f}s (basic_timer)")
-        return retval
-    
-    return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
+    return decorator
