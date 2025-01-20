@@ -1,6 +1,5 @@
 import textwrap
 import asyncio
-import time
 import traceback
 import io
 import sys
@@ -14,7 +13,6 @@ from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run
 from contextlib import redirect_stdout
-from ast import literal_eval
 from typing import Union
 
 import discord
@@ -895,13 +893,6 @@ class Owner(commands.Cog):
     @commands.command()
     async def mostbansdate(self, ctx: commands.Context):
         """Finds the date of the most bans"""
-        
-        from collections import Counter
-        import discord
-        import io
-        from datetime import timedelta
-        import matplotlib.pyplot as plt
-        
         seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
         daily_bans = Counter()
         
