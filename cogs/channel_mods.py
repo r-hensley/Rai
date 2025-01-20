@@ -746,7 +746,7 @@ class ChannelMods(commands.Cog):
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    @hf.basic_timer
+    @hf.basic_timer(0.5)
     async def modlog(self, ctx: commands.Context, id_in, delete_parameter: Optional[int] = None, post_embed=True):
         """View modlog of a user"""
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:

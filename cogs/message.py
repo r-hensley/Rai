@@ -100,6 +100,7 @@ class Message(commands.Cog):
         # self.other_tasks = self.all_tasks - self.self_tasks - self.bot_tasks - self.dm_tasks
     
     @commands.Cog.listener()
+    @hf.basic_timer(1)
     async def on_message(self, msg_in: discord.Message):
         rai_message = hf.RaiMessage(msg_in)
         try:
