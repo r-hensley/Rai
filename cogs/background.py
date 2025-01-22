@@ -97,17 +97,17 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
-        if getattr(self.bot, 'db', None):
+        if getattr(self.bot, 'db', None) is not None:
             await utils.dump_json('db')
         else:
             print("main database not yet fully loaded, so skipping db saving")
         
-        if getattr(self.bot, 'stats', None):
+        if getattr(self.bot, 'stats', None) is not None:
             await utils.dump_json('stats')
         else:
             print("stats database not yet fully loaded, so skipping stats saving")
             
-        if getattr(self.bot, 'message_queue', None):
+        if getattr(self.bot, 'message_queue', None) is not None:
             await utils.dump_json('message_queue')
         else:
             print("message queue not yet fully loaded, so skipping message queue saving")
