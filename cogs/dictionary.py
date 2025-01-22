@@ -285,7 +285,7 @@ class Dictionary(commands.Cog):
 
         await self.send_embeds(ctx, embeds, copyright_text)
 
-    @commands.command(aliases=['raesyn'])
+    @commands.command(aliases=['raesin'])
     async def get_rae_syn_results(self, ctx, *, word: str):
         """
         Look up synonyms of a word from the Real Academia Española dictionary.
