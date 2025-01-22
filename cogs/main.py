@@ -388,23 +388,41 @@ class Main(commands.Cog):
         e = discord.Embed(title='Event Error', colour=0xa32952)
         e.add_field(name='Event', value=str(event)[:1024])
         e.timestamp = discord.utils.utcnow()
-        await hf.send_to_test_channel(f"on_error, "
-                                      f"{(type(args[0]), isinstance(args[0], discord.Message)) if args else ''}")
-
-        args_str = ['```py']
+        args_str = []
         jump_url = ''
+        extra_info = {}
         for index, arg in enumerate(args):
             args_str.append(f'[{index}]: {arg!r}')
+            
+            # try to find some useful information in the args
             if isinstance(arg, discord.Message):
-                e.add_field(name="Author", value=f'{arg.author} (ID: {arg.author.id})'[:1024])
-                fmt = f'Channel: {arg.channel} (ID: {arg.channel.id})'
-                if arg.guild:
-                    fmt = f'{fmt}\nGuild: {arg.guild} (ID: {arg.guild.id})'
-                e.add_field(name='Location', value=fmt[:1024], inline=False)
+                extra_info['author_id'] = arg.author.id
+                extra_info['channel_id'] = arg.channel.id
+                if arg.guild: extra_info['guild_id'] = arg.guild.id
                 jump_url = arg.jump_url
+            else:
+                if hasattr(arg, 'guild_id'):
+                    extra_info['guild_id'] = arg.guild_id
+                if hasattr(arg, 'channel_id'):
+                    extra_info['channel_id'] = arg.channel_id
+                if hasattr(arg, 'author_id'):
+                    extra_info['author_id'] = arg.author_id
+                    
+        if 'guild_id' in extra_info:
+            guild = self.bot.get_guild(extra_info['guild_id'])
+            e.add_field(name='Guild', value=f'{guild.__repr__()}'[:1024], inline=False)
+        if 'author_id' in extra_info:
+            author = self.bot.get_user(extra_info['author_id'])
+            e.add_field(name='Author', value=f'{author.__repr__()}'[:1024], inline=False)
+        if 'channel_id' in extra_info:
+            channel = self.bot.get_channel(extra_info['channel_id'])
+            e.add_field(name='Channel', value=f'{channel.__repr__()}'[:1024], inline=False)
+            
         joined_args_str = '\n'.join(args_str)
-        joined_args_str = joined_args_str[:1021] + '```'
-        e.add_field(name='Args', value=joined_args_str[:1024], inline=False)
+        args_str_segments = hf.split_text_into_segments(joined_args_str, 1014)
+        for segment in args_str_segments[:5]:
+            if len(segment) + len(e) < 5980:
+                e.add_field(name='Args', value=f"```py\n{segment}```", inline=False)
         
         message_content = f'{traceback.format_exc()}'
         message_content_list = hf.split_text_into_segments(message_content, 1900)
