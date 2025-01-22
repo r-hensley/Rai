@@ -392,16 +392,20 @@ class ChannelMods(commands.Cog):
                 await utils.safe_reply(ctx, "Please provide a link to the evidence.")
                 return
         else:
-            # there were multiple arguments passed
-            user_id_str, *evidence = split_args
-            evidence = ' '.join(evidence)
+            # there were multiple arguments passed, first was ID, rest was evidence
+            # take just the evidence
+            user_id_str, *_ = split_args
+            # remove the ID from the original args string, and then use that over the split verison (to preserve new
+            # lines inserted in original command invocation)
+            args_without_id = args[len(user_id_str) + 1:]
+            evidence = args_without_id
 
         # check to make sure the ID is actually an ID
         if not re.match(r'^\d{17,22}$', user_id_str):
             possible_id = await self.check_for_id_reference(ctx)
             if possible_id:
                 user_id = possible_id
-                evidence = ' '.join(split_args)
+                evidence = args
             else:
                 await utils.safe_reply(ctx, "Please provide a valid user ID.")
                 return
@@ -424,6 +428,7 @@ class ChannelMods(commands.Cog):
         if url:
             most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)"
         else:
+            evidence = evidence.replace('\n', '\n  ')
             most_recent_log['reason'] += f"\n- {evidence}"
 
         await utils.safe_reply(ctx.message, f"Added evidence to the last log for {user_id} (<@{user_id}>). "
