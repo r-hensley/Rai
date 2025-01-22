@@ -1085,12 +1085,14 @@ class RaiMessage(discord.Message):
     def __init__(self, discord_message: discord.Message):
         # Wrap the original discord.Message
         self.discord_message = discord_message
-        
+
         # Add custom attributes
-        self.ctx: Optional[commands.Context] = None
+        self._lock = asyncio.Lock()  # Lock for thread safety
+        self._ctx: Optional[commands.Context] = None  # None if not fetched
+        self._error_fetching_ctx = False
         self.lang: Optional[str] = None  # en, sp, None
         self.hardcore: Optional[bool] = None
-    
+
     def __getattr__(self, name):
         """
         Delegate attribute access to the wrapped discord_message.
@@ -1101,6 +1103,31 @@ class RaiMessage(discord.Message):
         - "msg.author" returns "self.discord_message.author".
         """
         return getattr(self.discord_message, name)
+
+    @property
+    def ctx(self):
+        """
+        Non-async property to access the context. Throws an error if _ctx is not initialized.
+        """
+        if self._error_fetching_ctx:
+            return None
+        if self._ctx is None:
+            raise ValueError("Context has not been initialized. Call `await get_ctx()` first.")
+        return self._ctx
+
+    async def get_ctx(self):
+        """
+        Asynchronously fetch and initialize the context if it hasn't been initialized yet.
+        """
+        if self._ctx is None and not self._error_fetching_ctx:
+            async with self._lock:
+                if self._ctx is None:  # Double-check inside the lock
+                    try:
+                        self._ctx = await here.bot.get_context(self.discord_message)
+                    except Exception as e:
+                        self._ctx = None
+                        self._error_fetching_ctx = True
+                        raise
 
 
 class MiniMessage:
