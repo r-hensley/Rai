@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from collections import defaultdict
 from datetime import timedelta, datetime
 from typing import Optional
 
@@ -883,28 +884,6 @@ class Events(commands.Cog):
 
         date_str = discord.utils.utcnow().strftime("%Y%m%d")
         config[date_str] = config.setdefault(date_str, 0) + 1
-        
-        if not hasattr(self.bot, 'command_times'):
-            self.bot.command_times = {}
-        
-        cmd_str = hash((ctx.command.qualified_name, ctx.author.id, ctx.message.created_at.timestamp()))
-        if cmd_str not in self.bot.command_times:
-            self.bot.command_times[cmd_str] = discord.utils.utcnow().timestamp()
-        
-    @commands.Cog.listener()
-    async def on_command_completion(self, ctx: commands.Context):
-        """Check timing for commands"""
-        if not hasattr(self.bot, 'command_times'):
-            self.bot.command_times = {}
-        
-        cmd_str = hash((ctx.command.qualified_name, ctx.author.id, ctx.message.created_at.timestamp()))
-        if cmd_str not in self.bot.command_times:
-            return
-        
-        elapsed_time = discord.utils.utcnow().timestamp() - self.bot.command_times[cmd_str]
-        del self.bot.command_times[cmd_str]
-        if elapsed_time > 1:
-            print(f"Command {ctx.command.qualified_name} took {elapsed_time} seconds.")
         
 
     @commands.Cog.listener()

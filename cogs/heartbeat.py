@@ -123,6 +123,40 @@ class HeartbeatMonitor(commands.Cog):
         # Enable the hook
         loop = asyncio.get_event_loop()
         loop.set_task_factory(task_creation_hook)
+    
+    @commands.Cog.listener()
+    async def on_command(self, ctx):
+        if not hasattr(self.bot, 'command_times'):
+            self.bot.command_times = {}
+        
+        cmd_str = str((ctx.command.qualified_name, ctx.author.id, ctx.message.created_at.timestamp()))
+        if cmd_str not in self.bot.command_times:
+            self.bot.command_times[cmd_str] = discord.utils.utcnow().timestamp()
+    
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx: commands.Context):
+        """Check timing for commands"""
+        if not hasattr(self.bot, 'command_times'):
+            self.bot.command_times = {}
+        
+        cmd_str = str((ctx.command.qualified_name, ctx.author.id, ctx.message.created_at.timestamp()))
+        if cmd_str not in self.bot.command_times:
+            return
+        
+        elapsed_time = discord.utils.utcnow().timestamp() - self.bot.command_times[cmd_str]
+        del self.bot.command_times[cmd_str]
+        if elapsed_time > 1:
+            print(f"Command {ctx.command.qualified_name} took {elapsed_time} seconds.")
+        
+        if not hasattr(self.bot, "event_times"):
+            self.bot.event_times = defaultdict(list)
+        latency = round(self.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
+        command_name = ctx.command.qualified_name
+        
+        self.bot.event_times[command_name].append((int(discord.utils.utcnow().timestamp()),
+                                                   latency,
+                                                   round(elapsed_time, 4)))
+
 
 async def setup(bot):
     await bot.add_cog(HeartbeatMonitor(bot))
