@@ -1,3 +1,4 @@
+import inspect
 import logging
 import urllib
 
@@ -9,95 +10,113 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 
 import re
-import asyncio
 
 from cogs.utils.BotUtils import bot_utils as utils
 
-# Silence asyncio warnings
-logging.getLogger("asyncio").setLevel(logging.ERROR)
+class PaginationView(discord.ui.View):
+    def __init__(self, embeds, copyright_text, author):
+        super().__init__(timeout=60)
+        self.embeds = embeds
+        self.copyright_text = copyright_text
+        self.author = author
+        self.current_page = 0
+        self.message = None
+
+        # Set initial buttons
+        self.update_buttons()
+
+    def update_buttons(self):
+        # Clear existing buttons
+        self.clear_items()
+
+        # Add navigation buttons if multiple pages
+        if len(self.embeds) > 1:
+            self.add_item(self.prev_button)
+            self.add_item(self.page_indicator)
+            self.add_item(self.next_button)
+
+        # Always add close button
+        self.add_item(self.close_button)
+
+        # Update button states
+        self.prev_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page == len(self.embeds) - 1
+
+    @discord.ui.button(label="◄", style=discord.ButtonStyle.gray)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await self.update_embed(interaction)
+
+    @discord.ui.button(label="✖", style=discord.ButtonStyle.red)
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="►", style=discord.ButtonStyle.gray)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.embeds) - 1:
+            self.current_page += 1
+            await self.update_embed(interaction)
+
+    @discord.ui.button(label="Página 1/1", style=discord.ButtonStyle.blurple, disabled=True)
+    async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass
+
+    async def update_embed(self, interaction):
+        # Update page indicator
+        self.page_indicator.label = f"Página {self.current_page + 1}/{len(self.embeds)}"
+
+        embed = self.embeds[self.current_page].copy()
+
+        # Update buttons state
+        self.update_buttons()
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Only allow the original author to interact
+        return interaction.user.id == self.author.id
+
+    async def on_timeout(self) -> None:
+        if self.message:
+            try:
+                # Remove all buttons after timeout
+                await self.message.edit(view=None)
+            except discord.NotFound:
+                pass
+        self.stop()
+
 
 class Dictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     async def send_embeds(self, ctx, embeds, copyright_text):
-        timeout = 60
+        caller_function = inspect.stack()[1].function
+
         if not embeds:
             return
 
-        # Send the embed without any reactions if there is only a single page
+        view = PaginationView(embeds, copyright_text, ctx.author)
+
+        # Prepare initial embed
+        initial_embed = embeds[0].copy()
+        initial_embed.set_footer(text=f"{copyright_text} | Comando de jobcuenca")
+
+        # Update page indicator label
+        view.page_indicator.label = f"Página 1/{len(embeds)}"
+
+        # Send message with view
         if len(embeds) == 1:
-            embed = embeds[0]
-            embed.set_footer(text=f"Página 1 de 1 | {copyright_text} | Comando de jobcuenca")
-            message = await utils.safe_reply(ctx, embed=embed)
+            # Disable navigation buttons for single page
+            view.prev_button.disabled = True
+            view.next_button.disabled = True
+            message = await utils.safe_send(ctx, embed=initial_embed, view=view)
+        else:
+            message = await utils.safe_send(ctx, embed=initial_embed, view=view)
 
-            await message.add_reaction("❌")  # Close/delete
-
-            def check(reaction, reactor):
-                return reactor == ctx.author and str(reaction.emoji) == "❌" and reaction.message.id == message.id
-
-            while True:
-                try:
-                    reactions, user = await self.bot.wait_for("reaction_add", timeout=timeout, check=check)
-
-                    # Remove user reaction to keep it clean
-                    await message.remove_reaction(reactions.emoji, user)
-
-                    if str(reactions.emoji) == "❌":
-                        message = await message.delete()
-                        return
-
-                except asyncio.TimeoutError:
-                    break
-
-            # Clean up reactions after timeout
-            await message.clear_reactions()
-            return
-
-        current_page = 0
-
-        # Set footer for the first page
-        embed = embeds[current_page]
-        embed.set_footer(text=f"Página {current_page + 1} de {len(embeds)} | {copyright_text} | Comando de jobcuenca")
-
-        message = await utils.safe_reply(ctx, embed=embeds[current_page])
-
-        # Add navigation reactions
-        await message.add_reaction("⬅️")  # Previous
-        await message.add_reaction("➡️")  # Next
-        await message.add_reaction("❌")  # Close/delete
-
-        def check(reaction, reactor):
-            return reactor == ctx.author and str(reaction.emoji) in ["⬅️", "➡️", "❌"] and reaction.message.id == message.id
-
-        while True:
-            try:
-                reactions, user = await self.bot.wait_for("reaction_add", timeout=timeout, check=check)
-
-                # Remove user reaction to keep it clean
-                await message.remove_reaction(reactions.emoji, user)
-
-                if str(reactions.emoji) == "⬅️" and current_page > 0:
-                    current_page -= 1
-                elif str(reactions.emoji) == "➡️" and current_page < len(embeds) - 1:
-                    current_page += 1
-                elif str(reactions.emoji) == "❌":
-                    message = await message.delete()
-                    return
-
-                embed = embeds[current_page]
-
-                # Update page number in footer
-                embed.set_footer(
-                    text=f"Página {current_page + 1} de {len(embeds)} | {copyright_text} | Comando de jobcuenca")
-
-                await message.edit(embed=embeds[current_page])
-
-            except asyncio.TimeoutError:
-                break
-
-        # Clean up reactions after timeout
-        await message.clear_reactions()
+        view.message = message
 
     async def fetch_rae_data(self, formatted_word: str):
         url = f"https://dle.rae.es/{formatted_word}/"
@@ -231,7 +250,6 @@ class Dictionary(commands.Cog):
         has_expressions = False
 
         for article in articles:
-
             title = article.find("h1", class_="c-page-header__title").text.strip()
             expressions = {}
 
@@ -320,7 +338,6 @@ class Dictionary(commands.Cog):
 
         embeds = []
         has_synonyms = False
-        has_antonyms = False
 
         for article in articles:
             synonyms = []
