@@ -13,30 +13,47 @@ import re
 
 from cogs.utils.BotUtils import bot_utils as utils
 
+# Silence asyncio warnings
+logging.getLogger("asyncio").setLevel(logging.ERROR)
+
 class PaginationView(discord.ui.View):
-    def __init__(self, embeds, copyright_text, author):
+    def __init__(self, embeds, copyright_text, author, caller_function, bot, ctx):
         super().__init__(timeout=60)
+        self.bot = bot
         self.embeds = embeds
         self.copyright_text = copyright_text
         self.author = author
         self.current_page = 0
         self.message = None
+        self.word = None
+        self.caller_function = caller_function
+        self.ctx = ctx
 
         # Set initial buttons
         self.update_buttons()
 
     def update_buttons(self):
+        buttons_map = {
+            "get_rae_def_results": [self.rae_exp_button, self.rae_syn_button, self.rae_ant_button],
+            "get_rae_exp_results": [self.rae_def_button, self.rae_syn_button, self.rae_ant_button],
+            "get_rae_syn_results": [self.rae_def_button, self.rae_exp_button, self.rae_ant_button],
+            "get_rae_ant_results": [self.rae_def_button, self.rae_exp_button, self.rae_syn_button]
+        }
         # Clear existing buttons
         self.clear_items()
 
-        # Add navigation buttons if multiple pages
-        if len(self.embeds) > 1:
-            self.add_item(self.prev_button)
-            self.add_item(self.page_indicator)
-            self.add_item(self.next_button)
-
-        # Always add close button
+        # Add navigation buttons
+        self.add_item(self.prev_button)
+        self.add_item(self.page_indicator)
+        self.add_item(self.next_button)
         self.add_item(self.close_button)
+
+        # Get the buttons for the current caller_function
+        buttons_to_add = buttons_map.get(self.caller_function, [])
+
+        for button in buttons_to_add:
+            button.row = 1
+            self.add_item(button)
 
         # Update button states
         self.prev_button.disabled = self.current_page == 0
@@ -59,13 +76,45 @@ class PaginationView(discord.ui.View):
             self.current_page += 1
             await self.update_embed(interaction)
 
-    @discord.ui.button(label="Página 1/1", style=discord.ButtonStyle.blurple, disabled=True)
+    @discord.ui.button(label="1/1", style=discord.ButtonStyle.blurple, disabled=True)
     async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
+    @discord.ui.button(label="Def", style=discord.ButtonStyle.green)
+    async def rae_def_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_rae_def_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="Exp", style=discord.ButtonStyle.green)
+    async def rae_exp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_rae_exp_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="Sin", style=discord.ButtonStyle.green)
+    async def rae_syn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_rae_syn_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="Ant", style=discord.ButtonStyle.green)
+    async def rae_ant_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_rae_ant_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
     async def update_embed(self, interaction):
         # Update page indicator
-        self.page_indicator.label = f"Página {self.current_page + 1}/{len(self.embeds)}"
+        self.page_indicator.label = f"{self.current_page + 1}/{len(self.embeds)}"
 
         embed = self.embeds[self.current_page].copy()
 
@@ -87,35 +136,32 @@ class PaginationView(discord.ui.View):
                 pass
         self.stop()
 
-
 class Dictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.caller_function = None
 
-    async def send_embeds(self, ctx, embeds, copyright_text):
-        caller_function = inspect.stack()[1].function
-
+    async def send_embeds(self, ctx, embeds, copyright_text, formatted_word, caller_function):
         if not embeds:
             return
 
-        view = PaginationView(embeds, copyright_text, ctx.author)
+        view = PaginationView(embeds, copyright_text, ctx.author, self.caller_function, self.bot, ctx)
+        view.word = formatted_word
 
         # Prepare initial embed
         initial_embed = embeds[0].copy()
         initial_embed.set_footer(text=f"{copyright_text} | Comando de jobcuenca")
 
         # Update page indicator label
-        view.page_indicator.label = f"Página 1/{len(embeds)}"
+        view.page_indicator.label = f"1/{len(embeds)}"
 
         # Send message with view
         if len(embeds) == 1:
             # Disable navigation buttons for single page
             view.prev_button.disabled = True
             view.next_button.disabled = True
-            message = await utils.safe_send(ctx, embed=initial_embed, view=view)
-        else:
-            message = await utils.safe_send(ctx, embed=initial_embed, view=view)
 
+        message = await utils.safe_send(ctx, embed=initial_embed, view=view)
         view.message = message
 
     async def fetch_rae_data(self, formatted_word: str):
@@ -170,6 +216,7 @@ class Dictionary(commands.Cog):
             return
 
         embeds = []
+        has_definitions = False
 
         for article in articles:
             title = article.find("h1", class_="c-page-header__title").text.strip()
@@ -197,6 +244,9 @@ class Dictionary(commands.Cog):
                 definition_text = re.sub(r'\s+([.,)|])', r'\1', definition_text)
                 definitions.append(definition_text)
 
+            if definitions:
+                has_definitions = True
+
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 10
             chunks = [definitions[i:i + chunk_size] for i in range(0, len(definitions), chunk_size)]
@@ -211,7 +261,19 @@ class Dictionary(commands.Cog):
                 )
                 embeds.append(embed)
 
-        await self.send_embeds(ctx, embeds, copyright_text)
+        self.caller_function = "get_rae_def_results"
+        # If the word does not have definitions
+        if not has_definitions:
+            embedded_error = discord.Embed(
+                title="Palabra sin definiciones disponibles",
+                description=f'La palabra `{word}` no tiene definiciones disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+            return
+
+        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
 
     @commands.command(aliases=['raeexp'])
     async def get_rae_exp_results(self, ctx, *, word: str):
@@ -229,7 +291,7 @@ class Dictionary(commands.Cog):
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
         """
-        #logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
         # noinspection PyUnresolvedReferences
         formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
@@ -263,9 +325,11 @@ class Dictionary(commands.Cog):
             # Find all h3 tags containing expressions
             h3_tags = article.find_all("h3", class_=["k5", "k6", "l2"])
 
+            if h3_tags:
+                has_expressions = True
+
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
-                has_expressions = True
                 expression = h3.text.strip()
                 definition = h3.find_next_sibling("ol")
                 if definition:
@@ -291,6 +355,7 @@ class Dictionary(commands.Cog):
                 )
                 embeds.append(embed)
 
+        self.caller_function = "get_rae_exp_results"
         # Check if there are expressions for the word
         if not has_expressions:
             embedded_error = discord.Embed(
@@ -298,10 +363,12 @@ class Dictionary(commands.Cog):
                 description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
                 color=0xFF5733
             )
-            await utils.safe_reply(ctx, embed=embedded_error)
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
             return
 
-        await self.send_embeds(ctx, embeds, copyright_text)
+
+        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
 
     @commands.command(aliases=['raesin'])
     async def get_rae_syn_results(self, ctx, *, word: str):
@@ -371,6 +438,7 @@ class Dictionary(commands.Cog):
                 )
                 embeds.append(embed)
 
+        self.caller_function = "get_rae_syn_results"
         # Check if there are synonyms for the word
         if not has_synonyms:
             embedded_error = discord.Embed(
@@ -378,10 +446,11 @@ class Dictionary(commands.Cog):
                 description=f'La palabra `{word}` no tiene sinónimos disponibles en el diccionario.',
                 color=0xFF5733
             )
-            await utils.safe_reply(ctx, embed=embedded_error)
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
             return
 
-        await self.send_embeds(ctx, embeds, copyright_text)
+        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
 
 
     @commands.command(aliases=['raeant'])
@@ -451,6 +520,7 @@ class Dictionary(commands.Cog):
                 )
                 embeds.append(embed)
 
+        self.caller_function = "get_rae_ant_results"
         # Check if there are antonyms for the word
         if not has_antonyms:
             embedded_error = discord.Embed(
@@ -458,10 +528,11 @@ class Dictionary(commands.Cog):
                 description=f'La palabra `{word}` no tiene antónimos disponibles en el diccionario.',
                 color=0xFF5733
             )
-            await utils.safe_reply(ctx, embed=embedded_error)
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
             return
 
-        await self.send_embeds(ctx, embeds, copyright_text)
+        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
 
 async def setup(bot):
     await bot.add_cog(Dictionary(bot))
