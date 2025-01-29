@@ -198,14 +198,14 @@ class Dictionary(commands.Cog):
     async def get_rae_exp_results(self, ctx, *, word: str):
         """
         Look up expressions of a word from the Real Academia Española dictionary.
-        - Example usage: `;rae libro`.
+        - Example usage: `;raeexp libro`.
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
 
         -------
         Buscar expresiones de palabras del Diccionario de la Real Academia Española.
-        - Ejemplo de uso: `;rae libro`.
+        - Ejemplo de uso: `;raeexp libro`.
 
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
@@ -289,14 +289,14 @@ class Dictionary(commands.Cog):
     async def get_rae_syn_results(self, ctx, *, word: str):
         """
         Look up synonyms of a word from the Real Academia Española dictionary.
-        - Example usage: `;rae libro`.
+        - Example usage: `;raesin llamar`.
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
 
         -------
         Buscar sinónimos de palabras del Diccionario de la Real Academia Española.
-        - Ejemplo de uso: `;rae libro`.
+        - Ejemplo de uso: `;raesin llamar`.
 
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
@@ -371,14 +371,14 @@ class Dictionary(commands.Cog):
     async def get_rae_ant_results(self, ctx, *, word: str):
         """
         Look up antonyms of a word from the Real Academia Española dictionary.
-        - Example usage: `;rae libro`.
+        - Example usage: `;raeant hacer`.
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
 
         -------
         Buscar antónimos de palabras del Diccionario de la Real Academia Española.
-        - Ejemplo de uso: `;rae libro`.
+        - Ejemplo de uso: `;raeant hacer`.
 
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
