@@ -17,28 +17,33 @@ from cogs.utils.BotUtils import bot_utils as utils
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 class PaginationView(discord.ui.View):
-    def __init__(self, embeds, copyright_text, author, caller_function, bot, ctx):
+    def __init__(self, embeds, author, caller_function, is_rae_def_available, is_rae_exp_available,
+                              is_rae_syn_available, is_rae_ant_available, bot, ctx):
         super().__init__(timeout=60)
         self.bot = bot
         self.embeds = embeds
-        self.copyright_text = copyright_text
         self.author = author
         self.current_page = 0
         self.message = None
         self.word = None
         self.caller_function = caller_function
+        self.is_rae_def_available = is_rae_def_available
+        self.is_rae_exp_available = is_rae_exp_available
+        self.is_rae_syn_available = is_rae_syn_available
+        self.is_rae_ant_available = is_rae_ant_available
         self.ctx = ctx
 
         # Set initial buttons
         self.update_buttons()
 
     def update_buttons(self):
-        buttons_map = {
-            "get_rae_def_results": [self.rae_exp_button, self.rae_syn_button, self.rae_ant_button],
-            "get_rae_exp_results": [self.rae_def_button, self.rae_syn_button, self.rae_ant_button],
-            "get_rae_syn_results": [self.rae_def_button, self.rae_exp_button, self.rae_ant_button],
-            "get_rae_ant_results": [self.rae_def_button, self.rae_exp_button, self.rae_syn_button]
+        button_mapping = {
+            "get_rae_def_results": (self.rae_def_button, self.is_rae_def_available),
+            "get_rae_exp_results": (self.rae_exp_button, self.is_rae_exp_available),
+            "get_rae_syn_results": (self.rae_syn_button, self.is_rae_syn_available),
+            "get_rae_ant_results": (self.rae_ant_button, self.is_rae_ant_available),
         }
+
         # Clear existing buttons
         self.clear_items()
 
@@ -48,12 +53,18 @@ class PaginationView(discord.ui.View):
         self.add_item(self.next_button)
         self.add_item(self.close_button)
 
-        # Get the buttons for the current caller_function
-        buttons_to_add = buttons_map.get(self.caller_function, [])
+        # Add RAE function buttons
+        caller_button = button_mapping.get(self.caller_function)[0]
 
-        for button in buttons_to_add:
+        for button, button_availability in button_mapping.values():
             button.row = 1
+            button.disabled = not button_availability
             self.add_item(button)
+
+            # If caller button, disable it and change colour to grey
+            if button == caller_button:
+                caller_button.disabled = True
+                caller_button.style = discord.ButtonStyle.gray
 
         # Update button states
         self.prev_button.disabled = self.current_page == 0
@@ -140,24 +151,29 @@ class Dictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.caller_function = None
+        self.is_rae_def_available = False
+        self.is_rae_exp_available = False
+        self.is_rae_syn_available = False
+        self.is_rae_ant_available = False
+        self.superscript_characters = "⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ"
+        self.punctuation_without_spaces = "].,:)|»"
 
-    async def send_embeds(self, ctx, embeds, copyright_text, formatted_word, caller_function):
+    async def send_embeds(self, ctx, embeds, formatted_word):
         if not embeds:
             return
 
-        view = PaginationView(embeds, copyright_text, ctx.author, self.caller_function, self.bot, ctx)
+        view = PaginationView(embeds, ctx.author, self.caller_function, self.is_rae_def_available, self.is_rae_exp_available,
+                              self.is_rae_syn_available, self.is_rae_ant_available, self.bot, ctx)
         view.word = formatted_word
 
         # Prepare initial embed
         initial_embed = embeds[0].copy()
-        initial_embed.set_footer(text=f"{copyright_text} | Comando de jobcuenca")
 
         # Update page indicator label
         view.page_indicator.label = f"1/{len(embeds)}"
 
-        # Send message with view
+        # Disable navigation buttons for single page embeds
         if len(embeds) == 1:
-            # Disable navigation buttons for single page
             view.prev_button.disabled = True
             view.next_button.disabled = True
 
@@ -177,10 +193,121 @@ class Dictionary(commands.Cog):
         soup = BeautifulSoup(webpage, "html5lib")
         articles = soup.find_all('article', class_="o-main__article")
 
+        self.check_info_availability(articles)
+
         # in headers: <meta name="rights" content="Real Academia Española © Todos los derechos reservados">
         copyright_text = resp.headers.get("rights", "Real Academia Española © Todos los derechos reservados")
 
         return articles, url, copyright_text
+
+    def check_info_availability(self, articles):
+        # Reset availability status from previous calls
+        self.reset_availability()
+
+        for article in articles:
+            # Check definition availability
+            definition_section = article.find("ol", class_="c-definitions")
+            if definition_section:
+                definition = definition_section.find("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])
+                if definition:
+                    self.is_rae_def_available = True
+
+            # Check expression availability
+            expression = article.find("h3", class_=["k5", "k6", "l2"])
+            if expression:
+                self.is_rae_exp_available = True
+
+            # Check synonym availability
+            synonym_section = article.find("section", class_=["c-section"], id=re.compile("^sinonimos"))
+            if synonym_section:
+                synonym = synonym_section.find("ul", class_=["c-related-words"])
+                if synonym:
+                    self.is_rae_syn_available = True
+
+            # Check antonym availability
+            antonym_section = article.find("section", class_=["c-section"], id=re.compile("^antonimos"))
+            if antonym_section:
+                antonym = antonym_section.find("ul", class_=["c-related-words"])
+                if antonym:
+                    self.is_rae_ant_available = True
+
+            return
+
+    def reset_availability(self):
+        self.is_rae_def_available = False
+        self.is_rae_exp_available = False
+        self.is_rae_syn_available = False
+        self.is_rae_ant_available = False
+
+    async def check_article_availability(self, ctx, word):
+        # noinspection PyUnresolvedReferences
+        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
+        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+
+        # Check if the word exists by looking for the main article
+        if not articles:
+            embedded_error = discord.Embed(
+                title="Palabra no encontrada",
+                description=f'La palabra `{word}` no existe en el diccionario. '
+                            f'Por favor verifique que la palabra esté escrita correctamente.',
+                color=0xFF5733
+            )
+            await utils.safe_reply(ctx, embed=embedded_error)
+            return None, None, None, None
+
+        return articles, url, copyright_text, formatted_word
+
+    def trim_spaces_before_symbols(self, text):
+        text = re.sub(
+            r'\s+([' + re.escape(self.punctuation_without_spaces + self.superscript_characters) + '])', r'\1',
+            text)
+        return text
+
+    async def handle_synonyms_antonyms(self, words_section, embeds, copyright_text, title, url):
+        word_type = ""
+        words = []
+        if self.caller_function == "get_rae_syn_results":
+            word_type = "Sinónimos"
+        elif self.caller_function == "get_rae_ant_results":
+            word_type = "Antónimos"
+
+        if words_section:
+            ul_tag = words_section.find("ul", class_=["c-related-words"])
+            if ul_tag:
+                lists = ul_tag.find_all("li")
+                for list in lists:
+                    text = ' '.join(list.stripped_strings)
+                    # Remove extra spaces before periods and commas
+                    text = self.trim_spaces_before_symbols(text)
+                    words.append(f'- {text}')
+
+        # Split an article into multiple pages/embeds if the number of entries exceeds 10
+        chunk_size = 10
+        chunks = [words[i:i + chunk_size] for i in range(0, len(words), chunk_size)]
+
+        for chunk in chunks:
+            description = "\n".join(chunk)
+            embed = discord.Embed(
+                title=title,
+                url=url,
+                description=f'**{word_type}**: \n{description}',
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+            embeds.append(embed)
+
+        return embeds
+
+    def to_superscript(self, article):
+        def convert_to_superscript(text):
+            # Function to convert a string to superscript
+            superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
+            return text.translate(superscript_map)
+
+        # Modify article text to superscript
+        for sup_tag in article.find_all("sup"):
+            sup_tag.string = convert_to_superscript(sup_tag.string)
+        return article
 
     @commands.command(aliases=['rae'])
     async def get_rae_def_results(self, ctx, *, word: str):
@@ -200,26 +327,47 @@ class Dictionary(commands.Cog):
         """
         logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
-        # noinspection PyUnresolvedReferences
-        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+        self.caller_function = "get_rae_def_results"
 
-        # Check if the word exists by looking for the main article
+        articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
         if not articles:
-            embedded_error = discord.Embed(
-                title="Palabra no encontrada",
-                description=f'La palabra `{word}` no existe en el diccionario. '
-                            f'Por favor verifique que la palabra esté escrita correctamente.',
-                color=0xFF5733
-            )
-            await utils.safe_reply(ctx, embed=embedded_error)
             return
 
         embeds = []
-        has_definitions = False
+
+        if not self.is_rae_def_available:
+            embedded_error = discord.Embed(
+                title="Palabra sin definiciones disponibles",
+                description=f'La palabra `{word}` no tiene definiciones disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
 
         for article in articles:
+            # Turn characters inside HTML <sup> tags into superscripts
+            article = self.to_superscript(article)
+
             title = article.find("h1", class_="c-page-header__title").text.strip()
+
+            # Format bold and italicized words correctly
+            em_tags = article.find_all("em")
+            if em_tags:
+                for em_tag in em_tags:
+                    em_tag_text = em_tag.get_text(strip=False)
+                    em_tag.string = f"*{em_tag_text}*"
+
+            bold_tags = article.find_all(["b", "strong"])
+            if bold_tags:
+                for bold_tag in bold_tags:
+                    bold_tag_text = bold_tag.get_text(strip=False)
+                    bold_tag.string = f"**{bold_tag_text}**"
+
+            intro_texts = [text.get_text().strip() for text in article.find_all(class_="c-text-intro")]
+            intro_texts_with_newlines = [text + "\n" for text in intro_texts]
+            intro_texts_combined = ''.join(intro_texts_with_newlines)
+
             definitions = []
 
             # Find the ordered list containing definitions
@@ -240,12 +388,9 @@ class Dictionary(commands.Cog):
             # Iterate through each list item
             for definition_item in (definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])):
                 definition_text = ' '.join(definition_item.stripped_strings)
-                # Remove extra spaces before periods and commas
-                definition_text = re.sub(r'\s+([.,)|])', r'\1', definition_text)
+                # Remove extra spaces before certain punctuation marks and superscript characters
+                definition_text = self.trim_spaces_before_symbols(definition_text)
                 definitions.append(definition_text)
-
-            if definitions:
-                has_definitions = True
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 10
@@ -253,27 +398,21 @@ class Dictionary(commands.Cog):
 
             for i, chunk in enumerate(chunks):
                 description = "\n".join(chunk)
+
+                # Include the intro texts only to the first page
+                if i == 0:
+                    description = f'{intro_texts_combined + description}'
+
                 embed = discord.Embed(
                     title=title,
                     url=url,
                     description=description,
                     color=discord.Color.blue()
                 )
+                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
                 embeds.append(embed)
 
-        self.caller_function = "get_rae_def_results"
-        # If the word does not have definitions
-        if not has_definitions:
-            embedded_error = discord.Embed(
-                title="Palabra sin definiciones disponibles",
-                description=f'La palabra `{word}` no tiene definiciones disponibles en el diccionario.',
-                color=0xFF5733
-            )
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
-            return
-
-        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+        await self.send_embeds(ctx, embeds, formatted_word)
 
     @commands.command(aliases=['raeexp'])
     async def get_rae_exp_results(self, ctx, *, word: str):
@@ -293,25 +432,26 @@ class Dictionary(commands.Cog):
         """
         logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
-        # noinspection PyUnresolvedReferences
-        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+        self.caller_function = "get_rae_exp_results"
 
-        # Check if the word exists by looking for the main article
+        articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
         if not articles:
-            embedded_error = discord.Embed(
-                title="Palabra no encontrada",
-                description=f'La palabra `{word}` no existe en el diccionario. '
-                            f'Por favor verifique que la palabra esté escrita correctamente.',
-                color=0xFF5733
-            )
-            await utils.safe_reply(ctx, embed=embedded_error)
             return
 
         embeds = []
-        has_expressions = False
+
+        if not self.is_rae_exp_available:
+            embedded_error = discord.Embed(
+                title="Palabra sin expresiones disponibles",
+                description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
 
         for article in articles:
+            article = self.to_superscript(article)
             title = article.find("h1", class_="c-page-header__title").text.strip()
             expressions = {}
 
@@ -324,9 +464,6 @@ class Dictionary(commands.Cog):
 
             # Find all h3 tags containing expressions
             h3_tags = article.find_all("h3", class_=["k5", "k6", "l2"])
-
-            if h3_tags:
-                has_expressions = True
 
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
@@ -353,22 +490,10 @@ class Dictionary(commands.Cog):
                     description=description,
                     color=discord.Color.blue()
                 )
+                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
                 embeds.append(embed)
 
-        self.caller_function = "get_rae_exp_results"
-        # Check if there are expressions for the word
-        if not has_expressions:
-            embedded_error = discord.Embed(
-                title="Palabra sin expresiones disponibles",
-                description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
-                color=0xFF5733
-            )
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
-            return
-
-
-        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+        await self.send_embeds(ctx, embeds, formatted_word)
 
     @commands.command(aliases=['raesin'])
     async def get_rae_syn_results(self, ctx, *, word: str):
@@ -388,69 +513,33 @@ class Dictionary(commands.Cog):
         """
         logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
-        # noinspection PyUnresolvedReferences
-        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+        self.caller_function = "get_rae_syn_results"
 
-        # Check if the word exists by looking for the main article
+        articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
         if not articles:
-            embedded_error = discord.Embed(
-                title="Palabra no encontrada",
-                description=f'La palabra `{word}` no existe en el diccionario. '
-                            f'Por favor verifique que la palabra esté escrita correctamente.',
-                color=0xFF5733
-            )
-            await utils.safe_reply(ctx, embed=embedded_error)
             return
 
         embeds = []
-        has_synonyms = False
 
-        for article in articles:
-            synonyms = []
-            title = article.find("h1", class_="c-page-header__title").text.strip()
-
-            # Find all tags containing synonyms
-            synonyms_section = article.find("section", class_=["c-section"], id=re.compile("^sinonimos"))
-
-            if synonyms_section:
-                synonyms_ul_tag = synonyms_section.find("ul", class_=["c-related-words"])
-                if synonyms_ul_tag:
-                    has_synonyms = True
-                    synonym_lists = synonyms_ul_tag.find_all("li")
-                    for synonym_list in synonym_lists:
-                        synonym_text = ' '.join(synonym_list.stripped_strings)
-                        # Remove extra spaces before periods and commas
-                        synonym_text = re.sub(r'\s+([.,)|])', r'\1', synonym_text)
-                        synonyms.append(f'- {synonym_text}')
-
-            # Split an article into multiple pages/embeds if the number of entries exceeds 10
-            chunk_size = 10
-            chunks = [synonyms[i:i + chunk_size] for i in range(0, len(synonyms), chunk_size)]
-
-            for chunk in chunks:
-                description = "\n".join(chunk)
-                embed = discord.Embed(
-                    title=title,
-                    url=url,
-                    description=f'**Sinónimos**: \n{description}',
-                    color=discord.Color.blue()
-                )
-                embeds.append(embed)
-
-        self.caller_function = "get_rae_syn_results"
-        # Check if there are synonyms for the word
-        if not has_synonyms:
+        if not self.is_rae_syn_available:
             embedded_error = discord.Embed(
                 title="Palabra sin sinónimos disponibles",
                 description=f'La palabra `{word}` no tiene sinónimos disponibles en el diccionario.',
                 color=0xFF5733
             )
             embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+            await self.send_embeds(ctx, embeds, formatted_word)
             return
 
-        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+        for article in articles:
+            article = self.to_superscript(article)
+            title = article.find("h1", class_="c-page-header__title").text.strip()
+
+            # Find all tags containing synonyms
+            synonyms_section = article.find("section", class_=["c-section"], id=re.compile("^sinonimos"))
+            embeds = await self.handle_synonyms_antonyms(synonyms_section, embeds, copyright_text, title, url)
+
+        await self.send_embeds(ctx, embeds, formatted_word)
 
 
     @commands.command(aliases=['raeant'])
@@ -471,68 +560,33 @@ class Dictionary(commands.Cog):
         """
         logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
-        # noinspection PyUnresolvedReferences
-        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+        self.caller_function = "get_rae_ant_results"
 
-        # Check if the word exists by looking for the main article
+        articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
         if not articles:
-            embedded_error = discord.Embed(
-                title="Palabra no encontrada",
-                description=f'La palabra `{word}` no existe en el diccionario. '
-                            f'Por favor verifique que la palabra esté escrita correctamente.',
-                color=0xFF5733
-            )
-            await utils.safe_reply(ctx, embed=embedded_error)
             return
 
         embeds = []
-        has_antonyms = False
 
-        for article in articles:
-            antonyms = []
-            title = article.find("h1", class_="c-page-header__title").text.strip()
-
-            # Find all tags containing antonyms
-            antonyms_section = article.find("section", class_=["c-section"], id=re.compile("^antonimos"))
-            if antonyms_section:
-                antonyms_ul_tag = antonyms_section.find("ul", class_=["c-related-words"])
-                if antonyms_ul_tag:
-                    has_antonyms = True
-                    antonym_lists = antonyms_ul_tag.find_all("li")
-                    for antonym_list in antonym_lists:
-                        antonym_text = ' '.join(antonym_list.stripped_strings)
-                        # Remove extra spaces before periods and commas
-                        antonym_text = re.sub(r'\s+([.,)|])', r'\1', antonym_text)
-                        antonyms.append(f'- {antonym_text}')
-
-            # Split an article into multiple pages/embeds if the number of entries exceeds 10
-            chunk_size = 10
-            chunks = [antonyms[i:i + chunk_size] for i in range(0, len(antonyms), chunk_size)]
-
-            for chunk in chunks:
-                description = "\n".join(chunk)
-                embed = discord.Embed(
-                    title=title,
-                    url=url,
-                    description=f'**Antónimos**: \n{description}',
-                    color=discord.Color.blue()
-                )
-                embeds.append(embed)
-
-        self.caller_function = "get_rae_ant_results"
-        # Check if there are antonyms for the word
-        if not has_antonyms:
+        if not self.is_rae_ant_available:
             embedded_error = discord.Embed(
                 title="Palabra sin antónimos disponibles",
                 description=f'La palabra `{word}` no tiene antónimos disponibles en el diccionario.',
                 color=0xFF5733
             )
             embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+            await self.send_embeds(ctx, embeds, formatted_word)
             return
 
-        await self.send_embeds(ctx, embeds, copyright_text, formatted_word, self.caller_function)
+        for article in articles:
+            article = self.to_superscript(article)
+            title = article.find("h1", class_="c-page-header__title").text.strip()
+
+            # Find all tags containing antonyms
+            antonyms_section = article.find("section", class_=["c-section"], id=re.compile("^antonimos"))
+            embeds = await self.handle_synonyms_antonyms(antonyms_section, embeds, copyright_text, title, url)
+
+        await self.send_embeds(ctx, embeds, formatted_word)
 
 async def setup(bot):
     await bot.add_cog(Dictionary(bot))
