@@ -1,3 +1,4 @@
+import time
 from collections import deque
 
 import aiohttp.client_exceptions
@@ -182,6 +183,9 @@ class Logger(commands.Cog):
                                     before: discord.VoiceState,
                                     after: discord.VoiceState):
         guild = str(member.guild.id)
+        
+        t_start = time.perf_counter()
+        t_start = hf.line_profile(t_start, "on_voice_state_update")
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
             if not guild_config['enable'] or not guild_config['channel']:
@@ -190,7 +194,10 @@ class Logger(commands.Cog):
             guild_config = {}
 
         try:
-            await self.bot.wait_for('voice_state_update', timeout=0.5, check=lambda m, b, a: m == member)
+            await hf.wait_for('voice_state_update',
+                              'voice_state_update',
+                              timeout=0.5,
+                              check=lambda m, b, a: m == member)
             return
         except asyncio.TimeoutError:
             pass
@@ -283,6 +290,8 @@ class Logger(commands.Cog):
         emb = discord.Embed(description=description, color=color, timestamp=discord.utils.utcnow())
         emb.set_footer(text=footer_text,
                        icon_url=member.display_avatar.replace(static_format="png").url)
+        
+        t_start = hf.line_profile(t_start, "on_voice_state_update: embed construction", offset=0.5)
 
         if after.channel:
             users_in_voice = ""
@@ -319,17 +328,22 @@ class Logger(commands.Cog):
                 emb.add_field(name="User list (cont.)", value=users_in_voice)
             else:
                 emb.add_field(name=name_text, value=users_in_voice)
+                
+        t_start = hf.line_profile(t_start, "on_voice_state_update: user list")
 
         """Voice logging"""
         if guild_config:
             try:
                 await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                t_start = hf.line_profile(t_start, "on_voice_state_update: send to guild channel")
             except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
-                await asyncio.sleep(3)
+                await hf.sleep("voice_state_update", 3, add=True)
                 try:
                     await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
                 except discord.DiscordServerError:
                     pass
+        
+        t_start = hf.line_profile(t_start, "on_voice_state_update: voice logging")
 
         """ Super voice watch"""
         if config:
@@ -352,6 +366,8 @@ class Logger(commands.Cog):
                             await utils.safe_send(channel, member.id, embed=emb)
                         except discord.Forbidden:
                             pass
+        
+        t_start = hf.line_profile(t_start, "on_voice_state_update: super voice watch")
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -612,7 +628,7 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
-        await asyncio.sleep(0.2)  # to give on_message_delete time to potentially add a message to the deletion_tracker
+        await hf.sleep("raw_message_delete", 0.2)  # to give on_message_delete time to potentially add a message to the deletion_tracker
         if payload.message_id in getattr(self.bot, "deletion_tracker", []):
             return
         await self.log_raw_payload(payload)
@@ -662,13 +678,6 @@ class Logger(commands.Cog):
             if not payload.data.get('edited_timestamp', None):
                 return
                 
-        
-        # ignore messages that are less than five seconds old since deletion
-        # they probably were sent and immediately deleted by a bot, thus immediately being removed from the cache
-        # before it could be checked here
-        # if (discord.utils.utcnow() - original_timestamp).total_seconds() < 5:
-        #     return
-        
         # for bot messages: if message is in bot.cached_messages, ignore it here
         for msg in self.bot.cached_messages:
             if msg.id == payload.message_id:
@@ -739,14 +748,15 @@ class Logger(commands.Cog):
             
         elif event_type == "edits":
             # get the new message from the cache
-            message_channel = self.bot.get_guild(payload.guild_id).get_channel_or_thread(payload.channel_id)
+            message_guild = self.bot.get_guild(payload.guild_id)
+            message_channel = message_guild.get_channel_or_thread(payload.channel_id) if message_guild else None
             try:
                 new_message = await message_channel.fetch_message(payload.message_id)
             except discord.NotFound:
                 return
             distance_limit = guild_config.get("distance_limit", 3)
             levenshtein_distance = LDist(old_message.content, new_message.content)
-            if levenshtein_distance > distance_limit:
+            if levenshtein_distance > distance_limit or levenshtein_distance == 0:
                 await self.log_edit_event(old_message.to_discord_message(), new_message, levenshtein_distance, logging_channel)
             
     @commands.Cog.listener()
@@ -1260,7 +1270,7 @@ class Logger(commands.Cog):
                 # check if they've been in the server before
                 if list_of_readd_roles:
                     JHO_msg += " I've readded your previous roles to you!"
-                    await asyncio.sleep(2)
+                    await hf.sleep("member_join", 2)
 
                     # else, if they are a returning *tagged* user, take away "new user" if they have it for some reason
                     if new_user_role in member.roles:
@@ -1285,7 +1295,7 @@ class Logger(commands.Cog):
                         def check(m):
                             return m.author.id == 299335689558949888 and m.channel == jpJHO
 
-                        msg = await self.bot.wait_for('message', timeout=10.0, check=check)
+                        msg = await hf.wait_for('member_join', 'message', timeout=10.0, check=check)
                         await msg.delete()
                     except asyncio.TimeoutError:
                         pass
@@ -1724,7 +1734,7 @@ class Logger(commands.Cog):
                 if time_left:
                     break  # this breaks the while loop if it found an entry
                 attempts += 1
-                await asyncio.sleep(15)
+                await hf.sleep("member_update", 15)
 
             if not time_left:
                 return  # No matching entries found
@@ -1918,7 +1928,7 @@ class Logger(commands.Cog):
 
         # ################## NORMAL BAN EMBED #########################
 
-        await asyncio.sleep(3)
+        await hf.sleep("member_ban", 3)
         attempts = 0
         while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
             async for entry in guild.audit_logs(limit=None, oldest_first=False,
@@ -1932,7 +1942,7 @@ class Logger(commands.Cog):
             if by:
                 break  # this breaks the while loop if it found an entry
             attempts += 1
-            await asyncio.sleep(15)
+            await hf.sleep("member_ban", 15, add=True)
         emb = discord.Embed(colour=0x000000, timestamp=discord.utils.utcnow(), description='')
         if not reason:
             reason = '(none given)'
