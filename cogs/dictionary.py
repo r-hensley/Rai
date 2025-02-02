@@ -213,7 +213,10 @@ class Dictionary(commands.Cog):
                     self.is_rae_def_available = True
 
             # Check expression availability
-            expression = article.find("h3", class_=["k5", "k6", "l2", "b"])
+            expression = article.find("h3", class_=["k1", "k2", "k3", "k4", "k5",
+                                                     "k6", "l1", "l2", "l3", "l4",
+                                                     "l5", "l6", "b"])
+
             if expression:
                 self.is_rae_exp_available = True
 
@@ -464,7 +467,9 @@ class Dictionary(commands.Cog):
                 example.string = f"*{example_text}*"
 
             # Find all h3 tags containing expressions
-            h3_tags = article.find_all("h3", class_=["k5", "k6", "l2", "b"])
+            h3_tags = article.find_all("h3", class_=["k1", "k2", "k3", "k4", "k5",
+                                                     "k6", "l1", "l2", "l3", "l4",
+                                                     "l5", "l6", "b"])
 
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
