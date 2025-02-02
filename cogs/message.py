@@ -53,8 +53,10 @@ def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow
         async def wrapper(*args, **kwargs):  # needs to be async to work with asyncio.gather()
             if not should_execute_task(allow_dms, allow_bots, allow_self, *args):
                 return lambda *a, **kw: None  # No-op lambda for skipped tasks
-            timing_func = partial(time_task, func)
-            task = utils.asyncio_task(timing_func, *args)
+            
+            # time_task() is a wrapper that returns an uncalled async function definition
+            # this is what asyncio_task needs, you're supposed to give it a function to call later
+            task = utils.asyncio_task(time_task(func, *args), task_name=f"on_message.{func.__name__}")
             return task
 
         # Replace `func` with `wrapper` in the registered functions
@@ -70,7 +72,6 @@ def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow
     return decorator
 
 
-
 def log_time(t_in, description: str):
     new_time = time.perf_counter()
     diff = new_time - t_in
@@ -78,13 +79,17 @@ def log_time(t_in, description: str):
     return new_time
 
 
-async def time_task(func, *args):
-    t1 = time.monotonic()
-    await func(*args)
-    t2 = time.monotonic()
-    diff = t2 - t1
-    if diff > 0.5:
-        print(f"Function {func.__name__} took {diff:.2f} seconds to run.")
+def time_task(func, *args, diff_threshold=0.5):
+    @wraps(func)
+    async def time_task_internal():
+        t1 = time.perf_counter()
+        result = await func(*args)
+        t2 = time.perf_counter()
+        diff = t2 - t1
+        if diff > diff_threshold:
+            print(f"on_message function {func.__name__} took {diff:.2f} seconds to run.")
+        return result
+    return time_task_internal
     
     
 class Message(commands.Cog):
@@ -95,10 +100,11 @@ class Message(commands.Cog):
         
         global on_message_functions
         self.all_tasks = {func['func'] for func in on_message_functions}
-        # self.self_tasks = {func['func'] for func in on_message_functions if func['allow_self']}
-        # self.bot_tasks = {func['func'] for func in on_message_functions if func['allow_bots']}
-        # self.dm_tasks = {func['func'] for func in on_message_functions if func['allow_dms']}
-        # self.other_tasks = self.all_tasks - self.self_tasks - self.bot_tasks - self.dm_tasks
+        
+        lingua_languages = [Language.SPANISH, Language.ENGLISH, Language.FRENCH, Language.ARABIC,
+                            Language.PORTUGUESE, Language.JAPANESE, Language.TAGALOG, Language.GERMAN, Language.RUSSIAN,
+                            Language.ITALIAN]
+        self.lingua_detector = LanguageDetectorBuilder.from_languages(*lingua_languages).build()
     
     @commands.Cog.listener()
     @hf.basic_timer(1)
@@ -123,36 +129,21 @@ class Message(commands.Cog):
             return
         if rai_message.guild and not isinstance(rai_message.author, discord.Member):
             return
-            
-        # # DM TASKS (bots can never message each other)
-        # for task in self.dm_tasks:
-        #     task(self, rai_message)
-        # if not rai_message.guild:
-        #     return
-        #
-        # # RAI TASKS
-        # try:
-        #     for task in self.self_tasks:
-        #         task(self, rai_message)
-        #     if rai_message.author == self.bot.user:
-        #         return
-        # except Exception as e:
-        #     print("Exception in self_tasks:\n", e, traceback.format_exc())
-        #
-        # # BOT TASKS
-        # for task in self.bot_tasks:
-        #     task(self, rai_message)
-        # if rai_message.author.bot:
-        #     return
-        
-        # NORMAL TASKS
-        lang_check_task = utils.asyncio_task(self.lang_check, rai_message)
-        rai_message.lang, rai_message.hardcore = await lang_check_task  # will add slight delay as we wait for this
-        
-        rai_message.ctx = await self.bot.get_context(rai_message)  # wait for this too
-        
-        # await execute_tasks_concurrently(self.other_tasks, self, rai_message)
-        await asyncio.gather(*(task(self, rai_message) for task in self.all_tasks))
+
+        try:
+            lang_check_task = utils.asyncio_task(time_task(self.lang_check, rai_message))
+            rai_message.detected_lang, rai_message.is_hardcore = await lang_check_task
+            # will add slight delay as we wait for this
+
+            # run all tasks in a batch
+            await asyncio.gather(*(task(self, rai_message) for task in self.all_tasks))
+        except Exception as e:
+            # to avoid infinite loops: if Rai throws an error, log it and continue
+            if rai_message.author.id == self.bot.user.id:
+                print(f"Exception in message sent by bot {rai_message.author.name}:\n", e)
+                traceback.print_exc()
+            else:
+                raise
     
     async def lang_check(self, msg: hf.RaiMessage) -> (Optional[str], bool):
         """
@@ -200,6 +191,24 @@ class Message(commands.Cog):
                 pass
         return detected_lang, is_hardcore
     
+    @on_message_function()
+    async def test_long_function(self, msg: hf.RaiMessage):
+        # only work on messages from bot owner
+        if msg.author.id != self.bot.owner_id:
+            return
+        if msg.channel.id != 1330798440052949024:
+            return
+        time.sleep(5)
+        
+    @on_message_function()
+    async def test_async_wait(self, msg: hf.RaiMessage):
+        # only work on messages from bot owner
+        if msg.author.id != self.bot.owner_id:
+            return
+        if msg.channel.id != 1331494671620509699:
+            return
+        await asyncio.sleep(5)
+    
     @on_message_function(allow_bots=True)
     async def log_bot_messages(self, msg: hf.RaiMessage):
         if not getattr(self.bot, "bot_message_queue", None):
@@ -238,6 +247,7 @@ class Message(commands.Cog):
     async def replace_tatsumaki_posts(self, msg: hf.RaiMessage):
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
             if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
+                await msg.get_ctx()
                 serverinfo: commands.Command = self.bot.get_command("serverinfo")
                 # noinspection PyTypeChecker
                 await msg.ctx.invoke(serverinfo)
@@ -288,6 +298,7 @@ class Message(commands.Cog):
         # content = msg.content[25:]
         
         modlog: commands.Command = self.bot.get_command("modlog")
+        await msg.get_ctx()
         
         # Search for direct mentions of IDs
         user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
@@ -375,6 +386,7 @@ class Message(commands.Cog):
         else:
             return
         
+        await msg.get_ctx()
         for user_id in args.user_ids:
             user = msg.guild.get_member(int(user_id))
             if not user:
@@ -753,6 +765,7 @@ class Message(commands.Cog):
         edited_msg = re.sub(user_id_regex, "", edited_msg)
         
         interactions = self.bot.get_cog("Interactions")  # get cog, then the function inside the cog
+        await msg.get_ctx()
         notif = await interactions.staffping_code(ctx=msg.ctx, users=users, reason=edited_msg)
         
         if hasattr(self.bot, 'synced_reactions'):
@@ -865,7 +878,7 @@ class Message(commands.Cog):
             pos = sentiment['pos']
             neu = sentiment['neu']
             neg = sentiment['neg']
-            await utils.safe_send(msg.ctx, f"Your sentiment score for the above message:"
+            await utils.safe_send(msg.channel, f"Your sentiment score for the above message:"
                                            f"\n- Positive / Neutral / Negative: +{pos} / n{neu} / -{neg}"
                                            f"\n- Overall: {sentiment['compound']}"
                                            f"\nNote this program is often wrong, and can only check English. If using "
@@ -1173,6 +1186,7 @@ class Message(commands.Cog):
         if not msg.channel.flags.pinned:
             return
         
+        await msg.get_ctx()
         if not hf.submod_check(msg.ctx):
             await msg.delete()
             try:
@@ -1201,13 +1215,13 @@ class Message(commands.Cog):
         
         # if the message without the ping is less than 4 characters, it's likely just a ping with no text
         if len(new_content) < 4:
-            await msg.ctx.reply("- Thank you for pinging staff. In the future, please also include a description of "
-                                "the issue when pinging Staff so moderators who "
-                                "arrive into the channel can more quickly understand what is happening.\n"
-                                "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
-                                "descripción del problema cuando envíes un ping al "
-                                "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
-                                "lo que está pasando.")
+            await msg.reply("- Thank you for pinging staff. In the future, please also include a description of "
+                            "the issue when pinging Staff so moderators who "
+                            "arrive into the channel can more quickly understand what is happening.\n"
+                            "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
+                            "descripción del problema cuando envíes un ping al "
+                            "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
+                            "lo que está pasando.")
     
     @on_message_function()
     async def spanish_server_ban_for_adobe_spam_message(self, msg: hf.RaiMessage):
@@ -1296,6 +1310,7 @@ class Message(commands.Cog):
             
             try:
                 # execute the 1h mute command
+                await msg.get_ctx()
                 msg.ctx.author = msg.guild.me
                 mute_command: commands.Command = self.bot.get_command('mute')
                 # noinspection PyTypeChecker

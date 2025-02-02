@@ -320,7 +320,10 @@ class Background(commands.Cog):
     @tasks.loop(seconds=5)
     async def live_latency(self):
         t1 = time.perf_counter()
-        await self.bot.application_info()
+        try:
+            await self.bot.application_info()
+        except (discord.HTTPException, discord.DiscordServerError):
+            pass
         t2 = time.perf_counter()
         self.bot.live_latency = t2 - t1
         
