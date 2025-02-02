@@ -10,12 +10,12 @@ import re
 import sys
 import time
 import unittest
-from collections import deque
+from collections import deque, defaultdict
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Optional, List, Union, Tuple, Iterable
+from typing import Optional, List, Union, Tuple, Iterable, Callable
 from unittest.mock import Mock
 from urllib.parse import urlparse
 
@@ -606,7 +606,7 @@ async def uhc_check(msg):
                                     await long_deleted_msg_notification(msg)
     except AttributeError:
         pass
-
+        
 
 def _pre_load_language_detection_model():
     english = []
@@ -1682,14 +1682,16 @@ def profileit(sleep_time: float = 0.0):
 
 def basic_timer(time_allowance: float = 0):
     def decorator(func):
+        if not hasattr(here.bot, 'profiling_decorators'):
+            here.bot.profiling_decorators = set()
+        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
+        
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             start = time.perf_counter()
             retval = await func(*args, **kwargs)
             end = time.perf_counter()
-            diff = end - start
-            if diff > time_allowance:
-                print(f"{func.__name__} took {diff:.3f}s (basic_timer)")
+            print_timing(start, end)
             return retval
         
         @wraps(func)
@@ -1697,11 +1699,64 @@ def basic_timer(time_allowance: float = 0):
             start = time.perf_counter()
             retval = func(*args, **kwargs)
             end = time.perf_counter()
+            print_timing(start, end)
+            return retval
+        
+        def print_timing(start, end):
             diff = end - start
             if diff > time_allowance:
-                print(f"{func.__name__} took {diff:.3f}s (basic_timer)")
-            return retval
+                _module = getattr(func, '__module__', '<none>').replace('cogs.', '')
+                print(f"{_module}.{func.__name__} took {diff:.3f}s (basic_timer)")
+                
+                if func.__name__ == 'on_message':
+                    if not hasattr(here.bot, "event_times"):
+                        here.bot.event_times = defaultdict(list)
+                    latency = round(here.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
+                    
+                    here.bot.event_times[func.__name__].append((int(discord.utils.utcnow().timestamp()),
+                                                               latency,
+                                                               round(diff, 4)))
         
         return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
     
     return decorator
+
+
+async def wait_for(name: str, event: str, timeout: float, check: Optional[Callable[..., bool]]):
+    """For "name", write the name of the event without "on_". For example, "voice_state_update" or "member_join"."""
+    if not hasattr(here.bot, "wait_for_times"):
+        here.bot.wait_for_times = defaultdict(list)
+    t1 = time.perf_counter()
+    try:
+        return await here.bot.wait_for(event, timeout=timeout, check=check)
+    finally:
+        t2 = time.perf_counter()
+        here.bot.wait_for_times[event].append(t2 - t1)
+        
+        
+async def sleep(name, time_in: float, add: bool = False):
+    if not hasattr(here.bot, "wait_for_times"):
+        here.bot.wait_for_times = defaultdict(list)
+    t1 = time.perf_counter()
+    await asyncio.sleep(time_in)
+    t2 = time.perf_counter()
+    if add:
+        here.bot.wait_for_times[name][-1] += t2 - t1
+    else:
+        here.bot.wait_for_times[name].append(t2 - t1)
+        
+        
+def line_profile(t_in, description: str = "", t_threshold: float = 1, offset: float = 0):
+    """
+    Line profiler for measuring the time between two points in the code.
+    :param t_in: Pass in a timestamp, and it'll return the new timestamp
+    :param description:
+    :param t_threshold: Print only if above this threshold
+    :param offset: If there is some kind of sleep or wait in the code, subtract this time from diff
+    :return: New timestamp
+    """
+    t_now = time.perf_counter()
+    diff = t_now - t_in - offset
+    if diff > t_threshold:
+        print(f"{description + ': ' if description else ''} {diff:.3f}s (latency: {here.bot.live_latency:.4f}s)")
+    return t_now
