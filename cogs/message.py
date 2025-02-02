@@ -13,6 +13,7 @@ from urllib.error import HTTPError
 import discord
 from discord.ext import commands
 from emoji import is_emoji
+from lingua import Language, LanguageDetectorBuilder
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from .utils import helper_functions as hf
@@ -1323,6 +1324,33 @@ class Message(commands.Cog):
         
         await msg.channel.purge(limit=50, check=purge_check)
 
+    @on_message_function()
+    async def sp_serv_other_language_detection(self, msg: hf.RaiMessage):
+        """Detect if a message in Spanish server is in another language"""
+        log_channel = self.bot.get_channel(1335631538716545054)
+        if not msg.content:
+            return
+        if msg.guild != log_channel.guild:
+            return
+        stripped_content = utils.rem_emoji_url(msg)
+        if len(stripped_content) < 15:
+            return
+        confidence_levels = self.lingua_detector.compute_language_confidence_values(stripped_content)
+        # looks like:
+        # [ConfidenceValue(language=Language.ITALIAN, value=0.09408047930759932),
+        # ConfidenceValue(language=Language.PORTUGUESE, value=0.08835661566397494),
+        # ConfidenceValue(language=Language.SPANISH, value=0.08731281497274661), ...]
+        
+        if (confidence_levels[0].language not in [Language.ENGLISH, Language.SPANISH]
+                and confidence_levels[0].value > 0.7):
+            s = f"Message potentially in other language by {msg.author.mention}\n> "
+            s += msg.content.replace('\n', '\n> ')
+            s += f"\nTop registered confidence values:\n- "
+            s += "\n- ".join([f"{c.language.name.capitalize()}: {round(c.value, 3)}"
+                              for c in confidence_levels if c.value > 0.1])
+            s += f"\n{msg.jump_url}"
+            await log_channel.send(s)
+            
 
 async def setup(bot):
     await bot.add_cog(Message(bot))
