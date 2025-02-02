@@ -213,7 +213,7 @@ class Dictionary(commands.Cog):
                     self.is_rae_def_available = True
 
             # Check expression availability
-            expression = article.find("h3", class_=["k5", "k6", "l2"])
+            expression = article.find("h3", class_=["k5", "k6", "l2", "b"])
             if expression:
                 self.is_rae_exp_available = True
 
@@ -231,7 +231,7 @@ class Dictionary(commands.Cog):
                 if antonym:
                     self.is_rae_ant_available = True
 
-            return
+        return
 
     def reset_availability(self):
         self.is_rae_def_available = False
@@ -385,12 +385,13 @@ class Dictionary(commands.Cog):
                 example_text = example.get_text(strip=False)
                 example.string = f"*{example_text}*"
 
-            # Iterate through each list item
-            for definition_item in (definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])):
-                definition_text = ' '.join(definition_item.stripped_strings)
-                # Remove extra spaces before certain punctuation marks and superscript characters
-                definition_text = self.trim_spaces_before_symbols(definition_text)
-                definitions.append(definition_text)
+            if definitions_list:
+                # Iterate through each list item
+                for definition_item in (definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])):
+                    definition_text = ' '.join(definition_item.stripped_strings)
+                    # Remove extra spaces before certain punctuation marks and superscript characters
+                    definition_text = self.trim_spaces_before_symbols(definition_text)
+                    definitions.append(definition_text)
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 10
@@ -463,15 +464,22 @@ class Dictionary(commands.Cog):
                 example.string = f"*{example_text}*"
 
             # Find all h3 tags containing expressions
-            h3_tags = article.find_all("h3", class_=["k5", "k6", "l2"])
+            h3_tags = article.find_all("h3", class_=["k5", "k6", "l2", "b"])
 
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
                 expression = h3.text.strip()
                 definition = h3.find_next_sibling("ol")
+
+                # If there is an expression but not a definition
+                if not definition:
+                    expression = " ".join(expression.split())
+                    expressions[expression] = []
+
                 if definition:
                     definitions = [li.text.strip() for li in definition.find_all("li", class_="m")]
                     expressions[expression] = definitions
+
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 6
@@ -481,8 +489,9 @@ class Dictionary(commands.Cog):
                 description = ""
                 for expression, definitions in chunk:
                     description += f"**{expression}**\n"
-                    for definition in definitions:
-                        description += f"{definition}\n"
+                    if definitions:
+                       for definition in definitions:
+                            description += f"{definition}\n"
 
                 embed = discord.Embed(
                     title=title,
