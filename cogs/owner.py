@@ -11,7 +11,7 @@ import importlib
 import datetime
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
-from subprocess import PIPE, run
+from subprocess import PIPE, run, TimeoutExpired
 from contextlib import redirect_stdout
 from typing import Union
 
@@ -770,11 +770,16 @@ class Owner(commands.Cog):
         This version will directly return the results of the command as text
         Command: The command you wish to input into your system
         """
-        result = run(command,
+        try:
+            result = run(command,
                      stdout=PIPE,
                      stderr=PIPE,
                      universal_newlines=True,
-                     shell=True)
+                     shell=True,
+                     timeout=15)
+        except TimeoutExpired:
+            await utils.safe_send(ctx, "Command timed out")
+            return
         result = f"{result.stdout}\n{result.stderr}"
         long = len(result) > 1994
         short_result = result[:1994]
