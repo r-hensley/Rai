@@ -93,7 +93,7 @@ def time_task(func, *args, diff_threshold=0.5):
     
     
 class Message(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
@@ -101,10 +101,11 @@ class Message(commands.Cog):
         global on_message_functions
         self.all_tasks = {func['func'] for func in on_message_functions}
         
-        lingua_languages = [Language.SPANISH, Language.ENGLISH, Language.FRENCH, Language.ARABIC,
-                            Language.PORTUGUESE, Language.JAPANESE, Language.TAGALOG, Language.GERMAN, Language.RUSSIAN,
-                            Language.ITALIAN]
-        self.lingua_detector = LanguageDetectorBuilder.from_languages(*lingua_languages).build()
+        lingua_languages_one = [Language.SPANISH, Language.ENGLISH]
+        lingua_languages_two = [Language.FRENCH, Language.ARABIC, Language.PORTUGUESE, Language.JAPANESE,
+                                Language.TAGALOG, Language.GERMAN, Language.RUSSIAN, Language.ITALIAN]
+        self.lingua_detector_eng_sp = LanguageDetectorBuilder.from_languages(*lingua_languages_one).build()
+        self.lingua_detector_full = LanguageDetectorBuilder.from_languages(*(lingua_languages_one + lingua_languages_two)).build()
     
     @commands.Cog.listener()
     @hf.basic_timer(1)
@@ -1347,25 +1348,135 @@ class Message(commands.Cog):
             return
         if msg.guild != log_channel.guild:
             return
-        stripped_content = utils.rem_emoji_url(msg)
-        if len(stripped_content) < 15:
+        
+        # exempt channels that allow other languages
+        if msg.channel.id == 817074401680818186:  # other-languages channel
             return
-        confidence_levels = self.lingua_detector.compute_language_confidence_values(stripped_content)
+        if getattr(msg.channel, "parent", None):
+            if msg.channel.parent.id == 1141761988012290179:  # languages-forum channel
+                return
+            
+        # remove emojis and urls from message to convert only words
+        stripped_content = utils.rem_emoji_url(msg).strip()
+        
+        # this removes duplicated characters. for example, oooooooomg, or hahahahaha
+        # it works if it's two characters alternating as well
+        no_duplicates = re.sub(r"(.)\1+", r"\1", stripped_content)
+        
+        # only check messages long enough to provide meaningful results
+        if len(no_duplicates) < 10:
+            return
+        
+        # ignore messages that have latin letters (i.e., not japanese for example), but no spaces
+        # these messages are probably something like "lmaoooooo" or "jajajajaja"
+        if re.search(r"[a-zA-Z]", stripped_content):
+            if stripped_content.count(" ") == 0:
+                return
+        
+        confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(stripped_content)
+        confidence_levels_two = self.lingua_detector_full.compute_language_confidence_values(stripped_content)
         # looks like:
         # [ConfidenceValue(language=Language.ITALIAN, value=0.09408047930759932),
         # ConfidenceValue(language=Language.PORTUGUESE, value=0.08835661566397494),
         # ConfidenceValue(language=Language.SPANISH, value=0.08731281497274661), ...]
         
-        if (confidence_levels[0].language not in [Language.ENGLISH, Language.SPANISH]
-                and confidence_levels[0].value > 0.7):
-            s = f"Message potentially in other language by {msg.author.mention}\n> "
+        # construct string and send to channel
+        if (confidence_levels_two[0].language not in [Language.ENGLISH, Language.SPANISH]
+                and confidence_levels_two[0].value > 0.9):
+            s = f"__Message potentially in other language__\nby {msg.author.mention} in {msg.jump_url}\n> "
             s += msg.content.replace('\n', '\n> ')
             s += f"\nTop registered confidence values:\n- "
             s += "\n- ".join([f"{c.language.name.capitalize()}: {round(c.value, 3)}"
-                              for c in confidence_levels if c.value > 0.1])
-            s += f"\n{msg.jump_url}"
-            await log_channel.send(s)
+                              for c in confidence_levels_two if c.value > 0.1])
+            if msg.created_at.second % 10 in [0]:
+                # randomly for messages that happen on seconds ending in "0" (1/10 chance), add extra information
+                s += f"\n__Information on below emojis__"
+                s += "\n- ⚠️ - Format a warning to send to the user"
+                s += "\n- ℹ️ - Format a friendlier modbot warning to send to the channel"
+                s += "\n- ❌ - Delete this log (it was a mistaken detection)"
+            sent_msg = await log_channel.send(s)
+        else:
+            return
+        
+        try:
+            await sent_msg.add_reaction("⚠️")
+            await sent_msg.add_reaction("ℹ️")
+            await sent_msg.add_reaction("❌")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Check for ⚠️ ℹ️ ❌ reactions to messages in 1335631538716545054"""
+        if payload.member.id == self.bot.user.id: return
+        if payload.channel_id != 1335631538716545054: return
+        
+        other_language_logging_channel = self.bot.get_channel(1335631538716545054)
+        if not other_language_logging_channel: return
+        
+        try:
+            msg = await other_language_logging_channel.fetch_message(payload.message_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return
+        
+        if str(payload.emoji) == "⚠":
+            to_send = await self.format_rai_warning(msg)
+            if to_send:
+                await other_language_logging_channel.send(to_send)
+        elif str(payload.emoji) == "ℹ️":
+            to_send = await self.format_modbot_warning(msg)
+            if to_send:
+                await other_language_logging_channel.send(to_send)
+        elif str(payload.emoji) == "❌":
+            try:
+                await msg.delete()
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        
+    async def format_rai_warning(self, msg: discord.Message) -> str:
+        """Read the content of the message and format a warning to send to the user"""
+        acceptable_channel_one = self.bot.get_channel(817074401680818186)
+        acceptable_channel_two = self.bot.get_channel(1141761988012290179)
+        english = f"Please only use English or Spanish in this server. If you need to use another language, " \
+            f"please use {acceptable_channel_one.mention} or {acceptable_channel_two.mention}."
+        spanish = f"Por favor, solo usa inglés o español en este servidor. Si necesitas usar otro idioma, " \
+                f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
+        
+        user_search = re.search(r"by <@!?(\d{17,22})>", msg.content)
+        if user_search:
+            member_id = user_search.group(1)
+            member = msg.guild.get_member(int(member_id))
+            if member:
+                english_native_role = msg.guild.get_role(243853718758359040)
+                spanish_native_role = msg.guild.get_role(243854128424550401)
+                if english_native_role in member.roles:
+                    s = f";warn {member.mention} {english}\n"
+                elif spanish_native_role in member.roles:
+                    s = f";warn {member.mention} {spanish}\n"
+                else:
+                    s = f";warn {member.mention}\n- {english}\n- {spanish}\n"
+            else:
+                return ""
+        else:
+            return ""
             
+        for line in msg.content.split('\n'):
+            if line.startswith("> "):
+                s += line + '\n'
+                
+        return s
+    
+    async def format_modbot_warning(self, msg: discord.Message) -> str:
+        """Read the content of the message and format a friendlier modbot warning to send to the channel.
+        Modbot warning will be sent to the channel instead of the user (syntax: "_send channel_id msg")."""
+        acceptable_channel_one = self.bot.get_channel(817074401680818186)
+        acceptable_channel_two = self.bot.get_channel(1141761988012290179)
+        english = f"Please only use English or Spanish in this server. If you need to use another language, " \
+            f"please use {acceptable_channel_one.mention} or {acceptable_channel_two.mention}."
+        spanish = f"Por favor, solo usa inglés o español en este servidor. Si necesitas usar otro idioma, " \
+                f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
+        
+        return f"_send {msg.channel.id} ℹ️\n- {english}\n- {spanish}"
 
 async def setup(bot):
     await bot.add_cog(Message(bot))
