@@ -14,11 +14,11 @@ TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 
 
 class Background(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.heartbeat_check}
+                             self.check_downed_tasks, self.save_db, self.live_latency}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -97,17 +97,17 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=10.0)
     async def save_db(self):
-        if getattr(self.bot, 'db', None):
+        if getattr(self.bot, 'db', None) is not None:
             await utils.dump_json('db')
         else:
             print("main database not yet fully loaded, so skipping db saving")
         
-        if getattr(self.bot, 'stats', None):
+        if getattr(self.bot, 'stats', None) is not None:
             await utils.dump_json('stats')
         else:
             print("stats database not yet fully loaded, so skipping stats saving")
             
-        if getattr(self.bot, 'message_queue', None):
+        if getattr(self.bot, 'message_queue', None) is not None:
             await utils.dump_json('message_queue')
         else:
             print("message queue not yet fully loaded, so skipping message queue saving")
@@ -318,14 +318,16 @@ class Background(commands.Cog):
         await self.handle_error(error)
         
     @tasks.loop(seconds=5)
-    async def heartbeat_check(self):
+    async def live_latency(self):
         t1 = time.perf_counter()
-        for _ in range(8):
-            await asyncio.sleep(0.25)
+        try:
+            await self.bot.application_info()
+        except (discord.HTTPException, discord.DiscordServerError):
+            pass
         t2 = time.perf_counter()
-        if t2 - t1 > 2.1:
-            print(f"heartbeat took {t2 - t1:.3f} seconds")
-    
+        self.bot.live_latency = t2 - t1
+        
 
 async def setup(bot):
     await bot.add_cog(Background(bot))
+    
