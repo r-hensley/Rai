@@ -157,6 +157,8 @@ class Dictionary(commands.Cog):
         self.is_rae_ant_available = False
         self.superscript_characters = "⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ"
         self.punctuation_without_spaces = "].,:)|»"
+        self.definition_classes = ["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]
+        self.expression_classes = ["k1", "k2", "k3", "k4", "k5", "k6", "l1", "l2", "l3", "l4", "l5", "l6", "b"]
 
     async def send_embeds(self, ctx, embeds, formatted_word):
         if not embeds:
@@ -207,16 +209,14 @@ class Dictionary(commands.Cog):
         for article in articles:
             # Check definition availability
             definition_section = article.find("ol", class_="c-definitions")
+            intro_section = article.find(class_="c-text-intro")
+            definition = None
             if definition_section:
-                definition = definition_section.find("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])
-                if definition:
-                    self.is_rae_def_available = True
+                definition = definition_section.find("li", class_=self.definition_classes)
+            self.is_rae_def_available = bool(definition or intro_section)
 
             # Check expression availability
-            expression = article.find("h3", class_=["k1", "k2", "k3", "k4", "k5",
-                                                     "k6", "l1", "l2", "l3", "l4",
-                                                     "l5", "l6", "b"])
-
+            expression = article.find("h3", class_=self.expression_classes)
             if expression:
                 self.is_rae_exp_available = True
 
@@ -390,7 +390,7 @@ class Dictionary(commands.Cog):
 
             if definitions_list:
                 # Iterate through each list item
-                for definition_item in (definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])):
+                for definition_item in (definitions_list.find_all("li", class_=self.definition_classes)):
                     definition_text = ' '.join(definition_item.stripped_strings)
                     # Remove extra spaces before certain punctuation marks and superscript characters
                     definition_text = self.trim_spaces_before_symbols(definition_text)
@@ -400,17 +400,27 @@ class Dictionary(commands.Cog):
             chunk_size = 10
             chunks = [definitions[i:i + chunk_size] for i in range(0, len(definitions), chunk_size)]
 
-            for i, chunk in enumerate(chunks):
-                description = "\n".join(chunk)
+            if chunks:
+                for i, chunk in enumerate(chunks):
+                    description = "\n".join(chunk)
 
-                # Include the intro texts only to the first page
-                if i == 0:
-                    description = f'{intro_texts_combined + description}'
+                    # Include the intro texts only on the first page
+                    if i == 0:
+                        description = f'{intro_texts_combined + description}'
 
+                    embed = discord.Embed(
+                        title=title,
+                        url=url,
+                        description=description,
+                        color=discord.Color.blue()
+                    )
+                    embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                    embeds.append(embed)
+            elif intro_texts_combined:
                 embed = discord.Embed(
                     title=title,
                     url=url,
-                    description=description,
+                    description=intro_texts_combined,
                     color=discord.Color.blue()
                 )
                 embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
@@ -467,9 +477,7 @@ class Dictionary(commands.Cog):
                 example.string = f"*{example_text}*"
 
             # Find all h3 tags containing expressions
-            h3_tags = article.find_all("h3", class_=["k1", "k2", "k3", "k4", "k5",
-                                                     "k6", "l1", "l2", "l3", "l4",
-                                                     "l5", "l6", "b"])
+            h3_tags = article.find_all("h3", class_=self.expression_classes)
 
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
