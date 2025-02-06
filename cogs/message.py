@@ -1344,6 +1344,8 @@ class Message(commands.Cog):
     async def sp_serv_other_language_detection(self, msg: hf.RaiMessage):
         """Detect if a message in Spanish server is in another language"""
         log_channel = self.bot.get_channel(1335631538716545054)
+        if not log_channel:
+            return
         if not msg.content:
             return
         if msg.guild != log_channel.guild:
@@ -1408,23 +1410,32 @@ class Message(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Check for ⚠️ ℹ️ ❌ reactions to messages in 1335631538716545054"""
-        if payload.member.id == self.bot.user.id: return
+        if payload.user_id == self.bot.user.id: return
         if payload.channel_id != 1335631538716545054: return
         
         other_language_logging_channel = self.bot.get_channel(1335631538716545054)
         if not other_language_logging_channel: return
-        
+
         try:
             msg = await other_language_logging_channel.fetch_message(payload.message_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            source_msg_search = re.search(r"by <@!?(\d{17,22})> in (https://discord.com/channels/\d+/(\d+)/(\d+))",
+                                   msg.content)
+            try:
+                channel_id = int(source_msg_search.group(3))
+                source_channel = msg.guild.get_channel(channel_id)
+                source_msg = await source_channel.fetch_message(int(source_msg_search.group(4)))
+            except (AttributeError, ValueError, discord.NotFound) as e:
+                return
+
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
             return
         
-        if str(payload.emoji) == "⚠":
-            to_send = await self.format_rai_warning(msg)
+        if str(payload.emoji) == "⚠️":
+            to_send = await self.format_rai_warning(source_msg)
             if to_send:
                 await other_language_logging_channel.send(to_send)
         elif str(payload.emoji) == "ℹ️":
-            to_send = await self.format_modbot_warning(msg)
+            to_send = await self.format_modbot_warning(source_msg)
             if to_send:
                 await other_language_logging_channel.send(to_send)
         elif str(payload.emoji) == "❌":
@@ -1441,28 +1452,20 @@ class Message(commands.Cog):
             f"please use {acceptable_channel_one.mention} or {acceptable_channel_two.mention}."
         spanish = f"Por favor, solo usa inglés o español en este servidor. Si necesitas usar otro idioma, " \
                 f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
-        
-        user_search = re.search(r"by <@!?(\d{17,22})>", msg.content)
-        if user_search:
-            member_id = user_search.group(1)
-            member = msg.guild.get_member(int(member_id))
-            if member:
-                english_native_role = msg.guild.get_role(243853718758359040)
-                spanish_native_role = msg.guild.get_role(243854128424550401)
-                if english_native_role in member.roles:
-                    s = f";warn {member.mention} {english}\n"
-                elif spanish_native_role in member.roles:
-                    s = f";warn {member.mention} {spanish}\n"
-                else:
-                    s = f";warn {member.mention}\n- {english}\n- {spanish}\n"
-            else:
-                return ""
+
+        english_native_role = msg.guild.get_role(243853718758359040)
+        spanish_native_role = msg.guild.get_role(243854128424550401)
+        if english_native_role in msg.author.roles:
+            s = f";warn {msg.author.mention} {english}\n"
+        elif spanish_native_role in msg.author.roles:
+            s = f";warn {msg.author.mention} {spanish}\n"
         else:
-            return ""
-            
+            s = f";warn {msg.author.mention}\n- {english}\n- {spanish}\n"
+
         for line in msg.content.split('\n'):
-            if line.startswith("> "):
-                s += line + '\n'
+            s += "> " + line + '\n'
+
+        s += msg.jump_url
                 
         return s
     
