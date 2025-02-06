@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from collections import defaultdict
 from datetime import timedelta, datetime
 from typing import Optional
 
@@ -883,6 +884,7 @@ class Events(commands.Cog):
 
         date_str = discord.utils.utcnow().strftime("%Y%m%d")
         config[date_str] = config.setdefault(date_str, 0) + 1
+        
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):

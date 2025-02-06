@@ -13,6 +13,7 @@ from urllib.error import HTTPError
 import discord
 from discord.ext import commands
 from emoji import is_emoji
+from lingua import Language, LanguageDetectorBuilder
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from .utils import helper_functions as hf
@@ -52,8 +53,10 @@ def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow
         async def wrapper(*args, **kwargs):  # needs to be async to work with asyncio.gather()
             if not should_execute_task(allow_dms, allow_bots, allow_self, *args):
                 return lambda *a, **kw: None  # No-op lambda for skipped tasks
-            timing_func = partial(time_task, func)
-            task = utils.asyncio_task(timing_func, *args)
+            
+            # time_task() is a wrapper that returns an uncalled async function definition
+            # this is what asyncio_task needs, you're supposed to give it a function to call later
+            task = utils.asyncio_task(time_task(func, *args), task_name=f"on_message.{func.__name__}")
             return task
 
         # Replace `func` with `wrapper` in the registered functions
@@ -69,7 +72,6 @@ def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow
     return decorator
 
 
-
 def log_time(t_in, description: str):
     new_time = time.perf_counter()
     diff = new_time - t_in
@@ -77,29 +79,36 @@ def log_time(t_in, description: str):
     return new_time
 
 
-async def time_task(func, *args):
-    t1 = time.monotonic()
-    await func(*args)
-    t2 = time.monotonic()
-    diff = t2 - t1
-    if diff > 0.5:
-        print(f"Function {func.__name__} took {diff:.2f} seconds to run.")
+def time_task(func, *args, diff_threshold=0.5):
+    @wraps(func)
+    async def time_task_internal():
+        t1 = time.perf_counter()
+        result = await func(*args)
+        t2 = time.perf_counter()
+        diff = t2 - t1
+        if diff > diff_threshold:
+            print(f"on_message function {func.__name__} took {diff:.2f} seconds to run.")
+        return result
+    return time_task_internal
     
     
 class Message(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
         
         global on_message_functions
         self.all_tasks = {func['func'] for func in on_message_functions}
-        # self.self_tasks = {func['func'] for func in on_message_functions if func['allow_self']}
-        # self.bot_tasks = {func['func'] for func in on_message_functions if func['allow_bots']}
-        # self.dm_tasks = {func['func'] for func in on_message_functions if func['allow_dms']}
-        # self.other_tasks = self.all_tasks - self.self_tasks - self.bot_tasks - self.dm_tasks
+        
+        lingua_languages_one = [Language.SPANISH, Language.ENGLISH]
+        lingua_languages_two = [Language.FRENCH, Language.ARABIC, Language.PORTUGUESE, Language.JAPANESE,
+                                Language.TAGALOG, Language.GERMAN, Language.RUSSIAN, Language.ITALIAN]
+        self.lingua_detector_eng_sp = LanguageDetectorBuilder.from_languages(*lingua_languages_one).build()
+        self.lingua_detector_full = LanguageDetectorBuilder.from_languages(*(lingua_languages_one + lingua_languages_two)).build()
     
     @commands.Cog.listener()
+    @hf.basic_timer(1)
     async def on_message(self, msg_in: discord.Message):
         rai_message = hf.RaiMessage(msg_in)
         try:
@@ -121,36 +130,21 @@ class Message(commands.Cog):
             return
         if rai_message.guild and not isinstance(rai_message.author, discord.Member):
             return
-            
-        # # DM TASKS (bots can never message each other)
-        # for task in self.dm_tasks:
-        #     task(self, rai_message)
-        # if not rai_message.guild:
-        #     return
-        #
-        # # RAI TASKS
-        # try:
-        #     for task in self.self_tasks:
-        #         task(self, rai_message)
-        #     if rai_message.author == self.bot.user:
-        #         return
-        # except Exception as e:
-        #     print("Exception in self_tasks:\n", e, traceback.format_exc())
-        #
-        # # BOT TASKS
-        # for task in self.bot_tasks:
-        #     task(self, rai_message)
-        # if rai_message.author.bot:
-        #     return
-        
-        # NORMAL TASKS
-        lang_check_task = utils.asyncio_task(self.lang_check, rai_message)
-        rai_message.lang, rai_message.hardcore = await lang_check_task  # will add slight delay as we wait for this
-        
-        rai_message.ctx = await self.bot.get_context(rai_message)  # wait for this too
-        
-        # await execute_tasks_concurrently(self.other_tasks, self, rai_message)
-        await asyncio.gather(*(task(self, rai_message) for task in self.all_tasks))
+
+        try:
+            lang_check_task = utils.asyncio_task(time_task(self.lang_check, rai_message))
+            rai_message.detected_lang, rai_message.is_hardcore = await lang_check_task
+            # will add slight delay as we wait for this
+
+            # run all tasks in a batch
+            await asyncio.gather(*(task(self, rai_message) for task in self.all_tasks))
+        except Exception as e:
+            # to avoid infinite loops: if Rai throws an error, log it and continue
+            if rai_message.author.id == self.bot.user.id:
+                print(f"Exception in message sent by bot {rai_message.author.name}:\n", e)
+                traceback.print_exc()
+            else:
+                raise
     
     async def lang_check(self, msg: hf.RaiMessage) -> (Optional[str], bool):
         """
@@ -198,6 +192,24 @@ class Message(commands.Cog):
                 pass
         return detected_lang, is_hardcore
     
+    @on_message_function()
+    async def test_long_function(self, msg: hf.RaiMessage):
+        # only work on messages from bot owner
+        if msg.author.id != self.bot.owner_id:
+            return
+        if msg.channel.id != 1330798440052949024:
+            return
+        time.sleep(5)
+        
+    @on_message_function()
+    async def test_async_wait(self, msg: hf.RaiMessage):
+        # only work on messages from bot owner
+        if msg.author.id != self.bot.owner_id:
+            return
+        if msg.channel.id != 1331494671620509699:
+            return
+        await asyncio.sleep(5)
+    
     @on_message_function(allow_bots=True)
     async def log_bot_messages(self, msg: hf.RaiMessage):
         if not getattr(self.bot, "bot_message_queue", None):
@@ -236,6 +248,7 @@ class Message(commands.Cog):
     async def replace_tatsumaki_posts(self, msg: hf.RaiMessage):
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
             if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
+                await msg.get_ctx()
                 serverinfo: commands.Command = self.bot.get_command("serverinfo")
                 # noinspection PyTypeChecker
                 await msg.ctx.invoke(serverinfo)
@@ -286,6 +299,7 @@ class Message(commands.Cog):
         # content = msg.content[25:]
         
         modlog: commands.Command = self.bot.get_command("modlog")
+        await msg.get_ctx()
         
         # Search for direct mentions of IDs
         user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
@@ -373,6 +387,7 @@ class Message(commands.Cog):
         else:
             return
         
+        await msg.get_ctx()
         for user_id in args.user_ids:
             user = msg.guild.get_member(int(user_id))
             if not user:
@@ -751,6 +766,7 @@ class Message(commands.Cog):
         edited_msg = re.sub(user_id_regex, "", edited_msg)
         
         interactions = self.bot.get_cog("Interactions")  # get cog, then the function inside the cog
+        await msg.get_ctx()
         notif = await interactions.staffping_code(ctx=msg.ctx, users=users, reason=edited_msg)
         
         if hasattr(self.bot, 'synced_reactions'):
@@ -863,7 +879,7 @@ class Message(commands.Cog):
             pos = sentiment['pos']
             neu = sentiment['neu']
             neg = sentiment['neg']
-            await utils.safe_send(msg.ctx, f"Your sentiment score for the above message:"
+            await utils.safe_send(msg.channel, f"Your sentiment score for the above message:"
                                            f"\n- Positive / Neutral / Negative: +{pos} / n{neu} / -{neg}"
                                            f"\n- Overall: {sentiment['compound']}"
                                            f"\nNote this program is often wrong, and can only check English. If using "
@@ -1171,6 +1187,7 @@ class Message(commands.Cog):
         if not msg.channel.flags.pinned:
             return
         
+        await msg.get_ctx()
         if not hf.submod_check(msg.ctx):
             await msg.delete()
             try:
@@ -1199,13 +1216,13 @@ class Message(commands.Cog):
         
         # if the message without the ping is less than 4 characters, it's likely just a ping with no text
         if len(new_content) < 4:
-            await msg.ctx.reply("- Thank you for pinging staff. In the future, please also include a description of "
-                                "the issue when pinging Staff so moderators who "
-                                "arrive into the channel can more quickly understand what is happening.\n"
-                                "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
-                                "descripción del problema cuando envíes un ping al "
-                                "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
-                                "lo que está pasando.")
+            await msg.reply("- Thank you for pinging staff. In the future, please also include a description of "
+                            "the issue when pinging Staff so moderators who "
+                            "arrive into the channel can more quickly understand what is happening.\n"
+                            "- Gracias por enviar un ping al staff. En el futuro, por favor, incluye también una "
+                            "descripción del problema cuando envíes un ping al "
+                            "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
+                            "lo que está pasando.")
     
     @on_message_function()
     async def spanish_server_ban_for_adobe_spam_message(self, msg: hf.RaiMessage):
@@ -1294,6 +1311,7 @@ class Message(commands.Cog):
             
             try:
                 # execute the 1h mute command
+                await msg.get_ctx()
                 msg.ctx.author = msg.guild.me
                 mute_command: commands.Command = self.bot.get_command('mute')
                 # noinspection PyTypeChecker
@@ -1322,6 +1340,143 @@ class Message(commands.Cog):
         
         await msg.channel.purge(limit=50, check=purge_check)
 
+    @on_message_function()
+    async def sp_serv_other_language_detection(self, msg: hf.RaiMessage):
+        """Detect if a message in Spanish server is in another language"""
+        log_channel = self.bot.get_channel(1335631538716545054)
+        if not msg.content:
+            return
+        if msg.guild != log_channel.guild:
+            return
+        
+        # exempt channels that allow other languages
+        if msg.channel.id == 817074401680818186:  # other-languages channel
+            return
+        if getattr(msg.channel, "parent", None):
+            if msg.channel.parent.id == 1141761988012290179:  # languages-forum channel
+                return
+            
+        # remove emojis and urls from message to convert only words
+        stripped_content = utils.rem_emoji_url(msg).strip()
+        
+        # this removes duplicated characters. for example, oooooooomg, or hahahahaha
+        # it works if it's two characters alternating as well
+        no_duplicates = re.sub(r"(.)\1+", r"\1", stripped_content)
+        
+        # only check messages long enough to provide meaningful results
+        if len(no_duplicates) < 10:
+            return
+        
+        # ignore messages that have latin letters (i.e., not japanese for example), but no spaces
+        # these messages are probably something like "lmaoooooo" or "jajajajaja"
+        if re.search(r"[a-zA-Z]", stripped_content):
+            if stripped_content.count(" ") == 0:
+                return
+        
+        confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(stripped_content)
+        confidence_levels_two = self.lingua_detector_full.compute_language_confidence_values(stripped_content)
+        # looks like:
+        # [ConfidenceValue(language=Language.ITALIAN, value=0.09408047930759932),
+        # ConfidenceValue(language=Language.PORTUGUESE, value=0.08835661566397494),
+        # ConfidenceValue(language=Language.SPANISH, value=0.08731281497274661), ...]
+        
+        # construct string and send to channel
+        if (confidence_levels_two[0].language not in [Language.ENGLISH, Language.SPANISH]
+                and confidence_levels_two[0].value > 0.9):
+            s = f"__Message potentially in other language__\nby {msg.author.mention} in {msg.jump_url}\n> "
+            s += msg.content.replace('\n', '\n> ')
+            s += f"\nTop registered confidence values:\n- "
+            s += "\n- ".join([f"{c.language.name.capitalize()}: {round(c.value, 3)}"
+                              for c in confidence_levels_two if c.value > 0.1])
+            if msg.created_at.second % 10 in [0]:
+                # randomly for messages that happen on seconds ending in "0" (1/10 chance), add extra information
+                s += f"\n__Information on below emojis__"
+                s += "\n- ⚠️ - Format a warning to send to the user"
+                s += "\n- ℹ️ - Format a friendlier modbot warning to send to the channel"
+                s += "\n- ❌ - Delete this log (it was a mistaken detection)"
+            sent_msg = await log_channel.send(s)
+        else:
+            return
+        
+        try:
+            await sent_msg.add_reaction("⚠️")
+            await sent_msg.add_reaction("ℹ️")
+            await sent_msg.add_reaction("❌")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Check for ⚠️ ℹ️ ❌ reactions to messages in 1335631538716545054"""
+        if payload.member.id == self.bot.user.id: return
+        if payload.channel_id != 1335631538716545054: return
+        
+        other_language_logging_channel = self.bot.get_channel(1335631538716545054)
+        if not other_language_logging_channel: return
+        
+        try:
+            msg = await other_language_logging_channel.fetch_message(payload.message_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return
+        
+        if str(payload.emoji) == "⚠":
+            to_send = await self.format_rai_warning(msg)
+            if to_send:
+                await other_language_logging_channel.send(to_send)
+        elif str(payload.emoji) == "ℹ️":
+            to_send = await self.format_modbot_warning(msg)
+            if to_send:
+                await other_language_logging_channel.send(to_send)
+        elif str(payload.emoji) == "❌":
+            try:
+                await msg.delete()
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        
+    async def format_rai_warning(self, msg: discord.Message) -> str:
+        """Read the content of the message and format a warning to send to the user"""
+        acceptable_channel_one = self.bot.get_channel(817074401680818186)
+        acceptable_channel_two = self.bot.get_channel(1141761988012290179)
+        english = f"Please only use English or Spanish in this server. If you need to use another language, " \
+            f"please use {acceptable_channel_one.mention} or {acceptable_channel_two.mention}."
+        spanish = f"Por favor, solo usa inglés o español en este servidor. Si necesitas usar otro idioma, " \
+                f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
+        
+        user_search = re.search(r"by <@!?(\d{17,22})>", msg.content)
+        if user_search:
+            member_id = user_search.group(1)
+            member = msg.guild.get_member(int(member_id))
+            if member:
+                english_native_role = msg.guild.get_role(243853718758359040)
+                spanish_native_role = msg.guild.get_role(243854128424550401)
+                if english_native_role in member.roles:
+                    s = f";warn {member.mention} {english}\n"
+                elif spanish_native_role in member.roles:
+                    s = f";warn {member.mention} {spanish}\n"
+                else:
+                    s = f";warn {member.mention}\n- {english}\n- {spanish}\n"
+            else:
+                return ""
+        else:
+            return ""
+            
+        for line in msg.content.split('\n'):
+            if line.startswith("> "):
+                s += line + '\n'
+                
+        return s
+    
+    async def format_modbot_warning(self, msg: discord.Message) -> str:
+        """Read the content of the message and format a friendlier modbot warning to send to the channel.
+        Modbot warning will be sent to the channel instead of the user (syntax: "_send channel_id msg")."""
+        acceptable_channel_one = self.bot.get_channel(817074401680818186)
+        acceptable_channel_two = self.bot.get_channel(1141761988012290179)
+        english = f"Please only use English or Spanish in this server. If you need to use another language, " \
+            f"please use {acceptable_channel_one.mention} or {acceptable_channel_two.mention}."
+        spanish = f"Por favor, solo usa inglés o español en este servidor. Si necesitas usar otro idioma, " \
+                f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
+        
+        return f"_send {msg.channel.id} ℹ️\n- {english}\n- {spanish}"
 
 async def setup(bot):
     await bot.add_cog(Message(bot))
