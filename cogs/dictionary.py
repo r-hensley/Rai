@@ -302,14 +302,64 @@ class Dictionary(commands.Cog):
         return embeds
 
     def to_superscript(self, article):
-        def convert_to_superscript(text):
-            # Function to convert a string to superscript
-            superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
-            return text.translate(superscript_map)
+        superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
 
-        # Modify article text to superscript
         for sup_tag in article.find_all("sup"):
-            sup_tag.string = convert_to_superscript(sup_tag.string)
+            sup_tag_text = sup_tag.string
+            sup_tag.string = sup_tag_text.translate(superscript_map)
+        return article
+
+    def to_italicize(self, article):
+        em_tags = article.find_all(lambda tag:
+                                          (tag.name == "em") or (tag.name == "span" and "h" in tag.get("class", []))
+                                          )
+        if em_tags:
+            for em_tag in em_tags:
+                em_tag_text = em_tag.get_text(strip=False)
+                em_tag.string = f"*{em_tag_text}*"
+
+        return article
+
+    def to_bold(self, article):
+        #bold_tags = article.find_all(lambda tag:
+        #                                  (tag.name == ["b", "strong"]) or (tag.name == "a" and "a" in tag.get("class", []))
+        #)
+        bold_tags = article.find_all(["b", "strong"])
+        if bold_tags:
+            for bold_tag in bold_tags:
+                bold_tag_text = bold_tag.get_text(strip=False)
+                bold_tag.string = f"**{bold_tag_text}**"
+
+        return article
+
+    def to_underline(self, article):
+        underline_tags = article.find_all(lambda tag:
+                                          (tag.name == "u") or (tag.name == "span" and "u" in tag.get("class", []))
+                                          )
+
+        if underline_tags:
+            for underline_tag in underline_tags:
+                underline_tag_text = underline_tag.get_text(strip=False)
+                underline_tag.string = f"__{underline_tag_text}__"
+
+        return article
+
+    def to_hyperlink(self, article):
+        link_tags = article.find_all(["a"], class_=["a"])
+        if link_tags:
+            for link_tag in link_tags:
+                link_tag_text = link_tag.get_text(strip=False)
+                link_tag.string = f"[{link_tag_text}](https://dle.rae.es{link_tag.get('href')})"
+
+        return article
+
+    def format_article(self, article):
+        article = self.to_superscript(article)
+        article = self.to_italicize(article)
+        article = self.to_bold(article)
+        article = self.to_underline(article)
+        article = self.to_hyperlink(article)
+
         return article
 
     @commands.command(aliases=['rae'])
@@ -349,23 +399,10 @@ class Dictionary(commands.Cog):
             return
 
         for article in articles:
-            # Turn characters inside HTML <sup> tags into superscripts
-            article = self.to_superscript(article)
+            # Format words according to their HTML tag or class
+            article = self.format_article(article)
 
             title = article.find("h1", class_="c-page-header__title").text.strip()
-
-            # Format bold and italicized words correctly
-            em_tags = article.find_all("em")
-            if em_tags:
-                for em_tag in em_tags:
-                    em_tag_text = em_tag.get_text(strip=False)
-                    em_tag.string = f"*{em_tag_text}*"
-
-            bold_tags = article.find_all(["b", "strong"])
-            if bold_tags:
-                for bold_tag in bold_tags:
-                    bold_tag_text = bold_tag.get_text(strip=False)
-                    bold_tag.string = f"**{bold_tag_text}**"
 
             intro_texts = [text.get_text().strip() for text in article.find_all(class_="c-text-intro")]
             intro_texts_with_newlines = [text + "\n" for text in intro_texts]
@@ -380,13 +417,6 @@ class Dictionary(commands.Cog):
             footer = article.find_all("div", class_="c-definitions__item-footer")
             for footer_item in footer:
                 footer_item.decompose()
-
-            # Find all elements with the 'h' class (They're example sentences)
-            examples = article.find_all("span", class_="h")
-            # Directly wrap the content with asterisks to italicize it
-            for example in examples:
-                example_text = example.get_text(strip=False)
-                example.string = f"*{example_text}*"
 
             if definitions_list:
                 # Iterate through each list item
@@ -465,16 +495,10 @@ class Dictionary(commands.Cog):
             return
 
         for article in articles:
-            article = self.to_superscript(article)
+            article = self.format_article(article)
+
             title = article.find("h1", class_="c-page-header__title").text.strip()
             expressions = {}
-
-            # Find all elements with the 'h' class (They're example sentences)
-            examples = article.find_all("span", class_="h")
-            # Directly wrap the content with asterisks to italicize it
-            for example in examples:
-                example_text = example.get_text(strip=False)
-                example.string = f"*{example_text}*"
 
             # Find all h3 tags containing expressions
             h3_tags = article.find_all("h3", class_=self.expression_classes)
