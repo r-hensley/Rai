@@ -207,7 +207,7 @@ class Dictionary(commands.Cog):
         self.reset_availability()
 
         for article in articles:
-            # Check definition availability
+            # Check definition/etymology availability
             definition_section = article.find("ol", class_="c-definitions")
             intro_section = article.find(class_="c-text-intro")
             definition = None
