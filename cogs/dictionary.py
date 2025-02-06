@@ -157,6 +157,8 @@ class Dictionary(commands.Cog):
         self.is_rae_ant_available = False
         self.superscript_characters = "⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ"
         self.punctuation_without_spaces = "].,:)|»"
+        self.definition_classes = ["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]
+        self.expression_classes = ["k1", "k2", "k3", "k4", "k5", "k6", "l1", "l2", "l3", "l4", "l5", "l6", "b"]
 
     async def send_embeds(self, ctx, embeds, formatted_word):
         if not embeds:
@@ -205,18 +207,16 @@ class Dictionary(commands.Cog):
         self.reset_availability()
 
         for article in articles:
-            # Check definition availability
+            # Check definition/etymology availability
             definition_section = article.find("ol", class_="c-definitions")
+            intro_section = article.find(class_="c-text-intro")
+            definition = None
             if definition_section:
-                definition = definition_section.find("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])
-                if definition:
-                    self.is_rae_def_available = True
+                definition = definition_section.find("li", class_=self.definition_classes)
+            self.is_rae_def_available = bool(definition or intro_section)
 
             # Check expression availability
-            expression = article.find("h3", class_=["k1", "k2", "k3", "k4", "k5",
-                                                     "k6", "l1", "l2", "l3", "l4",
-                                                     "l5", "l6", "b"])
-
+            expression = article.find("h3", class_=self.expression_classes)
             if expression:
                 self.is_rae_exp_available = True
 
@@ -302,14 +302,64 @@ class Dictionary(commands.Cog):
         return embeds
 
     def to_superscript(self, article):
-        def convert_to_superscript(text):
-            # Function to convert a string to superscript
-            superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
-            return text.translate(superscript_map)
+        superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
 
-        # Modify article text to superscript
         for sup_tag in article.find_all("sup"):
-            sup_tag.string = convert_to_superscript(sup_tag.string)
+            sup_tag_text = sup_tag.string
+            sup_tag.string = sup_tag_text.translate(superscript_map)
+        return article
+
+    def to_italicize(self, article):
+        em_tags = article.find_all(lambda tag:
+                                          (tag.name == "em") or (tag.name == "span" and "h" in tag.get("class", []))
+                                          )
+        if em_tags:
+            for em_tag in em_tags:
+                em_tag_text = em_tag.get_text(strip=False)
+                em_tag.string = f"*{em_tag_text}*"
+
+        return article
+
+    def to_bold(self, article):
+        #bold_tags = article.find_all(lambda tag:
+        #                                  (tag.name == ["b", "strong"]) or (tag.name == "a" and "a" in tag.get("class", []))
+        #)
+        bold_tags = article.find_all(["b", "strong"])
+        if bold_tags:
+            for bold_tag in bold_tags:
+                bold_tag_text = bold_tag.get_text(strip=False)
+                bold_tag.string = f"**{bold_tag_text}**"
+
+        return article
+
+    def to_underline(self, article):
+        underline_tags = article.find_all(lambda tag:
+                                          (tag.name == "u") or (tag.name == "span" and "u" in tag.get("class", []))
+                                          )
+
+        if underline_tags:
+            for underline_tag in underline_tags:
+                underline_tag_text = underline_tag.get_text(strip=False)
+                underline_tag.string = f"__{underline_tag_text}__"
+
+        return article
+
+    def to_hyperlink(self, article):
+        link_tags = article.find_all(["a"], class_=["a"])
+        if link_tags:
+            for link_tag in link_tags:
+                link_tag_text = link_tag.get_text(strip=False)
+                link_tag.string = f"[{link_tag_text}](https://dle.rae.es{link_tag.get('href')})"
+
+        return article
+
+    def format_article(self, article):
+        article = self.to_superscript(article)
+        article = self.to_italicize(article)
+        article = self.to_bold(article)
+        article = self.to_underline(article)
+        article = self.to_hyperlink(article)
+
         return article
 
     @commands.command(aliases=['rae'])
@@ -349,23 +399,10 @@ class Dictionary(commands.Cog):
             return
 
         for article in articles:
-            # Turn characters inside HTML <sup> tags into superscripts
-            article = self.to_superscript(article)
+            # Format words according to their HTML tag or class
+            article = self.format_article(article)
 
             title = article.find("h1", class_="c-page-header__title").text.strip()
-
-            # Format bold and italicized words correctly
-            em_tags = article.find_all("em")
-            if em_tags:
-                for em_tag in em_tags:
-                    em_tag_text = em_tag.get_text(strip=False)
-                    em_tag.string = f"*{em_tag_text}*"
-
-            bold_tags = article.find_all(["b", "strong"])
-            if bold_tags:
-                for bold_tag in bold_tags:
-                    bold_tag_text = bold_tag.get_text(strip=False)
-                    bold_tag.string = f"**{bold_tag_text}**"
 
             intro_texts = [text.get_text().strip() for text in article.find_all(class_="c-text-intro")]
             intro_texts_with_newlines = [text + "\n" for text in intro_texts]
@@ -381,16 +418,9 @@ class Dictionary(commands.Cog):
             for footer_item in footer:
                 footer_item.decompose()
 
-            # Find all elements with the 'h' class (They're example sentences)
-            examples = article.find_all("span", class_="h")
-            # Directly wrap the content with asterisks to italicize it
-            for example in examples:
-                example_text = example.get_text(strip=False)
-                example.string = f"*{example_text}*"
-
             if definitions_list:
                 # Iterate through each list item
-                for definition_item in (definitions_list.find_all("li", class_=["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"])):
+                for definition_item in (definitions_list.find_all("li", class_=self.definition_classes)):
                     definition_text = ' '.join(definition_item.stripped_strings)
                     # Remove extra spaces before certain punctuation marks and superscript characters
                     definition_text = self.trim_spaces_before_symbols(definition_text)
@@ -400,17 +430,27 @@ class Dictionary(commands.Cog):
             chunk_size = 10
             chunks = [definitions[i:i + chunk_size] for i in range(0, len(definitions), chunk_size)]
 
-            for i, chunk in enumerate(chunks):
-                description = "\n".join(chunk)
+            if chunks:
+                for i, chunk in enumerate(chunks):
+                    description = "\n".join(chunk)
 
-                # Include the intro texts only to the first page
-                if i == 0:
-                    description = f'{intro_texts_combined + description}'
+                    # Include the intro texts only on the first page
+                    if i == 0:
+                        description = f'{intro_texts_combined + description}'
 
+                    embed = discord.Embed(
+                        title=title,
+                        url=url,
+                        description=description,
+                        color=discord.Color.blue()
+                    )
+                    embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                    embeds.append(embed)
+            elif intro_texts_combined:
                 embed = discord.Embed(
                     title=title,
                     url=url,
-                    description=description,
+                    description=intro_texts_combined,
                     color=discord.Color.blue()
                 )
                 embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
@@ -455,21 +495,13 @@ class Dictionary(commands.Cog):
             return
 
         for article in articles:
-            article = self.to_superscript(article)
+            article = self.format_article(article)
+
             title = article.find("h1", class_="c-page-header__title").text.strip()
             expressions = {}
 
-            # Find all elements with the 'h' class (They're example sentences)
-            examples = article.find_all("span", class_="h")
-            # Directly wrap the content with asterisks to italicize it
-            for example in examples:
-                example_text = example.get_text(strip=False)
-                example.string = f"*{example_text}*"
-
             # Find all h3 tags containing expressions
-            h3_tags = article.find_all("h3", class_=["k1", "k2", "k3", "k4", "k5",
-                                                     "k6", "l1", "l2", "l3", "l4",
-                                                     "l5", "l6", "b"])
+            h3_tags = article.find_all("h3", class_=self.expression_classes)
 
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
