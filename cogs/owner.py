@@ -1,6 +1,5 @@
 import textwrap
 import asyncio
-import time
 import traceback
 import io
 import sys
@@ -12,9 +11,8 @@ import importlib
 import datetime
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
-from subprocess import PIPE, run
+from subprocess import PIPE, run, TimeoutExpired
 from contextlib import redirect_stdout
-from ast import literal_eval
 from typing import Union
 
 import discord
@@ -512,7 +510,7 @@ class Owner(commands.Cog):
         # noinspection PyBroadException
         try:
             with redirect_stdout(stdout):
-                ret = await asyncio.wait_for(func(), 2)
+                ret = await asyncio.wait_for(func(), 15)
         except asyncio.TimeoutError:
             return await utils.safe_send(ctx, 'Evaluation timed out.')
         except Exception as _:
@@ -772,11 +770,16 @@ class Owner(commands.Cog):
         This version will directly return the results of the command as text
         Command: The command you wish to input into your system
         """
-        result = run(command,
+        try:
+            result = run(command,
                      stdout=PIPE,
                      stderr=PIPE,
                      universal_newlines=True,
-                     shell=True)
+                     shell=True,
+                     timeout=15)
+        except TimeoutExpired:
+            await utils.safe_send(ctx, "Command timed out")
+            return
         result = f"{result.stdout}\n{result.stderr}"
         long = len(result) > 1994
         short_result = result[:1994]
@@ -895,13 +898,6 @@ class Owner(commands.Cog):
     @commands.command()
     async def mostbansdate(self, ctx: commands.Context):
         """Finds the date of the most bans"""
-        
-        from collections import Counter
-        import discord
-        import io
-        from datetime import timedelta
-        import matplotlib.pyplot as plt
-        
         seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
         daily_bans = Counter()
         
