@@ -419,13 +419,13 @@ class Main(commands.Cog):
             e.add_field(name='Channel', value=f'{channel.__repr__()}'[:1024], inline=False)
             
         joined_args_str = '\n'.join(args_str)
-        args_str_segments = hf.split_text_into_segments(joined_args_str, 1014)
+        args_str_segments = utils.split_text_into_segments(joined_args_str, 1014)
         for segment in args_str_segments[:5]:
             if len(segment) + len(e) < 5980:
                 e.add_field(name='Args', value=f"```py\n{segment}```", inline=False)
         
         message_content = f'{traceback.format_exc()}'
-        message_content_list = hf.split_text_into_segments(message_content, 1900)
+        message_content_list = utils.split_text_into_segments(message_content, 1900)
         traceback_channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL)
         try:
             if len(message_content_list) > 1:

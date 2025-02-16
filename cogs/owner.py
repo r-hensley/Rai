@@ -241,7 +241,7 @@ class Owner(commands.Cog):
             formatted_structure = json.dumps(structure, indent=2)
             
             # Split the output into chunks Discord can send
-            chunks = hf.split_text_into_segments(formatted_structure, 1900)
+            chunks = utils.split_text_into_segments(formatted_structure, 1900)
             for i, chunk in enumerate(chunks[:3]):
                 await ctx.send(f"```json\n{chunk}```")
             if len(chunks) > 3:
@@ -516,7 +516,7 @@ class Owner(commands.Cog):
         except Exception as _:
             value = stdout.getvalue()
             to_send = f'\n{value}{traceback.format_exc()}\n'
-            to_send_segments = hf.split_text_into_segments(to_send, 1990)
+            to_send_segments = utils.split_text_into_segments(to_send, 1990)
             for segment in to_send_segments[:5]:
                 await utils.safe_send(ctx, f'```py\n{segment}\n```')
             if len(to_send_segments) > 5:
@@ -531,14 +531,14 @@ class Owner(commands.Cog):
             
             if ret is None:
                 if value:
-                    segments = hf.split_text_into_segments(value, 1990)
+                    segments = utils.split_text_into_segments(value, 1990)
                     for segment in segments[:5]:
                         await utils.safe_send(ctx, f'```py\n{segment}\n```')
                     if len(segments) > 5:
                         await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
             else:
                 self._last_result = ret
-                segments = hf.split_text_into_segments(f"{value}{ret}", 1990)
+                segments = utils.split_text_into_segments(f"{value}{ret}", 1990)
                 for segment in segments[:5]:
                     await utils.safe_send(ctx, f'```py\n{segment}\n```')
                 if len(segments) > 5:

@@ -461,8 +461,8 @@ class Logger(commands.Cog):
             else:
                 break
                     
-        before_str_segments = hf.split_text_into_segments(before_content, 1024)
-        after_str_segments = hf.split_text_into_segments(after_content, 1024)
+        before_str_segments = utils.split_text_into_segments(before_content, 1024)
+        after_str_segments = utils.split_text_into_segments(after_content, 1024)
         for i in range(len(before_str_segments)):
             if i == 0:
                 emb.add_field(name=f'**Before:**', value=before_str_segments[i])
