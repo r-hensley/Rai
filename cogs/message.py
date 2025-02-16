@@ -15,6 +15,7 @@ from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -1225,26 +1226,44 @@ class Message(commands.Cog):
                             "lo que está pasando.")
     
     @on_message_function()
-    async def spanish_server_ban_for_adobe_spam_message(self, msg: hf.RaiMessage):
-        """This command will ban users who say the word 'Adobe' in the Spanish server if they have less
-        than five messages in the last month."""
+    async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
+        """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
         if msg.guild.id != SP_SERVER_ID:
             return
         if not msg.embeds:
             return
-        content = msg.embeds[0].description or ''
-        if "Adobe Full Espanol GRATiS 2024" not in content or "@everyone" not in content:
+        if not msg.content:
             return
         if msg.author.bot:
             return
-        recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
-        if recent_messages_count > 3:
+
+        # check for spam messages, returns list like ['steamcommunity.com', 'steamcommunity.com', ...]
+        # found_bad_url will be True if a steamcommunity.com link is found modified from the real URL
+        # example: 50$ gift https://steamrconmmunity.com/s/104291095314
+        found_bad_url = False
+        url_domains = re.findall(r"(?:https?://)?(?:www.)?([\w-]+\.com)", msg.content)
+        for domain in url_domains:
+            if 0 < LDist(domain, "steamcommunity.com") < 4:
+                found_bad_url = True
+                break
+
+        # example: @everyone steam gift 50$ - [steamcommunity.com/gift-card/pay/50](https://u.to/Qm7iIQ )
+        embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", msg.content)
+        if embedded_steam_links and "@everyone" in msg.content:
+            found_bad_url = True
+
+        if not found_bad_url:
             return
+
+        recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
+        if recent_messages_count > 4:
+            return
+
         try:
-            await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
+            # await msg.author.ban(reason="Automatic ban: Inactive user sending Steam scam.")
             incidents_channel = msg.guild.get_channel(808077477703712788)
             await utils.safe_send(incidents_channel, "<@202995638860906496>\n"
-                                                     "Above user banned for the Adobe scam message.\n"
+                                                     "Above user can be banned for a scam message.\n"
                                                      f"(Messages in last month: {recent_messages_count})")
         except (discord.Forbidden, discord.HTTPException):
             pass
