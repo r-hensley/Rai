@@ -227,7 +227,7 @@ class ChannelMods(commands.Cog):
                     if embed.title or embed.description or embed.fields:
                         embeds.append(embed)
                         emb.add_field(name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
-            split_message_content = hf.split_text_into_segments(msg.content, 900)
+            split_message_content = utils.split_text_into_segments(msg.content, 900)
             for index, segment in enumerate(split_message_content):
                 if not segment:
                     continue
