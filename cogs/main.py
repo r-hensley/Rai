@@ -370,77 +370,21 @@ class Main(commands.Cog):
             await ctx.send("Only the bot owner can do that.")
             return
 
-        qualified_name = getattr(ctx.command, 'qualified_name', ctx.command.name)
-        e = discord.Embed(title='Command Error', colour=0xcc3366)
-        e.add_field(name='Name', value=qualified_name)
-        e.add_field(name='Command', value=ctx.message.content[:1000])
-        e.add_field(name='Author', value=f'{ctx.author} (ID: {ctx.author.id})')
-
-        fmt = f'Channel: {ctx.channel} (ID: {ctx.channel.id})'
-        if ctx.guild:
-            fmt = f'{fmt}\nGuild: {ctx.guild} (ID: {ctx.guild.id})'
-        e.add_field(name='Location', value=fmt, inline=False)
-
-        await utils.send_error_embed(self.bot, ctx, error, e)
+        await utils.send_error_embed(self.bot, ctx, error)
 
     @commands.Cog.listener()
-    async def on_error(self, event, *args, **kwargs):
-        e = discord.Embed(title='Event Error', colour=0xa32952)
-        e.add_field(name='Event', value=str(event)[:1024])
-        e.timestamp = discord.utils.utcnow()
-        args_str = []
-        jump_url = ''
-        extra_info = {}
-        for index, arg in enumerate(args):
-            args_str.append(f'[{index}]: {arg!r}')
-            
-            # try to find some useful information in the args
-            if isinstance(arg, discord.Message):
-                extra_info['author_id'] = arg.author.id
-                extra_info['channel_id'] = arg.channel.id
-                if arg.guild: extra_info['guild_id'] = arg.guild.id
-                jump_url = arg.jump_url
-            else:
-                if hasattr(arg, 'guild_id'):
-                    extra_info['guild_id'] = arg.guild_id
-                if hasattr(arg, 'channel_id'):
-                    extra_info['channel_id'] = arg.channel_id
-                if hasattr(arg, 'author_id'):
-                    extra_info['author_id'] = arg.author_id
-                    
-        if 'guild_id' in extra_info:
-            guild = self.bot.get_guild(extra_info['guild_id'])
-            e.add_field(name='Guild', value=f'{guild.__repr__()}'[:1024], inline=False)
-        if 'author_id' in extra_info:
-            author = self.bot.get_user(extra_info['author_id'])
-            e.add_field(name='Author', value=f'{author.__repr__()}'[:1024], inline=False)
-        if 'channel_id' in extra_info:
-            channel = self.bot.get_channel(extra_info['channel_id'])
-            e.add_field(name='Channel', value=f'{channel.__repr__()}'[:1024], inline=False)
-            
-        joined_args_str = '\n'.join(args_str)
-        args_str_segments = utils.split_text_into_segments(joined_args_str, 1014)
-        for segment in args_str_segments[:5]:
-            if len(segment) + len(e) < 5980:
-                e.add_field(name='Args', value=f"```py\n{segment}```", inline=False)
-        
-        message_content = f'{traceback.format_exc()}'
-        message_content_list = utils.split_text_into_segments(message_content, 1900)
-        traceback_channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL)
-        try:
-            if len(message_content_list) > 1:
-                for index, segment in enumerate(message_content_list):
-                    if index == 0:
-                        await traceback_channel.send(f"{jump_url}\n```py\n{segment}```")
-                    elif index != len(message_content_list) - 1:
-                        await traceback_channel.send(f"```py\n{segment}```")
-                    else:
-                        await traceback_channel.send(f"```py\n{segment}```", embed=e)
-            else:
-                await traceback_channel.send(f"{jump_url}\n```py\n{message_content}```", embed=e)
-        except AttributeError:
-            pass  # Set ID of TRACEBACK_LOGGING_CHANNEL at top of this file to a channel in your testing server
-        traceback.print_exc()
+    async def on_error(self, event: str, *args, **kwargs):
+        # Get the exception info
+        # exc_info() returns the tuple (type(e), e, e.__traceback__)
+        error_info_tuple = sys.exc_info()
+        error_type = error_info_tuple[0]
+        error = error_info_tuple[1]
+        if error_type is None:
+            print("No error occurred, can't send error embed.")
+            return
+
+        # Use the send_error_embed function
+        await utils.send_error_embed(self.bot, event, error, *args, **kwargs)
 
 
 async def setup(bot):
