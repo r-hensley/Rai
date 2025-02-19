@@ -863,7 +863,7 @@ class Message(commands.Cog):
         if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
             return
         
-        if msg.lang != 'en' and msg.guild.id != RY_SERVER_ID:
+        if msg.detected_lang != 'en' and msg.guild.id != RY_SERVER_ID:
             return
         
         to_calculate = msg.content
@@ -1007,9 +1007,9 @@ class Message(commands.Cog):
                 if emoji in ['、']:
                     continue
                 today[author]['emoji'][emoji] = today[author]['emoji'].get(emoji, 0) + 1
-        if msg.lang:  # language is detected in separate lang_check function
+        if msg.detected_lang:  # language is detected in separate lang_check function
             today[author].setdefault('lang', {})
-            today[author]['lang'][msg.lang] = today[author]['lang'].get(msg.lang, 0) + 1
+            today[author]['lang'][msg.detected_lang] = today[author]['lang'].get(msg.detected_lang, 0) + 1
     
     @on_message_function()
     async def uhc_check(self, msg: hf.RaiMessage):
@@ -1095,7 +1095,7 @@ class Message(commands.Cog):
                 delete = 'spanish'
         
         if delete == 'spanish':  # learning English, delete all Spanish
-            if msg.lang == 'es':
+            if msg.detected_lang == 'es':
                 try:
                     await msg.delete()
                 except discord.NotFound:
@@ -1105,7 +1105,7 @@ class Message(commands.Cog):
         else:  # learning Spanish, delete all English
             if 'holi' in msg.content.casefold():
                 return
-            if msg.lang == 'en':
+            if msg.detected_lang == 'en':
                 try:
                     await msg.delete()
                 except discord.NotFound:
@@ -1146,7 +1146,7 @@ class Message(commands.Cog):
     
     @on_message_function()
     async def spanish_server_language_switch(self, msg: hf.RaiMessage):
-        if not msg.lang:
+        if not msg.detected_lang:
             return
         
         if "*" in msg.content or msg.content.startswith(">"):
@@ -1158,14 +1158,14 @@ class Message(commands.Cog):
         
         sp_nat_role = msg.guild.get_role(243854128424550401)
         if sp_nat_role in msg.author.roles:
-            if msg.lang == 'es':
+            if msg.detected_lang == 'es':
                 try:
                     await msg.delete()
                 except (discord.Forbidden, discord.HTTPException):
                     pass
         
         else:
-            if msg.lang == 'en':
+            if msg.detected_lang == 'en':
                 try:
                     await msg.delete()
                 except (discord.Forbidden, discord.HTTPException):
