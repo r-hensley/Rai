@@ -1090,7 +1090,7 @@ class RaiMessage(discord.Message):
         self._lock = asyncio.Lock()  # Lock for thread safety
         self._ctx: Optional[commands.Context] = None  # None if not fetched
         self._error_fetching_ctx = False
-        self.lang: Optional[str] = None  # en, sp, None
+        self.detected_lang: Optional[str] = None  # en, sp, None
         self.hardcore: Optional[bool] = None
 
     def __getattr__(self, name):
@@ -1099,7 +1099,7 @@ class RaiMessage(discord.Message):
 
         This is only called when the attribute is not found in RaiMessage.
         For example:
-        - "msg.lang" returns this class's attribute.
+        - "msg.detected_lang" returns this class's attribute.
         - "msg.author" returns "self.discord_message.author".
         """
         return getattr(self.discord_message, name)
