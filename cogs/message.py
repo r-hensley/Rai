@@ -1369,7 +1369,11 @@ class Message(commands.Cog):
             return
         if msg.guild != log_channel.guild:
             return
-        
+
+        # skip voice channels
+        if msg.channel.type == discord.ChannelType.voice:
+            return
+
         # exempt channels that allow other languages
         if msg.channel.id == 817074401680818186:  # other-languages channel
             return
