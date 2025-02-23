@@ -1348,11 +1348,21 @@ class Logger(commands.Cog):
 
             for entry in config:
                 banned_guild = self.bot.get_guild(entry[0])
+
+                # check to see if actual ban still exists
+                try:
+                    await banned_guild.fetch_ban(member)
+                except (discord.NotFound, discord.Forbidden):
+                    config.remove(entry)
+                    continue
+
+                # get original ban notification / event from bans logging channel
                 try:
                     message = await bans_channel.fetch_message(entry[1])
                 except discord.NotFound:  # if the ban log message was deleted
                     config.remove(entry)
                     continue
+
                 date_str = message.created_at.strftime("%Y/%m/%d")
                 emb.description += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
                 emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
@@ -1386,6 +1396,13 @@ class Logger(commands.Cog):
                 else:
                     del (self.bot.db['banlogs'][str(member.id)])  # cleanup
 
+            # check if this modlog entry doesn't already exist in the user's modlog
+            # only do hf.add_to_modlog if it wasn't already there with that emb.description
+            this_user_modlog = self.bot.db['modlog'].get(str(member.id), [])
+            if this_user_modlog:
+                for entry in this_user_modlog:
+                    if entry[1] == emb.description:
+                        return
             hf.add_to_modlog(None, [member, member.guild], 'Log', emb.description, False, None)
 
     # ############### leaves #####################
