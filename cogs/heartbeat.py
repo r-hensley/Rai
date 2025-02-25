@@ -247,7 +247,7 @@ class HeartbeatMonitor(commands.Cog):
         
         if not hasattr(self.bot, "event_times"):
             self.bot.event_times = defaultdict(list)
-        latency = round(self.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
+        latency = round(getattr(self.bot, "live_latency", 0), 4)  # time in seconds, for example, 0.08629303518682718
         command_name = ctx.command.qualified_name
         
         self.bot.event_times[command_name].append((int(discord.utils.utcnow().timestamp()),
@@ -314,4 +314,3 @@ class HeartbeatMonitor(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(HeartbeatMonitor(bot))
-    

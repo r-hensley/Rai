@@ -69,16 +69,17 @@ def setup(bot, loop: asyncio.AbstractEventLoop):
         here.loop = loop
     else:
         pass
-    
-    test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
-    test_module = importlib.reload(test_module)
-    suite = unittest.TestLoader().loadTestsFromModule(test_module)
-    test_runner = unittest.TextTestRunner(verbosity=1)
-    # Verbosity:
-    # 0 (quiet): you just get the total numbers of tests executed and the global result
-    # 1 (default): you get the same plus a dot for every successful test or a F for every failure
-    # 2 (verbose): you get the help string of every test and the result
-    test_runner.run(suite)
+
+    # # currently commented out because there are no tests to run
+    # test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
+    # test_module = importlib.reload(test_module)
+    # suite = unittest.TestLoader().loadTestsFromModule(test_module)
+    # test_runner = unittest.TextTestRunner(verbosity=1)
+    # # Verbosity:
+    # # 0 (quiet): you just get the total numbers of tests executed and the global result
+    # # 1 (default): you get the same plus a dot for every successful test or a F for every failure
+    # # 2 (verbose): you get the help string of every test and the result
+    # test_runner.run(suite)
 
 
 _lock = asyncio.Lock()
