@@ -683,6 +683,10 @@ class Submod(commands.Cog):
         if silent := "-s" in reason:
             reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
 
+        if not user_ids:
+            await utils.safe_reply(ctx, "I could not find any users to warn in your command.")
+            return
+
         if not reason:
             await utils.safe_send(ctx, "You must include a reason in your warning, please try again.")
             return
