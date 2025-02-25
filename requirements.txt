@@ -67,7 +67,6 @@ scikit-learn
 asqlite
 bs4
 python-dotenv
-sklearn
 emoji
 langdetect
 ipywidgets

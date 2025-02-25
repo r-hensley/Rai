@@ -7,7 +7,7 @@ import traceback
 import urllib
 from datetime import timedelta
 from functools import wraps, partial
-from typing import Optional
+from typing import Optional, Any
 from urllib.error import HTTPError
 
 import discord
@@ -36,6 +36,7 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 on_message_functions = []
 
+
 def should_execute_task(allow_dms, allow_bots, allow_self, self, msg):
     """
     Determines if the task should execute based on message properties.
@@ -50,6 +51,8 @@ def should_execute_task(allow_dms, allow_bots, allow_self, self, msg):
 
 def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow_self: bool = False):
     def decorator(func: callable):
+
+        # wrapper just to turn function into an asyncio task coroutine
         @wraps(func)  # Ensures the function retains its original name and docstring
         async def wrapper(*args, **kwargs):  # needs to be async to work with asyncio.gather()
             if not should_execute_task(allow_dms, allow_bots, allow_self, *args):
