@@ -15,6 +15,7 @@ from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from Levenshtein import distance as LDist
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -862,7 +863,7 @@ class Message(commands.Cog):
         if not self.bot.stats.get(str(msg.guild.id), {'enable': False})['enable']:
             return
         
-        if msg.lang != 'en' and msg.guild.id != RY_SERVER_ID:
+        if msg.detected_lang != 'en' and msg.guild.id != RY_SERVER_ID:
             return
         
         to_calculate = msg.content
@@ -1006,9 +1007,9 @@ class Message(commands.Cog):
                 if emoji in ['、']:
                     continue
                 today[author]['emoji'][emoji] = today[author]['emoji'].get(emoji, 0) + 1
-        if msg.lang:  # language is detected in separate lang_check function
+        if msg.detected_lang:  # language is detected in separate lang_check function
             today[author].setdefault('lang', {})
-            today[author]['lang'][msg.lang] = today[author]['lang'].get(msg.lang, 0) + 1
+            today[author]['lang'][msg.detected_lang] = today[author]['lang'].get(msg.detected_lang, 0) + 1
     
     @on_message_function()
     async def uhc_check(self, msg: hf.RaiMessage):
@@ -1094,7 +1095,7 @@ class Message(commands.Cog):
                 delete = 'spanish'
         
         if delete == 'spanish':  # learning English, delete all Spanish
-            if msg.lang == 'es':
+            if msg.detected_lang == 'es':
                 try:
                     await msg.delete()
                 except discord.NotFound:
@@ -1104,7 +1105,7 @@ class Message(commands.Cog):
         else:  # learning Spanish, delete all English
             if 'holi' in msg.content.casefold():
                 return
-            if msg.lang == 'en':
+            if msg.detected_lang == 'en':
                 try:
                     await msg.delete()
                 except discord.NotFound:
@@ -1145,7 +1146,7 @@ class Message(commands.Cog):
     
     @on_message_function()
     async def spanish_server_language_switch(self, msg: hf.RaiMessage):
-        if not msg.lang:
+        if not msg.detected_lang:
             return
         
         if "*" in msg.content or msg.content.startswith(">"):
@@ -1157,14 +1158,14 @@ class Message(commands.Cog):
         
         sp_nat_role = msg.guild.get_role(243854128424550401)
         if sp_nat_role in msg.author.roles:
-            if msg.lang == 'es':
+            if msg.detected_lang == 'es':
                 try:
                     await msg.delete()
                 except (discord.Forbidden, discord.HTTPException):
                     pass
         
         else:
-            if msg.lang == 'en':
+            if msg.detected_lang == 'en':
                 try:
                     await msg.delete()
                 except (discord.Forbidden, discord.HTTPException):
@@ -1225,26 +1226,44 @@ class Message(commands.Cog):
                             "lo que está pasando.")
     
     @on_message_function()
-    async def spanish_server_ban_for_adobe_spam_message(self, msg: hf.RaiMessage):
-        """This command will ban users who say the word 'Adobe' in the Spanish server if they have less
-        than five messages in the last month."""
+    async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
+        """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
         if msg.guild.id != SP_SERVER_ID:
             return
         if not msg.embeds:
             return
-        content = msg.embeds[0].description or ''
-        if "Adobe Full Espanol GRATiS 2024" not in content or "@everyone" not in content:
+        if not msg.content:
             return
         if msg.author.bot:
             return
-        recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
-        if recent_messages_count > 3:
+
+        # check for spam messages, returns list like ['steamcommunity.com', 'steamcommunity.com', ...]
+        # found_bad_url will be True if a steamcommunity.com link is found modified from the real URL
+        # example: 50$ gift https://steamrconmmunity.com/s/104291095314
+        found_bad_url = False
+        url_domains = re.findall(r"(?:https?://)?(?:www.)?([\w-]+\.com)", msg.content)
+        for domain in url_domains:
+            if 0 < LDist(domain, "steamcommunity.com") < 4:
+                found_bad_url = True
+                break
+
+        # example: @everyone steam gift 50$ - [steamcommunity.com/gift-card/pay/50](https://u.to/Qm7iIQ )
+        embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", msg.content)
+        if embedded_steam_links and "@everyone" in msg.content:
+            found_bad_url = True
+
+        if not found_bad_url:
             return
+
+        recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
+        if recent_messages_count > 4:
+            return
+
         try:
-            await msg.author.ban(reason="Automatic ban: Inactive user sending the free Adobe scam.")
+            # await msg.author.ban(reason="Automatic ban: Inactive user sending Steam scam.")
             incidents_channel = msg.guild.get_channel(808077477703712788)
             await utils.safe_send(incidents_channel, "<@202995638860906496>\n"
-                                                     "Above user banned for the Adobe scam message.\n"
+                                                     "Above user can be banned for a scam message.\n"
                                                      f"(Messages in last month: {recent_messages_count})")
         except (discord.Forbidden, discord.HTTPException):
             pass
@@ -1350,7 +1369,11 @@ class Message(commands.Cog):
             return
         if msg.guild != log_channel.guild:
             return
-        
+
+        # skip voice channels
+        if msg.channel.type == discord.ChannelType.voice:
+            return
+
         # exempt channels that allow other languages
         if msg.channel.id == 817074401680818186:  # other-languages channel
             return
