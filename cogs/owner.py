@@ -1,3 +1,4 @@
+import logging
 import textwrap
 import asyncio
 import traceback
@@ -19,6 +20,7 @@ import discord
 from discord.ext import commands
 from matplotlib import pyplot as plt, cm
 from matplotlib.colors import Normalize
+from openai import OpenAI
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -40,6 +42,14 @@ class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
         self._last_result = None
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        open_ai_key = os.getenv("OPENAI_API_KEY")
+        if open_ai_key:
+            self.openai = OpenAI(api_key=open_ai_key)
+        else:
+            self.openai = None
         self.sessions = set()
 
     async def cog_check(self, ctx):
@@ -59,7 +69,7 @@ class Owner(commands.Cog):
             for day in config[guild_id]['messages'].copy():
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
-                    del(config[guild_id]['messages'][day])
+                    del (config[guild_id]['messages'][day])
                 else:
                     message_count += config[guild_id]['messages'][day]
 
@@ -67,7 +77,7 @@ class Owner(commands.Cog):
             for day in config[guild_id]['commands'].copy():
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
-                    del(config[guild_id]['commands'][day])
+                    del (config[guild_id]['commands'][day])
                 else:
                     command_count += config[guild_id]['commands'][day]
 
@@ -86,7 +96,7 @@ class Owner(commands.Cog):
                            f"\n{info['messages']} messages" \
                            f"\n{info['member_count']} members " \
                            f"({info['humans']} humans, {info['bots']} bots, " \
-                           f"{round(info['humans']/info['member_count'], 2)})" \
+                           f"{round(info['humans'] / info['member_count'], 2)})" \
                            f"\n{info['commands']} commands\n"
             if len(msg + msg_addition) < 2000:
                 msg += msg_addition
@@ -130,7 +140,7 @@ class Owner(commands.Cog):
     async def reply(self, ctx, index, *, reply=''):
         """Reply to a message to the bot"""
         channel = self.bot.get_channel(int(os.getenv("BOT_TEST_CHANNEL")))
-        index_re = re.search("^(;repl|;reply) (\d) ", ctx.message.content)
+        index_re = re.search(r"^(;repl|;reply) (\d) ", ctx.message.content)
         if not index_re:
             reply = f"{index} {reply}"
             index = 1
@@ -140,7 +150,7 @@ class Owner(commands.Cog):
                 await utils.safe_send(ctx, "Include reply message")
 
         async for msg in channel.history():
-            result_channel_id = re.search(f'^(\d{17,22}) <@{self.bot.owner_id}>$', msg.content)
+            result_channel_id = re.search(rf'^(\d{17, 22}) <@{self.bot.owner_id}>$', msg.content)
             if not result_channel_id:
                 continue
             else:
@@ -156,7 +166,7 @@ class Owner(commands.Cog):
                         except discord.Forbidden as e:
                             await utils.safe_send(ctx, e)
                         return
-    
+
     @commands.command(aliases=['db'])
     async def database(self, ctx, depth: int = 1, *, path: str = ""):
         """
@@ -172,7 +182,7 @@ class Owner(commands.Cog):
             if depth < 1 or depth > 4:
                 await ctx.send("Depth must be between 1 and 4.")
                 return
-            
+
             async def validate_path(_path):
                 _config = self.bot.db
                 if _path:
@@ -190,8 +200,9 @@ class Owner(commands.Cog):
                             await ctx.send(f"Path '{' '.join(keys[:keys.index(key) + 1])}' does not exist in the database.")
                             return
                 return _config
+
             config = await validate_path(path)
-            
+
             # Function to recursively extract keys up to the specified depth
             def extract_structure(data, current_depth):
                 if current_depth > depth:
@@ -201,7 +212,7 @@ class Owner(commands.Cog):
                         return "[...]"
                     else:
                         return "..."
-                
+
                 _structure = {}
                 cutoff = 3
                 key: str  # in my database, the dict keys are always strings
@@ -229,27 +240,27 @@ class Owner(commands.Cog):
                     else:
                         _structure[key] = value  # Non-dict value, probably str, int, bool
                 return _structure
-            
+
             # Extract the structure and format for display
             structure = extract_structure(config, 1)
             if structure is None:
                 await ctx.send("The path exists but contains no data to display.")
                 return
-            
+
             # Use JSON for pretty printing
             import json
             formatted_structure = json.dumps(structure, indent=2)
-            
+
             # Split the output into chunks Discord can send
             chunks = utils.split_text_into_segments(formatted_structure, 1900)
             for i, chunk in enumerate(chunks[:3]):
                 await ctx.send(f"```json\n{chunk}```")
             if len(chunks) > 3:
                 await ctx.send(f"Output truncated. Showing only the first 3 messages.")
-        
+
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
-    
+
     @commands.command(aliases=['cdb'], hidden=True)
     async def change_database(self, _):
         """Change database in some way; modify this command each time it needs to be ran"""
@@ -396,7 +407,7 @@ class Owner(commands.Cog):
                                 await utils.safe_send(ctx,
                                                       f'**`{decorator_cog}: SUCCESS`** (decorator follow-up)',
                                                       delete_after=5.0)
-                           
+
                     await self.reload_success(ctx, cog)
 
             elif cog == 'utils':
@@ -420,11 +431,11 @@ class Owner(commands.Cog):
                     await self.reload_error(ctx, cog, e)
                 else:
                     await self.reload_success(ctx, cog)
-                  
+
     @staticmethod
     async def reload_success(ctx, cog):
         await utils.safe_send(ctx, f'**`{cog}: SUCCESS`**', delete_after=5.0)
-        
+
     @staticmethod
     async def reload_error(ctx, cog, e):
         err = traceback.format_exc()
@@ -479,9 +490,9 @@ class Owner(commands.Cog):
     @commands.command(hidden=True, name='eval')
     async def _eval(self, ctx, *, body: str):
         """Evaluates a code"""
-        
+
         body = body.replace('self.bot', 'bot')
-        
+
         env = {
             'bot': self.bot,
             'ctx': ctx,
@@ -491,21 +502,21 @@ class Owner(commands.Cog):
             'message': ctx.message,
             '_': self._last_result
         }
-        
+
         env.update(globals())
-        
+
         body = self.cleanup_code(body)
         #  these are the default quotation marks on iOS, but they cause SyntaxError: invalid character in identifier
         body = body.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
         stdout = io.StringIO()
-        
+
         to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
-        
+
         try:
             exec(to_compile, env)
         except Exception as e:
             return await utils.safe_send(ctx, f'```py\n{e.__class__.__name__}: {e}\n```')
-        
+
         func = env['func']
         # noinspection PyBroadException
         try:
@@ -528,7 +539,7 @@ class Owner(commands.Cog):
                 await ctx.message.add_reaction('\u2705')
             except:
                 pass
-            
+
             if ret is None:
                 if value:
                     segments = utils.split_text_into_segments(value, 1990)
@@ -647,7 +658,7 @@ class Owner(commands.Cog):
         #         pass
         await self.bot.get_user(self.bot.owner_id).send(msg)
         await self.bot.get_user(self.bot.owner_id).send("Channels: \n" +
-                                                         '\n'.join([channel.name for channel in guild.channels]))
+                                                        '\n'.join([channel.name for channel in guild.channels]))
 
         msg_text = "Thanks for inviting me!  See a first-time setup guide here: " \
                    "https://github.com/ryry013/Rai/wiki/First-time-setup"
@@ -687,8 +698,8 @@ class Owner(commands.Cog):
         role = ctx.guild.get_role(530669592218042378)
         await user.remove_roles(role)
         await utils.safe_send(user, f"I've removed your member role on the Language Hub server.  Please reread "
-                                 f"<#530669247718752266> carefully and then you can rejoin the server."
-                                 f"Specifically, {rule}.")
+                                    f"<#530669247718752266> carefully and then you can rejoin the server."
+                                    f"Specifically, {rule}.")
 
     @commands.command()
     async def ignoreserver(self, ctx, guild_id=None):
@@ -759,7 +770,7 @@ class Owner(commands.Cog):
         if not os.path.exists(f"{dir_path}/emojis/"):
             os.mkdir(f"{dir_path}/emojis/")
         for emoji in emojis:
-            with open(f"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
+            with open(rf"{dir_path}\emojis\{emoji.name}.png", 'wb') as im:
                 await emoji.url.save(im)
             index += 1
 
@@ -772,11 +783,11 @@ class Owner(commands.Cog):
         """
         try:
             result = run(command,
-                     stdout=PIPE,
-                     stderr=PIPE,
-                     universal_newlines=True,
-                     shell=True,
-                     timeout=15)
+                         stdout=PIPE,
+                         stderr=PIPE,
+                         universal_newlines=True,
+                         shell=True,
+                         timeout=15)
         except TimeoutExpired:
             await utils.safe_send(ctx, "Command timed out")
             return
@@ -820,7 +831,7 @@ class Owner(commands.Cog):
         self.bot.db['joindates'][user_id] = new_join_date_timestamp
 
         await utils.safe_send(ctx, embed=utils.green_embed(f"Set new join date for <@{user_id}> to "
-                                                     f"<t:{int(new_join_date_timestamp)}:f>"))
+                                                           f"<t:{int(new_join_date_timestamp)}:f>"))
 
     @commands.command()
     async def network(self, ctx: commands.Context):
@@ -833,7 +844,7 @@ class Owner(commands.Cog):
         """Raises an error for testing purposes"""
         print("raising error")
         raise Exception
-    
+
     @commands.command()
     async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
                                          "05db50c66e4dcc67d129838e1b9d739a/raw/spy.pet%2520accounts"):
@@ -841,8 +852,8 @@ class Owner(commands.Cog):
         if not id_list_str:
             await utils.safe_send(ctx, "Failed to get list")
             return
-        id_list = re.findall('"(\d+)"', id_list_str)  # Extracts integers within double quotes
-        
+        id_list = re.findall(r'"(\d+)"', id_list_str)  # Extracts integers within double quotes
+
         await utils.safe_send(ctx, f"Checking from this list: {url}")
         for guild in self.bot.guilds:
             member_ids = [str(member.id) for member in guild.members]
@@ -850,7 +861,7 @@ class Owner(commands.Cog):
                 if account in member_ids:
                     await utils.safe_send(ctx, f"{account} is in {guild.name}")
         await utils.safe_send(ctx, "Done")
-        
+
     @commands.command()
     async def queue(self, ctx):
         """Prints information about the messages deque: self.bot.messages_queue"""
@@ -864,28 +875,27 @@ class Owner(commands.Cog):
         msg = f"Queue length: {len(queue)} (bot len: {bot_cache_len})\n"
         msg += f"Queue depth: {queue.depth} (bot depth: {bot_cache_depth})\n"
         msg += f"Queue size: {queue.memory_usage}\n"
-        
+
         # calculate the top five most common guilds
         guild_count = Counter()
         for message in queue:
             guild_count[message.guild_id] += 1
-            
+
         guild_count = guild_count.most_common(10)
         msg += "Top 10 guilds:\n"
         for guild_id, count in guild_count:
             guild = self.bot.get_guild(guild_id)
             percentage = count / len(queue) * 100
             msg += f"- {guild.name} ({percentage:.2f}%): {count}\n"
-            
+
         await utils.safe_send(ctx, msg)
-            
-        
+
     @commands.command(aliases=['queue_reload', 'reloadqueue'])
     async def reload_queue(self, ctx):
         """Reloads the message queue in the case that I've changed the code inside the message queue class definition"""
         self.bot.message_queue = hf.MessageQueue(self.bot.message_queue)
         await ctx.message.add_reaction("✅")
-    
+
     @commands.command(aliases=['reloadqueuemessages', 'rqm'])
     async def reload_queue_messages(self, ctx):
         """Reloads all the message objects in a queue"""
@@ -894,17 +904,17 @@ class Owner(commands.Cog):
             new_message_queue.append(hf.MiniMessage.from_mini_message(message))
         self.bot.message_queue = new_message_queue
         await ctx.message.add_reaction("✅")
-    
+
     @commands.command()
     async def mostbansdate(self, ctx: commands.Context):
         """Finds the date of the most bans"""
         seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
         daily_bans = Counter()
-        
+
         # save bans locally, so I don't keep spamming audit log
         if not hasattr(self.bot, 'ban_log_history'):
             self.bot.ban_log_history = []
-        
+
         # Fetch bans and count per day
         last_date = None
         processed_count = 0
@@ -944,27 +954,27 @@ class Owner(commands.Cog):
                         daily_bans[ban_date_str] += bans_this_day
                     bans_this_day = 0
                     last_date = ban_date
-        
+
         # sort daily_bans by date
         daily_bans = dict(sorted(daily_bans.items(), key=lambda item: item[0]))
-        
+
         # Plot data
         days = list(daily_bans.keys())
         counts = [daily_bans[day] for day in days]
-        
+
         # Calculate 7-day running average. For values at end of list, just loop back to beginning
         running_avg = []
-        avg_calculator = deque([counts[0]]*7, maxlen=7)
-        
+        avg_calculator = deque([counts[0]] * 7, maxlen=7)
+
         for day, count in zip(days, counts):
             avg_calculator.append(count)
             running_avg.append(sum(avg_calculator) / 7)
         assert len(running_avg) == len(days) == len(counts), (f"Length mismatch: "
                                                               f"{len(running_avg)=}, {len(days)=}, {len(counts)=}")
-        
+
         norm = Normalize(vmin=min(counts), vmax=max(counts))
         colors = cm.viridis(norm(counts))  # Use a colormap (e.g., viridis)
-        
+
         fig, ax = plt.subplots(figsize=(10, 6))  # Adjust figure size
         fig: plt.Figure
         ax: plt.Axes
@@ -979,13 +989,55 @@ class Owner(commands.Cog):
         cbar = fig.colorbar(sm, ax=ax)
         cbar.set_label("Number of Bans")
         plt.tight_layout()
-        
+
         # Save and send the plot
         with io.BytesIO() as plot_buffer:
             plt.savefig(plot_buffer, format="png")
             plot_buffer.seek(0)
             await ctx.send(file=discord.File(plot_buffer, "bans_plot.png"))
         plt.close()
+
+    @commands.command()
+    async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int] = 500):
+        """Summarizes a conversation using OpenAI's GPT-4"""
+        if not self.openai:
+            await utils.safe_reply(ctx, "OpenAI not initialized")
+            return
+
+        re_result = re.findall(r"https://(?:.*\.)?.*\.com/channels/\d{17,22}/(\d{17,22})/(\d{17,22})", limit_jump_url)
+        if not re_result:
+            await utils.safe_reply(ctx, "Invalid message link. Please give a message link to the message from which you want to "
+                                        "summarize")
+        channel_id = int(re_result[0][0])
+        message_id = int(re_result[0][1])
+        channel = self.bot.get_channel(channel_id)
+        first_message = await channel.fetch_message(message_id)
+        messages = [{"role": "system",
+                     "content": "Please summarize the main points of the conversation given, including the main points of each user. "
+                                "Assume there is some important conversation happening, so if it ever looks like there's parts of "
+                                "the conversations that get off topic or parts of the conversation where people get sidetracked "
+                                "with casual conversation, please ignore those parts. Keep the answer very concise. For a debate or "
+                                "discussion, summarize each party's main points with bullet points. If any conclusions were reached, "
+                                "specify the conclusion. If the conversation involves messages from 'DM Modbot', messages starting with "
+                                "'_' are private messages among moderators that don't get sent to the user."}]
+        total_len = 0
+        last_message = None
+        async for message in ctx.channel.history(limit=limit_message_number, after=first_message.created_at, oldest_first=True):
+            content = f"{message.author.display_name}: {message.content}"
+            total_len += len(content)
+            last_message = message
+            messages.append({"role": "user", "content": content})
+
+        await utils.safe_reply(ctx, f"Summarizing {len(messages)} messages from "
+                                    f"{first_message.jump_url} ({first_message.content[:50]}...)"
+                                    f"to {last_message.jump_url} ({last_message.content[:50]}...)")
+
+        completion_task = utils.asyncio_task(lambda: self.openai.chat.completions.create(model="gpt-4o", messages=messages))
+        completion = await completion_task
+        to_send = utils.split_text_into_segments(completion.choices[0].message.content, 2000)
+        for m in to_send:
+            await utils.safe_reply(ctx, m)
+
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
