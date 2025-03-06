@@ -744,16 +744,29 @@ class Message(commands.Cog):
                                                    f"\n```{msg.content}"[:1850] + '```')
                 
                 return
-    
+
     @on_message_function()
     async def mods_ping(self, msg: hf.RaiMessage):
-        """mods ping on spanish server"""
+        """
+        This function triggers whenever someone pings the configured staff role in the guild.
+        1. Checks that the guild is configured for staff pings (via self.bot.db['staff_ping']).
+        2. Removes the staff role mention from the original message to avoid duplication.
+        3. Extracts user mentions (IDs) from the message to pass them to staffping_code.
+        4. Calls the staffping_code function to send a mod notification.
+        5. Appends a synced reaction pair (notif, msg) if the bot uses reaction syncing.
+        6. If multiple staff pings occur within 10 minutes in the same channel, skip re-summarizing.
+        7. For specific servers (SP_SERVER_ID, JP_SERVER_ID), captures up to 50 preceding messages
+           and sends them, along with instructions, to OpenAI for a concise summary of the chat context.
+        8. If the AI responds with 'No summary available', the function exits quietly.
+        9. Otherwise, the summary is split (if long) and sent to the staff ping message as replies.
+        """
+
+        # 1) Confirm the guild is configured for staff pings
         if str(msg.guild.id) not in self.bot.db['staff_ping']:
             return
-        
         if 'channel' not in self.bot.db['staff_ping'][str(msg.guild.id)]:
             return
-        
+
         config = self.bot.db['staff_ping'][str(msg.guild.id)]
         staff_role_id = config.get("role")  # try to get role id from staff_ping db
         if not staff_role_id:  # no entry in staff_ping db
@@ -761,31 +774,122 @@ class Message(commands.Cog):
             if isinstance(staff_role_id, list):
                 staff_role_id = staff_role_id[0]
         if not staff_role_id:
-            return  # This guild doesn't have a mod role or staff ping role set
+            # This guild doesn't have a mod role or staff ping role set
+            return
+
         staff_role = msg.guild.get_role(staff_role_id)
         if not staff_role:
             return
-        
+
+        # 2) Check if the staff role was actually pinged and remove it from the message content
         if f"<@&{staff_role_id}>" in msg.content:
             edited_msg = re.sub(rf'<?@?&?{str(staff_role_id)}>? ?', '', msg.content)
         else:
             return
+
+        # 3) Extract user mentions (IDs) from the message for staffping_code
         user_id_regex = r"<?@?!?(\d{17,22})>? ?"
         users = re.findall(user_id_regex, edited_msg)
         users = ' '.join(users)
         edited_msg = re.sub(user_id_regex, "", edited_msg)
-        
+
+        # 4) Call staffping_code in the Interactions cog to send the staff notification
         interactions = self.bot.get_cog("Interactions")  # get cog, then the function inside the cog
         await msg.get_ctx()
         notif = await interactions.staffping_code(ctx=msg.ctx, users=users, reason=edited_msg)
-        
+
+        # 5) Record synced reactions for the bot if using that system
         if hasattr(self.bot, 'synced_reactions'):
             self.bot.synced_reactions.append((notif, msg))
         else:
             self.bot.synced_reactions = [(notif, msg)]
-        
-        return
-    
+
+
+
+        # Manage chatgpt_summaries to prevent multiple summaries in the same channel within 10 min
+        # Only summarize in specific servers
+        if msg.guild.id not in [SP_SERVER_ID, JP_SERVER_ID]:
+            return
+        if not hasattr(self.bot, 'chatgpt_summaries'):
+            # initialize the list with the channel ID of the message and the timestamp
+            self.bot.chatgpt_summaries = [(msg.channel.id, msg.created_at.timestamp())]
+        else:
+            # look to see if there's already an entry for this channel
+            for channel_id, timestamp in self.bot.chatgpt_summaries:
+                # if it's old, remove it and break; else skip to avoid re-summarizing
+                if msg.channel.id == channel_id:
+                    if msg.created_at.timestamp() - timestamp > 60 * 10:
+                        self.bot.chatgpt_summaries.remove((channel_id, timestamp))
+                    else:
+                        return
+            # add a new timestamp record for the current staff ping
+            self.bot.chatgpt_summaries.append((msg.channel.id, msg.created_at.timestamp()))
+
+        # Summarization instructions to pass to the AI
+        instructions = (
+            "Someone pinged staff about a potential incident in this channel. "
+            "Here are up to 50 messages above the ping (some might be unrelated). "
+            "1) Identify any trolls or bad actors and describe briefly what they did wrong. "
+            "2) If there's a discussion or argument, summarize it, focusing on who is driving any conflict. "
+            "3) This summary will help mods quickly understand the situation, so keep it VERY concise. "
+            "4) If you see another staff ping above, only summarize new messages since the last ping. "
+            "4.1) Sometimes, multiple users will simultaneously ping staff. If this staff ping is one of the later ones, take no action."
+            "5) If there's no relevant incident or you think it’s not needed, respond with 'No summary available'."
+        )
+
+        # Build the list of messages to send to OpenAI
+        messages = [{'role': 'system', 'content': instructions}]
+
+        # Capture 50 messages above the ping
+        async for message in msg.channel.history(limit=50, before=msg, oldest_first=True):
+            # skip blank or whitespace-only messages
+            if not message.content.strip():
+                continue
+            to_add_message = {
+                'role': 'user',
+                'author': message.author.display_name,
+            }
+            content_dict = {"content": (message.content or '')[:750]}
+            if message.attachments:
+                content_dict['attachments'] = [a.filename for a in message.attachments]
+            if message.embeds:
+                content_dict['embeds'] = [e.to_dict() for e in message.embeds]
+            to_add_message['content'] = str(content_dict)
+            messages.append(to_add_message)
+
+        # 8) Send the messages to OpenAI in a try-except to gracefully handle failures
+        await hf.send_to_test_channel(messages)
+        try:
+            completion_task = utils.asyncio_task(
+                lambda: self.bot.openai.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=messages
+                )
+            )
+            completion = await completion_task
+        except Exception as e:
+            # Log or handle the error if needed
+            await utils.safe_reply(notif, "Failed to summarize logs. Sorry!")
+            self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
+            raise
+
+        # 9) Check the AI's response
+        response_text = completion.choices[0].message.content
+        to_send = utils.split_text_into_segments(response_text, 2000)
+
+        # If the AI specifically says 'No summary available', just skip sending further
+        if to_send[0].strip().lower() == 'no summary available':
+            self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
+            return
+
+        # Send the summary in chunks if necessary
+        for segment in to_send:
+            await utils.safe_reply(notif, segment)
+
+        # Remove the channel from the summaries list to allow future summaries
+        await asyncio.sleep(60)
+        self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
+
     @on_message_function()
     async def ping_sesion_mod(self, msg: hf.RaiMessage):
         """When the staff role is pinged on the Spanish server,
@@ -1239,17 +1343,19 @@ class Message(commands.Cog):
         """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
         if msg.guild.id != SP_SERVER_ID:
             return
-        if not msg.content:
+        if msg.channel.id != 808077477703712788:
             return
         if msg.type != discord.MessageType.auto_moderation_action:
+            print("not auto moderation action")
             return  # only check for auto moderation actions
-        msg.author.name
+
+        content = msg.embeds[0].description
 
         # check for spam messages, returns list like ['steamcommunity.com', 'steamcommunity.com', ...]
         # found_bad_url will be True if a steamcommunity.com link is found modified from the real URL
         # example: 50$ gift https://steamrconmmunity.com/s/104291095314
         found_bad_url = False
-        url_domains = re.findall(r"(?:https?://)?(?:www.)?([\w-]+\.com)", msg.content)
+        url_domains = re.findall(r"(?:https?://)?(?:www.)?([\w-]+\.com)", content)
         for domain in url_domains:
             if 0 < LDist(domain, "steamcommunity.com") < 4:
                 found_bad_url = True
@@ -1257,16 +1363,18 @@ class Message(commands.Cog):
 
         # find examples of embedded fake links (these always come with an @everyone ping)
         # example: @everyone steam gift 50$ - [steamcommunity.com/gift-card/pay/50](https://u.to/Qm7iIQ )
-        embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", msg.content)
-        if embedded_steam_links and "@everyone" in msg.content:
+        embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", content)
+        if embedded_steam_links and "@everyone" in content:
             found_bad_url = True
 
         if not found_bad_url:
+            print(f"no bad url found in {content}")
             return
 
         # if they've sent more than 4 messages, don't ban them (it could be a mistake)
         recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
-        if recent_messages_count > 4:
+        if recent_messages_count > 4 and msg.author.id != 414873201349361664:
+            print(f"more than 4 messages: {recent_messages_count}")
             return
 
         try:
@@ -1275,6 +1383,11 @@ class Message(commands.Cog):
             await utils.safe_send(incidents_channel, "<@202995638860906496>\n"
                                                      "Above user can be banned for a scam message.\n"
                                                      f"(Messages in last month: {recent_messages_count})")
+            await utils.safe_send(incidents_channel,
+                                  f";ban {msg.author.id} Hacked account. Please appeal AFTER you've:\n"
+                                  f"1. Changed your account password\n"
+                                  f"2. Enabled two-factor authentication on your account\n"
+                                  f"3. Removed all authorized apps from your Discord profile settings")
         except (discord.Forbidden, discord.HTTPException):
             pass
     
