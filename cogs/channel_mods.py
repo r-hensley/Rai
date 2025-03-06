@@ -1106,6 +1106,24 @@ class ChannelMods(commands.Cog):
             if entry['jump_url']:
                 value += f"[Jump URL]({entry['jump_url']})\n"
 
+            # if a modlog entry content has an attachment, try to regenerate the URL so it doesn't expire
+            if re_result := re.findall(r"https://cdn\.discordapp\.com/attachments/(\d+)/(\d+)/[\w.&=?]*", value):
+                # capture group 1 is the channel ID, group 2 is the *attachment ID*, not the message ID
+                # the attachment ID will be registered slightly before the message ID it gets put onto, so
+                # search for the message in the channel *after* the attachment ID snowflake
+                # re_result looks like [('channel_id', 'attachment_id'), ('channel_id', 'attachment_id')]
+                for attachment in re_result:
+                    channel = ctx.guild.get_channel(int(attachment[0]))
+                    attachment_id = (int(attachment[1]))
+                    try:
+                        message = [m async for m in channel.history(limit=1, after=discord.Object(id=attachment_id))][0]
+                    except (discord.Forbidden, discord.HTTPException, IndexError):
+                        continue
+                    for new_attachment in message.attachments:
+                        if new_attachment.id == attachment_id:
+                            value = re.sub(rf"https://cdn\.discordapp\.com/attachments/\d+/{attachment_id}/[\w.&=?]*",
+                                           new_attachment.url, value)
+
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
                 first_embed = deepcopy(emb)
                 emb.clear_fields()
