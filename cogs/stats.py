@@ -7,6 +7,7 @@ from typing import Union
 import asqlite
 import discord
 from discord.ext import commands
+from discord.utils import escape_markdown
 
 import re
 
@@ -106,10 +107,10 @@ class Stats(commands.Cog):
 
         if isinstance(member, discord.Member):
             member_id = member.id
-            name_str = f"{member.name} ({member.nick})"
+            name_str = f"{escape_markdown(member.name)} ({escape_markdown(member.nick)})"
         elif isinstance(member, discord.User):
             member_id = member.id
-            name_str = f"{member.name} (user left server)"
+            name_str = f"{escape_markdown(member.name)} (user left server)"
         else:
             try:
                 member_id = int(member_str)
@@ -151,7 +152,8 @@ class Stats(commands.Cog):
                 channel = ctx.guild.get_channel_or_thread(int(channel_tuple[0]))
                 if not channel:
                     continue
-                lb += f"**{index}) {channel.name}**: {round((channel_tuple[1]/total)*100, 2)}% ({channel_tuple[1]})\n"
+                lb += (f"**{index}) {escape_markdown(channel.name)}**: "
+                       f"{round((channel_tuple[1]/total)*100, 2)}% ({channel_tuple[1]})\n")
                 index += 1
             except discord.NotFound:
                 pass
@@ -171,7 +173,7 @@ class Stats(commands.Cog):
         if not member_in:
             member = ctx.author
             user_id = ctx.author.id
-            user_name = ctx.author.name
+            user_name = escape_markdown(ctx.author.name)
         else:
             # remove prefix from IDs like J414873201349361664 or M202995638860906496
             if re.findall(r"[JIMVN]\d{17,22}", member_in):
@@ -185,7 +187,7 @@ class Stats(commands.Cog):
                 user = await utils.user_converter(ctx, member_in)
 
             if user:
-                user_name = user.name
+                user_name = escape_markdown(user.name)
                 user_id = user.id
             else:
                 await utils.safe_send(ctx, "I couldn't find the user.")
@@ -217,9 +219,9 @@ class Stats(commands.Cog):
         if member:
             title = f'Usage stats for {str(member)}'
             if member.nick:
-                title += f" ({member.nick})"
+                title += f" ({escape_markdown(member.nick)})"
         else:
-            title = f'Usage stats for {user_id} ({user_name}) (user left server)'
+            title = f'Usage stats for {user_id} ({escape_markdown(user_name)}) (user left server)'
         emb = discord.Embed(title=title,
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)))
@@ -256,7 +258,7 @@ class Stats(commands.Cog):
                 text = f"**#Deleted Channels**: {message_percentage}%⠀\n"
             else:
                 channel = ctx.guild.get_channel_or_thread(int(channel_id))
-                text = f"**#{channel.name}**: {message_percentage}%⠀\n"
+                text = f"**#{escape_markdown(channel.name)}**: {message_percentage}%⠀\n"
             return text
 
         channeltext = ''
@@ -283,9 +285,9 @@ class Stats(commands.Cog):
                                 description="This user hasn't said anything in the past 30 days",
                                 color=discord.Color(int('00ccFF', 16)))
             if member:
-                emb.title = f"Usage stats for {member.name}"
+                emb.title = f"Usage stats for {escape_markdown(member.name)}"
                 if member.nick:
-                    emb.title += f" ({member.nick})"
+                    emb.title += f" ({escape_markdown(member.nick)})"
                 emb.timestamp = member.joined_at
             else:
                 emb.title += f"Usage stats for {user_id} {user_name} (this user was not found)"
@@ -378,7 +380,7 @@ class Stats(commands.Cog):
                     value = sorted_dict[i][1]
                     if title.startswith("Voice"):
                         value = format_interval(value * 60)  # value is counted in minutes
-                    emb.add_field(name=f"{number_of_users_found+1}) {member.name}",
+                    emb.add_field(name=f"{number_of_users_found+1}) {escape_markdown(member.name)}",
                                   value=value)
                 number_of_users_found += 1
                 if member == ctx.author:
