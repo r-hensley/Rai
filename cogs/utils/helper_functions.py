@@ -783,11 +783,16 @@ async def send_to_test_channel(*content):
     content = ' '.join([str(i) for i in content])
     test_chan_id = os.getenv("BOT_TEST_CHANNEL")
 
+    segments = utils.split_text_into_segments(content, 2000)
+
     if test_chan_id:
         channel = here.bot.get_channel(int(test_chan_id))
         if channel:
             try:
-                await utils.safe_send(channel, content)
+                for segment in segments[:5]:
+                    await utils.safe_send(channel, segment)
+                if len(segments) > 5:
+                    await utils.safe_send(channel, f"Message too long, only sent the first 5 segments")
             except discord.Forbidden:
                 print("Failed to send content to test_channel in send_to_test_channel()")
 
