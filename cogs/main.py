@@ -8,6 +8,9 @@ import discord
 from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime
+
+from openai import OpenAI
+
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
 
@@ -79,6 +82,16 @@ class Main(commands.Cog):
 
     def cog_load(self):
         self.logging_setup()
+        # initiate openai object
+        if not hasattr(self.bot, 'openai'):
+            logging.getLogger("openai").setLevel(logging.WARNING)
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+            logging.getLogger("httpcore").setLevel(logging.WARNING)
+            open_ai_key = os.getenv("OPENAI_API_KEY")
+            if open_ai_key:
+                self.bot.openai = OpenAI(api_key=open_ai_key)
+            else:
+                self.bot.openai = None
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -127,6 +140,8 @@ class Main(commands.Cog):
         # build MessageQueue
         if not hasattr(self.bot, "message_queue"):
             self.bot.message_queue = hf.MessageQueue(maxlen=100000)
+
+
 
     def logging_setup(self):
         class IgnoreRateLimitFilter(logging.Filter):

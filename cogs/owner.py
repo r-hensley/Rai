@@ -42,14 +42,6 @@ class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
         self._last_result = None
-        logging.getLogger("openai").setLevel(logging.WARNING)
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
-        open_ai_key = os.getenv("OPENAI_API_KEY")
-        if open_ai_key:
-            self.openai = OpenAI(api_key=open_ai_key)
-        else:
-            self.openai = None
         self.sessions = set()
 
     async def cog_check(self, ctx):
@@ -1000,7 +992,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int] = 500):
         """Summarizes a conversation using OpenAI's GPT-4"""
-        if not self.openai:
+        if not self.bot.openai:
             await utils.safe_reply(ctx, "OpenAI not initialized")
             return
 
@@ -1012,7 +1004,7 @@ class Owner(commands.Cog):
         message_id = int(re_result[0][1])
         channel = self.bot.get_channel(channel_id)
         first_message = await channel.fetch_message(message_id)
-        messages = [{"role": "system",
+        messages = [{"role": "developer",
                      "content": "Please summarize the main points of the conversation given, including the main points of each user. "
                                 "Assume there is some important conversation happening, so if it ever looks like there's parts of "
                                 "the conversations that get off topic or parts of the conversation where people get sidetracked "
@@ -1032,7 +1024,8 @@ class Owner(commands.Cog):
                                     f"{first_message.jump_url} ({first_message.content[:50]}...)"
                                     f"to {last_message.jump_url} ({last_message.content[:50]}...)")
 
-        completion_task = utils.asyncio_task(lambda: self.openai.chat.completions.create(model="gpt-4o", messages=messages))
+        await hf.send_to_test_channel(messages)
+        completion_task = utils.asyncio_task(lambda: self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages))
         completion = await completion_task
         to_send = utils.split_text_into_segments(completion.choices[0].message.content, 2000)
         for m in to_send:
