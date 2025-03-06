@@ -993,6 +993,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                     thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
                 except (discord.Forbidden, discord.HTTPException):
                     await log_message.reply("I was unable to create a thread to upload attachments to.")
+                    return
         else:
             log_message_embed = log_message.embeds[0]
             if "Was unable to download the" not in log_message_embed.description:
