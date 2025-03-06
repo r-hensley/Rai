@@ -331,8 +331,10 @@ class Background(commands.Cog):
     async def fireside_message(self):
         fireside_channel_stage: discord.StageChannel = self.bot.get_channel(905992800250773564)
         fireside_channel_text: discord.TextChannel = self.bot.get_channel(905993064479342622)
+        if not fireside_channel_stage or not fireside_channel_text:
+            return
         oriana = fireside_channel_stage.guild.get_member(581324505331400733)
-        if not all((fireside_channel_stage, fireside_channel_text, oriana)):
+        if not oriana:
             return
 
         # check if fireside channel has active event
