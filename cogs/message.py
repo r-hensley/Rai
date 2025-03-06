@@ -37,7 +37,7 @@ RYRY_RAI_BOT_ID = 270366726737231884
 on_message_functions = []
 
 
-def should_execute_task(allow_dms, allow_bots, allow_self, self, msg):
+def should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, self, msg):
     """
     Determines if the task should execute based on message properties.
     """
@@ -47,15 +47,21 @@ def should_execute_task(allow_dms, allow_bots, allow_self, self, msg):
         return False
     if not allow_self and msg.author.id == self.bot.user.id:
         return False
+    if msg.type not in (allow_message_types or []) + [discord.MessageType.default, discord.MessageType.reply]:
+        return False
     return True
 
-def on_message_function(allow_dms: bool = False, allow_bots: bool = False, allow_self: bool = False):
+
+def on_message_function(allow_dms: bool = False,
+                        allow_bots: bool = False,
+                        allow_self: bool = False,
+                        allow_message_types: Optional[list[discord.MessageType]] = None) -> callable:
     def decorator(func: callable):
 
         # wrapper just to turn function into an asyncio task coroutine
         @wraps(func)  # Ensures the function retains its original name and docstring
         async def wrapper(*args, **kwargs):  # needs to be async to work with asyncio.gather()
-            if not should_execute_task(allow_dms, allow_bots, allow_self, *args):
+            if not should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, *args):
                 return lambda *a, **kw: None  # No-op lambda for skipped tasks
             
             # time_task() is a wrapper that returns an uncalled async function definition
@@ -128,8 +134,6 @@ class Message(commands.Cog):
         
         # ignore any non-standard discord user messages
         if rai_message.webhook_id:
-            return
-        if not rai_message.type in [discord.MessageType.default, discord.MessageType.reply]:
             return
         if rai_message.guild and not isinstance(rai_message.author, discord.Member):
             return
@@ -1229,18 +1233,17 @@ class Message(commands.Cog):
                             "descripción del problema cuando envíes un ping al "
                             "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
                             "lo que está pasando.")
-    
-    @on_message_function()
+
+    @on_message_function(allow_message_types=[discord.MessageType.auto_moderation_action])
     async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
         """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
         if msg.guild.id != SP_SERVER_ID:
             return
-        if not msg.embeds:
-            return
         if not msg.content:
             return
-        if msg.author.bot:
-            return
+        if msg.type != discord.MessageType.auto_moderation_action:
+            return  # only check for auto moderation actions
+        msg.author.name
 
         # check for spam messages, returns list like ['steamcommunity.com', 'steamcommunity.com', ...]
         # found_bad_url will be True if a steamcommunity.com link is found modified from the real URL
@@ -1252,6 +1255,7 @@ class Message(commands.Cog):
                 found_bad_url = True
                 break
 
+        # find examples of embedded fake links (these always come with an @everyone ping)
         # example: @everyone steam gift 50$ - [steamcommunity.com/gift-card/pay/50](https://u.to/Qm7iIQ )
         embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", msg.content)
         if embedded_steam_links and "@everyone" in msg.content:
@@ -1260,6 +1264,7 @@ class Message(commands.Cog):
         if not found_bad_url:
             return
 
+        # if they've sent more than 4 messages, don't ban them (it could be a mistake)
         recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
         if recent_messages_count > 4:
             return
