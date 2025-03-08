@@ -18,7 +18,7 @@ class Background(commands.Cog):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.live_latency}
+                             self.check_downed_tasks, self.save_db, self.live_latency, self.fireside_message}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -264,17 +264,17 @@ class Background(commands.Cog):
             for user_id in list(guild_config):
                 try:
                     unmute_time = guild_config[user_id]['time']
-                    if type(unmute_time) == int:
+                    if isinstance(unmute_time, int):
                         unmute_time_obj = datetime.fromtimestamp(unmute_time, tz=timezone.utc)
                     else:
                         unmute_time_obj = datetime.strptime(guild_config[user_id]['time'],
-                                                        "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                                                            "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 except TypeError as e:
-                    print("there was a TypeError on _unselfmute", guild_id, user_id, guild_config[user_id]['time'], e)
-                    del (guild_config[user_id])
+                    print("TypeError in unselfmute for", guild_id, user_id, guild_config[user_id]['time'], e)
+                    del guild_config[user_id]
                     continue
                 if unmute_time_obj < discord.utils.utcnow():
-                    del (guild_config[user_id])
+                    del guild_config[user_id]
                     unmuted_users.append(user_id)
             if unmuted_users:
                 for user_id in unmuted_users:
@@ -326,8 +326,36 @@ class Background(commands.Cog):
             pass
         t2 = time.perf_counter()
         self.bot.live_latency = t2 - t1
-        
+
+    @tasks.loop(minutes=5)
+    async def fireside_message(self):
+        fireside_channel_stage: discord.StageChannel = self.bot.get_channel(905992800250773564)
+        fireside_channel_text: discord.TextChannel = self.bot.get_channel(905993064479342622)
+        if not fireside_channel_stage or not fireside_channel_text:
+            return
+        oriana = fireside_channel_stage.guild.get_member(581324505331400733)
+        if not oriana:
+            return
+
+        # check if fireside channel has active event
+        try:
+            stage_instance = await fireside_channel_stage.fetch_instance()
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return
+
+        # check if oriana is in the channel
+        if oriana not in fireside_channel_stage.members:
+            return
+
+        msg = ("Hey everyone! 🔥 Fireside is a space to share your anonymous confessions—let’s keep it wholesome and "
+               "kind! 💛 No rudeness, and try to keep things appropriate so we can keep this going. You can find the "
+               "confession link in the pinned messages 📌. Enjoy!\n\n"
+               "¡Hola a todos! 🔥 Fireside es un espacio para compartir sus confesiones anónimas—mantengámoslo sin "
+               "toxicidad y siendo amables! 💛 Nada de groserías y tratemos de que todo sea apropiado para que esto "
+               "siga. El enlace para confesar está en los mensajes fijados 📌. ¡Disfruten!")
+
+        await utils.safe_send(fireside_channel_text, msg)
+
 
 async def setup(bot):
     await bot.add_cog(Background(bot))
-    

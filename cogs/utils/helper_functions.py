@@ -69,16 +69,17 @@ def setup(bot, loop: asyncio.AbstractEventLoop):
         here.loop = loop
     else:
         pass
-    
-    test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
-    test_module = importlib.reload(test_module)
-    suite = unittest.TestLoader().loadTestsFromModule(test_module)
-    test_runner = unittest.TextTestRunner(verbosity=1)
-    # Verbosity:
-    # 0 (quiet): you just get the total numbers of tests executed and the global result
-    # 1 (default): you get the same plus a dot for every successful test or a F for every failure
-    # 2 (verbose): you get the help string of every test and the result
-    test_runner.run(suite)
+
+    # # currently commented out because there are no tests to run
+    # test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
+    # test_module = importlib.reload(test_module)
+    # suite = unittest.TestLoader().loadTestsFromModule(test_module)
+    # test_runner = unittest.TextTestRunner(verbosity=1)
+    # # Verbosity:
+    # # 0 (quiet): you just get the total numbers of tests executed and the global result
+    # # 1 (default): you get the same plus a dot for every successful test or a F for every failure
+    # # 2 (verbose): you get the help string of every test and the result
+    # test_runner.run(suite)
 
 
 _lock = asyncio.Lock()
@@ -782,11 +783,16 @@ async def send_to_test_channel(*content):
     content = ' '.join([str(i) for i in content])
     test_chan_id = os.getenv("BOT_TEST_CHANNEL")
 
+    segments = utils.split_text_into_segments(content, 2000)
+
     if test_chan_id:
         channel = here.bot.get_channel(int(test_chan_id))
         if channel:
             try:
-                await utils.safe_send(channel, content)
+                for segment in segments[:5]:
+                    await utils.safe_send(channel, segment)
+                if len(segments) > 5:
+                    await utils.safe_send(channel, f"Message too long, only sent the first 5 segments")
             except discord.Forbidden:
                 print("Failed to send content to test_channel in send_to_test_channel()")
 
@@ -992,6 +998,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                     thread = await log_message.create_thread(name=f"msg_attachments_{attachments_message.id}")
                 except (discord.Forbidden, discord.HTTPException):
                     await log_message.reply("I was unable to create a thread to upload attachments to.")
+                    return
         else:
             log_message_embed = log_message.embeds[0]
             if "Was unable to download the" not in log_message_embed.description:

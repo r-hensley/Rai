@@ -655,8 +655,8 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(manage_messages=True)
     async def clearall(self, ctx: commands.Context, target_in: str, time_in: str = '1h'):
-        """Deletes all messages matching a user or ID in all channels from the last hour.
-        Usage: `;clearall <ID> [time]"""
+        """Deletes all messages matching a user or ID in all channels. Defaults to one hour if no time is inputted.
+        Usage: `;clearall <ID> [time: 10m, 2h, etc]`"""
         target_id = int(re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
         time = hf.parse_time(time_in)[1]  # gives list of integers: [days, hours, minutes]
         if not time:
