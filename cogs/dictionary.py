@@ -300,7 +300,7 @@ class Dictionary(commands.Cog):
                 description=f'**{word_type}**: \n{description}',
                 color=discord.Color.blue()
             )
-            embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+            embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
             embeds.append(embed)
 
         return embeds
@@ -314,13 +314,14 @@ class Dictionary(commands.Cog):
         return article
 
     def to_italicize(self, article):
-        em_tags = article.find_all(lambda tag:
-                                          (tag.name == "em") or (tag.name == "span" and "h" in tag.get("class", []))
-                                          )
-        if em_tags:
-            for em_tag in em_tags:
-                em_tag_text = em_tag.get_text(strip=False)
-                em_tag.string = f"*{em_tag_text}*"
+        italic_tags = article.find_all(lambda tag:
+                                       tag.name in ["em", "i"] or
+                                       (tag.name == "span" and "h" in tag.get("class", []))
+                                       )
+        if italic_tags:
+            for italic_tag in italic_tags:
+                italic_tag_text = italic_tag.get_text(strip=False)
+                italic_tag.string = f"*{italic_tag_text}*"
 
         return article
 
@@ -448,7 +449,7 @@ class Dictionary(commands.Cog):
                         description=description,
                         color=discord.Color.blue()
                     )
-                    embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                    embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                     embeds.append(embed)
             elif intro_texts_combined:
                 embed = discord.Embed(
@@ -457,7 +458,7 @@ class Dictionary(commands.Cog):
                     description=intro_texts_combined,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
@@ -540,7 +541,7 @@ class Dictionary(commands.Cog):
                     description=description,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
