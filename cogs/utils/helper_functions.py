@@ -1090,7 +1090,7 @@ class RaiMessage(discord.Message):
         self._lock = asyncio.Lock()  # Lock for thread safety
         self._ctx: Optional[commands.Context] = None  # None if not fetched
         self._error_fetching_ctx = False
-        self.lang: Optional[str] = None  # en, sp, None
+        self.detected_lang: Optional[str] = None  # en, sp, None
         self.hardcore: Optional[bool] = None
 
     def __getattr__(self, name):
@@ -1099,7 +1099,7 @@ class RaiMessage(discord.Message):
 
         This is only called when the attribute is not found in RaiMessage.
         For example:
-        - "msg.lang" returns this class's attribute.
+        - "msg.detected_lang" returns this class's attribute.
         - "msg.author" returns "self.discord_message.author".
         """
         return getattr(self.discord_message, name)
@@ -1566,21 +1566,6 @@ class MessageQueue(deque[MiniMessage]):
         """Create a MessageQueue object from a list of dictionaries."""
         return cls([MiniMessage(**msg_kwargs) for msg_kwargs in data])
 
-
-def split_text_into_segments(text, segment_length=1024) -> List[str]:
-    """Split a long text into segments of a specified length."""
-    segments = []
-    while len(text) > segment_length:
-        # Find the last new line before the segment limit to avoid breaking words
-        split_index = text.rfind('\n', 0, segment_length)
-        if split_index == -1:  # If no new line is found, split at space
-            split_index = text.rfind(' ', 0, segment_length)
-            if split_index == -1:  # If no space is found, split at the limit
-                split_index = segment_length
-        segments.append(text[:split_index])
-        text = text[split_index:].lstrip()  # Remove leading spaces in the next segment
-    segments.append(text)  # Append the last segment
-    return segments
 
 
 async def excessive_dm_activity(guild_id: int, user_id: int) -> Optional[datetime]:
