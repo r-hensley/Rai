@@ -227,7 +227,7 @@ class ChannelMods(commands.Cog):
                     if embed.title or embed.description or embed.fields:
                         embeds.append(embed)
                         emb.add_field(name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
-            split_message_content = hf.split_text_into_segments(msg.content, 900)
+            split_message_content = utils.split_text_into_segments(msg.content, 900)
             for index, segment in enumerate(split_message_content):
                 if not segment:
                     continue
@@ -352,7 +352,7 @@ class ChannelMods(commands.Cog):
                 await utils.safe_send(ctx, "I lack the permission to pin messages in this channel", delete_after=5.0)
 
     @commands.command()
-    async def log(self, ctx, *, args="None"):
+    async def log(self, ctx: commands.Context, *, args="None"):
         """Same as `;warn` but it adds `-s` into the reason which makes it just silently log the warning
         without sending a notification to the user."""
         warn = self.bot.get_command('warn')
@@ -360,6 +360,7 @@ class ChannelMods(commands.Cog):
             args += ' -s'
         else:
             args = ' -s'
+        # noinspection PyTypeChecker
         emb = await ctx.invoke(warn, args=args)
         return emb
 

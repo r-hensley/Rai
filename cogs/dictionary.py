@@ -1,4 +1,3 @@
-import inspect
 import logging
 import urllib
 
@@ -10,8 +9,6 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 
 import re
-
-import asyncio
 
 from cogs.utils.BotUtils import bot_utils as utils
 
@@ -257,9 +254,7 @@ class Dictionary(commands.Cog):
                             f'Por favor verifique que la palabra esté escrita correctamente.',
                 color=0xFF5733
             )
-            error_message = await utils.safe_reply(ctx, embed=embedded_error)
-            await asyncio.sleep(15)
-            await error_message.delete()
+            await utils.safe_reply(ctx, embed=embedded_error, delete_after=15)
             return None, None, None, None
 
         return articles, url, copyright_text, formatted_word

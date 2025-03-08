@@ -2418,12 +2418,17 @@ class Admin(commands.Cog):
             try:
                 await ctx.guild.unban(discord.Object(id=user_id))
             except discord.NotFound:
-                await utils.safe_reply(ctx, f"User with ID {user_id} not found")
+                await utils.safe_reply(ctx, f"Ban entry for user with ID {user_id} not found")
             except discord.Forbidden:
                 await utils.safe_reply(ctx, f"I don't have permission to unban user with ID {user_id} "
                                             f"(<@{user_id}>)")
             else:
                 await utils.safe_reply(ctx, f"User with ID {user_id} (<@{user_id}>) has been unbanned")
+                
+                # log the action
+                log_command = self.bot.get_command('log')
+                # noinspection PyTypeChecker
+                await ctx.invoke(log_command, args=f"{user_id} Unbanned user here")
 
 
 async def setup(bot):
