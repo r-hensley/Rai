@@ -1113,16 +1113,29 @@ class ChannelMods(commands.Cog):
                 # search for the message in the channel *after* the attachment ID snowflake
                 # re_result looks like [('channel_id', 'attachment_id'), ('channel_id', 'attachment_id')]
                 for attachment in re_result:
-                    channel = ctx.guild.get_channel(int(attachment[0]))
+                    channel_id = int(attachment[0])
+                    channel = ctx.guild.get_channel(channel_id)
+                    if not channel:
+                        # try searching for a thread (including archived threads)
+                        channel = await ctx.guild.fetch_channel(channel_id)
+                        if not channel:
+                            continue
                     attachment_id = (int(attachment[1]))
+
+                    async def find_attachment(message_id):
+                        async for m in channel.history(limit=5, around=discord.Object(id=message_id)):
+                            for new_attachment in m.attachments:
+                                if new_attachment.id == attachment_id:
+                                    return new_attachment.url
+
                     try:
-                        message = [m async for m in channel.history(limit=1, after=discord.Object(id=attachment_id))][0]
-                    except (discord.Forbidden, discord.HTTPException, IndexError):
+                        new_url = await find_attachment(attachment_id)
+                        if new_url:
+                            value = re.sub(
+                                rf"https://cdn\.discordapp\.com/attachments/\d+/{attachment_id}/[\w.&=?]*",
+                                new_url, value)
+                    except (discord.Forbidden, discord.HTTPException, IndexError) as e:
                         continue
-                    for new_attachment in message.attachments:
-                        if new_attachment.id == attachment_id:
-                            value = re.sub(rf"https://cdn\.discordapp\.com/attachments/\d+/{attachment_id}/[\w.&=?]*",
-                                           new_attachment.url, value)
 
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
                 first_embed = deepcopy(emb)
