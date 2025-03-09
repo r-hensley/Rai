@@ -1025,8 +1025,11 @@ class Owner(commands.Cog):
                                     f"to {last_message.jump_url} ({last_message.content[:50]}...)")
 
         await hf.send_to_test_channel(messages)
-        completion_task = utils.asyncio_task(lambda: self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages))
-        completion = await completion_task
+        try:
+            completion = await self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages)
+        except Exception as e:
+            await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
+            raise
         to_send = utils.split_text_into_segments(completion.choices[0].message.content, 2000)
         for m in to_send:
             await utils.safe_reply(ctx, m)

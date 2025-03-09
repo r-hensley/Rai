@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -89,7 +89,7 @@ class Main(commands.Cog):
             logging.getLogger("httpcore").setLevel(logging.WARNING)
             open_ai_key = os.getenv("OPENAI_API_KEY")
             if open_ai_key:
-                self.bot.openai = OpenAI(api_key=open_ai_key)
+                self.bot.openai = AsyncOpenAI(api_key=open_ai_key)
             else:
                 self.bot.openai = None
 
