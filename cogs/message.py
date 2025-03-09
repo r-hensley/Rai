@@ -11,6 +11,7 @@ from typing import Optional, Any
 from urllib.error import HTTPError
 
 import discord
+import openai
 from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
@@ -826,49 +827,54 @@ class Message(commands.Cog):
 
         # Summarization instructions to pass to the AI
         instructions = (
-            "Someone pinged staff about a potential incident in this channel. "
-            "Here are up to 50 messages above the ping (some might be unrelated). "
-            "1) Identify any trolls or bad actors and describe briefly what they did wrong. "
-            "2) If there's a discussion or argument, summarize it, focusing on who is driving any conflict. "
-            "3) This summary will help mods quickly understand the situation, so keep it VERY concise. "
-            "4) If you see another staff ping above, only summarize new messages since the last ping. "
-            "4.1) Sometimes, multiple users will simultaneously ping staff. If this staff ping is one of the later ones, take no action."
-            "5) If there's no relevant incident or you think it’s not needed, respond with 'No summary available'."
+            "Someone pinged staff about a potential incident in a Discord text channel. "
+            "Please help staff understand what is happening.\n"
+            "You will receive up to 50 messages above the ping (some towards the beginning may be unrelated). "
+            "Here are some instructions:\n"
+            "- This summary will help mods quickly understand the situation, so keep it VERY concise.\n"
+            "- Identify any trolls or bad actors and describe briefly what they did wrong.\n"
+            "- If there's a problematic discussion or argument, summarize it, focusing on who's driving the conflict.\n"
+            "- Ignore non-problematic messages, like greetings or unrelated discussions.\n"
+            "- If you see 2+ staff pings, only summarize new messages since the last ping.\n"
+            "- The closer to the staff ping you are, the more relevant the messages are.\n\n"
+            "Examples: "
+            "- **Alice** is spamming messages and disrupting conversation\n"
+            "- **Bob** and **Charlie** are arguing about a rule interpretation. In particular, **Bob** "
+            "was being particularly aggressive in the discussion, while **Charlie** was trying to deescalate.\n"
+            "- I could not find any issues in the channel. The ping may have been erroneous."
         )
 
         # Build the list of messages to send to OpenAI
         messages = [{'role': 'system', 'content': instructions}]
 
+        temporary_message_queue = []
         # Capture 50 messages above the ping
-        async for message in msg.channel.history(limit=50, before=msg, oldest_first=True):
+        async for message in msg.channel.history(limit=50, oldest_first=False):
             # skip blank or whitespace-only messages
             if not message.content.strip():
                 continue
             to_add_message = {
                 'role': 'user',
-                'author': message.author.display_name,
             }
-            content_dict = {"content": (message.content or '')[:750]}
+            content_dict = {"content": (message.content or '')[:750], 'author': message.author.display_name}
             if message.attachments:
                 content_dict['attachments'] = [a.filename for a in message.attachments]
             if message.embeds:
                 content_dict['embeds'] = [e.to_dict() for e in message.embeds]
             to_add_message['content'] = str(content_dict)
-            messages.append(to_add_message)
+            temporary_message_queue.append(to_add_message)
+
+        temporary_message_queue = temporary_message_queue[::-1]
+        messages.extend(temporary_message_queue)
 
         # 8) Send the messages to OpenAI in a try-except to gracefully handle failures
         await hf.send_to_test_channel(messages)
         try:
-            completion_task = utils.asyncio_task(
-                lambda: self.bot.openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages
-                )
-            )
-            completion = await completion_task
+            completion = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=messages)
+            await hf.send_to_test_channel(completion)
         except Exception as e:
             # Log or handle the error if needed
-            await utils.safe_reply(notif, "Failed to summarize logs. Sorry!")
+            await utils.safe_reply(notif, f"Failed to summarize logs. Sorry!\n`{e}`")
             self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
             raise
 
@@ -877,7 +883,7 @@ class Message(commands.Cog):
         to_send = utils.split_text_into_segments(response_text, 2000)
 
         # If the AI specifically says 'No summary available', just skip sending further
-        if to_send[0].strip().lower() == 'no summary available':
+        if to_send[0].strip().lower().startswith('no summary available'):
             self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
             return
 
@@ -1528,22 +1534,21 @@ class Message(commands.Cog):
                                "content": "Please check the language of the following messages. Respond either "
                                           "'en', 'es', 'both' (a mix of English and Spanish), "
                                           "or 'other' if it's another language or you're not sure. It's ok if it has one or two "
-                                          "words in another language as long as the main content of the message is English or Spanish. "
-                                          "Some messages have phonetic pronunciations of words, ignore the phonetic pronunciations."},
+                                          "words in another language as long as the main content of the message is English or Spanish.\n"
+                                          "Some messages have phonetic pronunciations of words, ignore the phonetic pronunciations.\n"
+                                          "Since it's an online chatroom, some messages will have gibberish ('blpppp'). Ignore those."},
                               {"role": "user", "content": "Hello, this is English"},
                               {"role": "assistant", "content": "en"},
                               {"role": "user", "content": "entonces háblame en català"},
                               {"role": "assistant", "content": "es"},
                               {"role": "user", "content": "virtue - vérchiu\nreconciliation - riconsiliéishon\nseparate - sépareit"},
                               {"role": "assistant", "content": "en"},
+                              {"role": "user", "content": "blppppp lets go"},
+                              {"role": "assistant", "content": "en"},
                               {"role": "user", "content": stripped_content}]
-            completion_task = utils.asyncio_task(
-                lambda: self.bot.openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=chatgpt_prompt
-                ))
-            chatgpt_result = (await completion_task).choices[0].message.content
+            chatgpt_result = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=chatgpt_prompt)
             await hf.send_to_test_channel(chatgpt_prompt, chatgpt_result)
+            chatgpt_result = chatgpt_result.choices[0].message.content
             if chatgpt_result != "other":
                 return
 
@@ -1642,6 +1647,161 @@ class Message(commands.Cog):
                   f"por favor usa {acceptable_channel_one.mention} o {acceptable_channel_two.mention}."
 
         return f"_send {msg.channel.id} ℹ️\n- {english}\n- {spanish}"
+
+    @on_message_function()
+    async def chatgpt_new_user_moderation(self, msg: hf.RaiMessage):
+        """This function will moderate new users in the chatgpt channel"""
+        # https://platform.openai.com/docs/guides/moderation
+        if msg.guild.id != SP_SERVER_ID:
+            return
+
+        # if the user has sent more than 10 messages in the last month, don't moderate them
+        messages_in_last_month = hf.count_messages(msg.author.id, msg.guild)
+        if messages_in_last_month > 10:
+            return
+
+        # get the list of messages the bot has seen
+        cached_messages = self.bot.message_queue.find_by_author(msg.author.id)
+        if not cached_messages:
+            await asyncio.sleep(1)  # the queue should at least have the current message
+            cached_messages: list[hf.MiniMessage] = self.bot.message_queue.find_by_author(msg.author.id)
+            if not cached_messages:
+                return
+
+        messages = []
+        message_contents = ""
+        attachment_url = ""
+        for message in cached_messages:
+            if message.content:
+                message_contents += f"[{message.created_at}]: {message.content}\n"
+            for attachment in message.attachments:
+                attachment_url = attachment['url']
+        messages.append({"type": "text", "text": message_contents})
+        if attachment_url:
+            messages.append({"type": "image_url", "image_url": {"url": attachment_url}})
+        try:
+            moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
+        except openai.BadRequestError as e:
+            await hf.send_to_test_channel(messages)
+            moderation_result = None
+            if 'invalid_image_format' in str(e) or 'image_url_unavailable' in str(e):
+                for m in messages:
+                    if m['type'] == 'image_url':
+                        messages.remove(m)
+                        moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
+            if not moderation_result:
+                raise
+        except Exception as e:
+            await hf.send_to_test_channel(f"ERROR: `{e}`\n{messages}")
+            raise
+        # example response:
+        # {
+        #   "id": "modr-0d9740456c391e43c445bf0f010940c7",
+        #   "model": "omni-moderation-latest",
+        #   "results": [
+        #     {
+        #       "flagged": true,
+        #       "categories": {
+        #         "harassment": true,
+        #         "harassment/threatening": true,
+        #         "sexual": false,
+        #         "hate": false,
+        #         "hate/threatening": false,
+        #         "illicit": false,
+        #         "illicit/violent": false,
+        #         "self-harm/intent": false,
+        #         "self-harm/instructions": false,
+        #         "self-harm": false,
+        #         "sexual/minors": false,
+        #         "violence": true,
+        #         "violence/graphic": true
+        #       },
+        #       "category_scores": {
+        #         "harassment": 0.8189693396524255,
+        #         "harassment/threatening": 0.804985420696006,
+        #         "sexual": 1.573112165348997e-6,
+        #         "hate": 0.007562942636942845,
+        #         "hate/threatening": 0.004208854591835476,
+        #         "illicit": 0.030535955153511665,
+        #         "illicit/violent": 0.008925306722380033,
+        #         "self-harm/intent": 0.00023023930975076432,
+        #         "self-harm/instructions": 0.0002293869201073356,
+        #         "self-harm": 0.012598046106750154,
+        #         "sexual/minors": 2.212566909570261e-8,
+        #         "violence": 0.9999992735124786,
+        #         "violence/graphic": 0.843064871157054
+        #       },
+        #       "category_applied_input_types": {
+        #         "harassment": [
+        #           "text"
+        #         ],
+        #         "harassment/threatening": [
+        #           "text"
+        #         ],
+        #         "sexual": [
+        #           "text",
+        #           "image"
+        #         ],
+        #         "hate": [
+        #           "text"
+        #         ],
+        #         "hate/threatening": [
+        #           "text"
+        #         ],
+        #         "illicit": [
+        #           "text"
+        #         ],
+        #         "illicit/violent": [
+        #           "text"
+        #         ],
+        #         "self-harm/intent": [
+        #           "text",
+        #           "image"
+        #         ],
+        #         "self-harm/instructions": [
+        #           "text",
+        #           "image"
+        #         ],
+        #         "self-harm": [
+        #           "text",
+        #           "image"
+        #         ],
+        #         "sexual/minors": [
+        #           "text"
+        #         ],
+        #         "violence": [
+        #           "text",
+        #           "image"
+        #         ],
+        #         "violence/graphic": [
+        #           "text",
+        #           "image"
+        #         ]
+        #       }
+        #     }
+        #   ]
+        # }
+        result = moderation_result.results[0]
+        if not result.flagged:
+            return
+        await hf.send_to_test_channel(moderation_result)
+
+        # get flagged categories, when iterating, "category" is tuple of (str, bool) example: ('harassment', False)
+        # categories['harassment'] for example returns TypeError: 'Categories' object is not subscriptable
+        # need to do getattr(categories, 'harassment')
+        flagged_categories = [category[0] for category in result.categories if category[1]]
+
+        s = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
+        s += f"Flagged categories:\n"
+        s += f"Category scores:\n"
+        for category, score in result.category_scores:
+            if category in flagged_categories:
+                s += f"- {category}: {score}\n"
+        s += f"Message content:\n>>> {message_contents}\n"
+
+        watch_log_channel = self.bot.get_channel(704323978596188180)
+        await utils.safe_send(watch_log_channel, s)
+
 
 async def setup(bot):
     await bot.add_cog(Message(bot))
