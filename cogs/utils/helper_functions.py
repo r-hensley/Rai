@@ -1714,6 +1714,8 @@ def basic_timer(time_allowance: float = 0):
                 if func.__name__ == 'on_message':
                     if not hasattr(here.bot, "event_times"):
                         here.bot.event_times = defaultdict(list)
+                    if not hasattr(here.bot, "live_latency"):
+                        here.bot.live_latency = here.bot.latency
                     latency = round(here.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
                     
                     here.bot.event_times[func.__name__].append((int(discord.utils.utcnow().timestamp()),
