@@ -1829,6 +1829,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         """Translate messages in other_languages channel in Spanish server"""
         other_languages_channel = self.bot.get_channel(817074401680818186)
         other_languages_forum = self.bot.get_channel(1141761988012290179)
+        other_language_log_channel = self.bot.get_channel(1335631538716545054)
         if isinstance(msg.channel, discord.Thread):
             if msg.channel.parent != other_languages_forum:
                 return
@@ -1836,22 +1837,27 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             return
         if not msg.content:
             return
-        
-        trans_task = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='en').translate(msg.content))
-        trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='es').translate(msg.content))
-        translated = await trans_task
-        translated_2 = await trans_task_2
-        if LDist(translated, msg.content) < 3:
-            return
-        if LDist(translated_2, msg.content) < 3:
-            return
-        other_language_log_channel = self.bot.get_channel(1335631538716545054)
         if not other_language_log_channel:
             return
-        s = f"__Translation__\nby {msg.author.mention} in {msg.jump_url}\n"
-        s += f"Original message:\n>>> {msg.content}\n"
+        
+        # don't log for staff who can see the channel (because it'll ping them)
+        is_staff_member = other_language_log_channel.permissions_for(msg.author).read_messages
+        
+        content = utils.rem_emoji_url(msg.content).strip()
+        trans_task = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='en').translate(content))
+        trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='es').translate(content))
+        translated = await trans_task
+        translated_2 = await trans_task_2
+        eng_dist = LDist(re.sub(r'\W', '', translated), re.sub('\W', '', content))
+        if eng_dist < 3:
+            return
+        if LDist(re.sub(r'\W', '', translated_2), re.sub('\W', '', content)) < 3:
+            return
+        s = (f"__Translation__ \nby {msg.author.mention if not is_staff_member else msg.author.name} "
+             f"in {msg.jump_url}\n")
         nl = '\n'  # python 3.10 does not allow backslahes in f-strings
-        s += f"Translated message:\n>>> {translated.replace(nl, f'{nl}>>> ')}"
+        s += f"Original message:\n> {content.replace(nl, f'{nl}> ')}\n"
+        s += f"Translated message:\n> {translated.replace(nl, f'{nl}> ')}"
         await other_language_log_channel.send(s)
 
 
