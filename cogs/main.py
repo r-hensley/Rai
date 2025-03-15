@@ -165,7 +165,9 @@ class Main(commands.Cog):
                 #   (<asyncio.sslproto._SSLProtocolTransport object at 0x0000017D8B959F60>,
                 #   <aiohttp.client_proto.ResponseHandler object at 0x0000017D8B959E40>)
                 ignored_strings = ["starts SSL handshake", "SSL handshake took", "connected to None:None",
-                                   "received EOF", "address info discord.com", "address info gateway"]
+                                   "received EOF", "address info discord.com", "address info gateway",
+                                   "SelectorSocketTransport", "asyncio.TransportSocket",
+                                   "address info b'api.openai.com'"]
                 for string in ignored_strings:
                     if string in record.getMessage():
                         return False
