@@ -18,6 +18,7 @@ from lingua import Language, LanguageDetectorBuilder
 from openai.types import Moderation
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from Levenshtein import distance as LDist
+from deep_translator import GoogleTranslator, single_detection
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -889,7 +890,7 @@ class Message(commands.Cog):
 
         # Send the summary in chunks if necessary
         for segment in to_send:
-            await utils.safe_reply(notif, segment)
+            await hf.send_to_test_channel(segment)
 
         # Remove the channel from the summaries list to allow future summaries
         await asyncio.sleep(60)
@@ -1347,9 +1348,9 @@ class Message(commands.Cog):
         if msg.type != discord.MessageType.auto_moderation_action:
             print("not auto moderation action")
             return  # only check for auto moderation actions
-
+        
         content = msg.embeds[0].description
-
+        
         # check for spam messages, returns list like ['steamcommunity.com', 'steamcommunity.com', ...]
         # found_bad_url will be True if a steamcommunity.com link is found modified from the real URL
         # example: 50$ gift https://steamrconmmunity.com/s/104291095314
@@ -1359,36 +1360,53 @@ class Message(commands.Cog):
             if 0 < LDist(domain, "steamcommunity.com") < 4:
                 found_bad_url = True
                 break
-
+        
         # find examples of embedded fake links (these always come with an @everyone ping)
         # example: @everyone steam gift 50$ - [steamcommunity.com/gift-card/pay/50](https://u.to/Qm7iIQ )
         embedded_steam_links = re.search(r"\[steamcommunity\.com[\w/=\-]*]\([\w/:.\-]* ?\)", content)
         if embedded_steam_links and "@everyone" in content:
             found_bad_url = True
-
+        
         if not found_bad_url:
             print(f"no bad url found in {content}")
             return
-
+        
         # if they've sent more than 4 messages, don't ban them (it could be a mistake)
         recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
         if recent_messages_count > 4 and msg.author.id != 414873201349361664:
             print(f"more than 4 messages: {recent_messages_count}")
             return
+        
+        appeal_instructions = """If your account was hacked, please do the following steps before appealing your ban:
+1) Change your password.
+2) Enable two-factor authentication: https://support.discord.com/hc/en-us/articles/219576828-Setting-up-Multi-Factor-Authentication
+3) Remove all applications from your profile: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
 
+Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de apelar tu baneo:
+1) Cambia tu contraseña.
+2) Activa la autenticación de dos factores: https://support.discord.com/hc/es/articles/219576828-Configurando-la-Autenticación-de-múltiples-factores
+3) Elimina todas las aplicaciones de tu perfil: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
+
+**__Appeal link: https://discord.gg/pnHEGPah8X__**"""
+        
         try:
-            # await msg.author.ban(reason="Automatic ban: Inactive user sending Steam scam.")
-            incidents_channel = msg.guild.get_channel(808077477703712788)
-            await utils.safe_send(incidents_channel, "<@202995638860906496>\n"
-                                                     "Above user can be banned for a scam message.\n"
-                                                     f"(Messages in last month: {recent_messages_count})")
-            await utils.safe_send(incidents_channel,
-                                  f";ban {msg.author.id} Hacked account. Please appeal AFTER you've:\n"
-                                  f"1. Changed your account password\n"
-                                  f"2. Enabled two-factor authentication on your account\n"
-                                  f"3. Removed all authorized apps from your Discord profile settings")
+            await msg.author.send(appeal_instructions)
         except (discord.Forbidden, discord.HTTPException):
             pass
+        
+        incidents_channel = msg.guild.get_channel(808077477703712788)
+        await utils.safe_send(incidents_channel, f"⚠️ Banning above user / sending instructions for appeal ⚠️")
+        
+        # replace dangerous URLs from message with placeholder text
+        content = re.sub(r"([\w-]+)\.com", "URL_REMOVED.com", content)
+        # change something like [url_1](url_2) to [url_1](URL_REMOVED)
+        content = re.sub(r"\[([\w/:.\-]+)]\([\w/:.\-]* ?\)", r"[\1](URL_REMOVED)", content)
+        
+        try:
+            await msg.author.ban(reason=f"Automatic ban: Hacked account. ({content[:150]}...)")
+        except (discord.Forbidden, discord.HTTPException) as e:
+            await incidents_channel.send(f"Failed to ban {msg.author} for spam message: `{e}`")
+            await incidents_channel.send(f";ban {msg.author.id} Hacked account: {content[:150]}...")
 
     @on_message_function()
     async def antispam_check(self, msg: hf.RaiMessage):
@@ -1794,13 +1812,47 @@ class Message(commands.Cog):
         s = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
         s += f"Flagged categories:\n"
         s += f"Category scores:\n"
+        over_80 = False
         for category, score in result.category_scores:
             if category in flagged_categories:
                 s += f"- {category}: {score}\n"
+                if score > 0.8:
+                    over_80 = True
         s += f"Message content:\n>>> {message_contents}\n"
 
-        watch_log_channel = self.bot.get_channel(704323978596188180)
-        await utils.safe_send(watch_log_channel, s)
+        if over_80:
+            watch_log_channel = self.bot.get_channel(704323978596188180)
+            await utils.safe_send(watch_log_channel, s)
+            
+    @on_message_function()
+    async def translate_other_lang_channel(self, msg: hf.RaiMessage):
+        """Translate messages in other_languages channel in Spanish server"""
+        other_languages_channel = self.bot.get_channel(817074401680818186)
+        other_languages_forum = self.bot.get_channel(1141761988012290179)
+        if isinstance(msg.channel, discord.Thread):
+            if msg.channel.parent != other_languages_forum:
+                return
+        elif msg.channel != other_languages_channel:
+            return
+        if not msg.content:
+            return
+        
+        trans_task = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='en').translate(msg.content))
+        trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='es').translate(msg.content))
+        translated = await trans_task
+        translated_2 = await trans_task_2
+        if LDist(translated, msg.content) < 3:
+            return
+        if LDist(translated_2, msg.content) < 3:
+            return
+        other_language_log_channel = self.bot.get_channel(1335631538716545054)
+        if not other_language_log_channel:
+            return
+        s = f"__Translation__\nby {msg.author.mention} in {msg.jump_url}\n"
+        s += f"Original message:\n>>> {msg.content}\n"
+        nl = '\n'  # python 3.10 does not allow backslahes in f-strings
+        s += f"Translated message:\n>>> {translated.replace(nl, f'{nl}>>> ')}"
+        await other_language_log_channel.send(s)
 
 
 async def setup(bot):
