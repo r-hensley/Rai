@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta, timezone
 import os
 import asyncio
@@ -1484,6 +1485,30 @@ class General(commands.Cog):
         else:
             await ctx.author.add_roles(admin_role)
             await ctx.message.add_reaction('✅')
+            
+    @commands.command()
+    @commands.check(lambda ctx: ctx.author.id in [1042947390077943839, ctx.bot.owner_id])
+    async def embed(self, ctx, *, content: str):
+        """Sends an embed message based on a json"""
+        if not content:
+            return
+        if not content.startswith("{"):
+            return
+        try:
+            embed_dict = json.loads(content)
+            content = embed_dict.get('content', None)
+            if 'embeds' in embed_dict:
+                embed_dict = embed_dict['embeds']
+            if isinstance(embed_dict, list):
+                embeds = [discord.Embed.from_dict(e) for e in embed_dict]
+            elif isinstance(embed_dict, dict):
+                embeds = [discord.Embed.from_dict(embed_dict)]
+            else:
+                raise TypeError(f"Unknown type: {type(embed_dict)}")
+        except Exception as e:
+            await ctx.reply(f"Error: {e}")
+            return
+        await utils.safe_send(ctx.channel, content, embeds=embeds)
 
 
 async def setup(bot):
