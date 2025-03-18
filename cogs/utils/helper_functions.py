@@ -1351,7 +1351,13 @@ class MiniMessage:
             guild_id=message.guild_id,
             attachments=message.attachments,
         )
-    
+
+    def __eq__(self, other):
+        # noinspection PyUnresolvedReferences
+        if not isinstance(other, (MiniMessage, RaiMessage, discord.mixins.EqualityComparable)):
+            return False
+        return self.message_id == other.id
+
     def __repr__(self):
         """A clean string representation for debugging."""
         if len(self.content) > 20:
@@ -1402,6 +1408,7 @@ class MessageQueue(deque[MiniMessage]):
         to_dict_list: Convert all messages in the queue to a list of dictionaries.
         find_by_author: Find all messages by a specific author.
         change_length: Change the maximum length of the queue by creating a new queue and returning
+        reload: Reload all messages in queue with updated MiniMessage objects (assuming MiniMessage has changed)
     """
     def __init__(self, iterable: Iterable = (), maxlen: Optional[int] = None):
         """
@@ -1469,6 +1476,10 @@ class MessageQueue(deque[MiniMessage]):
     def average_message_length(self) -> float:
         """Calculate the average message length of the queue."""
         return sum(len(msg.content) for msg in self) / len(self) if len(self) else 0
+
+    def reload(self) -> None:
+        """Reload all messages in queue with updated MiniMessage objects (assuming MiniMessage has changed)"""
+        self.extend([MiniMessage.from_mini_message(msg) for msg in self])
 
     def add_message(self, message: Union[MiniMessage, discord.Message]) -> None:
         """Add a MiniMessage to the queue."""
@@ -1703,6 +1714,8 @@ def basic_timer(time_allowance: float = 0):
                 if func.__name__ == 'on_message':
                     if not hasattr(here.bot, "event_times"):
                         here.bot.event_times = defaultdict(list)
+                    if not hasattr(here.bot, "live_latency"):
+                        here.bot.live_latency = here.bot.latency
                     latency = round(here.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
                     
                     here.bot.event_times[func.__name__].append((int(discord.utils.utcnow().timestamp()),
