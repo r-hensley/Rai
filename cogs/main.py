@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -89,7 +89,7 @@ class Main(commands.Cog):
             logging.getLogger("httpcore").setLevel(logging.WARNING)
             open_ai_key = os.getenv("OPENAI_API_KEY")
             if open_ai_key:
-                self.bot.openai = OpenAI(api_key=open_ai_key)
+                self.bot.openai = AsyncOpenAI(api_key=open_ai_key)
             else:
                 self.bot.openai = None
 
@@ -165,7 +165,9 @@ class Main(commands.Cog):
                 #   (<asyncio.sslproto._SSLProtocolTransport object at 0x0000017D8B959F60>,
                 #   <aiohttp.client_proto.ResponseHandler object at 0x0000017D8B959E40>)
                 ignored_strings = ["starts SSL handshake", "SSL handshake took", "connected to None:None",
-                                   "received EOF", "address info discord.com", "address info gateway"]
+                                   "received EOF", "address info discord.com", "address info gateway",
+                                   "SelectorSocketTransport", "asyncio.TransportSocket",
+                                   "address info b'api.openai.com'"]
                 for string in ignored_strings:
                     if string in record.getMessage():
                         return False

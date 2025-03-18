@@ -20,7 +20,6 @@ import discord
 from discord.ext import commands
 from matplotlib import pyplot as plt, cm
 from matplotlib.colors import Normalize
-from openai import OpenAI
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -480,7 +479,21 @@ class Owner(commands.Cog):
         await utils.safe_send(ctx, ping_party_list)
 
     @commands.command(hidden=True, name='eval')
-    async def _eval(self, ctx, *, body: str):
+    async def _eval(self, ctx: commands.Context, *, body: str):
+        # noinspection PyTypeChecker
+        await ctx.invoke(self.eval_internal, seconds=15, body=body)
+    
+    @commands.command(hidden=True, name='longeval')
+    async def _longeval(self, ctx: commands.Context, time, *, body: str):
+        try:
+            seconds = int(time)
+        except ValueError:
+            _, length = hf.parse_time(time)  # length is a list of ints [days, hours, minutes]
+            seconds = length[0] * 86400 + length[1] * 3600 + length[2] * 60
+        # noinspection PyTypeChecker
+        await ctx.invoke(self.eval_internal, seconds=seconds, body=body)
+
+    async def eval_internal(self, ctx, seconds, body: str):
         """Evaluates a code"""
 
         body = body.replace('self.bot', 'bot')
@@ -501,9 +514,9 @@ class Owner(commands.Cog):
         #  these are the default quotation marks on iOS, but they cause SyntaxError: invalid character in identifier
         body = body.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
         stdout = io.StringIO()
-
-        to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
-
+        
+        to_compile = f'async def func():\n{textwrap.indent(body, "  ")}\n'
+        
         try:
             exec(to_compile, env)
         except Exception as e:
@@ -512,10 +525,11 @@ class Owner(commands.Cog):
         func = env['func']
         # noinspection PyBroadException
         try:
+            ret = None
             with redirect_stdout(stdout):
-                ret = await asyncio.wait_for(func(), 15)
+                ret = await asyncio.wait_for(func(), seconds)
         except asyncio.TimeoutError:
-            return await utils.safe_send(ctx, 'Evaluation timed out.')
+            await utils.safe_send(ctx, 'Evaluation timed out.')
         except Exception as _:
             value = stdout.getvalue()
             to_send = f'\n{value}{traceback.format_exc()}\n'
@@ -524,7 +538,8 @@ class Owner(commands.Cog):
                 await utils.safe_send(ctx, f'```py\n{segment}\n```')
             if len(to_send_segments) > 5:
                 await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
-        else:
+            return
+        finally:
             value = stdout.getvalue()
             # noinspection PyBroadException
             try:
@@ -1025,12 +1040,15 @@ class Owner(commands.Cog):
                                     f"to {last_message.jump_url} ({last_message.content[:50]}...)")
 
         await hf.send_to_test_channel(messages)
-        completion_task = utils.asyncio_task(lambda: self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages))
-        completion = await completion_task
+        try:
+            completion = await self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages)
+        except Exception as e:
+            await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
+            raise
         to_send = utils.split_text_into_segments(completion.choices[0].message.content, 2000)
         for m in to_send:
             await utils.safe_reply(ctx, m)
-
+            
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
