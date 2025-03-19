@@ -778,25 +778,6 @@ def args_discriminator(args: str) -> Args:
 
     return Args(_user_ids, _time_string, _length, _time_arg, _time_obj, _reason)
 
-
-async def send_to_test_channel(*content):
-    content = ' '.join([str(i) for i in content])
-    test_chan_id = os.getenv("BOT_TEST_CHANNEL")
-
-    segments = utils.split_text_into_segments(content, 2000)
-
-    if test_chan_id:
-        channel = here.bot.get_channel(int(test_chan_id))
-        if channel:
-            try:
-                for segment in segments[:5]:
-                    await utils.safe_send(channel, segment)
-                if len(segments) > 5:
-                    await utils.safe_send(channel, f"Message too long, only sent the first 5 segments")
-            except discord.Forbidden:
-                print("Failed to send content to test_channel in send_to_test_channel()")
-
-
 @app_commands.context_menu(name="Delete and log")
 @app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
 @app_commands.default_permissions(manage_messages=True)
@@ -1765,3 +1746,31 @@ def line_profile(t_in, description: str = "", t_threshold: float = 1, offset: fl
     if diff > t_threshold:
         print(f"{description + ': ' if description else ''} {diff:.3f}s (latency: {here.bot.live_latency:.4f}s)")
     return t_now
+
+
+async def send_to_test_channel(*content):
+    test_chan_id = os.getenv("BOT_TEST_CHANNEL") or 0
+    channel = here.bot.get_channel(int(test_chan_id))
+    if not channel:
+        raise ValueError(f"Channel with ID {test_chan_id} not found.")
+    await segment_send(channel, *content)
+
+
+async def segment_send(channel: Union[int, discord.abc.Messageable], *content, max_messages: int = 5):
+    content = ' '.join([str(i) for i in content])
+    if isinstance(channel, int):
+        channel = here.bot.get_channel(channel)
+        if not channel:
+            raise ValueError(f"Channel with ID {channel} not found.")
+    elif not isinstance(channel, discord.abc.Messageable):
+        raise TypeError(f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
+    
+    segments = utils.split_text_into_segments(content, 2000)
+    
+    try:
+        for segment in segments[:max_messages]:
+            await utils.safe_send(channel, segment)
+        if len(segments) > max_messages:
+            await utils.safe_send(channel, f"Message too long, only sent the first 5 segments")
+    except discord.Forbidden as e:
+        print(f"Error sending message: {e}")
