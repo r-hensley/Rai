@@ -1494,6 +1494,7 @@ class General(commands.Cog):
             return
         if not content.startswith("{"):
             return
+        await ctx.message.delete()
         try:
             embed_dict = json.loads(content)
             content = embed_dict.get('content', None)

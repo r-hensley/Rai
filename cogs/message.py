@@ -869,10 +869,11 @@ class Message(commands.Cog):
         messages.extend(temporary_message_queue)
 
         # 8) Send the messages to OpenAI in a try-except to gracefully handle failures
-        await hf.send_to_test_channel(messages)
+        CHATGPT_LOG_ID = 1351956893119283270
+        await hf.segment_send(CHATGPT_LOG_ID, messages)
         try:
             completion = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=messages)
-            await hf.send_to_test_channel(completion)
+            await hf.segment_send(CHATGPT_LOG_ID, completion)
         except Exception as e:
             # Log or handle the error if needed
             await utils.safe_reply(notif, f"Failed to summarize logs. Sorry!\n`{e}`")
@@ -1565,16 +1566,24 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                               {"role": "assistant", "content": "en"},
                               {"role": "user", "content": stripped_content}]
             chatgpt_result = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=chatgpt_prompt)
-            await hf.send_to_test_channel(chatgpt_prompt, chatgpt_result)
+            CHATGPT_LOG_ID = 1351956893119283270
+            await hf.segment_send(CHATGPT_LOG_ID, chatgpt_prompt, chatgpt_result)
             chatgpt_result = chatgpt_result.choices[0].message.content
             if chatgpt_result != "other":
                 return
-
-            s = f"__Message potentially in other language__\nby {msg.author.mention} in {msg.jump_url}\n> "
+            
+            # check if the author of the message is someone who can see this log channel
+            # if they can see the log channel, don't ping them
+            is_staff_member = log_channel.permissions_for(msg.author).read_messages
+            if is_staff_member:
+                author_name = msg.author.name
+            else:
+                author_name = msg.author.mention
+                
+            s = f"__{author_name} in {msg.jump_url}__\n> "
             s += msg.content.replace('\n', '\n> ')
-            s += f"\nTop registered confidence values:\n- "
-            s += "\n- ".join([f"{c.language.name.capitalize()}: {round(c.value, 3)}"
-                              for c in confidence_levels_two if c.value > 0.1])
+            s += (f"\nSuspected language: {confidence_levels_two[0].language.name.capitalize()} "
+                  f"({round(confidence_levels_two[0].value, 3)})")
             if msg.created_at.second % 10 in [0]:
                 # randomly for messages that happen on seconds ending in "0" (1/10 chance), add extra information
                 s += f"\n__Information on below emojis__"
@@ -1670,6 +1679,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
     async def chatgpt_new_user_moderation(self, msg: hf.RaiMessage):
         """This function will moderate new users in the chatgpt channel"""
         # https://platform.openai.com/docs/guides/moderation
+        CHATGPT_LOG_ID = 1351956893119283270  # ID for channel for logs
         if msg.guild.id != SP_SERVER_ID:
             return
 
@@ -1685,7 +1695,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             cached_messages: list[hf.MiniMessage] = self.bot.message_queue.find_by_author(msg.author.id)
             if not cached_messages:
                 return
-
+        
         messages = []
         message_contents = ""
         attachment_url = ""
@@ -1700,7 +1710,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         try:
             moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
         except openai.BadRequestError as e:
-            await hf.send_to_test_channel(messages)
+            await hf.segment_send(1351956893119283270, messages)  # send to chatgpt logs channel
             moderation_result = None
             if 'invalid_image_format' in str(e) or 'image_url_unavailable' in str(e):
                 for m in messages:
@@ -1710,7 +1720,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             if not moderation_result:
                 raise
         except Exception as e:
-            await hf.send_to_test_channel(f"ERROR: `{e}`\n{messages}")
+            await hf.segment_send(CHATGPT_LOG_ID, f"ERROR: `{e}`\n{messages}")
             raise
         # example response:
         # {
@@ -1802,7 +1812,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         result = moderation_result.results[0]
         if not result.flagged:
             return
-        await hf.send_to_test_channel(moderation_result)
+        await hf.segment_send(CHATGPT_LOG_ID, moderation_result)
 
         # get flagged categories, when iterating, "category" is tuple of (str, bool) example: ('harassment', False)
         # categories['harassment'] for example returns TypeError: 'Categories' object is not subscriptable
@@ -1829,13 +1839,14 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         """Translate messages in other_languages channel in Spanish server"""
         other_languages_channel = self.bot.get_channel(817074401680818186)
         other_languages_forum = self.bot.get_channel(1141761988012290179)
-        other_language_log_channel = self.bot.get_channel(1335631538716545054)
+        other_language_log_channel = self.bot.get_channel(1351961859070103637)
         if isinstance(msg.channel, discord.Thread):
             if msg.channel.parent != other_languages_forum:
                 return
         elif msg.channel != other_languages_channel:
             return
-        if not msg.content:
+        content = utils.rem_emoji_url(msg.content).strip()
+        if not content:
             return
         if not other_language_log_channel:
             return
@@ -1843,7 +1854,6 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         # don't log for staff who can see the channel (because it'll ping them)
         is_staff_member = other_language_log_channel.permissions_for(msg.author).read_messages
         
-        content = utils.rem_emoji_url(msg.content).strip()
         trans_task = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='en').translate(content))
         trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='es').translate(content))
         translated = await trans_task
@@ -1853,11 +1863,11 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             return
         if LDist(re.sub(r'\W', '', translated_2), re.sub('\W', '', content)) < 3:
             return
-        s = (f"__Translation__ \nby {msg.author.mention if not is_staff_member else msg.author.name} "
+        s = (f"{msg.author.mention if not is_staff_member else msg.author.name} "
              f"in {msg.jump_url}\n")
         nl = '\n'  # python 3.10 does not allow backslahes in f-strings
-        s += f"Original message:\n> {content.replace(nl, f'{nl}> ')}\n"
-        s += f"Translated message:\n> {translated.replace(nl, f'{nl}> ')}"
+        s += f"> {content.replace(nl, f'{nl}> ')}\n"
+        s += f"> {translated.replace(nl, f'{nl}> ')}"
         await other_language_log_channel.send(s)
 
 
