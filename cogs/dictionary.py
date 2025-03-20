@@ -52,18 +52,19 @@ class PaginationView(discord.ui.View):
         self.add_item(self.next_button)
         self.add_item(self.close_button)
 
-        # Add RAE function buttons
-        caller_button = button_mapping.get(self.caller_function)[0]
+        if not self.caller_function == 'check_article_availability':
+            # Add RAE function buttons
+            caller_button = button_mapping.get(self.caller_function)[0]
 
-        for button, button_availability in button_mapping.values():
-            button.row = 1
-            button.disabled = not button_availability
-            self.add_item(button)
+            for button, button_availability in button_mapping.values():
+                button.row = 1
+                button.disabled = not button_availability
+                self.add_item(button)
 
-            # If caller button, disable it and change colour to grey
-            if button == caller_button:
-                caller_button.disabled = True
-                caller_button.style = discord.ButtonStyle.gray
+                # If caller button, disable it and change colour to grey
+                if button == caller_button:
+                    caller_button.disabled = True
+                    caller_button.style = discord.ButtonStyle.gray
 
         # Update button states
         self.prev_button.disabled = self.current_page == 0
@@ -178,7 +179,7 @@ class Dictionary(commands.Cog):
             view.prev_button.disabled = True
             view.next_button.disabled = True
 
-        message = await utils.safe_send(ctx, embed=initial_embed, view=view)
+        message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
         view.message = message
 
     async def fetch_rae_data(self, formatted_word: str):
@@ -199,7 +200,7 @@ class Dictionary(commands.Cog):
         # in headers: <meta name="rights" content="Real Academia Española © Todos los derechos reservados">
         copyright_text = resp.headers.get("rights", "Real Academia Española © Todos los derechos reservados")
 
-        return articles, url, copyright_text
+        return articles, url, copyright_text, soup
 
     def check_info_availability(self, articles):
         # Reset availability status from previous calls
@@ -244,20 +245,54 @@ class Dictionary(commands.Cog):
     async def check_article_availability(self, ctx, word):
         # noinspection PyUnresolvedReferences
         formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
-        articles, url, copyright_text = await self.fetch_rae_data(formatted_word)
+        main_articles, url, copyright_text, soup = await self.fetch_rae_data(formatted_word)
 
-        # Check if the word exists by looking for the main article
-        if not articles:
+        related_words = []
+        embeds = []
+
+        if not main_articles:
+            self.caller_function = "check_article_availability"
+
+            soup = self.format_article(soup)
+            related_words_div = soup.find("div", class_="o-main__content")
+            if related_words_div:
+                related_words_articles = related_words_div.find_all("article")
+                for article in related_words_articles:
+                    related_words.append("- " +
+                        article.text.strip())
+
+            if related_words:
+                # Split an article into multiple pages/embeds if the number of related words exceeds 10
+                chunk_size = 10
+                chunks = [related_words[i:i + chunk_size] for i in range(0, len(related_words), chunk_size)]
+
+                for chunk in chunks:
+                    description = f'La palabra `{word}` no existe en el diccionario. Las entradas que se muestran a continuación podrían estar relacionadas:\n' \
+                                  f'{"\n".join(chunk)}'  # Join words in the chunk
+
+                    embed = discord.Embed(
+                        title="Palabra no encontrada",
+                        description=description,
+                        color=0xFF5733
+                    )
+
+                    embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+                    embeds.append(embed)
+
+                await self.send_embeds(ctx, embeds, formatted_word)
+                return None, None, None, None
+
             embedded_error = discord.Embed(
                 title="Palabra no encontrada",
                 description=f'La palabra `{word}` no existe en el diccionario. '
                             f'Por favor verifique que la palabra esté escrita correctamente.',
                 color=0xFF5733
             )
-            await utils.safe_reply(ctx, embed=embedded_error, delete_after=15)
+            embedded_error.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+            await utils.safe_reply(ctx, embed=embedded_error, delete_after=30)
             return None, None, None, None
 
-        return articles, url, copyright_text, formatted_word
+        return main_articles, url, copyright_text, formatted_word
 
     def trim_spaces_before_symbols(self, text):
         text = re.sub(
@@ -295,7 +330,7 @@ class Dictionary(commands.Cog):
                 description=f'**{word_type}**: \n{description}',
                 color=discord.Color.blue()
             )
-            embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+            embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
             embeds.append(embed)
 
         return embeds
@@ -309,13 +344,14 @@ class Dictionary(commands.Cog):
         return article
 
     def to_italicize(self, article):
-        em_tags = article.find_all(lambda tag:
-                                          (tag.name == "em") or (tag.name == "span" and "h" in tag.get("class", []))
-                                          )
-        if em_tags:
-            for em_tag in em_tags:
-                em_tag_text = em_tag.get_text(strip=False)
-                em_tag.string = f"*{em_tag_text}*"
+        italic_tags = article.find_all(lambda tag:
+                                       tag.name in ["em", "i"] or
+                                       (tag.name == "span" and "h" in tag.get("class", []))
+                                       )
+        if italic_tags:
+            for italic_tag in italic_tags:
+                italic_tag_text = italic_tag.get_text(strip=False)
+                italic_tag.string = f"*{italic_tag_text}*"
 
         return article
 
@@ -443,7 +479,7 @@ class Dictionary(commands.Cog):
                         description=description,
                         color=discord.Color.blue()
                     )
-                    embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                    embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                     embeds.append(embed)
             elif intro_texts_combined:
                 embed = discord.Embed(
@@ -452,7 +488,7 @@ class Dictionary(commands.Cog):
                     description=intro_texts_combined,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
@@ -535,7 +571,7 @@ class Dictionary(commands.Cog):
                     description=description,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando de jobcuenca')
+                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
