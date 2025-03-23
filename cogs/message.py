@@ -618,7 +618,7 @@ class Message(commands.Cog):
         if msg.author.id == ori_id:
             return
 
-        to_check_words = ['ori', 'fireside', 'oriana']
+        to_check_words = ['ori', 'fireside', 'oriana', 'pasapalabra']
 
         try:
             ori = msg.guild.get_member(ori_id)
@@ -828,21 +828,30 @@ class Message(commands.Cog):
 
         # Summarization instructions to pass to the AI
         instructions = (
-            "Someone pinged staff about a potential incident in a Discord text channel. "
-            "Please help staff understand what is happening.\n"
-            "You will receive up to 50 messages above the ping (some towards the beginning may be unrelated). "
+            "Someone pinged staff about a potential incident in a Discord text channel. There's three possibilities:\n"
+            "1) There's a singular issue in the channel. Identify that singular main issue, "
+            "and do not explain anything else. Help staff understand what was happening in the channel that directly "
+            "caused the staff ping.\n"
+            "2) Someone mistakenly pinged staff. If there's no relevant issue in the channel, end your response.\n"
+            "3) Multiple people pinged staff: you will see the first staff ping above you. Do not respond in this case."
+            "You will receive up to 50 messages above the ping (most of the beginning messages are likely unrelated). "
             "Here are some instructions:\n"
             "- This summary will help mods quickly understand the situation, so keep it VERY concise.\n"
-            "- Identify any trolls or bad actors and describe briefly what they did wrong.\n"
-            "- If there's a problematic discussion or argument, summarize it, focusing on who's driving the conflict.\n"
-            "- Ignore non-problematic messages, like greetings or unrelated discussions.\n"
-            "- If you see 2+ staff pings, only summarize new messages since the last ping.\n"
-            "- The closer to the staff ping you are, the more relevant the messages are.\n\n"
-            "Examples: "
-            "- **Alice** is spamming messages and disrupting conversation\n"
-            "- **Bob** and **Charlie** are arguing about a rule interpretation. In particular, **Bob** "
+            "- Identify the troll or bad actor relevant to the staff ping and describe briefly what they did wrong.\n"
+            "- If a problematic discussion or argument caused someone to ping staff, "
+            "summarize it, focusing on who's driving the conflict.\n"
+            "- Ignore non-problematic or unrelated messages, like greetings or unrelated discussions.\n"
+            "- Summarize only one main topic of conflict in your answer\n\n"
+            "Examples of the three cases above: \n"
+            "1a) [Unrelated messages], [Alice starts spamming messages], [@staff ping], Your response:"
+            "'**Alice** is spamming messages and disrupting conversation'\n"
+            "1b) [Unrelated messages], [Bob and Charlie start arguing], [@staff ping], Your response: "
+            "**Bob** and **Charlie** are arguing about a rule interpretation. In particular, **Bob** "
             "was being particularly aggressive in the discussion, while **Charlie** was trying to deescalate.\n"
-            "- I could not find any issues in the channel. The ping may have been erroneous."
+            "2) [Unrelated messages], [Nothing particular problematic], [suddenly, @staff ping], Your response: "
+            "I could not find any issues in the channel. The ping may have been erroneous.\n"
+            "3) [Unrelated messages], [some problem], [@staff ping], [shortly after, a second @staff ping], "
+            "Your response: Ignoring second staff ping."
         )
 
         # Build the list of messages to send to OpenAI
@@ -1552,10 +1561,15 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             chatgpt_prompt = [{"role": "system",
                                "content": "Please check the language of the following messages. Respond either "
                                           "'en', 'es', 'both' (a mix of English and Spanish), "
-                                          "or 'other' if it's another language or you're not sure. It's ok if it has one or two "
-                                          "words in another language as long as the main content of the message is English or Spanish.\n"
-                                          "Some messages have phonetic pronunciations of words, ignore the phonetic pronunciations.\n"
-                                          "Since it's an online chatroom, some messages will have gibberish ('blpppp'). Ignore those."},
+                                          "or 'other' if it's another language "
+                                          "or 'unknown' if it just looks like gibberish. "
+                                          "It's ok if it has one or two "
+                                          "words in another language as long as the main content of the message is "
+                                          "English or Spanish.\n"
+                                          "Some messages have phonetic pronunciations of words, ignore the "
+                                          "phonetic pronunciations.\n"
+                                          "Since it's an online chatroom, some messages will have gibberish "
+                                          "('blpppp'). Ignore those."},
                               {"role": "user", "content": "Hello, this is English"},
                               {"role": "assistant", "content": "en"},
                               {"role": "user", "content": "entonces háblame en català"},
@@ -1564,6 +1578,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                               {"role": "assistant", "content": "en"},
                               {"role": "user", "content": "blppppp lets go"},
                               {"role": "assistant", "content": "en"},
+                              {"role": "user", "content": "L AS M NO ALSKWLAK / A HAHAGAHA / asfasef"},
+                              {"role": "assistant", "content": "unknown"},
                               {"role": "user", "content": stripped_content}]
             chatgpt_result = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=chatgpt_prompt)
             CHATGPT_LOG_ID = 1351956893119283270
@@ -1858,6 +1874,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(source='auto', target='es').translate(content))
         translated = await trans_task
         translated_2 = await trans_task_2
+        if not translated or not translated_2:
+            return
         eng_dist = LDist(re.sub(r'\W', '', translated), re.sub('\W', '', content))
         if eng_dist < 3:
             return

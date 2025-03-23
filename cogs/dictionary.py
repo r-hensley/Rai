@@ -265,10 +265,11 @@ class Dictionary(commands.Cog):
                 # Split an article into multiple pages/embeds if the number of related words exceeds 10
                 chunk_size = 10
                 chunks = [related_words[i:i + chunk_size] for i in range(0, len(related_words), chunk_size)]
-
+                
+                new_line = '\n'  # my version of python can't have \n in f-string
                 for chunk in chunks:
                     description = f'La palabra `{word}` no existe en el diccionario. Las entradas que se muestran a continuación podrían estar relacionadas:\n' \
-                                  f'{"\n".join(chunk)}'  # Join words in the chunk
+                                  f'{new_line.join(chunk)}'  # Join words in the chunk
 
                     embed = discord.Embed(
                         title="Palabra no encontrada",
