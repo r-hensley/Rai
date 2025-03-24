@@ -101,7 +101,9 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
         return 0
 
 
-def get_top_stats_list(stats_type: str, guild: discord.Guild) -> list[discord.Member]:
+def get_top_stats_list(stats_type: str,
+                       guild: discord.Guild,
+                       return_numbers=False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
     """Returns a sorted list of the most active members of the guild"""
     try:
         config = here.bot.stats[str(guild.id)]['messages']
@@ -110,27 +112,35 @@ def get_top_stats_list(stats_type: str, guild: discord.Guild) -> list[discord.Me
 
     member_activity = defaultdict(int)
     for day in config:
-        for user_id in config[day]:
-            user = config[day][user_id]
-            if stats_type not in user:
-                continue
-            member_activity[int(user_id)] += sum([user[stats_type][c] for c in user[stats_type]])
+        for member_id in config[day]:
+            user = config[day][member_id]
+            if stats_type == 'messages':
+                if 'channels' not in user:
+                    continue
+                member_activity[int(member_id)] += sum([user['channels'][c] for c in user['channels']])
+            elif stats_type == 'activity':
+                if 'activity' not in user:
+                    continue
+                member_activity[int(member_id)] += sum([user['activity'][c] for c in user['activity']])
 
     sorted_members = sorted(member_activity.items(), key=lambda x: x[1], reverse=True)
     top_members = []
-    for member_id, _ in sorted_members:
+    for member_id, activity in sorted_members:
         member = guild.get_member(member_id)
         if member:
-            top_members.append(member)
+            if return_numbers:
+                top_members.append((member, activity))
+            else:
+                top_members.append(member)
     return top_members
 
 
-def get_top_server_members(guild: discord.Guild) -> list[discord.Member]:
-    return get_top_stats_list('messages', guild)
+def get_top_server_members(guild: discord.Guild, return_numbers: bool = False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
+    return get_top_stats_list('messages', guild, return_numbers)
 
 
-def get_top_server_members_activity(guild: discord.Guild) -> list[discord.Member]:
-    return get_top_stats_list('activity', guild)
+def get_top_server_members_activity(guild: discord.Guild, return_numbers: bool = False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
+    return get_top_stats_list('activity', guild, return_numbers)
 
 
 def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime, int]:
