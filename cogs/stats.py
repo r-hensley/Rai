@@ -153,7 +153,7 @@ class Stats(commands.Cog):
                 if not channel:
                     continue
                 lb += (f"**{index}) {escape_markdown(channel.name)}**: "
-                       f"{round((channel_tuple[1]/total)*100, 2)}% ({channel_tuple[1]})\n")
+                       f"{round((channel_tuple[1] / total) * 100, 2)}% ({channel_tuple[1]})\n")
                 index += 1
             except discord.NotFound:
                 pass
@@ -337,7 +337,7 @@ class Stats(commands.Cog):
                     join_order = sorted_members_by_join.index(i)
                     break
             if join_order + 1:
-                emb.set_footer(text=f"(#{join_order+1} to join this server) Joined on:")
+                emb.set_footer(text=f"(#{join_order + 1} to join this server) Joined on:")
 
         # ### Send ###
         if post_embed:
@@ -380,7 +380,7 @@ class Stats(commands.Cog):
                     value = sorted_dict[i][1]
                     if title.startswith("Voice"):
                         value = format_interval(value * 60)  # value is counted in minutes
-                    emb.add_field(name=f"{number_of_users_found+1}) {escape_markdown(member.name)}",
+                    emb.add_field(name=f"{number_of_users_found + 1}) {escape_markdown(member.name)}",
                                   value=value)
                 number_of_users_found += 1
                 if member == ctx.author:
@@ -423,9 +423,9 @@ class Stats(commands.Cog):
                         continue
                 except ValueError:
                     await utils.safe_send(ctx,
-                                       "Please provide a link to a channel, not just the channel name "
-                                       "(e.g. `;chlb #general`), or if you just type `;chlb` "
-                                       "it will show the leaderboard for the current channel.")
+                                          "Please provide a link to a channel, not just the channel name "
+                                          "(e.g. `;chlb #general`), or if you just type `;chlb` "
+                                          "it will show the leaderboard for the current channel.")
                     return
             if not channel_obs:
                 await utils.safe_send(ctx, "I couldn't find any valid channels.")
@@ -453,7 +453,7 @@ class Stats(commands.Cog):
             else:
                 title = "Activity Score Leaderboard"
             await utils.safe_send(ctx,
-                               embed=self.make_leaderboard_embed(ctx, channel_obs, msg_count, title))
+                                  embed=self.make_leaderboard_embed(ctx, channel_obs, msg_count, title))
         except discord.Forbidden:
             try:
                 await utils.safe_send(ctx, "I lack the permissions to send embeds in this channel")
@@ -541,7 +541,7 @@ class Stats(commands.Cog):
 
         emoji_dict: dict[str, discord.Emoji] = {emoji.name: emoji for emoji in ctx.guild.emojis}
         msg = 'Top Emojis:\n'
-        
+
         if args == '-s':
             for emoji in emojis:
                 if emoji not in emoji_dict:
@@ -677,12 +677,12 @@ class Stats(commands.Cog):
             if channel_id in config:
                 config.remove(channel_id)
                 await utils.safe_send(ctx,
-                                   f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
-                                   f"be shown when someone calls their stats page.")
+                                      f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
+                                      f"be shown when someone calls their stats page.")
             else:
                 config.append(channel_id)
                 await utils.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
-                                        f"When someone calls their stats page, it will not be shown.")
+                                           f"When someone calls their stats page, it will not be shown.")
 
         # view list of channels
         elif flag in ['list', 'view'] and config:
@@ -705,13 +705,13 @@ class Stats(commands.Cog):
                 if str(channel.id) in config:
                     config.remove(str(channel.id))
                     await utils.safe_send(ctx,
-                                       f"Removed {channel.mention} from the list of hidden channels. It will now "
-                                       f"be shown when someone calls their stats page.")
+                                          f"Removed {channel.mention} from the list of hidden channels. It will now "
+                                          f"be shown when someone calls their stats page.")
                 else:
                     config.append(str(channel.id))
                     await utils.safe_send(ctx,
-                                       f"Hid {channel.mention}. When someone calls their stats page, "
-                                       f"it will not be shown.")
+                                          f"Hid {channel.mention}. When someone calls their stats page, "
+                                          f"it will not be shown.")
 
     @commands.command()
     async def sentiment(self, ctx: commands.Context, user_id: str = None):
@@ -808,7 +808,7 @@ class Stats(commands.Cog):
                     emb.set_field_at(24, name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
                     break
             pos += 1
-        
+
         await utils.safe_reply(ctx.message, embed=emb)
 
     @commands.command(aliases=['ac'])
@@ -842,7 +842,7 @@ class Stats(commands.Cog):
         start_year = day_objects[0].year
         end_year = day_objects[-1].year
         title_line_1 = f'Messages per day from {start_year}-{day_strings[0]} to {end_year}-{day_strings[-1]}'
-        title_line_2 = f"{str(user)} - Average per day: {round(sum(day_numbers)/len(day_numbers), 1)}"
+        title_line_2 = f"{str(user)} - Average per day: {round(sum(day_numbers) / len(day_numbers), 1)}"
         ax.set_title(f"{title_line_1}\n{title_line_2}")
 
         # set colors for y-tick marks based on day of the week
@@ -867,23 +867,23 @@ class Stats(commands.Cog):
                 res_guilds = await c.execute("SELECT guild_id, rai_id FROM guilds")
                 res_channels = await c.execute("SELECT channel_id, rai_id FROM channels")
                 res_users = await c.execute("SELECT user_id, rai_id FROM users")
-                
+
                 guilds: list[Union[tuple, sqlite3.Row]] = await res_guilds.fetchall()
                 channels: list[Union[tuple, sqlite3.Row]] = await res_channels.fetchall()
                 users: list[Union[tuple, sqlite3.Row]] = await res_users.fetchall()
-        
+
         existing_guilds = {g_id[0] for g_id in guilds}
         existing_channels = {c_id[0] for c_id in channels}
         existing_users = {u_id[0] for u_id in users}
-        
+
         new_guild_ids = {msg.guild.id for msg in message_pool if msg.guild.id not in existing_guilds}
         new_channel_ids = {msg.channel.id for msg in message_pool if msg.channel.id not in existing_channels}
         new_user_ids = {msg.author.id for msg in message_pool if msg.author.id not in existing_users}
-        
+
         guild_dict = {g_id[0]: g_id[1] for g_id in guilds}  # Create only once
         channel_dict = {c_id[0]: c_id[1] for c_id in channels}
         user_dict = {u_id[0]: u_id[1] for u_id in users}
-        
+
         async with asqlite.connect(rf'{dir_path}/database.db') as c:
             async with c.transaction():
                 # Batch insert new guilds
@@ -895,7 +895,7 @@ class Stats(commands.Cog):
                     query = f"SELECT guild_id, rai_id FROM guilds WHERE guild_id IN ({placeholders})"
                     res = await c.execute(query, tuple(new_guild_ids))
                     guild_dict.update({row[0]: row[1] for row in await res.fetchall()})
-                
+
                 if new_channel_ids:
                     await c.executemany("INSERT INTO channels (channel_id) VALUES (?)",
                                         [(channel_id,) for channel_id in new_channel_ids])
@@ -903,7 +903,7 @@ class Stats(commands.Cog):
                     query = f"SELECT channel_id, rai_id FROM channels WHERE channel_id IN ({placeholders})"
                     res = await c.execute(query, tuple(new_channel_ids))
                     channel_dict.update({row[0]: row[1] for row in await res.fetchall()})
-                    
+
                 if new_user_ids:
                     await c.executemany("INSERT INTO users (user_id) VALUES (?)",
                                         [(user_id,) for user_id in new_user_ids])
@@ -940,6 +940,47 @@ class Stats(commands.Cog):
                 await self.process_message_pool(old_message_pool)
 
         await pool_messages()
+
+    @commands.command(aliases=['agelb'])
+    async def age_leaderboard(self, ctx: commands.Context, less_than: int = 500):
+        """Make a leaderbord of the oldest users in the server that have at least five messages in the last month"""
+        activity_list: list[tuple[discord.Member, int]] = hf.get_top_server_members(ctx.guild, True)
+        oldest_users = []
+        for member, activity in activity_list:
+            if activity < less_than:
+                continue
+            if str(member.id) in self.bot.db['joindates']:
+                actual_joined_timestamp = self.bot.db['joindates'][str(member.id)]
+                member.joined_at = datetime.fromtimestamp(actual_joined_timestamp, tz=timezone.utc)
+            oldest_users.append((member, member.joined_at))
+        oldest_users.sort(key=lambda x: x[1], reverse=False)
+        emb = utils.green_embed("")
+        emb.title = f"Oldest users in server with more than {less_than} messages in last month"
+        pos = 1
+        found_self = False
+        for user_tuple in oldest_users:
+            if user_tuple[0] == ctx.author:
+                found_self = True
+            if pos < 25:
+                emb.add_field(name=f"{pos}) {str(user_tuple[0].display_name)}",
+                              value=discord.utils.format_dt(user_tuple[1], style='d'))
+            elif pos == 25:
+                try:
+                    self_joined_pos = oldest_users.index((ctx.author, ctx.author.joined_at)) + 1
+                except ValueError:
+                    self_joined_pos = None
+                if not found_self and self_joined_pos:
+                    emb.add_field(name=f"{self_joined_pos}) {str(ctx.author)}",
+                                  value=discord.utils.format_dt(ctx.author.joined_at, style='d'))
+                else:
+                    emb.add_field(name=f"{pos}) {str(user_tuple[0])}",
+                                  value=discord.utils.format_dt(user_tuple[1], style='d'))
+            else:
+                break
+            pos += 1
+        emb.set_footer(text="Ask Ryan if you need to reset your join date | Input a number after the command to "
+                            "change the minimum message count")
+        await utils.safe_send(ctx, embed=emb)
 
 
 async def setup(bot):
