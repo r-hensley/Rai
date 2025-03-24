@@ -970,10 +970,10 @@ class Stats(commands.Cog):
                 except ValueError:
                     self_joined_pos = None
                 if not found_self and self_joined_pos:
-                    emb.add_field(name=f"{self_joined_pos}) {str(ctx.author)}",
+                    emb.add_field(name=f"{self_joined_pos}) {str(ctx.author.display_name)}",
                                   value=discord.utils.format_dt(ctx.author.joined_at, style='d'))
                 else:
-                    emb.add_field(name=f"{pos}) {str(user_tuple[0])}",
+                    emb.add_field(name=f"{pos}) {str(user_tuple[0].display_name)}",
                                   value=discord.utils.format_dt(user_tuple[1], style='d'))
             else:
                 break
