@@ -101,6 +101,38 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
         return 0
 
 
+def get_top_stats_list(stats_type: str, guild: discord.Guild) -> list[discord.Member]:
+    """Returns a sorted list of the most active members of the guild"""
+    try:
+        config = here.bot.stats[str(guild.id)]['messages']
+    except (KeyError, AttributeError):
+        return []
+
+    member_activity = defaultdict(int)
+    for day in config:
+        for user_id in config[day]:
+            user = config[day][user_id]
+            if stats_type not in user:
+                continue
+            member_activity[int(user_id)] += sum([user[stats_type][c] for c in user[stats_type]])
+
+    sorted_members = sorted(member_activity.items(), key=lambda x: x[1], reverse=True)
+    top_members = []
+    for member_id, _ in sorted_members:
+        member = guild.get_member(member_id)
+        if member:
+            top_members.append(member)
+    return top_members
+
+
+def get_top_server_members(guild: discord.Guild) -> list[discord.Member]:
+    return get_top_stats_list('messages', guild)
+
+
+def get_top_server_members_activity(guild: discord.Guild) -> list[discord.Member]:
+    return get_top_stats_list('activity', guild)
+
+
 def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime, int]:
     days: dict[datetime, int] = {}
     first_day: Optional[datetime] = None
