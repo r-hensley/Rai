@@ -168,7 +168,7 @@ class ChannelMods(commands.Cog):
                     pass
                 else:
                     await utils.safe_send(ctx, "This is a command to delete a certain message by specifying its "
-                                            f"message ID. \n\nMaybe you meant to use `;clear {ids[0]}`?")
+                                               f"message ID. \n\nMaybe you meant to use `;clear {ids[0]}`?")
 
         # search ctx.channel for the ids
         for msg_id in ids:
@@ -185,7 +185,7 @@ class ChannelMods(commands.Cog):
 
         if invalid_ids:
             await utils.safe_send(ctx, f"The following IDs were not properly formatted: "
-                                    f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
+                                       f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
 
         # search every channel, not just ctx.channel for the missing IDs
         if failed_ids:
@@ -244,8 +244,8 @@ class ChannelMods(commands.Cog):
                     emb.add_field(name="continued", value=f"{segment}")
             if not msg.content:
                 emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
-                                value=f"Message had no content. ([Jump URL]({jump_url}))")
-            
+                              value=f"Message had no content. ([Jump URL]({jump_url}))")
+
             if msg.attachments:
                 emb.description = "Attachments in below thread"
             # if msg.attachments:
@@ -261,19 +261,19 @@ class ChannelMods(commands.Cog):
             channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
             if not channel:
                 await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
-                                        "set it again.")
+                                           "set it again.")
                 del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
             channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
             if not channel:
                 await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
-                                        "set it again.")
+                                           "set it again.")
                 del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         else:
             await utils.safe_send(ctx, "Please set either a mod channel or a submod channel with "
-                                    "`;set_mod_channel` or `;set_submod_channel`")
+                                       "`;set_mod_channel` or `;set_submod_channel`")
             return
 
         log_message = await utils.safe_send(channel, str(msg.author.id), embed=emb)
@@ -546,7 +546,7 @@ class ChannelMods(commands.Cog):
         if not staffrole:
             await utils.safe_reply(ctx.message, "I couldn't find the staff role for this server.")
             return
-        
+
         if staffrole in ctx.author.roles:
             await ctx.author.remove_roles(staffrole)
             await utils.safe_send(ctx, "I've removed the staff role from you")
@@ -555,8 +555,8 @@ class ChannelMods(commands.Cog):
                 await ctx.author.add_roles(staffrole)
             except discord.Forbidden:
                 await utils.safe_send(ctx,
-                                   "I lack the ability to attach the staff role. Please make sure I have the ability "
-                                   "to manage roles, and that the staff role isn't above my highest user role.")
+                                      "I lack the ability to attach the staff role. Please make sure I have the ability "
+                                      "to manage roles, and that the staff role isn't above my highest user role.")
                 return
             await utils.safe_send(ctx, "I've given you the staff role.")
 
@@ -611,19 +611,18 @@ class ChannelMods(commands.Cog):
 
     @commands.command(aliases=['r', 't', 'tag'])
     async def role(self, ctx, *, args):
-        """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify\
-        multiple languages, fluent languages, or "None" to take away roles. Username must not have spaces or be \
-        surrounded with quotation marks.
+        """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify
+        multiple languages, fluent languages, or "None" to take away roles.
+        Username must not have spaces, or they must be surrounded with quotation marks.
 
-        If you don't specify a user, then it will find the last user in the channel without a role. *If you do this,\
-        you can only specify one role!*
+        Add `-` before a role name to remove it.
 
         __Tag codes:__
         - English Native: `english`,  `en`,  `ne`,  `e`
         - Spanish Native: `spanish`,  `sn`,  `ns`,  `s`
         - Other Language: `other`,  `ol`,  `o`
-        - Fluency roles: `ee`,  `ae`,  `ie`,  `be`,  `es`,  `as`,  `is`,  `bs`
-        (Expert, Advanced, Intermediate, Beginner for English and Spanish)
+        - Fluency roles: `fe`,  `ie`,  `be`,  `fs`,  `is`,  `bs`
+        (Fluent, Intermediate, Beginner for English and Spanish)
         - Learning Roles: `le`,  `ls`
         - Heritage Roles: `he`,  `hs`
         - Remove all roles: `none`,  `n`
@@ -632,123 +631,149 @@ class ChannelMods(commands.Cog):
         - `;role @Ryry013 e` → *Gives English to Ryry013*
         - `;role spanish`  → *Gives to the last roleless user in the channel*
         - `;r Abelian e o as` → *Give English, Other, and Advanced Spanish*
+        ` `;r Ryry013 ne -ns` → *Give English, take away Native Spanish*
         - `;r "Long name" e` → *Give English to "Long name"*
-        - `;r Ryry013 none` → *Take away all roles from Ryry013*"""
+        - `;r Ryry013 none` → *Take away all roles from Ryry013*
+        - `;r Ryry013 none ne ls` → *Take away all roles except Native English and Learning Spanish from Ryry013*"""
         if ctx.guild.id != SP_SERV:
             return
+
+        # native roles
         english = ctx.guild.get_role(243853718758359040)
         spanish = ctx.guild.get_role(243854128424550401)
         other = ctx.guild.get_role(247020385730691073)
 
-        expertenglish = ctx.guild.get_role(709499333266899115)
-        advancedenglish = ctx.guild.get_role(708704078540046346)
+        # english levels
+        fluentenglish = ctx.guild.get_role(708704078540046346)
         intermediateenglish = ctx.guild.get_role(708704480161431602)
         beginnerenglish = ctx.guild.get_role(708704491180130326)
 
-        expertspanish = ctx.guild.get_role(709497363810746510)
-        advancedspanish = ctx.guild.get_role(708704473358532698)
+        # spanish levels
+        fluentspanish = ctx.guild.get_role(708704473358532698)
         intermediatespanish = ctx.guild.get_role(708704486994215002)
         beginnerspanish = ctx.guild.get_role(708704495302869003)
 
+        # learning
         learningenglish = ctx.guild.get_role(247021017740869632)
         learningspanish = ctx.guild.get_role(297415063302832128)
 
+        # heritage
         heritageenglish = ctx.guild.get_role(1001176425296052324)
         heritagespanish = ctx.guild.get_role(1001176351874752512)
 
-        language_roles = [english, spanish, other]
-        all_roles = [english, spanish, other,
-                     expertenglish, advancedenglish, intermediateenglish, beginnerenglish,
-                     expertspanish, advancedspanish, intermediatespanish, beginnerspanish,
-                     learningenglish, learningspanish, heritageenglish, heritagespanish]
+        language_roles = {english, spanish, other}
+        level_roles = {fluentenglish, intermediateenglish, beginnerenglish,
+                       fluentspanish, intermediatespanish, beginnerspanish}
+        learning_roles = {learningenglish, learningspanish}
+        heritage_roles = {heritageenglish, heritagespanish}
+        all_roles = language_roles | level_roles | learning_roles | heritage_roles
         langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english,
                       's': spanish, 'spanish': spanish, 'sn': spanish, 'ns': spanish,
                       'other': other, 'ol': other, 'o': other,
-                      'ee': expertenglish, 'ae': advancedenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
-                      'es': expertspanish, 'as': advancedspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
+                      'ae': fluentenglish, 'fe': fluentenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
+                      'as': fluentspanish, 'fs': fluentspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
                       'le': learningenglish, 'ls': learningspanish, 'he': heritageenglish, 'hs': heritagespanish,
                       'none': None, 'n': None}
 
         args = args.split()
-        if len(args) > 1:  # ;r ryry013 english
+        if len(args) >= 1:  # ;r ryry013 english
             user = await utils.member_converter(ctx, args[0])
             if not user:
+                await utils.safe_reply(ctx, "I couldn't find the user you were looking for.")
                 return
-            langs = [lang.casefold() for lang in args[1:]]
-
-        elif len(args) == 1:  # something like ;r english
-            if args[0].casefold() in ['none', 'n']:
-                await utils.safe_send(ctx, "You can't use `none` and not specify a name.")
-                return
-            langs = [args[0].casefold()]
-
-            user = None  # if it goes through 10 messages and finds no users without a role, it'll default here
-            async for message in ctx.channel.history(limit=10):
-                found = None
-                for role in language_roles:  # check if they already have a role
-                    if role in message.author.roles:
-                        found = True
-                if not found:
-                    user = message.author
-            if not user:
-                await utils.safe_send(ctx, "I couldn't find any users in the last ten messages without a native role.")
-                return
+            if len(args) == 1:
+                langs = set()
+            else:
+                langs: set[str] = {lang.casefold() for lang in args[1:]}
 
         else:  # no args
-            await utils.safe_send(ctx, "Gimme something at least! Run `;help role`")
+            await utils.safe_reply(ctx, "Gimme something at least! Run `;help role`")
             return
 
-        langs = [lang.casefold() for lang in langs]
+        # check contrdaictions with specifying "none" + language tags
+        # langs = [lang.casefold() for lang in langs]
         if 'none' in langs or 'n' in langs:
-            none = True
-            if len(langs) > 1:
-                await utils.safe_send(ctx, "If you specify `none`, please don't specify other languages too. "
-                                        "That's confusing!")
-                return
+            langs = langs - {'none', 'n'}
+            remove_all = True
         else:
-            none = False
+            remove_all = False
 
+        # combine above two commented-out for loops
+        to_add_lang_roles: set[discord.Role] = set()
+        to_remove: set[discord.Role] = set()
         for lang in langs:
-            if lang not in langs_dict:
-                await utils.safe_send(ctx, "I couldn't tell which language you're trying to assign. Type `;help r`")
+            lang_name = lang if not lang.startswith('-') else lang[1:]
+            if lang_name not in langs_dict:
+                await utils.safe_reply(ctx, f"I couldn't tell which role corresponded to `{lang_name}`. "
+                                            "Type `;help r`")
                 return
-        if not user:
-            await utils.safe_send(ctx, "I couldn't tell who you wanted to assign the role to. `;r <name> <lang>`")
+            role_obj = langs_dict[lang_name]
+            if role_obj:
+                if lang.startswith('-'):
+                    to_remove.add(role_obj)
+                else:
+                    to_add_lang_roles.add(role_obj)
+            else:
+                await utils.safe_send(ctx, f"I could not find the role corresponding "
+                                           f"to your request for `{lang}`")
+                return
+
+        # remove roles that are duplicated across "add" and "remove"
+        for role in all_roles:
+            if role in to_add_lang_roles and role in to_remove:
+                to_add_lang_roles.remove(role)
+                to_remove.remove(role)
+
+        # only remove roles from a category for which you'll be adding new roles
+        for role in to_add_lang_roles:
+            if role in language_roles:
+                to_remove.update(language_roles - {role})
+            elif role in level_roles:
+                to_remove.update(level_roles - {role})
+            elif role in learning_roles:
+                to_remove.update(learning_roles - {role})
+            elif role in heritage_roles:
+                to_remove.update(heritage_roles - {role})
+
+        # if user specified "none", remove all roles
+        if remove_all:
+            to_remove = all_roles
+
+        # only remove roles the user actually has
+        to_remove = {role for role in to_remove if role in user.roles}
+
+        # only add roles that the user doesn't already have
+        to_add_lang_roles = {role for role in to_add_lang_roles if role not in user.roles}
+
+        try:
+            if to_remove:
+                await user.remove_roles(*to_remove)
+            if to_add_lang_roles:
+                await user.add_roles(*to_add_lang_roles)
+        except discord.Forbidden:
+            await utils.safe_send(ctx,
+                                  "I lack the ability to modify the roles. Please make sure I have the ability "
+                                  "to manage roles, and that the roles aren't above my highest user role.")
             return
 
-        # right now, user=a member object, lansg=a list of strings the user typed o/e/s/other/english/spanish/etc
-        lang_roles = [langs_dict[lang] for lang in langs]  # now langs is a list of role objects
-        for lang in lang_roles:  # one of the roles no longer exists
-            if not lang:
-                role_index = lang_roles.index(lang)
-                deleted_str = langs[role_index]
-                await utils.safe_send(ctx, f"I could not find the role corresponding to your request for `{deleted_str}`")
-                return
-        removed = []
-        for role in all_roles:
-            if role in user.roles:
-                removed.append(role)
-        if removed:
-            await user.remove_roles(*removed)
-        if not none:
-            try:
-                await user.add_roles(*lang_roles)
-            except discord.Forbidden:
-                await utils.safe_send(ctx,
-                                   "I lack the ability to attach the roles. Please make sure I have the ability "
-                                   "to manage roles, and that the role isn't above my highest user role.")
-                return
-
-        if none and not removed:
-            await utils.safe_send(ctx, "There were no roles to remove!")
-        elif none and removed:
-            await utils.safe_send(ctx, f"I've removed the roles of {', '.join([r.mention for r in removed])} from "
-                                    f"{user.display_name}.")
-        elif removed:
-            await utils.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} instead of "
-                                    f"{', '.join([r.mention for r in removed])} to {user.display_name}.")
+        if to_add_lang_roles or to_remove:
+            s = f"I've made the following changes to the roles of {user.display_name}:\n"
+            if to_add_lang_roles:
+                sorted_adds = sorted(to_add_lang_roles, key=lambda x: x.position, reverse=True)
+                s += f"**__Added__**\n＋ " + '\n＋ '.join([r.mention for r in sorted_adds]) + '\n'
+            if to_remove:
+                sorted_removes = sorted(to_remove, key=lambda x: x.position, reverse=True)
+                s += f"**__Removed__**\n－ " + '\n－ '.join([r.mention for r in sorted_removes]) + '\n'
         else:
-            await utils.safe_send(ctx, f"I assigned {', '.join([r.mention for r in lang_roles])} to {user.display_name}.")
+            s = f"I didn't make any changes to the roles of {user.display_name}."
+
+        sorted_current_roles = sorted([r for r in user.roles if r in all_roles], key=lambda x: x.position, reverse=True)
+        if sorted_current_roles:
+            s += f"\n**__Current roles__**\n- " + '\n- '.join([r.mention for r in sorted_current_roles])
+        else:
+            s += f"\n**__Current roles__**\n- None"
+        embed = utils.green_embed(s)
+        await utils.safe_reply(ctx, embed=embed)
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -773,7 +798,7 @@ class ChannelMods(commands.Cog):
                 return
             except ValueError:
                 await utils.safe_send(ctx, "I couldn't find the user you were looking for. If they left the server, "
-                                        "use an ID")
+                                           "use an ID")
                 return
 
         #
@@ -797,7 +822,7 @@ class ChannelMods(commands.Cog):
             # Check DB for mute entry
             muted = False
             unmute_date: Optional[datetime]
-            unmute_date_str: str   # unmute_date_str looks like "2021/06/26 23:24 UTC"
+            unmute_date_str: str  # unmute_date_str looks like "2021/06/26 23:24 UTC"
             guild_id = str(ctx.guild.id)
             if unmute_date_str := self.bot.db['mutes'].get(guild_id, {}).get('timed_mutes', {}).get(user_id, ""):
                 muted = True
@@ -878,7 +903,7 @@ class ChannelMods(commands.Cog):
                 emb.color = 0x141414  # very dark black, but not completely black
                 if unban_date:
                     emb.description += (f"**`Current Status`** Temporarily Banned "
-                                       f"(unban <t:{int(unban_date.timestamp())}:R>)")
+                                        f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
                     emb.description += f"**`Current Status`** Indefinitely Banned"
 
@@ -886,7 +911,7 @@ class ChannelMods(commands.Cog):
                 emb.color = utils.red_embed("").color
                 if voice_unmute_date:
                     emb.description += (f"**`Current Status`** "
-                                       f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
+                                        f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
                     emb.description += f"**`Current Status`** Indefinitely Voice Muted"
 
@@ -894,7 +919,7 @@ class ChannelMods(commands.Cog):
                 emb.color = utils.red_embed("").color
                 if unmute_date:
                     emb.description += (f"**`Current Status`** "
-                                       f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
+                                        f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
                     emb.description += f"**`Current Status`** Indefinitely Muted"
 
@@ -902,7 +927,7 @@ class ChannelMods(commands.Cog):
                 emb.color = utils.red_embed("").color
                 if member.timed_out_until:
                     emb.description += (f"**`Current Status`** "
-                                       f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
+                                        f"Timed out (expires <t:{int(member.timed_out_until.timestamp())}:R>)")
                 else:
                     pass
 
@@ -1014,7 +1039,7 @@ class ChannelMods(commands.Cog):
 
                 emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
                                    f"{invite} {invite_author_str}"
-        
+
         #
         #
         # ############ Current Language Roles ############
@@ -1032,10 +1057,10 @@ class ChannelMods(commands.Cog):
                     found_roles.append(role)
             if found_roles:
                 emb.description += "\n**`Current Language Roles`** : " + ", ".join([r.mention for r in found_roles])
-        
+
         if member:
             emb.description += f"\n{member.mention}\n"
-            
+
             #
             #
             # ############ Check for excessive DMs / suspected spam activity user flags ############
@@ -1049,7 +1074,7 @@ class ChannelMods(commands.Cog):
                 emb.description += "**`Excessive DMs`** : User has been flagged for excessive DMs\n"
             if suspected_spam_flag:
                 emb.description += "**`Suspected Spam`** : User has been flagged for suspected spam activity\n"
-        
+
         #
         #
         # ############ Footer / Timestamp ############
@@ -1086,7 +1111,7 @@ class ChannelMods(commands.Cog):
                 if entry['type'] == "AutoMod":
                     continue
             valid_logs.append(entry)
-                
+
         for entry in valid_logs[-25:]:
             name = f"{config.index(entry) + 1}) "
             if entry['silent']:
@@ -1148,7 +1173,7 @@ class ChannelMods(commands.Cog):
                 to_add_value = value[1021:]
                 if len(to_add_value) > 1021:
                     over_amount = len(to_add_value) - 1014
-                    to_add_value = to_add_value[:500] + " [...] " + to_add_value[500+over_amount:]
+                    to_add_value = to_add_value[:500] + " [...] " + to_add_value[500 + over_amount:]
                 emb.add_field(name=name + "(cont.)", value="..." + to_add_value, inline=False)
 
             # if there are more than 25 fields (the max), remove extra
@@ -1191,7 +1216,7 @@ class ChannelMods(commands.Cog):
         Alias: `;ml del`"""
         if not indices:  # If no index is given:
             await utils.safe_send(ctx, "Please write numeric indices equal to or greater than 1 or "
-                                    "`-all` to clear the user's modlog.")
+                                       "`-all` to clear the user's modlog.")
             return
 
         indices = indices.split()  # Creates a list from the prompted argument of the command.
@@ -1214,18 +1239,20 @@ class ChannelMods(commands.Cog):
         # Performs the deletions:
         if '-a' in indices or '-all' in indices:  # If any of these flags is found in the list:
             del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
-            await utils.safe_send(ctx, embed=utils.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
+            await utils.safe_send(ctx,
+                                  embed=utils.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
 
         elif len(indices) == 1:  # If there is a single argument given, then:
             try:
                 del config[int(indices[0]) - 1]  # delete it from modlog...
             except IndexError:  # except if the index given is not found in config...
-                await utils.safe_send(ctx, f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
+                await utils.safe_send(ctx,
+                                      f"I couldn't find the log #**{indices[0]}**, try doing `;modlog` on the user.")
                 return
             except ValueError:  # or if the index given is not an integer...
                 await utils.safe_send(ctx, "The given index is invalid.\n"
-                                        "Please write numeric indices equal to or greater than 1 or "
-                                        "`-all` to clear the user's modlog.")
+                                           "Please write numeric indices equal to or greater than 1 or "
+                                           "`-all` to clear the user's modlog.")
                 return
             await ctx.message.add_reaction('✅')
 
@@ -1258,8 +1285,8 @@ class ChannelMods(commands.Cog):
             removed_indices: list = []  # eventual list of modlog entries successfully removed
             valid_indices.sort(key=int)  # Sort it numerically
             assert len(valid_indices) + len(invalid_indices) + len(not_found_indices) == len(indices), \
-            (f"Indices don't add up: {len(valid_indices)=} + {len(invalid_indices)=} + {len(not_found_indices)=} "
-             f"!= {len(indices)=}")
+                (f"Indices don't add up: {len(valid_indices)=} + {len(invalid_indices)=} + {len(not_found_indices)=} "
+                 f"!= {len(indices)=}")
 
             n = 1
             for index in valid_indices:  # For every index in the list...
@@ -1482,8 +1509,8 @@ class ChannelMods(commands.Cog):
             role, first = await make_mute_role(ctx, dest, voice_mute)
             if first:  # if the role was newly made
                 await utils.safe_send(dest, f"Doing first-time setup of mute module.  I have a `{role.name}` role, "
-                                         "add I will add a permission override for it to every channel to prevent "
-                                         "communication")
+                                            "add I will add a permission override for it to every channel to prevent "
+                                            "communication")
 
                 failed_channels = await set_channel_overrides(role)
                 if failed_channels:
@@ -1545,8 +1572,8 @@ class ChannelMods(commands.Cog):
             await target.add_roles(role, reason=f"Muted by {ctx.author.name} in {ctx.channel.name}")
         except discord.Forbidden:
             await utils.safe_send(ctx,
-                               "I lack the ability to attach the mute role. Please make sure I have the ability "
-                               "to manage roles, and that the mute role isn't above my highest user role.")
+                                  "I lack the ability to attach the mute role. Please make sure I have the ability "
+                                  "to manage roles, and that the mute role isn't above my highest user role.")
             return {}
 
         if target.voice:  # if they're in a channel, move them out then in to trigger the mute
@@ -1554,10 +1581,10 @@ class ChannelMods(commands.Cog):
                 await target.move_to(None, reason="Remove from voice due to Rai mute")
             except (discord.Forbidden, discord.HTTPException):
                 await utils.safe_send(ctx, "This user is in voice, but Rai lacks the permission to move users. If you "
-                                        "give Rai this permission, then it'll move the user to the AFK channel and "
-                                        "back to force the mute into effect. Otherwise, Discord's implementation of "
-                                        "the mute won't take effect until the next time the user connects to a "
-                                        "new voice channel.")
+                                           "give Rai this permission, then it'll move the user to the AFK channel and "
+                                           "back to force the mute into effect. Otherwise, Discord's implementation of "
+                                           "the mute won't take effect until the next time the user connects to a "
+                                           "new voice channel.")
                 pass
 
         return config
@@ -1579,12 +1606,13 @@ class ChannelMods(commands.Cog):
             await target.timeout(time_obj, reason=reason)
         except discord.Forbidden:
             await utils.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
-                                    f"Please check my permissions "
-                                    f"(I can't timeout people higher than me on the rolelist)")
+                                       f"Please check my permissions "
+                                       f"(I can't timeout people higher than me on the rolelist)")
             return {}
         except discord.HTTPException:
-            await utils.safe_send(ctx, f"There was some kind of HTTP error that prevented me from timing out {target.id}"
-                                    " user. Please try again.")
+            await utils.safe_send(ctx,
+                                  f"There was some kind of HTTP error that prevented me from timing out {target.id}"
+                                  " user. Please try again.")
             return {}
 
         return config
@@ -1615,7 +1643,7 @@ class ChannelMods(commands.Cog):
 
         if not target_ids:
             await utils.safe_send(ctx, "I couldn't understand your command properly. Please mention a user to mute, "
-                               "and if you write a time, format it like `2d`, `3h`, `5d6h`, etc.")
+                                       "and if you write a time, format it like `2d`, `3h`, `5d6h`, etc.")
             return
 
         # for channel helpers, limit mute time to three hours
@@ -1634,7 +1662,7 @@ class ChannelMods(commands.Cog):
                 time_string, length = hf.parse_time(time_arg)  # time_string: str
                 time_obj = datetime.strptime(time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 await utils.safe_send(ctx.author, "Channel helpers can only mute for a maximum of three "
-                                               "hours, so I set the duration of the mute to 24h.")
+                                                  "hours, so I set the duration of the mute to 24h.")
 
         silent = False
         if reason:
@@ -1650,8 +1678,9 @@ class ChannelMods(commands.Cog):
             # Stop function if user not found
             if not target:
                 try:
-                    await utils.safe_send(ctx, "I could not find the user.  For warns and mutes, please use either an ID "
-                                            "or a mention to the user (this is to prevent mistaking people).")
+                    await utils.safe_send(ctx,
+                                          "I could not find the user.  For warns and mutes, please use either an ID "
+                                          "or a mention to the user (this is to prevent mistaking people).")
                 except discord.HTTPException:  # Possible if Rai is sending a message to itself for automatic mutes
                     pass
                 continue
@@ -1695,7 +1724,7 @@ class ChannelMods(commands.Cog):
                     emb.add_field(name="Reason (cont.)", value=reason[1024:])
                 else:
                     await utils.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
-                                            "characters.")
+                                               "characters.")
                     return
 
             # Add default prompt to go to modbot for questions about the warning
@@ -1713,7 +1742,7 @@ class ChannelMods(commands.Cog):
                     await utils.safe_send(target, content, embed=emb)
                 except discord.Forbidden:
                     await utils.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
-                                            "keep them muted but they won't receive the notification for it.")
+                                               "keep them muted but they won't receive the notification for it.")
                     pass
 
             # Add info about timed mute to database so user can be unmuted later
