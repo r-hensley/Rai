@@ -72,6 +72,9 @@ class ChannelMods(commands.Cog):
 
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+        
+    async def cog_load(self):
+        await self.test_role_command()
 
     async def cog_check(self, ctx):
         # only usable in guilds
@@ -609,172 +612,220 @@ class ChannelMods(commands.Cog):
             await utils.safe_send(ctx, "I couldn't figure out what you wanted to do.")
             await utils.safe_send(ctx, ctx.command.help)
 
+    # external-facing user command
     @commands.command(aliases=['r', 't', 'tag'])
     async def role(self, ctx, *, args):
-        """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify
-        multiple languages, fluent languages, or "None" to take away roles.
-        Username must not have spaces, or they must be surrounded with quotation marks.
-
-        Add `-` before a role name to remove it.
-
-        __Tag codes:__
-        - English Native: `english`,  `en`,  `ne`,  `e`
-        - Spanish Native: `spanish`,  `sn`,  `ns`,  `s`
-        - Other Language: `other`,  `ol`,  `o`
-        - Fluency roles: `fe`,  `ie`,  `be`,  `fs`,  `is`,  `bs`
-        (Fluent, Intermediate, Beginner for English and Spanish)
-        - Learning Roles: `le`,  `ls`
-        - Heritage Roles: `he`,  `hs`
-        - Remove all roles: `none`,  `n`
-
-        __Examples:__
-        - `;role @Ryry013 e` → *Gives English to Ryry013*
-        - `;role spanish`  → *Gives to the last roleless user in the channel*
-        - `;r Abelian e o as` → *Give English, Other, and Advanced Spanish*
-        ` `;r Ryry013 ne -ns` → *Give English, take away Native Spanish*
-        - `;r "Long name" e` → *Give English to "Long name"*
-        - `;r Ryry013 none` → *Take away all roles from Ryry013*
-        - `;r Ryry013 none ne ls` → *Take away all roles except Native English and Learning Spanish from Ryry013*"""
         if ctx.guild.id != SP_SERV:
             return
-
-        # native roles
-        english = ctx.guild.get_role(243853718758359040)
-        spanish = ctx.guild.get_role(243854128424550401)
-        other = ctx.guild.get_role(247020385730691073)
-
-        # english levels
-        fluentenglish = ctx.guild.get_role(708704078540046346)
-        intermediateenglish = ctx.guild.get_role(708704480161431602)
-        beginnerenglish = ctx.guild.get_role(708704491180130326)
-
-        # spanish levels
-        fluentspanish = ctx.guild.get_role(708704473358532698)
-        intermediatespanish = ctx.guild.get_role(708704486994215002)
-        beginnerspanish = ctx.guild.get_role(708704495302869003)
-
-        # learning
-        learningenglish = ctx.guild.get_role(247021017740869632)
-        learningspanish = ctx.guild.get_role(297415063302832128)
-
-        # heritage
-        heritageenglish = ctx.guild.get_role(1001176425296052324)
-        heritagespanish = ctx.guild.get_role(1001176351874752512)
-
-        language_roles = {english, spanish, other}
-        level_roles = {fluentenglish, intermediateenglish, beginnerenglish,
-                       fluentspanish, intermediatespanish, beginnerspanish}
-        learning_roles = {learningenglish, learningspanish}
-        heritage_roles = {heritageenglish, heritagespanish}
-        all_roles = language_roles | level_roles | learning_roles | heritage_roles
-        langs_dict = {'english': english, 'e': english, 'en': english, 'ne': english,
-                      's': spanish, 'spanish': spanish, 'sn': spanish, 'ns': spanish,
-                      'other': other, 'ol': other, 'o': other,
-                      'ae': fluentenglish, 'fe': fluentenglish, 'ie': intermediateenglish, 'be': beginnerenglish,
-                      'as': fluentspanish, 'fs': fluentspanish, 'is': intermediatespanish, 'bs': beginnerspanish,
-                      'le': learningenglish, 'ls': learningspanish, 'he': heritageenglish, 'hs': heritagespanish,
-                      'none': None, 'n': None}
-
+        
         args = args.split()
-        if len(args) >= 1:  # ;r ryry013 english
-            user = await utils.member_converter(ctx, args[0])
-            if not user:
-                await utils.safe_reply(ctx, "I couldn't find the user you were looking for.")
-                return
-            if len(args) == 1:
-                langs = set()
-            else:
-                langs: set[str] = {lang.casefold() for lang in args[1:]}
-
-        else:  # no args
+        
+        if len(args) < 1:
             await utils.safe_reply(ctx, "Gimme something at least! Run `;help role`")
             return
-
-        # check contrdaictions with specifying "none" + language tags
-        # langs = [lang.casefold() for lang in langs]
-        if 'none' in langs or 'n' in langs:
-            langs = langs - {'none', 'n'}
-            remove_all = True
-        else:
-            remove_all = False
-
-        # combine above two commented-out for loops
-        to_add_lang_roles: set[discord.Role] = set()
-        to_remove: set[discord.Role] = set()
-        for lang in langs:
-            lang_name = lang if not lang.startswith('-') else lang[1:]
-            if lang_name not in langs_dict:
-                await utils.safe_reply(ctx, f"I couldn't tell which role corresponded to `{lang_name}`. "
-                                            "Type `;help r`")
-                return
-            role_obj = langs_dict[lang_name]
-            if role_obj:
-                if lang.startswith('-'):
-                    to_remove.add(role_obj)
-                else:
-                    to_add_lang_roles.add(role_obj)
-            else:
-                await utils.safe_send(ctx, f"I could not find the role corresponding "
-                                           f"to your request for `{lang}`")
-                return
-
-        # remove roles that are duplicated across "add" and "remove"
-        for role in all_roles:
-            if role in to_add_lang_roles and role in to_remove:
-                to_add_lang_roles.remove(role)
-                to_remove.remove(role)
-
-        # only remove roles from a category for which you'll be adding new roles
-        for role in to_add_lang_roles:
-            if role in language_roles:
-                to_remove.update(language_roles - {role})
-            elif role in level_roles:
-                to_remove.update(level_roles - {role})
-            elif role in learning_roles:
-                to_remove.update(learning_roles - {role})
-            elif role in heritage_roles:
-                to_remove.update(heritage_roles - {role})
-
-        # if user specified "none", remove all roles
-        if remove_all:
-            to_remove = all_roles
-
-        # only remove roles the user actually has
-        to_remove = {role for role in to_remove if role in user.roles}
-
-        # only add roles that the user doesn't already have
-        to_add_lang_roles = {role for role in to_add_lang_roles if role not in user.roles}
-
+        
+        user = await utils.member_converter(ctx, args[0])
+        if not user:
+            await utils.safe_reply(ctx, "I couldn't find the user you were looking for.")
+            return
+        
+        langs = set(args[1:]) if len(args) > 1 else set()
+        user_roles = {role.id for role in user.roles}
+        
+        to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(ctx.guild, user_roles, langs)
+        
         try:
             if to_remove:
                 await user.remove_roles(*to_remove)
             if to_add_lang_roles:
                 await user.add_roles(*to_add_lang_roles)
         except discord.Forbidden:
-            await utils.safe_send(ctx,
-                                  "I lack the ability to modify the roles. Please make sure I have the ability "
-                                  "to manage roles, and that the roles aren't above my highest user role.")
-            return
-
-        if to_add_lang_roles or to_remove:
-            s = f"I've made the following changes to the roles of {user.display_name}:\n"
-            if to_add_lang_roles:
-                sorted_adds = sorted(to_add_lang_roles, key=lambda x: x.position, reverse=True)
-                s += f"**__Added__**\n＋ " + '\n＋ '.join([r.mention for r in sorted_adds]) + '\n'
-            if to_remove:
-                sorted_removes = sorted(to_remove, key=lambda x: x.position, reverse=True)
-                s += f"**__Removed__**\n－ " + '\n－ '.join([r.mention for r in sorted_removes]) + '\n'
-        else:
-            s = f"I didn't make any changes to the roles of {user.display_name}."
-
-        sorted_current_roles = sorted([r for r in user.roles if r in all_roles], key=lambda x: x.position, reverse=True)
-        if sorted_current_roles:
-            s += f"\n**__Current roles__**\n- " + '\n- '.join([r.mention for r in sorted_current_roles])
-        else:
-            s += f"\n**__Current roles__**\n- None"
-        embed = utils.green_embed(s)
+            return utils.red_embed("Permission error: Can't manage these roles.")
+        
+        msg = f"Role changes for {user.display_name}:\n"
+        if to_add_lang_roles:
+            sorted_adds = sorted(to_add_lang_roles, key=lambda x: x.position, reverse=True)
+            adds = '\n'.join([f'＋ {r.mention}' for r in sorted_adds])
+            msg += f"__Added__\n{adds}\n"
+        if to_remove:
+            sorted_removes = sorted(to_remove, key=lambda x: x.position, reverse=True)
+            removes = '\n'.join([f'－ {r.mention}' for r in sorted_removes])
+            msg += f"__Removed__\n{removes}\n"
+        
+        sorted_current = sorted(final_roles, key=lambda x: x.position, reverse=True)
+        current = '\n'.join([f'- {r.mention}' for r in sorted_current])
+        msg += f"\n__Current roles__\n{current or '- None'}"
+        embed = utils.green_embed(msg)
         await utils.safe_reply(ctx, embed=embed)
+    
+    # internal logic function
+    async def process_role_changes(self, guild: discord.Guild,
+                                   user_roles_in: Union[set[str], set[int]],
+                                   langs: set[str]
+                                   ) -> tuple[set[discord.Role], set[discord.Role], set[discord.Role]]:
+        role_ids = {
+            'english': 243853718758359040,
+            'spanish': 243854128424550401,
+            'other': 247020385730691073,
+            'fluentenglish': 708704078540046346,
+            'intermediateenglish': 708704480161431602,
+            'beginnerenglish': 708704491180130326,
+            'fluentspanish': 708704473358532698,
+            'intermediatespanish': 708704486994215002,
+            'beginnerspanish': 708704495302869003,
+            'learningenglish': 247021017740869632,
+            'learningspanish': 297415063302832128,
+            'heritageenglish': 1001176425296052324,
+            'heritagespanish': 1001176351874752512
+        }
+        
+        roles = {name: guild.get_role(rid) for name, rid in role_ids.items()}
+        
+        language_roles = {roles['english'], roles['spanish'], roles['other']}
+        level_roles = {roles['fluentenglish'], roles['intermediateenglish'], roles['beginnerenglish'],
+                       roles['fluentspanish'], roles['intermediatespanish'], roles['beginnerspanish']}
+        learning_roles = {roles['learningenglish'], roles['learningspanish']}
+        heritage_roles = {roles['heritageenglish'], roles['heritagespanish']}
+        all_roles = language_roles | level_roles | learning_roles | heritage_roles
+        
+        langs_dict = {'english': roles['english'], 'e': roles['english'], 'en': roles['english'],
+                      'ne': roles['english'],
+                      's': roles['spanish'], 'spanish': roles['spanish'], 'sn': roles['spanish'],
+                      'ns': roles['spanish'],
+                      'other': roles['other'], 'ol': roles['other'], 'on': roles['other'], 'o': roles['other'],
+                      'ae': roles['fluentenglish'], 'fe': roles['fluentenglish'], 'ie': roles['intermediateenglish'],
+                      'be': roles['beginnerenglish'],
+                      'as': roles['fluentspanish'], 'fs': roles['fluentspanish'], 'is': roles['intermediatespanish'],
+                      'bs': roles['beginnerspanish'],
+                      'le': roles['learningenglish'], 'ls': roles['learningspanish'], 'he': roles['heritageenglish'],
+                      'hs': roles['heritagespanish'],
+                      'none': None, 'n': None}
+        langs_dict.update({role.id: role for role in all_roles})
+        
+        user_roles = {langs_dict.get(role) for role in user_roles_in}
+        
+        remove_all = 'none' in langs or 'n' in langs
+        langs -= {'none', 'n'}
+        
+        # main two sets for roles to add and remove
+        to_add_lang_roles = set()
+        to_remove = set()
+        
+        # in "specially_add" list are roles specified with "+" in front of them
+        # adding a role in this way will not cause the removal of other roles in its category
+        # for example, doing ;r ... ne  --> adds native english, removes other native roles
+        # but        , doing ;r ... +ne --> adds native english, keeps other native roles
+        specially_add = set()
+        
+        for lang in langs:
+            lang_name = lang.lstrip('+-')
+            role_obj = langs_dict.get(lang_name)
+            
+            if not role_obj:
+                return utils.red_embed(f"Role `{lang_name}` not found.")
+            
+            if lang.startswith('-'):
+                to_remove.add(role_obj)
+            elif lang.startswith('+'):
+                specially_add.add(role_obj)
+            else:
+                to_add_lang_roles.add(role_obj)
+        
+        # possibilities at this point for duplicate roles to exist across the sets:
+        # ;r ... ne +ne
+        # ;r ... ne ne
+        # ;r ... ne -ne
+        # ;r ... -ne -ne
+        # remove "ne" from all three sets in all of these cases
+        duplicate_roles = (to_add_lang_roles & specially_add) | (to_add_lang_roles & to_remove) | (specially_add & to_remove)
+        to_add_lang_roles -= duplicate_roles
+        specially_add -= duplicate_roles
+        to_remove -= duplicate_roles
+        
+        # if a role is being added, remove all other roles in the same category
+        # create these sets using set logic
+        if to_add_lang_roles & language_roles:
+            to_remove.update(language_roles - to_add_lang_roles)
+        if to_add_lang_roles & level_roles:
+            to_remove.update(level_roles - to_add_lang_roles)
+        if to_add_lang_roles & learning_roles:
+            to_remove.update(learning_roles - to_add_lang_roles)
+        if to_add_lang_roles & heritage_roles:
+            to_remove.update(heritage_roles - to_add_lang_roles)
+        
+        # if you specify "none", then just add everything to remove
+        if remove_all:
+            to_remove = all_roles - to_add_lang_roles
+        
+        # remake to_add set to only include roles that aren't already in user roles
+        to_add_lang_roles = {role for role in to_add_lang_roles if role not in user_roles}
+        to_add_lang_roles |= specially_add
+        
+        # remake to_remove set to only include roles that are in user roles
+        to_remove = {role for role in to_remove if role in user_roles}
+        
+        final_roles = set(user_roles) - to_remove | to_add_lang_roles
+        final_language_roles = final_roles & all_roles        
 
+        return to_add_lang_roles, to_remove, final_language_roles
+    
+    async def test_role_command(self):
+        guild = self.bot.get_guild(SP_SERV)
+        roles = {243853718758359040: 'english',
+         243854128424550401: 'spanish',
+         247020385730691073: 'other',
+         708704078540046346: 'fluentenglish',
+         708704480161431602: 'intermediateenglish',
+         708704491180130326: 'beginnerenglish',
+         708704473358532698: 'fluentspanish',
+         708704486994215002: 'intermediatespanish',
+         708704495302869003: 'beginnerspanish',
+         247021017740869632: 'learningenglish',
+         297415063302832128: 'learningspanish',
+         1001176425296052324: 'heritageenglish',
+         1001176351874752512: 'heritagespanish'}
+        test_cases = [
+            ({'ne', 's'}, {'ol'}, {'other'}),
+            ({'ne', 's', 'fs'}, {'ol'}, {'other', 'fluentspanish'}),
+            ({'ne', 's', 'fs', 'ne'}, {'ol'}, {'other', 'fluentspanish'}),
+            ({'ne', 's', 'fs'}, {'+ol'}, {'english', 'spanish', 'other', 'fluentspanish'}),
+            ({'ns', 'fs'}, {'-ol'}, {'spanish', 'fluentspanish'}),
+            ({'e', 's', 'fs'}, {'e', '+fe'}, {'english', 'fluentenglish', 'fluentspanish'}),
+            ({'ne', 'ns', 'fs', 'le'}, {'none', 'o', 'le', 'ls'}, {'other', 'learningenglish', 'learningspanish'}),
+            ({'ne', 'ns', 'fs', 'le'}, {'+o', 'le', 'ls'}, {'other', 'english', 'spanish', 'fluentspanish',
+                                                            'learningenglish', 'learningspanish'}),
+            ({'on', 'le'}, {'sn', 'ls', 'le', '-en'}, {'spanish', 'learningspanish', 'learningenglish'}),
+            ({'on', 'le', 'en'}, {'sn', 'ls', 'le', '-en'}, {'spanish', 'learningspanish', 'learningenglish'}),
+        ]
+        
+        # chatgpt test cases
+        test_cases += [
+            # Initial roles, command input, expected final roles after processing
+            ({'ne', 'fs'}, {'-ne', 'ns'}, {'spanish', 'fluentspanish'}),
+            # Replace English with Spanish, keep fluentspanish
+            ({'ol', 'ie'}, {'fe', '-ol'}, {'fluentenglish'}),  # Upgrade intermediate to fluent, remove other
+            ({'ol', 'ie', 'ls'}, {'none', '+he'}, {'heritageenglish'}),
+            # Remove all except explicitly added heritageenglish
+            ({'ol', 'ls'}, {'+ol', '-ls'}, {'other'}),  # Explicitly keep other, remove learningspanish
+            ({'ns', 'bs', 'le'}, {'+be', '-bs'}, {'spanish', 'learningenglish', 'beginnerenglish'}),
+            # Swap beginner Spanish to beginner English
+            ({'fs', 'ie'}, {'-fs', '-ie'}, set()),  # Remove all roles explicitly
+            ({'he', 'ne'}, {'hs', '+he'}, {'heritagespanish', 'heritageenglish', 'english'}),
+            # Add heritagespanish, keep heritageenglish, maintain english
+            ({'ol', 'as'}, {'ne', '-as'}, {'english'}),  # Change from fluentspanish and other to just English
+            ({'le', 'ol', 'be'}, {'-le', '+fe'}, {'other', 'beginnerenglish', 'fluentenglish'}),
+            # Upgrade beginner English to fluent, remove learning English
+            ({'on'}, {'none', '+on', '+ls'}, {'other', 'learningspanish'}),
+            # Clear all roles except explicitly kept other and add learningspanish
+        ]
+        
+        for test_case in test_cases:
+            to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(guild, test_case[0], test_case[1])
+            final_roles = {roles[role.id] for role in final_roles}
+            
+            assert final_roles == test_case[2], f"Failed test case: {test_case}, result: {final_roles}"
+
+    
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @hf.basic_timer(0.5)
