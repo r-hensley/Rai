@@ -615,6 +615,30 @@ class ChannelMods(commands.Cog):
     # external-facing user command
     @commands.command(aliases=['r', 't', 'tag'])
     async def role(self, ctx, *, args):
+        """Assigns a role to a user. Type `;role <user> <tag codes>`. You can specify
+        multiple languages, fluent languages, or "None" to take away roles.
+        Username must not have spaces, or they must be surrounded with quotation marks.
+
+        Add `-` before a role name to remove it.
+
+        __Tag codes:__
+        - English Native: `english`,  `en`,  `ne`,  `e`
+        - Spanish Native: `spanish`,  `sn`,  `ns`,  `s`
+        - Other Language: `other`,  `ol`,  `o`
+        - Fluency roles: `fe`,  `ie`,  `be`,  `fs`,  `is`,  `bs`
+        (Fluent, Intermediate, Beginner for English and Spanish)
+        - Learning Roles: `le`,  `ls`
+        - Heritage Roles: `he`,  `hs`
+        - Remove all roles: `none`,  `n`
+
+        __Examples:__
+        - `;role @Ryry013 e` → *Gives English to Ryry013*
+        - `;role spanish`  → *Gives to the last roleless user in the channel*
+        - `;r Abelian e o as` → *Give English, Other, and Advanced Spanish*
+        - `;r Ryry013 ne -ns` → *Give English, take away Native Spanish*
+        - `;r "Long name" e` → *Give English to "Long name"*
+        - `;r Ryry013 none` → *Take away all roles from Ryry013*
+        - `;r Ryry013 none ne ls` → *Take away all roles except Native English and Learning Spanish from Ryry013*"""
         if ctx.guild.id != SP_SERV:
             return
         
