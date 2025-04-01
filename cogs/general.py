@@ -200,35 +200,6 @@ class General(commands.Cog):
         await ctx.message.add_reaction('✅')
 
     @commands.command()
-    @commands.check(lambda ctx: ctx.author.id in [681266267763769377, 202995638860906496])
-    async def callao(self, ctx: commands.Context):
-        if not ctx.message.reference:
-            return
-
-        if not ctx.message.reference.cached_message:
-            return
-
-        try:
-            await ctx.message.reference.cached_message.author.timeout(timedelta(seconds=5), reason="RAI_SELFMUTE")
-            await ctx.message.reference.cached_message.reply("You callao!")
-        except (discord.Forbidden, discord.HTTPException):
-            await ctx.message.reply("Sorry, that user was too strong for me :(")
-
-    @commands.command()
-    @commands.check(lambda ctx: ctx.guild.id == 759132637414817822 if ctx.guild else False)
-    async def risk(self, ctx):
-        """Typing this command will sub you to pings for when it's your turn."""
-        config = self.bot.db['risk']['sub']
-        if str(ctx.author.id) in config:
-            config[str(ctx.author.id)] = not config[str(ctx.author.id)]
-        else:
-            config[str(ctx.author.id)] = True
-        if config[str(ctx.author.id)]:
-            await utils.safe_send(ctx, "You will now receive pings when it's your turn.")
-        else:
-            await utils.safe_send(ctx, "You will no longer receive pings when it's your turn.")
-
-    @commands.command()
     async def topic(self, ctx):
         """Provides a random conversation topic.
         Hint: make sure you also answer "why". Challenge your friends on their answers.
@@ -382,79 +353,11 @@ class General(commands.Cog):
             string = "__List of channels excepted from hardcore__:\n#" + '\n#'.join([c.name for c in channels])
             await utils.safe_send(ctx, string)
 
-    @commands.group(hidden=True, aliases=['lh'], invoke_without_command=True)
-    async def lovehug(self, ctx, url=None):
-        """A command group for subscribing to lovehug mangas."""
-        await ctx.invoke(self.lovehug_add, url)
-
-    @lovehug.command(name='add')
-    async def lovehug_add(self, ctx, url):
-        """Adds a URL to your subscriptions."""
-        search = await ctx.invoke(self.bot.get_command('lovehug_get_chapter'), url)
-        if isinstance(search, str):
-            if search.startswith('html_error'):
-                await utils.safe_send(ctx, search)
-                return
-            if search.startswith('invalid_url'):
-                await utils.safe_send(ctx, search)
-                return
-        if not search:
-            await utils.safe_send(ctx, "The search failed to find a chapter")
-            return
-        if url not in self.bot.db['lovehug']:
-            self.bot.db['lovehug'][url] = {'last': f"{url}{search['href']}",
-                                           'subscribers': [ctx.author.id]}
-        else:
-            if ctx.author.id not in self.bot.db['lovehug'][url]['subscribers']:
-                self.bot.db['lovehug'][url]['subscribers'].append(ctx.author.id)
-            else:
-                await utils.safe_send(ctx, "You're already subscribed to this manga.")
-                return
-        await utils.safe_send(ctx, f"The latest chapter is: {url}{search['href']}\n\n"
-                                f"I'll tell you next time a chapter is uploaded.")
-
-    @lovehug.command(name='remove')
-    async def lovehug_remove(self, ctx, url):
-        """Unsubscribes you from a manga. Input the URL: `;lh remove <url>`."""
-        if url not in self.bot.db['lovehug']:
-            await utils.safe_send(ctx, "No one is subscribed to that manga. Check your URL.")
-            return
-        else:
-            if ctx.author.id in self.bot.db['lovehug'][url]['subscribers']:
-                self.bot.db['lovehug'][url]['subscribers'].remove(ctx.author.id)
-                await utils.safe_send(ctx, "You've been unsubscribed from that manga.")
-                if len(self.bot.db['lovehug'][url]['subscribers']) == 0:
-                    del self.bot.db['lovehug'][url]
-            else:
-                await utils.safe_send("You're not subscribed to that manga.")
-                return
-
-    @lovehug.command(name='list')
-    async def lovehug_list(self, ctx):
-        """Lists the manga you subscribed to."""
-        subscriptions = []
-        for url in self.bot.db['lovehug']:
-            if ctx.author.id in self.bot.db['lovehug'][url]['subscribers']:
-                subscriptions.append(f"<{url}>")
-        subs_list = '\n'.join(subscriptions)
-        if subscriptions:
-            await utils.safe_send(ctx, f"The list of mangas you're subscribed to:\n{subs_list}")
-        else:
-            await utils.safe_send(ctx, "You're not subscribed to any mangas.")
-
     @commands.command(aliases=['git'])
     @commands.bot_has_permissions(send_messages=True)
     async def github(self, ctx):
         """Gives my github page"""
         await utils.safe_send(ctx, 'https://github.com/ryry013/Rai')
-
-    @commands.command()
-    @commands.bot_has_permissions(send_messages=True)
-    async def punch(self, ctx, user: discord.Member = None):
-        """A punch command I made as a test"""
-        if not user:
-            user = ctx.author
-        await utils.safe_send(ctx, "ONE PUNCH! And " + user.mention + " is out! ლ(ಠ益ಠლ)")
 
     @commands.command()
     @commands.bot_has_permissions(send_messages=True)
