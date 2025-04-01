@@ -242,9 +242,11 @@ class Message(commands.Cog):
         traceback_msg = traceback_msg_split[1][:-3]  # last three characters are final ```, take those off too
 
         # replace parts of the traceback that could change per traceback
-        traceback_msg = re.sub(r"\d{17,22}", "ID", traceback_msg)
-        traceback_msg = re.sub(r"line \d+", "line LINE", traceback_msg)
-        traceback_msg = re.sub(r"File \".+?\"", "File \"FILE\"", traceback_msg)
+        traceback_msg = re.sub(r"\d{17,22}", "ID", traceback_msg)  # any discord snowflake IDs
+        traceback_msg = re.sub(r"line \d+", "line LINE", traceback_msg)  # line numbers
+        traceback_msg = re.sub(r"File \".+?\"", "File \"FILE\"", traceback_msg)  # File names
+        traceback_msg = re.sub(r"0x\w+", "0xHEX", traceback_msg)
+        traceback_msg = re.sub(r"\d", "#", traceback_msg)
 
         # return if rai has seen this traceback before
         if traceback_msg in self.bot.db['rai_tracebacks']:
