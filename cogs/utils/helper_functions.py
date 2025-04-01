@@ -760,18 +760,56 @@ class ModlogEntry:
 @dataclass
 class Args:
     def __init__(self,
-                 user_ids: List[int],
+                 user_ids: list[int],
                  time_string: str,
-                 length: List[int],
+                 length: list[int],
                  time_arg: str,
                  time_obj: datetime,
                  reason: str):
-        self.user_ids = user_ids  # list of users
-        self.time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
-        self.length = length  # list of [days, hours, minutes]
-        self.time_arg = time_arg
-        self.time_obj = time_obj
-        self.reason = reason
+        self._user_ids = user_ids  # list of users
+        self._time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
+        self._length = length  # list of [days, hours, minutes]
+        self._time_arg = time_arg
+        self._time_obj = time_obj
+        self._reason = reason
+        
+    @property
+    def user_ids(self) -> list[int]:
+        """List of users IDs (integers)"""
+        return self._user_ids
+    
+    @property
+    def time_string(self) -> str:
+        """String formatted like %Y/%m/%d %H:%M UTC"""
+        return self._time_string
+    
+    @property
+    def length(self) -> Optional[list[int]]:
+        """List of [days, hours, minutes] as integers"""
+        return self._length
+    
+    @property
+    def time_arg(self) -> Optional[str]:
+        """String passed in that was parsed, for example, '2h' or '3d2h'"""
+        return self._time_arg
+    
+    @property
+    def time_obj(self) -> Optional[datetime]:
+        """Datetime object corresponding to ending point of action (a mute, for example)"""
+        return self._time_obj
+    
+    @property
+    def timedelta_obj(self) -> timedelta:
+        """Timedelta object corresponding to length of action, or 0s timedelta if None"""
+        if self._time_obj:
+            return self._time_obj - discord.utils.utcnow()
+        else:
+            return timedelta(seconds=0)
+    
+    @property
+    def reason(self) -> str:
+        """The reason for the action"""
+        return self._reason
 
 
 def args_discriminator(args: str) -> Args:
