@@ -143,7 +143,7 @@ class Message(commands.Cog):
 
         try:
             lang_check_task = utils.asyncio_task(time_task(self.lang_check, rai_message))
-            rai_message.detected_lang, rai_message.is_hardcore = await lang_check_task
+            rai_message.detected_lang, rai_message.hardcore = await lang_check_task
             # will add slight delay as we wait for this
 
             # run all tasks in a batch
@@ -165,7 +165,7 @@ class Message(commands.Cog):
         if not msg.guild:
             return None, None
         detected_lang = None
-        is_hardcore = False
+        hardcore = False
         if str(msg.guild.id) not in self.bot.stats:
             return None, False
         stripped_msg = utils.rem_emoji_url(msg)
@@ -183,7 +183,7 @@ class Message(commands.Cog):
                     hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
                     if hardcore_role in msg.author.roles:
                         check_lang = True
-                        is_hardcore = True
+                        hardcore = True
 
         if str(msg.guild.id) in self.bot.stats:
             if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
@@ -200,7 +200,7 @@ class Message(commands.Cog):
                     return None, False
             except (HTTPError, TimeoutError, urllib.error.URLError):
                 pass
-        return detected_lang, is_hardcore
+        return detected_lang, hardcore
 
     @on_message_function()
     async def test_long_function(self, msg: hf.RaiMessage):
@@ -1204,6 +1204,8 @@ class Message(commands.Cog):
 
     @on_message_function()
     async def spanish_server_hardcore(self, msg: hf.RaiMessage):
+        if msg.author.id == self.bot.owner_id:
+            print(msg.hardcore, msg.detected_lang)
         if not msg.hardcore:  # this should be set in the lang_check function
             return
         learning_eng = msg.guild.get_role(247021017740869632)
