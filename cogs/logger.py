@@ -1444,7 +1444,18 @@ class Logger(commands.Cog):
         )
 
         if len(member.roles) > 1:  # all members have the @everyone role
-            emb.add_field(name='Roles:', value=', '.join(reversed([role.name for role in member.roles[1:]])))
+            role_strs = []
+            for role in member.roles[1:]:
+                if not role_strs:
+                    role_strs.append(role.name)
+                else:
+                    if len(role_strs[-1]) + len(role.name) < 1024:
+                        role_strs[-1] += f", {role.name}"
+                    else:
+                        role_strs.append(role.name)
+            
+            for role_str in role_strs:
+                emb.add_field(name="Roles:", value=role_str, inline=False)
 
         emb.set_footer(
             text=f'User Leave ({member.guild.member_count}) - {member.id}',
