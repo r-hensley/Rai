@@ -229,8 +229,9 @@ class Message(commands.Cog):
 
     # don't run this as a typical on_message_function
     async def log_rai_tracebacks(self, msg: hf.RaiMessage):
-        traceback_channel_id = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
-        if msg.channel.id != traceback_channel_id:
+        new_tracebacks_channel = self.bot.get_channel(1360884895957651496)
+        old_traceback_channel_id = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
+        if msg.channel.id != old_traceback_channel_id:
             return
         if not msg.author == self.bot.user:
             return
@@ -251,13 +252,38 @@ class Message(commands.Cog):
         # return if rai has seen this traceback before
         if traceback_msg in self.bot.db['rai_tracebacks']:
             return
+        
+        # Ask ChatGPT for summary of traceback
+        messages = [{"role": "system", "content": f"Please summarize the following Python traceback to be parsed "
+                                                 f"with a bot. All errors will be things happening in a Discord bot, "
+                                                  f"so you don't need to state that in the post title:\n"
+                                                 f"1) A title for the post for the error "
+                                                 f"(100 characters max, plain text)\n"
+                                                 f"(New line)"
+                                                 f"2) A recommendation for fixing the error (2000 characters max, "
+                                                 f"new lines and Discord formatting allowed)"},
+                    {"role": "user", "content": "< assume traceback content here >"},
+                    {'role': 'assistant', 'content': "HTTPException in on_raw_message_delete from malformed footer URL"
+                                                     "\nThis bug comes from an HTTPException in ... "
+                                                     "(response continues)"},
+                    {'role': 'user', 'content': msg.content}]
+        completion = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=messages)
+        # Check the AI's response
+        response_text = completion.choices[0].message.content
+        post_name = response_text.split('\n')[0]
+        if len(post_name) > 100:
+            post_name = post_name[:100]
+        post_content = '\n'.join(response_text.split('\n')[1:])
+        post_content_split = utils.split_text_into_segments(post_content, 1990)
 
         self.bot.db['rai_tracebacks'].append(traceback_msg)
-        new_tracebacks_channel = self.bot.get_channel(1322798523279867935)
         try:
-            await new_tracebacks_channel.send(msg.content, embeds=msg.embeds)
+            thread = await new_tracebacks_channel.create_thread(name=post_name, content=msg.content, embeds=msg.embeds)
+            thread = thread.thread  # thread is actually a ThreadWithMessaged named tuple (thread, message)
         except (discord.HTTPException, discord.Forbidden):
-            return
+            raise
+        for msg_split in post_content_split:
+            await thread.send(msg_split)
 
     @on_message_function(allow_bots=True)
     async def replace_tatsumaki_posts(self, msg: hf.RaiMessage):
