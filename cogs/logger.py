@@ -588,10 +588,18 @@ class Logger(commands.Cog):
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
-        emb.set_footer(text=f'#{message.channel.name}',
-                       icon_url=message.author.display_avatar.replace(static_format="png").url)
+        # every once in a while I was getting "embeds.0.footer.icon_url: Not a well formed URL." errors
+        # maybe it was returning "None"?
+        url = message.author.display_avatar.replace(static_format="png").url
+        if url:
+            emb.set_footer(text=f'#{message.channel.name}', icon_url=url)
         
-        log_message = await utils.safe_send(channel, embed=emb)
+        try:
+            log_message = await utils.safe_send(channel, embed=emb)
+        except Exception as e:
+            if "embeds.0.footer.icon_url: Not a well formed URL." in str(e):
+                await hf.send_to_test_channel("on_raw_message_delete: bad avatar URL:", [url])
+            raise
         await hf.send_attachments_to_thread_on_message(log_message, message)
 
     @commands.Cog.listener()

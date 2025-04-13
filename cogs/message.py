@@ -1204,8 +1204,6 @@ class Message(commands.Cog):
 
     @on_message_function()
     async def spanish_server_hardcore(self, msg: hf.RaiMessage):
-        if msg.author.id == self.bot.owner_id:
-            print(msg.hardcore, msg.detected_lang)
         if not msg.hardcore:  # this should be set in the lang_check function
             return
         learning_eng = msg.guild.get_role(247021017740869632)
