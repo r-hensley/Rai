@@ -6,6 +6,8 @@ from sqlite3 import IntegrityError
 
 import asqlite
 from discord.ext import commands
+from discord.ext.commands import Context
+from discord.ext.commands._types import BotT
 
 from .database import Connect
 from .utils import helper_functions as hf
@@ -26,6 +28,12 @@ def club_owners(ctx):
 class Clubs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        
+    async def cog_check(self, ctx: Context[BotT]) -> bool:
+        if ctx.guild is None:
+            await ctx.send("This command can only be used in a server.")
+            return False
+        return True
 
     @commands.command(aliases=['parties'])
     async def clubs(self, ctx):
