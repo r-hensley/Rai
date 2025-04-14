@@ -1758,7 +1758,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         except openai.BadRequestError as e:
             await hf.segment_send(1351956893119283270, messages)  # send to chatgpt logs channel
             moderation_result = None
-            if 'invalid_image_format' in str(e) or 'image_url_unavailable' in str(e):
+            if 'invalid_image_format' in str(e) or 'image_url_unavailable' in str(e) or 'file_too_large' in str(e):
                 for m in messages:
                     if m['type'] == 'image_url':
                         messages.remove(m)
