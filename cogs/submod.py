@@ -814,7 +814,7 @@ class Submod(commands.Cog):
                                     "In the future you can type `;warn set` in a text channel in your "
                                     "server and I will offer to send a public warning to the user in "
                                     "these cases.")
-            raise discord.Forbidden
+            raise PermissionError
 
         if notif_channel:
             question = await utils.safe_send(ctx, f"I could not send a message to {user.mention}. "
@@ -847,7 +847,7 @@ class Submod(commands.Cog):
                         await utils.safe_send(ctx, "I can't send messages to the channel you have marked "
                                                 "in this server as the warn notifications channel. Please "
                                                 "go to a new channel and type `;warns set`.")
-                        raise discord.Forbidden
+                        raise
                 elif str(reaction_added) == '❌':
                     await utils.safe_send(ctx, f"I will not warn the user {user.mention}.")
                 else:

@@ -352,7 +352,7 @@ class Main(commands.Cog):
                 return
             try:
                 if not ctx.guild:
-                    raise discord.Forbidden
+                    raise error
                 if str(ctx.guild.id) in self.bot.db['mod_role']:
                     await ctx.send("You lack permissions to do that.")
                 else:
