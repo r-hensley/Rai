@@ -260,12 +260,14 @@ class Message(commands.Cog):
                                                  f"1) A title for the post for the error "
                                                  f"(100 characters max, plain text)\n"
                                                  f"(New line)"
-                                                 f"2) A recommendation for fixing the error (2000 characters max, "
+                                                 f"2) A summary for why the error happened, and which file / line the "
+                                                  f"error happened on. Recommendations for fixing "
+                                                  f"the error are not needed (2000 characters max, "
                                                  f"new lines and Discord formatting allowed)"},
                     {"role": "user", "content": "< assume traceback content here >"},
                     {'role': 'assistant', 'content': "HTTPException in on_raw_message_delete from malformed footer URL"
                                                      "\nThis bug comes from an HTTPException in ... "
-                                                     "(response continues)"},
+                                                     "(response continues). It occurred in cogs/modlog.py, line 1234"},
                     {'role': 'user', 'content': msg.content}]
         completion = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=messages)
         # Check the AI's response
