@@ -614,7 +614,14 @@ class ChannelMods(commands.Cog):
         langs = set(args[1:]) if len(args) > 1 else set()
         user_roles = {role.id for role in user.roles}
         
-        to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(ctx.guild, user_roles, langs)
+        try:
+            to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(ctx.guild, user_roles, langs)
+        except ValueError as e:
+            await utils.safe_reply(ctx, f"Error: {e}")
+            return
+        if not to_add_lang_roles:
+            await utils.safe_reply(ctx, "There was an error with one of the roles you tried to specify.")
+            return
         
         try:
             if to_remove:
@@ -704,7 +711,7 @@ class ChannelMods(commands.Cog):
             role_obj = langs_dict.get(lang_name)
             
             if not role_obj:
-                return utils.red_embed(f"Role `{lang_name}` not found.")
+                raise ValueError(f"Role {lang_name} not found in guild {guild.id}")
             
             if lang.startswith('-'):
                 to_remove.add(role_obj)
