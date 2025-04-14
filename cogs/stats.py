@@ -107,7 +107,10 @@ class Stats(commands.Cog):
 
         if isinstance(member, discord.Member):
             member_id = member.id
-            name_str = f"{escape_markdown(member.name)} ({escape_markdown(member.nick)})"
+            if member.nick:
+                name_str = f"{escape_markdown(member.name)} ({escape_markdown(member.nick)})"
+            else:
+                name_str = f"{escape_markdown(member.name)}"
         elif isinstance(member, discord.User):
             member_id = member.id
             name_str = f"{escape_markdown(member.name)} (user left server)"
