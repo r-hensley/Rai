@@ -184,6 +184,9 @@ class Main(commands.Cog):
         logger_root.setLevel(logging.DEBUG)
         self.bot.loop.set_debug(True)
 
+        # Set up the file handler
+        if not os.path.exists(f"{dir_path}/log"):
+            os.makedirs(f"{dir_path}/log")
         handler = logging.handlers.RotatingFileHandler(
             filename=f"{dir_path}/log/{discord.utils.utcnow().strftime('%y%m%d_%H%M')}.log",
             encoding='utf-8',
