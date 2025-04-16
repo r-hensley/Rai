@@ -12,8 +12,15 @@ import discord
 from discord.ext.commands import Bot
 from discord.ext import commands, tasks
 
-from cogs.utils import helper_functions as hf
+# check to make sure this submodule is initialized
+try:
+    if not os.listdir('cogs/utils/BotUtils'):
+        raise FileNotFoundError
+except FileNotFoundError:
+    raise FileNotFoundError("The BotUtils submodule is not initialized. "
+                            "Please run 'git submodule update --init --recursive' to initialize it.")
 from cogs.utils.BotUtils import bot_utils as utils
+from cogs.utils import helper_functions as hf
 from cogs.database import create_database_tables
 
 
@@ -33,9 +40,8 @@ except FileNotFoundError:
     txt = """BOT_TOKEN=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL=\nOWNER_ID=\nGCSE_API="""
     with open(f'{dir_path}/.env', 'w') as f:
         f.write(txt)
-    print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
-          "for tracebacks and "
-          ", put channel IDs in those.\n"
+    print("I've created a .env file for you, go in there and put your bot token in the file, as well as a "
+          "spot to put a channel ID for a channel for logging tracebacks.\n"
           "There is also a spot for your GCSE api key if you have one, \n"
           "but if you don't you can leave that blank.")
     exit()
@@ -134,8 +140,10 @@ class Rai(Bot):
                 traceback.print_exc()
                 raise
             
-        if os.getenv("OWNER_ID") == "202995638860906496":
+        if os.path.exists(f"{dir_path}/cogs/rl/rl.py"):
             await self.load_extension('cogs.rl.rl')
+        else:
+            print("Rai RL not found, skipping loading of Rai RL cog.")
 
         await create_database_tables()
 

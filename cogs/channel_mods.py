@@ -760,6 +760,9 @@ class ChannelMods(commands.Cog):
     
     async def test_role_command(self):
         guild = self.bot.get_guild(SP_SERV)
+        if not guild:
+            print("Skipping test_role_command: Spanish server not found")
+            return
         roles = {243853718758359040: 'english',
          243854128424550401: 'spanish',
          247020385730691073: 'other',
