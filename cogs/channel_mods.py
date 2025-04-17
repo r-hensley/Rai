@@ -689,7 +689,11 @@ class ChannelMods(commands.Cog):
                       'le': roles['learningenglish'], 'ls': roles['learningspanish'], 'he': roles['heritageenglish'],
                       'hs': roles['heritagespanish'],
                       'none': None, 'n': None}
-        langs_dict.update({role.id: role for role in all_roles})
+        
+        # langs_dict.update({role.id: role for role in all_roles})
+        for role in all_roles:
+            if role:
+                langs_dict.update({role.id: role})
         
         user_roles = {langs_dict.get(role) for role in user_roles_in}
         
@@ -1185,7 +1189,10 @@ class ChannelMods(commands.Cog):
                     channel = ctx.guild.get_channel(channel_id)
                     if not channel:
                         # try searching for a thread (including archived threads)
-                        channel = await ctx.guild.fetch_channel(channel_id)
+                        try:
+                            channel = await ctx.guild.fetch_channel(channel_id)
+                        except discord.Forbidden:
+                            continue
                         if not channel:
                             continue
                     attachment_id = (int(attachment[1]))
