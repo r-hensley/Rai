@@ -31,9 +31,6 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 
-
-
-
 class Events(commands.Cog):
     """This module contains event listeners not in logger.py"""
 
