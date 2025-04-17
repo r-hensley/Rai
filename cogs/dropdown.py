@@ -8,22 +8,69 @@ class Dropdown(commands.Cog):
 
     @commands.command()
     async def dropdown(self, ctx: commands.Context):
-        role_1 = ctx.guild.roles[1]  # 0 might be @ everyone
-        role_2 = ctx.guild.roles[2]
-        role_3 = ctx.guild.roles[3]
+        role_ids = {
+            'english': 243853718758359040,
+            'spanish': 243854128424550401,
+            'other': 247020385730691073,
+            'fluentenglish': 708704078540046346,
+            'intermediateenglish': 708704480161431602,
+            'beginnerenglish': 708704491180130326,
+            'fluentspanish': 708704473358532698,
+            'intermediatespanish': 708704486994215002,
+            'beginnerspanish': 708704495302869003,
+            'learningenglish': 247021017740869632,
+            'learningspanish': 297415063302832128,
+            'heritageenglish': 1001176425296052324,
+            'heritagespanish': 1001176351874752512
+        }
         
-        # Create a dropdown menu with the above roles
-        options = [
-            discord.SelectOption(label="Role 1", value=str(role_1.id), description="This is role 1"),
-            discord.SelectOption(label="Role 2", value=str(role_2.id), description="This is role 2"),
-            discord.SelectOption(label="Role 3", value=str(role_3.id), description="This is role 3"),
-        ]
-
-        select = discord.ui.Select(placeholder="Choose an option", options=options)
+        roles = {name: ctx.guild.get_role(rid) for name, rid in role_ids.items()}
+        
+        language_roles = {roles['english'], roles['spanish'], roles['other']}
+        level_roles = {roles['fluentenglish'], roles['intermediateenglish'], roles['beginnerenglish'],
+                       roles['fluentspanish'], roles['intermediatespanish'], roles['beginnerspanish']}
+        learning_roles = {roles['learningenglish'], roles['learningspanish']}
+        heritage_roles = {roles['heritageenglish'], roles['heritagespanish']}
+        all_roles = language_roles | level_roles | learning_roles | heritage_roles
+        
+        def add_row(role_list, placeholder="Choose an option"):
+            # Create a dropdown menu with the above roles
+            options = [
+                discord.SelectOption(
+                    label=role.name,
+                    value=str(role.id),
+                    default=role in ctx.author.roles,
+                ) for
+                role in role_list
+            ]
+            
+            select = discord.ui.Select(
+                placeholder=placeholder, options=options, max_values=len(role_list))
+            
+            return select
+        
+        native_select = add_row(language_roles, "Native Language Roles")
+        level_select = add_row(level_roles, "Language Level Roles")
+        learning_select = add_row(learning_roles, "Learning Roles")
+        heritage_select = add_row(heritage_roles, "Heritage Roles")
+        
+        async def make_callback(select):
+            async def select_callback(interaction: discord.Interaction):
+                    selected_roles = select.values
+                    await interaction.response.send_message(f"You selected: {', '.join(selected_roles)}")
+            return select_callback
+            
+        native_select.callback = make_callback(native_select)
+        level_select.callback = make_callback(level_select)
+        learning_select.callback = make_callback(learning_select)
+        heritage_select.callback = make_callback(heritage_select)
 
         # Create a view to hold the dropdown
         view = discord.ui.View()
-        view.add_item(select)
+        view.add_item(native_select)
+        view.add_item(level_select)
+        view.add_item(learning_select)
+        view.add_item(heritage_select)
 
         await ctx.send("Please select an option from the dropdown:", view=view)
         
