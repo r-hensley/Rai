@@ -2123,17 +2123,17 @@ class Admin(commands.Cog):
     async def antispam(self, ctx, menu=None):
         """Opens configuation menu for the antispam/antiraid module."""
         config = self.bot.db['antispam'].setdefault(str(ctx.guild.id), {'enable': False, 'action': None,
-                                                                        'message_threshhold': None,
-                                                                        'time_threshhold': None,
+                                                                        'message_threshold': None,
+                                                                        'time_threshold': None,
                                                                         'ignored': [],
                                                                         'ban_override': None})
         if config['enable']:
             settings = f"**The current settings are as follows:\n" \
-                       f"    - Message threshhold: {config['message_threshhold']}\n" \
-                       f"    - Time threshhold (seconds): {config['time_threshhold']}\n" \
+                       f"    - Message threshold: {config['message_threshold']}\n" \
+                       f"    - Time threshold (seconds): {config['time_threshold']}\n" \
                        f"    - Punishment: {config['action'].capitalize()}**"
             if config.get('ban_override', None):
-                settings = settings[:-2] + f"\n    - Ban override threshhold (minutes): {config['ban_override']}**"
+                settings = settings[:-2] + f"\n    - Ban override threshold (minutes): {config['ban_override']}**"
         else:
             settings = "The antispam module is currently disabled."
         emb = discord.Embed(title="Configuration for the antispam module. Please type an option.",
@@ -2222,16 +2222,16 @@ class Admin(commands.Cog):
                                     "Please start over the command and try again.")
             return
         try:
-            message_threshhold = int(choices[1])
-            time_threshhold = int(choices[2])
+            message_threshold = int(choices[1])
+            time_threshold = int(choices[2])
         except ValueError:
-            await utils.safe_send(ctx, "Your choice for either the message or time threshhold was not a number. Please "
+            await utils.safe_send(ctx, "Your choice for either the message or time threshold was not a number. Please "
                                     "start over the command and try again.")
             return
         self.bot.db['antispam'][str(ctx.guild.id)]['enable'] = True
         self.bot.db['antispam'][str(ctx.guild.id)]['action'] = choices[0]
-        self.bot.db['antispam'][str(ctx.guild.id)]['message_threshhold'] = message_threshhold
-        self.bot.db['antispam'][str(ctx.guild.id)]['time_threshhold'] = time_threshhold
+        self.bot.db['antispam'][str(ctx.guild.id)]['message_threshold'] = message_threshold
+        self.bot.db['antispam'][str(ctx.guild.id)]['time_threshold'] = time_threshold
 
         await utils.safe_send(ctx, embed=utils.green_embed("Antispam has been configured!"), delete_after=10.0)
         await ctx.invoke(self.antispam, menu)
