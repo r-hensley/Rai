@@ -176,13 +176,17 @@ class Main(commands.Cog):
         # Order of logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
         logger = logging.getLogger('discord')
         logger.setLevel(logging.WARNING)
+        
         logger_http = logging.getLogger('discord.http')
         logger_http.setLevel(logging.INFO)
+        
         logger_asyncio = logging.getLogger('asyncio')
-        logger_asyncio.setLevel(logging.DEBUG)
+        logger_asyncio.setLevel(logging.INFO)
+        self.bot.loop.set_debug(False)
+        # logger_asyncio.setLevel(logging.DEBUG)
+        
         logger_root = logging.getLogger('root')
-        logger_root.setLevel(logging.DEBUG)
-        self.bot.loop.set_debug(True)
+        logger_root.setLevel(logging.INFO)
 
         # Set up the file handler
         if not os.path.exists(f"{dir_path}/log"):
