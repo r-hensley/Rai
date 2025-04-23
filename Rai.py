@@ -67,7 +67,7 @@ def prefix(bot: commands.Bot, msg: discord.Message) -> str:
     if bot.user.name == "Rai":
         default = ';'
     else:
-        default = 'r;;'
+        default = 'r;'
     if msg.guild:
         if 'prefix' not in bot.db:
             bot.db['prefix'] = {}
