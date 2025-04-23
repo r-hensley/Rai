@@ -1916,7 +1916,10 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         nl = '\n'  # python 3.10 does not allow backslahes in f-strings
         s += f"> {content.replace(nl, f'{nl}> ')}\n"
         s += f"> {translated.replace(nl, f'{nl}> ')}"
-        await other_language_log_channel.send(s)
+        try:
+            await other_language_log_channel.send(s)
+        except discord.Forbidden:
+            pass
 
 
 async def setup(bot):
