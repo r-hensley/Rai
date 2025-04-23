@@ -67,7 +67,7 @@ def prefix(bot: commands.Bot, msg: discord.Message) -> str:
     if bot.user.name == "Rai":
         default = ';'
     else:
-        default = 'r;'
+        default = 'r;;'
     if msg.guild:
         if 'prefix' not in bot.db:
             bot.db['prefix'] = {}
@@ -101,7 +101,7 @@ class Rai(Bot):
                       'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
                       'risk': {}, 'guildstats': {}, 'bannedservers': [],
                       'spvoice': [], 'spam_links': [], 'voice_lock': {}, "helper_role": {}, "helper_channel": {},
-                      'channels': {}}
+                      'channels': {}, 'joindates': {}}
             # A lot of these are unnecessary now but I'll fix that later when I make a new database
             print("Creating default values for database.")
             json.dump(new_db, db)

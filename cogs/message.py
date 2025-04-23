@@ -68,7 +68,8 @@ def on_message_function(allow_dms: bool = False,
 
             # time_task() is a wrapper that returns an uncalled async function definition
             # this is what asyncio_task needs, you're supposed to give it a function to call later
-            task = utils.asyncio_task(time_task(func, *args), task_name=f"on_message.{func.__name__}")
+            task = utils.asyncio_task(time_task(func, *args, diff_threshold=5),
+                                      task_name=f"on_message.{func.__name__}")
             return task
 
         # Replace `func` with `wrapper` in the registered functions
@@ -121,7 +122,7 @@ class Message(commands.Cog):
         self.lingua_detector_full = LanguageDetectorBuilder.from_languages(*(lingua_languages_one + lingua_languages_two)).build()
 
     @commands.Cog.listener()
-    @hf.basic_timer(1)
+    @hf.basic_timer(5)
     async def on_message(self, msg_in: discord.Message):
         rai_message = hf.RaiMessage(msg_in)
         try:
@@ -142,7 +143,7 @@ class Message(commands.Cog):
             return
 
         try:
-            lang_check_task = utils.asyncio_task(time_task(self.lang_check, rai_message))
+            lang_check_task = utils.asyncio_task(time_task(self.lang_check, rai_message, diff_threshold=5))
             rai_message.detected_lang, rai_message.hardcore = await lang_check_task
             # will add slight delay as we wait for this
 
@@ -178,6 +179,8 @@ class Message(commands.Cog):
                 elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
                     channel_id = msg.channel.id
                 else:
+                    return None, False
+                if str(SP_SERVER_ID) not in self.bot.db['hardcore']:
                     return None, False
                 if channel_id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
                     hardcore_role = msg.guild.get_role(self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
@@ -237,6 +240,8 @@ class Message(commands.Cog):
             return
         if 'rai_tracebacks' not in self.bot.db:
             self.bot.db['rai_tracebacks'] = []
+        if not self.bot.openai:
+            return
         traceback_msg_split = msg.content.split("```py")  # first part is a jump url before traceback
         if len(traceback_msg_split) < 2:
             return
@@ -269,6 +274,7 @@ class Message(commands.Cog):
                                                      "\nThis bug comes from an HTTPException in ... "
                                                      "(response continues). It occurred in cogs/modlog.py, line 1234"},
                     {'role': 'user', 'content': msg.content}]
+        
         completion = await self.bot.openai.chat.completions.create(model="gpt-4o-mini", messages=messages)
         # Check the AI's response
         response_text = completion.choices[0].message.content
@@ -453,7 +459,8 @@ class Message(commands.Cog):
         # only add messages to queue for servers that have edited messages or deleted messages logging enabled
         if not any([self.bot.db['deletes'].get(str(msg.guild.id), {}).get('enable', False),
                     self.bot.db['edits'].get(str(msg.guild.id), {}).get('enable', False)]):
-            return
+            if msg.guild.id != SP_SERVER_ID:
+                return
         self.bot.message_queue.add_message(msg)
 
     # ### ban users from sensitive_topics on spanish server
@@ -836,6 +843,9 @@ class Message(commands.Cog):
             self.bot.synced_reactions.append((notif, msg))
         else:
             self.bot.synced_reactions = [(notif, msg)]
+
+        if not self.bot.openai:
+            return  # if OpenAI is not set up, skip the rest of the function
 
         # Manage chatgpt_summaries to prevent multiple summaries in the same channel within 10 min
         # Only summarize in specific servers
@@ -1549,6 +1559,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             return
         if msg.guild != log_channel.guild:
             return
+        if not self.bot.openai:
+            return
 
         # skip voice channels
         if msg.channel.type == discord.ChannelType.voice:
@@ -1728,6 +1740,10 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         CHATGPT_LOG_ID = 1351956893119283270  # ID for channel for logs
         if msg.guild.id != SP_SERVER_ID:
             return
+        if not self.bot.message_queue:
+            return  # if the message queue is completely empty
+        if not self.bot.openai:
+            return
 
         # if the user has sent more than 10 messages in the last month, don't moderate them
         messages_in_last_month = hf.count_messages(msg.author.id, msg.guild)
@@ -1737,7 +1753,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         # get the list of messages the bot has seen
         cached_messages = self.bot.message_queue.find_by_author(msg.author.id)
         if not cached_messages:
-            await asyncio.sleep(1)  # the queue should at least have the current message
+            await asyncio.sleep(0.1)  # the queue should at least have the current message
             cached_messages: list[hf.MiniMessage] = self.bot.message_queue.find_by_author(msg.author.id)
             if not cached_messages:
                 return
