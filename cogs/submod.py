@@ -28,7 +28,8 @@ class Submod(commands.Cog):
         if not ctx.guild:
             return
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
-            if not ctx.message.content.endswith("help"):  # ignore if it's the help command
+            # ignore if it's the help command
+            if not ctx.message.content.endswith("help"):
                 await utils.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
         return True
@@ -315,7 +316,7 @@ class Submod(commands.Cog):
     #         conf += f"-# ||<@{self.bot.owner_id}>||\n"
     #
     #     await utils.safe_send(ctx, conf)
-        
+
     class BanConfirmationView(utils.RaiView):
         def __init__(self,
                      targets: list[Union[discord.User, discord.Member]],
@@ -337,7 +338,7 @@ class Submod(commands.Cog):
             self.confirmed = None
             self.command_caller = ctx.author if isinstance(ctx, commands.Context) \
                 else ctx.user  # Store the command caller
-            
+
         async def interaction_check(self, interaction: Interaction) -> bool:
             if interaction.user == self.command_caller:
                 return True
@@ -345,69 +346,73 @@ class Submod(commands.Cog):
                 await interaction.response.send_message("Only the person who initiated the ban can interact with this.",
                                                         ephemeral=True)
                 return False
-            
+
         def get_embed(self) -> discord.Embed:
             """The embed that will be sent to the user"""
-            emb = discord.Embed(title=f"You've been banned from {self.ctx.guild.name}")
+            emb = discord.Embed(
+                title=f"You've been banned from {self.ctx.guild.name}")
             if self.length:
                 emb.description = f"You will be unbanned automatically at {self.time_string} " \
-                                 f"(in {self.length[0]} days and {self.length[1]} hours)"
+                    f"(in {self.length[0]} days and {self.length[1]} hours)"
             else:
                 emb.description = "This ban is indefinite."
-            
+
             emb.add_field(name="Reason:", value=self.reason)
-            
+
             if self.appeal:
-                ban_appeal_server: discord.Guild = self.ctx.bot.get_guild(985963522796183622)
+                ban_appeal_server: discord.Guild = self.ctx.bot.get_guild(
+                    985963522796183622)
                 ban_appeal_server_invite_link = "https://discord.gg/pnHEGPah8X"
                 if ban_appeal_server:
                     if discord.utils.get(ban_appeal_server.text_channels, topic=str(self.ctx.guild.id)):
                         emb.add_field(name="Server for appealing your ban", value=ban_appeal_server_invite_link,
-                                     inline=False)
+                                      inline=False)
             else:
                 # say an appeal will not be possible
-                emb.add_field(name="Appeal", value="This ban can not be appealed.", inline=False)
-                
+                emb.add_field(
+                    name="Appeal", value="This ban can not be appealed.", inline=False)
+
             return emb
-        
+
         def get_message_content(self) -> str:
             """The content for moderators to see describing the ban above the embed"""
             content = f"You are about to ban: **{'**, **'.join([t.mention for t in self.targets])}**\n"
             if self.delete_message_seconds:
                 content += (f"- __Messages will be deleted__ from the last "
                             f"{self.delete_message_seconds // 60 // 60} hours .\n")
-                
+
             return content
-        
+
         async def handle_response(self, interaction: discord.Interaction, confirmed: bool):
             # noinspection PyUnresolvedReferences
             await interaction.response.defer(thinking=False)
             self.confirmed = confirmed
             self.stop()
-        
+
         @discord.ui.button(label="Ban (Send DM)", style=discord.ButtonStyle.green, row=1)
         async def dm_confirm_button(self, interaction: discord.Interaction, _: discord.ui.Button):
             self.silent = False
             await self.handle_response(interaction, True)
-            
+
         @discord.ui.button(label="Ban (Silent)", style=discord.ButtonStyle.green, row=1)
         async def silent_confirm_button(self, interaction: discord.Interaction, _: discord.ui.Button):
             self.silent = True
             await self.handle_response(interaction, True)
-        
+
         @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, row=1)
         async def cancel_button(self, interaction: discord.Interaction, _: discord.ui.Button):
             await self.handle_response(interaction, False)
-            
+
         @discord.ui.button(label="Toggle Delete Messages", style=discord.ButtonStyle.blurple, row=2)
         async def toggle_delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            self.delete_message_seconds = 24 * 60 * 60 if self.delete_message_seconds == 0 else 0
+            self.delete_message_seconds = 24 * 60 * \
+                60 if self.delete_message_seconds == 0 else 0
             button.style = discord.ButtonStyle.blurple if not self.delete_message_seconds else discord.ButtonStyle.red
             # noinspection PyUnresolvedReferences
             await interaction.response.edit_message(content=self.get_message_content(),
                                                     embed=self.get_embed(),
                                                     view=self)
-            
+
         @discord.ui.button(label="Toggle Appeal", style=discord.ButtonStyle.blurple, row=2)
         async def toggle_appeal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.appeal = not self.appeal
@@ -416,10 +421,10 @@ class Submod(commands.Cog):
             await interaction.response.edit_message(content=self.get_message_content(),
                                                     embed=self.get_embed(),
                                                     view=self)
-   
+
     @discord.app_commands.command(name="ban", description="Ban a user from the server.")
     @app_commands.describe(reason="The reason for the ban",
-                           member="The user to ban",member_id="The ID of the user to ban",
+                           member="The user to ban", member_id="The ID of the user to ban",
                            member_two="The user to ban", member_id_two="The ID of the user to ban",
                            member_three="The user to ban", member_id_three="The ID of the user to ban",
                            member_four="The user to ban", member_id_four="The ID of the user to ban")
@@ -440,25 +445,27 @@ class Submod(commands.Cog):
                             member_id_four: str = None,):
         """Pass arguments received into the ban command."""
         ctx = await commands.Context.from_interaction(interaction)
-        members = ' '.join([m.mention for m in [member, member_two, member_three, member_four] if m])
-        member_ids = ' '.join(i for i in [member_id, member_id_two, member_id_three, member_id_four] if i)
+        members = ' '.join(
+            [m.mention for m in [member, member_two, member_three, member_four] if m])
+        member_ids = ' '.join(
+            i for i in [member_id, member_id_two, member_id_three, member_id_four] if i)
         if not members and not member_ids:
             await interaction.response.send_message("You must provide at least one user to ban.", ephemeral=True)
             return
         await interaction.response.send_message("Starting ban process...", ephemeral=True)
         await self.prefix_cmd_ban(ctx, args_in=f"{members} {member_ids} {reason}")
-        
+
     @commands.command(name="ban")
     @commands.bot_has_permissions(ban_members=True)
     @hf.is_submod()
     async def prefix_cmd_ban(self, ctx: Union[commands.Context, discord.Interaction], *, args_in: str):
         args = hf.args_discriminator(args_in)
-        
+
         user_ids = args.user_ids
         reason = args.reason
         length = args.length
         time_string = args.time_string
-        
+
         targets: List[discord.Member] = []
         for user_id in user_ids:
             target: Union[discord.User, discord.Member, None] = await utils.member_converter(ctx, user_id)
@@ -467,14 +474,16 @@ class Submod(commands.Cog):
             else:
                 # Check users who have recently left the server
                 try:
-                    recently_removed = self.bot.recently_removed_members[str(ctx.guild.id)]
-                    id_to_member_dict: dict[int: discord.Member] = {m.id: m for m in recently_removed}
+                    recently_removed = self.bot.recently_removed_members[str(
+                        ctx.guild.id)]
+                    id_to_member_dict: dict[int: discord.Member] = {
+                        m.id: m for m in recently_removed}
                     if user_id in id_to_member_dict:  # target is an ID
                         targets.append(id_to_member_dict[user_id])
                         continue
                 except KeyError:
                     pass
-                
+
                 # Try manually fetching an ID through an API call
                 try:
                     target = await self.bot.fetch_user(user_id)
@@ -487,25 +496,26 @@ class Submod(commands.Cog):
                     await utils.safe_send(ctx, f"I could not find the user {user_id}.")
                 except ValueError:
                     await utils.safe_send(ctx, f"I could not find the user {user_id}.")
-        
+
         if not targets:
             await utils.safe_send(ctx, "I couldn't resolve any users to ban. "
                                        "Please check the IDs you gave again.")
             return
-        
+
         # check permissions for target, and also the person calling the command
         for target in targets.copy():
             if hasattr(target, "joined_at"):  # will be false if the user is not in the server
                 joined_at = discord.utils.utcnow() - target.joined_at
             else:
-                joined_at = timedelta(hours=25)  # arbitrarily bigger than 24 to fail the conditional
+                # arbitrarily bigger than 24 to fail the conditional
+                joined_at = timedelta(hours=25)
 
             # check if top role of target user is higher than Rai
             if hasattr(target, "top_role"):
                 if target.top_role > ctx.guild.me.top_role:
                     await utils.safe_send(ctx,
-                                       f"I won't be able to ban {str(target)} "
-                                       f"as their top role is higher than mine.")
+                                          f"I won't be able to ban {str(target)} "
+                                          f"as their top role is higher than mine.")
                     targets.remove(target)
                     continue
 
@@ -529,9 +539,10 @@ class Submod(commands.Cog):
 
         if not targets:
             return
-        
+
         author_tag = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** "
-        ban_reason = f"{author_tag}{reason}"  # this will only be used in the internal discord ban reason
+        # this will only be used in the internal discord ban reason
+        ban_reason = f"{author_tag}{reason}"
         if len(ban_reason) > 512:
             await utils.safe_send(ctx,
                                   f"Discord only allows bans with a length of __512 characters__. With my included "
@@ -540,20 +551,24 @@ class Submod(commands.Cog):
                                   f"consider sending the full length of the ban text as a separate warning "
                                   f"immediately before the ban itself if reducing characters would be difficult.")
             return
-        
-        view = self.BanConfirmationView(targets, reason, length=length, time_string=time_string, ctx=ctx)
+
+        view = self.BanConfirmationView(
+            targets, reason, length=length, time_string=time_string, ctx=ctx)
         confirmation_msg = await ctx.send(content=view.get_message_content(), embed=view.get_embed(), view=view)
         await view.wait()  # wait for response to view to complete
-        
+
         flags = {}
         any_flags = False
         if view.confirmed:
             successes = []
             failures = []
             for target in targets:
-                try:
-                    if not view.silent:
+                if not view.silent:
+                    try:
                         await utils.safe_send(target, embed=view.get_embed())
+                    except discord.Forbidden:
+                        await utils.safe_send(ctx, f"The user {target.mention} has DMs blocked. Defaulting to silent ban.")
+                try:
                     await ctx.guild.ban(target, reason=ban_reason, delete_message_seconds=view.delete_message_seconds)
                     successes.append(target)
                 except Exception as e:
@@ -566,27 +581,28 @@ class Submod(commands.Cog):
                                                                 {'enable': False, 'channel': None, 'timed_bans': {}})
                         timed_bans = config.setdefault('timed_bans', {})
                         timed_bans[str(target.id)] = time_string
-                    
+
                     # format length string and add to modlog
                     if length:
                         length_str = f"{length[0]}d{length[1]}h"
                     else:
                         length_str = None
                     if reason.startswith("*by*"):
-                        reason = reason.replace(f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
+                        reason = reason.replace(
+                            f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
                     modlog_entry = hf.ModlogEntry(event="Ban", user=target,
                                                   guild=ctx.guild, ctx=ctx,
                                                   length=length_str, reason=reason,
                                                   silent=view.silent)
                     modlog_entry.add_to_modlog()
-                    
+
                     # check for user account flags
                     flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
                     flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
                     if flag_one or flag_two:
                         any_flags = True
                     flags[target.id] = (flag_one, flag_two)
-            
+
             # check for if any of the users have flags for spamming or excessive DM activity
             if successes:
                 if any_flags:
@@ -598,10 +614,10 @@ class Submod(commands.Cog):
                             flag_msg += f"- {member.mention} ***(Was flagged for excessive DMs at one point)***\n"
                         elif flags[member.id][0] and flags[member.id][1]:
                             flag_msg += (f"- {member.mention} ***(Was flagged for both excessive DM activity "
-                                     f"and potential spamming activities)***\n")
+                                         f"and potential spamming activities)***\n")
                     flag_msg += f"-# ||<@{self.bot.owner_id}>||\n"
                     await confirmation_msg.reply(flag_msg)
-    
+
                 embed = discord.Embed(
                     title="Ban Successful",
                     description=f"Successfully banned {', '.join(user.mention for user in successes)}",
@@ -613,9 +629,9 @@ class Submod(commands.Cog):
                         value=", ".join(user.mention for user in failures),
                         inline=False)
                 await confirmation_msg.edit(embed=embed, view=None)
-                
+
                 return
-        
+
         embed = discord.Embed(
             title="Ban Cancelled",
             description="The ban operation was cancelled.",
@@ -623,7 +639,6 @@ class Submod(commands.Cog):
         )
         await confirmation_msg.edit(content=None, embed=embed, view=None)
 
-    
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
                                 guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265, JP_SERVER_ID])
 
@@ -631,7 +646,8 @@ class Submod(commands.Cog):
     @app_commands.default_permissions()
     async def set_submod_role(self, itx: discord.Interaction, *, role: discord.Role):
         """Set the submod role for your server."""
-        config = self.bot.db['submod_role'].setdefault(str(itx.guild.id), {'id': []})
+        config = self.bot.db['submod_role'].setdefault(
+            str(itx.guild.id), {'id': []})
 
         if not config['id']:
             config['id'] = []
@@ -649,7 +665,8 @@ class Submod(commands.Cog):
         for role_id in config['id']:
             potential_remaining_role = itx.guild.get_role(role_id)
             if potential_remaining_role:
-                remaining_roles.append(f"{potential_remaining_role.name} ({potential_remaining_role.id})")
+                remaining_roles.append(
+                    f"{potential_remaining_role.name} ({potential_remaining_role.id})")
             else:
                 config['id'].remove(role_id)
         remaining_roles_str = "- " + '\n- '.join(remaining_roles)
@@ -681,7 +698,8 @@ class Submod(commands.Cog):
 
         # If silent, remove -s from reason if it's there
         if silent := "-s" in reason:
-            reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+            reason = reason.replace(
+                ' -s', '').replace('-s ', '').replace('-s', '')
 
         if not user_ids:
             await utils.safe_reply(ctx, "I could not find any users to warn in your command.")
@@ -706,13 +724,13 @@ class Submod(commands.Cog):
                         users.append(user)
                     else:
                         await utils.safe_send(ctx, f"The user {user} is not a member of this server so I couldn't "
-                                                f"send the warning. I am aborting their warning.")
+                                              f"send the warning. I am aborting their warning.")
                         continue  # don't let code get to the addition of ModlogEntry object
 
             if not user:
                 await utils.safe_send(ctx, f"I could not find the user {user_id}.  For warnings and mutes, "
-                                        "please use either an ID or a mention to the user "
-                                        "(this is to prevent mistaking people).")
+                                      "please use either an ID or a mention to the user "
+                                      "(this is to prevent mistaking people).")
 
         for user in users:
             modlog_entry = hf.ModlogEntry(event="Warning",
@@ -733,10 +751,11 @@ class Submod(commands.Cog):
                 emb.add_field(name="Reason", value=reason, inline=False)
             elif 1024 < len(reason) <= 2048:
                 emb.add_field(name="Reason", value=reason[:1024], inline=False)
-                emb.add_field(name="Reason (cont.)", value=reason[1024:2048], inline=False)
+                emb.add_field(name="Reason (cont.)",
+                              value=reason[1024:2048], inline=False)
             else:
                 await utils.safe_send(ctx, f"Your warning text is too long ({len(reason)} characters). Please write "
-                                        f"a message shorter than 2048 characters.")
+                                      f"a message shorter than 2048 characters.")
                 return
 
             # Add default prompt to go to modbot for questions about the warning
@@ -768,7 +787,8 @@ class Submod(commands.Cog):
                     continue
 
             # Edit embed for internal logging view after sending initial embed to user
-            emb.insert_field_at(0, name="User", value=f"{user.name} ({user.id})", inline=False)
+            emb.insert_field_at(
+                0, name="User", value=f"{user.name} ({user.id})", inline=False)
 
             if silent:
                 emb.title = "Log *(This incident was not sent to the user)*"
@@ -779,7 +799,8 @@ class Submod(commands.Cog):
 
             emb.set_footer(text=footer_text)
 
-            emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+            emb.add_field(name="Jump URL",
+                          value=ctx.message.jump_url, inline=False)
 
             # Add to modlog
             config = modlog_entry.add_to_modlog()
@@ -789,7 +810,8 @@ class Submod(commands.Cog):
             try:
                 num_of_entries = len(config[str(user.id)])
                 if num_of_entries > 1:
-                    emb.add_field(name="Total number of modlog entries", value=num_of_entries)
+                    emb.add_field(
+                        name="Total number of modlog entries", value=num_of_entries)
             except KeyError:
                 pass
 
@@ -811,15 +833,15 @@ class Submod(commands.Cog):
             notif_channel = self.bot.get_channel(notif_channel_id)
         else:
             await utils.safe_send(ctx, "I was unable to send the warning to this user. "
-                                    "In the future you can type `;warn set` in a text channel in your "
-                                    "server and I will offer to send a public warning to the user in "
-                                    "these cases.")
+                                  "In the future you can type `;warn set` in a text channel in your "
+                                  "server and I will offer to send a public warning to the user in "
+                                  "these cases.")
             raise PermissionError
 
         if notif_channel:
             question = await utils.safe_send(ctx, f"I could not send a message to {user.mention}. "
-                                               f"Would you like to send a public warning to "
-                                               f"{notif_channel.mention}?")
+                                             f"Would you like to send a public warning to "
+                                             f"{notif_channel.mention}?")
             await question.add_reaction('✅')
             await question.add_reaction('❌')
 
@@ -837,21 +859,22 @@ class Submod(commands.Cog):
                 if str(reaction_added) == '✅':
                     try:
                         await utils.safe_send(notif_channel,
-                                           f"{user.mention}: Due to your privacy settings "
-                                           f"disabling messages from bots, we are "
-                                           f"delivering this warning in a "
-                                           f"public channel. If you believe this to be an "
-                                           f"error, please contact a mod.",
-                                           embed=emb)
+                                              f"{user.mention}: Due to your privacy settings "
+                                              f"disabling messages from bots, we are "
+                                              f"delivering this warning in a "
+                                              f"public channel. If you believe this to be an "
+                                              f"error, please contact a mod.",
+                                              embed=emb)
                     except discord.Forbidden:
                         await utils.safe_send(ctx, "I can't send messages to the channel you have marked "
-                                                "in this server as the warn notifications channel. Please "
-                                                "go to a new channel and type `;warns set`.")
+                                              "in this server as the warn notifications channel. Please "
+                                              "go to a new channel and type `;warns set`.")
                         raise
                 elif str(reaction_added) == '❌':
                     await utils.safe_send(ctx, f"I will not warn the user {user.mention}.")
                 else:
-                    raise ValueError(f"The reaction I detected was not ✅❌, I got {reaction_added}")
+                    raise ValueError(
+                        f"The reaction I detected was not ✅❌, I got {reaction_added}")
 
     @warn.command(name="set")
     @hf.is_submod()
@@ -908,7 +931,7 @@ class Submod(commands.Cog):
             await ctx.message.delete()
         except (discord.Forbidden, discord.NotFound):
             pass
-        
+
     # command to calculate users with most incidents in last 30 days
     @commands.command(aliases=["topwarns", "topwarn", "topwarners", "topwarning"])
     @hf.is_submod()
@@ -926,17 +949,21 @@ class Submod(commands.Cog):
             for entry in entries:
                 # "date": "2019/07/10 03:14 UTC"
                 time_str = entry['date']
-                time_datetime = datetime.strptime(time_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+                time_datetime = datetime.strptime(
+                    time_str, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 if (discord.utils.utcnow() - time_datetime).days < days:
                     user_warnings += 1
             if user_warnings:
                 top_warnings[user_id] = user_warnings
-        sorted_warnings = sorted(top_warnings.items(), key=lambda x: x[1], reverse=True)
+        sorted_warnings = sorted(top_warnings.items(),
+                                 key=lambda x: x[1], reverse=True)
         top_ten = sorted_warnings[:10]
-        emb = discord.Embed(title=f"Top 10 Users with Most Logs in Last {days} Days")
+        emb = discord.Embed(
+            title=f"Top 10 Users with Most Logs in Last {days} Days")
         emb.description = ""
         for user_id, warnings in top_ten:
-            user: Union[discord.User, discord.Member] = ctx.guild.get_member(int(user_id))
+            user: Union[discord.User, discord.Member] = ctx.guild.get_member(
+                int(user_id))
             if not user:
                 try:
                     user = await self.bot.fetch_user(user_id)
@@ -956,7 +983,7 @@ class Submod(commands.Cog):
             else:
                 emb.description += f"- {user.id} - {warnings} logs (user could not be found)\n"
         await utils.safe_send(ctx, embed=emb)
-    
+
 
 async def setup(bot):
     await bot.add_cog(Submod(bot))
