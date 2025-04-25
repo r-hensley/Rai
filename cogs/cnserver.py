@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import discord
 from discord.ext import commands
-from .message import on_message_function
+from .message import Message, on_message_function
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -26,13 +26,7 @@ RYRY_RAI_BOT_ID = 270366726737231884
 on_message_functions = []
 
 
-class Cnserver(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.ignored_characters = []
-
-        global on_message_functions
-        self.all_tasks = {func['func'] for func in on_message_functions}
+class Cnserver(Message):
 
     # chinese server banned words
 
