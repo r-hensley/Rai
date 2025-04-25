@@ -23,7 +23,8 @@ async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_hist
         return join_history
     notification_message_url = join_history['jump_url']
     # example: https://discord.com/channels/266695661670367232/321837027295363073/858265556297187328
-    guild_id, channel_id, message_id = map(int, notification_message_url.split('/')[-3:])
+    guild_id, channel_id, message_id = map(
+        int, notification_message_url.split('/')[-3:])
     channel = ctx.bot.get_channel(channel_id)
 
     if not channel:
@@ -48,13 +49,14 @@ async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_hist
     join_history['invite'] = used_invite
     return join_history
 
+
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
     mods, see `;help channel_mod`. Submods and admins can also use these commands."""
 
     def __init__(self, bot):
         self.bot: commands.Bot = bot
-        
+
     async def cog_load(self):
         await self.test_role_command()
 
@@ -65,7 +67,8 @@ class ChannelMods(commands.Cog):
 
         # mod channel must be set
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
-            if not ctx.message.content.endswith("help"):  # ignore if it's the help command
+            # ignore if it's the help command
+            if not ctx.message.content.endswith("help"):
                 await utils.safe_send(ctx, "Please set a mod channel using `;set_mod_channel`.")
             return
 
@@ -101,7 +104,8 @@ class ChannelMods(commands.Cog):
         if ctx.channel.category.id == 817780000807583774:
             return True
 
-    helper = app_commands.Group(name="helper", description="Commands to configure server helpers", guild_ids=[SP_SERV])
+    helper = app_commands.Group(
+        name="helper", description="Commands to configure server helpers", guild_ids=[SP_SERV])
 
     @helper.command(name="role")
     @app_commands.default_permissions()
@@ -170,7 +174,7 @@ class ChannelMods(commands.Cog):
 
         if invalid_ids:
             await utils.safe_send(ctx, f"The following IDs were not properly formatted: "
-                                       f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
+                                  f"`{'`, `'.join([str(i) for i in invalid_ids])}`")
 
         # search every channel, not just ctx.channel for the missing IDs
         if failed_ids:
@@ -211,8 +215,10 @@ class ChannelMods(commands.Cog):
                 for embed in msg.embeds:
                     if embed.title or embed.description or embed.fields:
                         embeds.append(embed)
-                        emb.add_field(name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
-            split_message_content = utils.split_text_into_segments(msg.content, 900)
+                        emb.add_field(
+                            name="Embed deleted", value=f"Content shown below ([Jump URL]({jump_url}))")
+            split_message_content = utils.split_text_into_segments(
+                msg.content, 900)
             for index, segment in enumerate(split_message_content):
                 if not segment:
                     continue
@@ -224,7 +230,8 @@ class ChannelMods(commands.Cog):
                         emb.add_field(name=f"Message {msg_index} by {str(msg.author)} ({msg.author.id})",
                                       value=f"{segment}")
                 elif index == len(split_message_content) - 1:
-                    emb.add_field(name="continued", value=f"{segment} ([Jump URL]({jump_url}))")
+                    emb.add_field(name="continued",
+                                  value=f"{segment} ([Jump URL]({jump_url}))")
                 else:
                     emb.add_field(name="continued", value=f"{segment}")
             if not msg.content:
@@ -243,14 +250,16 @@ class ChannelMods(commands.Cog):
             emb.timestamp = msg.created_at
         emb.set_footer(text=f"Deleted by {str(ctx.author)} - Message sent at:")
         if str(ctx.guild.id) in self.bot.db['submod_channel']:
-            channel = self.bot.get_channel(self.bot.db['submod_channel'][str(ctx.guild.id)])
+            channel = self.bot.get_channel(
+                self.bot.db['submod_channel'][str(ctx.guild.id)])
             if not channel:
                 await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                            "set it again.")
                 del self.bot.db['submod_channel'][str(ctx.guild.id)]
                 return
         elif str(ctx.guild.id) in self.bot.db['mod_channel']:
-            channel = self.bot.get_channel(self.bot.db['mod_channel'][str(ctx.guild.id)])
+            channel = self.bot.get_channel(
+                self.bot.db['mod_channel'][str(ctx.guild.id)])
             if not channel:
                 await utils.safe_send(ctx, "I couldn't find the channel you had set as your submod channel. Please "
                                            "set it again.")
@@ -273,6 +282,12 @@ class ChannelMods(commands.Cog):
                 if not embed:
                     continue
                 await utils.safe_send(channel, embed=embed)
+
+    @commands.command(name="setdelay", aliases=["delay", "sd"])
+    @commands.bot_has_permissions(send_messages=True, manage_channels=True)
+    async def setdelay(self, ctx, seconds: int):
+        await ctx.channel.edit(slowmode_delay=seconds)
+        await ctx.send(f"Set the slowmode delay in this channel to {seconds} seconds!")
 
     @commands.command(name="pin")
     # @commands.bot_has_permissions(send_messages=True, manage_messages=True)
@@ -372,7 +387,8 @@ class ChannelMods(commands.Cog):
                 else:
                     user_id = id
                     user_id_str = str(user_id)
-                    evidence = split_args[0]  # since there was only one arg passed and it was the evidence
+                    # since there was only one arg passed and it was the evidence
+                    evidence = split_args[0]
             else:
                 # int(id) worked, so no evidence was given
                 await utils.safe_reply(ctx, "Please provide a link to the evidence.")
@@ -403,9 +419,11 @@ class ChannelMods(commands.Cog):
             url = False
 
         # Replace any lone instance of the word "ctx" in the evidence with a link to the jump_url of the ctx message
-        evidence = re.sub(r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
+        evidence = re.sub(
+            r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
 
-        modlog = self.bot.db['modlog'].get(str(ctx.guild.id), {}).get(str(user_id), [])
+        modlog = self.bot.db['modlog'].get(
+            str(ctx.guild.id), {}).get(str(user_id), [])
         if not modlog:
             await utils.safe_reply(ctx, "I couldn't find any logs for that user.")
             return
@@ -418,8 +436,8 @@ class ChannelMods(commands.Cog):
             most_recent_log['reason'] += f"\n- {evidence}"
 
         await utils.safe_reply(ctx.message, f"Added evidence to the last log for {user_id} (<@{user_id}>). "
-                                            f"New reason: "
-                                            f"\n>>> {most_recent_log['reason']}")
+                               f"New reason: "
+                               f"\n>>> {most_recent_log['reason']}")
 
     async def check_for_id_reference(self, ctx: commands.Context):
         """This will check the last five messages for any message starting with ;log, ;mute, or ;warn and pull
@@ -550,7 +568,8 @@ class ChannelMods(commands.Cog):
         """Subscribe yourself to staff ping notifications in your DM for when the staff role is pinged on this server"""
         if str(ctx.guild.id) not in self.bot.db['staff_ping']:
             self.bot.db['staff_ping'][str(ctx.guild.id)] = {'users': []}
-        subscribed_users = self.bot.db['staff_ping'][str(ctx.guild.id)]['users']
+        subscribed_users = self.bot.db['staff_ping'][str(
+            ctx.guild.id)]['users']
         if ctx.author.id in subscribed_users:
             subscribed_users.remove(ctx.author.id)
             await utils.safe_send(ctx, "You will no longer receive notifications for staff pings.")
@@ -579,7 +598,8 @@ class ChannelMods(commands.Cog):
             return
 
         channel = role = None
-        if regex := re.search(r"^<?#?@?&?(\d{17,22})>$", input_id):  # a channel or role mention/ID
+        # a channel or role mention/ID
+        if regex := re.search(r"^<?#?@?&?(\d{17,22})>$", input_id):
             object_id = int(regex.group(1))
             channel = self.bot.get_channel(object_id)
             role = ctx.guild.get_role(object_id)
@@ -599,21 +619,21 @@ class ChannelMods(commands.Cog):
     async def role(self, ctx, *, args):
         if ctx.guild.id != SP_SERV:
             return
-        
+
         args = args.split()
-        
+
         if len(args) < 1:
             await utils.safe_reply(ctx, "Gimme something at least! Run `;help role`")
             return
-        
+
         user = await utils.member_converter(ctx, args[0])
         if not user:
             await utils.safe_reply(ctx, "I couldn't find the user you were looking for.")
             return
-        
+
         langs = set(args[1:]) if len(args) > 1 else set()
         user_roles = {role.id for role in user.roles}
-        
+
         try:
             to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(ctx.guild, user_roles, langs)
         except ValueError as e:
@@ -622,7 +642,7 @@ class ChannelMods(commands.Cog):
         if not to_add_lang_roles:
             await utils.safe_reply(ctx, "There was an error with one of the roles you tried to specify.")
             return
-        
+
         try:
             if to_remove:
                 await user.remove_roles(*to_remove)
@@ -630,23 +650,26 @@ class ChannelMods(commands.Cog):
                 await user.add_roles(*to_add_lang_roles)
         except discord.Forbidden:
             return utils.red_embed("Permission error: Can't manage these roles.")
-        
+
         msg = f"Role changes for {user.display_name}:\n"
         if to_add_lang_roles:
-            sorted_adds = sorted(to_add_lang_roles, key=lambda x: x.position, reverse=True)
+            sorted_adds = sorted(
+                to_add_lang_roles, key=lambda x: x.position, reverse=True)
             adds = '\n'.join([f'＋ {r.mention}' for r in sorted_adds])
             msg += f"__Added__\n{adds}\n"
         if to_remove:
-            sorted_removes = sorted(to_remove, key=lambda x: x.position, reverse=True)
+            sorted_removes = sorted(
+                to_remove, key=lambda x: x.position, reverse=True)
             removes = '\n'.join([f'－ {r.mention}' for r in sorted_removes])
             msg += f"__Removed__\n{removes}\n"
-        
-        sorted_current = sorted(final_roles, key=lambda x: x.position, reverse=True)
+
+        sorted_current = sorted(
+            final_roles, key=lambda x: x.position, reverse=True)
         current = '\n'.join([f'- {r.mention}' for r in sorted_current])
         msg += f"\n__Current roles__\n{current or '- None'}"
         embed = utils.green_embed(msg)
         await utils.safe_reply(ctx, embed=embed)
-    
+
     # internal logic function
     async def process_role_changes(self, guild: discord.Guild,
                                    user_roles_in: Union[set[str], set[int]],
@@ -667,16 +690,16 @@ class ChannelMods(commands.Cog):
             'heritageenglish': 1001176425296052324,
             'heritagespanish': 1001176351874752512
         }
-        
+
         roles = {name: guild.get_role(rid) for name, rid in role_ids.items()}
-        
+
         language_roles = {roles['english'], roles['spanish'], roles['other']}
         level_roles = {roles['fluentenglish'], roles['intermediateenglish'], roles['beginnerenglish'],
                        roles['fluentspanish'], roles['intermediatespanish'], roles['beginnerspanish']}
         learning_roles = {roles['learningenglish'], roles['learningspanish']}
         heritage_roles = {roles['heritageenglish'], roles['heritagespanish']}
         all_roles = language_roles | level_roles | learning_roles | heritage_roles
-        
+
         langs_dict = {'english': roles['english'], 'e': roles['english'], 'en': roles['english'],
                       'ne': roles['english'],
                       's': roles['spanish'], 'spanish': roles['spanish'], 'sn': roles['spanish'],
@@ -689,52 +712,54 @@ class ChannelMods(commands.Cog):
                       'le': roles['learningenglish'], 'ls': roles['learningspanish'], 'he': roles['heritageenglish'],
                       'hs': roles['heritagespanish'],
                       'none': None, 'n': None}
-        
+
         # langs_dict.update({role.id: role for role in all_roles})
         for role in all_roles:
             if role:
                 langs_dict.update({role.id: role})
-        
+
         user_roles = {langs_dict.get(role) for role in user_roles_in}
-        
+
         remove_all = 'none' in langs or 'n' in langs
         langs -= {'none', 'n'}
-        
+
         # main two sets for roles to add and remove
         to_add_lang_roles = set()
         to_remove = set()
-        
+
         # in "specially_add" list are roles specified with "+" in front of them
         # adding a role in this way will not cause the removal of other roles in its category
         # for example, doing ;r ... ne  --> adds native english, removes other native roles
         # but        , doing ;r ... +ne --> adds native english, keeps other native roles
         specially_add = set()
-        
+
         for lang in langs:
             lang_name = lang.lstrip('+-')
             role_obj = langs_dict.get(lang_name)
-            
+
             if not role_obj:
-                raise ValueError(f"Role {lang_name} not found in guild {guild.id}")
-            
+                raise ValueError(
+                    f"Role {lang_name} not found in guild {guild.id}")
+
             if lang.startswith('-'):
                 to_remove.add(role_obj)
             elif lang.startswith('+'):
                 specially_add.add(role_obj)
             else:
                 to_add_lang_roles.add(role_obj)
-        
+
         # possibilities at this point for duplicate roles to exist across the sets:
         # ;r ... ne +ne
         # ;r ... ne ne
         # ;r ... ne -ne
         # ;r ... -ne -ne
         # remove "ne" from all three sets in all of these cases
-        duplicate_roles = (to_add_lang_roles & specially_add) | (to_add_lang_roles & to_remove) | (specially_add & to_remove)
+        duplicate_roles = (to_add_lang_roles & specially_add) | (
+            to_add_lang_roles & to_remove) | (specially_add & to_remove)
         to_add_lang_roles -= duplicate_roles
         specially_add -= duplicate_roles
         to_remove -= duplicate_roles
-        
+
         # if a role is being added, remove all other roles in the same category
         # create these sets using set logic
         if to_add_lang_roles & language_roles:
@@ -745,83 +770,95 @@ class ChannelMods(commands.Cog):
             to_remove.update(learning_roles - to_add_lang_roles)
         if to_add_lang_roles & heritage_roles:
             to_remove.update(heritage_roles - to_add_lang_roles)
-        
+
         # if you specify "none", then just add everything to remove
         if remove_all:
             to_remove = all_roles - to_add_lang_roles
-        
+
         # remake to_add set to only include roles that aren't already in user roles
-        to_add_lang_roles = {role for role in to_add_lang_roles if role not in user_roles}
+        to_add_lang_roles = {
+            role for role in to_add_lang_roles if role not in user_roles}
         to_add_lang_roles |= specially_add
-        
+
         # remake to_remove set to only include roles that are in user roles
         to_remove = {role for role in to_remove if role in user_roles}
-        
+
         final_roles = set(user_roles) - to_remove | to_add_lang_roles
-        final_language_roles = final_roles & all_roles        
+        final_language_roles = final_roles & all_roles
 
         return to_add_lang_roles, to_remove, final_language_roles
-    
+
     async def test_role_command(self):
         guild = self.bot.get_guild(SP_SERV)
         if not guild:
             print("Skipping test_role_command: Spanish server not found")
             return
         roles = {243853718758359040: 'english',
-         243854128424550401: 'spanish',
-         247020385730691073: 'other',
-         708704078540046346: 'fluentenglish',
-         708704480161431602: 'intermediateenglish',
-         708704491180130326: 'beginnerenglish',
-         708704473358532698: 'fluentspanish',
-         708704486994215002: 'intermediatespanish',
-         708704495302869003: 'beginnerspanish',
-         247021017740869632: 'learningenglish',
-         297415063302832128: 'learningspanish',
-         1001176425296052324: 'heritageenglish',
-         1001176351874752512: 'heritagespanish'}
+                 243854128424550401: 'spanish',
+                 247020385730691073: 'other',
+                 708704078540046346: 'fluentenglish',
+                 708704480161431602: 'intermediateenglish',
+                 708704491180130326: 'beginnerenglish',
+                 708704473358532698: 'fluentspanish',
+                 708704486994215002: 'intermediatespanish',
+                 708704495302869003: 'beginnerspanish',
+                 247021017740869632: 'learningenglish',
+                 297415063302832128: 'learningspanish',
+                 1001176425296052324: 'heritageenglish',
+                 1001176351874752512: 'heritagespanish'}
         test_cases = [
             ({'ne', 's'}, {'ol'}, {'other'}),
             ({'ne', 's', 'fs'}, {'ol'}, {'other', 'fluentspanish'}),
             ({'ne', 's', 'fs', 'ne'}, {'ol'}, {'other', 'fluentspanish'}),
-            ({'ne', 's', 'fs'}, {'+ol'}, {'english', 'spanish', 'other', 'fluentspanish'}),
+            ({'ne', 's', 'fs'}, {'+ol'}, {'english',
+             'spanish', 'other', 'fluentspanish'}),
             ({'ns', 'fs'}, {'-ol'}, {'spanish', 'fluentspanish'}),
-            ({'e', 's', 'fs'}, {'e', '+fe'}, {'english', 'fluentenglish', 'fluentspanish'}),
-            ({'ne', 'ns', 'fs', 'le'}, {'none', 'o', 'le', 'ls'}, {'other', 'learningenglish', 'learningspanish'}),
+            ({'e', 's', 'fs'}, {'e', '+fe'},
+             {'english', 'fluentenglish', 'fluentspanish'}),
+            ({'ne', 'ns', 'fs', 'le'}, {'none', 'o', 'le', 'ls'},
+             {'other', 'learningenglish', 'learningspanish'}),
             ({'ne', 'ns', 'fs', 'le'}, {'+o', 'le', 'ls'}, {'other', 'english', 'spanish', 'fluentspanish',
                                                             'learningenglish', 'learningspanish'}),
-            ({'on', 'le'}, {'sn', 'ls', 'le', '-en'}, {'spanish', 'learningspanish', 'learningenglish'}),
-            ({'on', 'le', 'en'}, {'sn', 'ls', 'le', '-en'}, {'spanish', 'learningspanish', 'learningenglish'}),
+            ({'on', 'le'}, {'sn', 'ls', 'le', '-en'},
+             {'spanish', 'learningspanish', 'learningenglish'}),
+            ({'on', 'le', 'en'}, {'sn', 'ls', 'le', '-en'},
+             {'spanish', 'learningspanish', 'learningenglish'}),
         ]
-        
+
         # chatgpt test cases
         test_cases += [
             # Initial roles, command input, expected final roles after processing
             ({'ne', 'fs'}, {'-ne', 'ns'}, {'spanish', 'fluentspanish'}),
             # Replace English with Spanish, keep fluentspanish
-            ({'ol', 'ie'}, {'fe', '-ol'}, {'fluentenglish'}),  # Upgrade intermediate to fluent, remove other
+            # Upgrade intermediate to fluent, remove other
+            ({'ol', 'ie'}, {'fe', '-ol'}, {'fluentenglish'}),
             ({'ol', 'ie', 'ls'}, {'none', '+he'}, {'heritageenglish'}),
             # Remove all except explicitly added heritageenglish
-            ({'ol', 'ls'}, {'+ol', '-ls'}, {'other'}),  # Explicitly keep other, remove learningspanish
-            ({'ns', 'bs', 'le'}, {'+be', '-bs'}, {'spanish', 'learningenglish', 'beginnerenglish'}),
+            # Explicitly keep other, remove learningspanish
+            ({'ol', 'ls'}, {'+ol', '-ls'}, {'other'}),
+            ({'ns', 'bs', 'le'}, {'+be', '-bs'},
+             {'spanish', 'learningenglish', 'beginnerenglish'}),
             # Swap beginner Spanish to beginner English
-            ({'fs', 'ie'}, {'-fs', '-ie'}, set()),  # Remove all roles explicitly
-            ({'he', 'ne'}, {'hs', '+he'}, {'heritagespanish', 'heritageenglish', 'english'}),
+            # Remove all roles explicitly
+            ({'fs', 'ie'}, {'-fs', '-ie'}, set()),
+            ({'he', 'ne'}, {'hs', '+he'},
+             {'heritagespanish', 'heritageenglish', 'english'}),
             # Add heritagespanish, keep heritageenglish, maintain english
-            ({'ol', 'as'}, {'ne', '-as'}, {'english'}),  # Change from fluentspanish and other to just English
-            ({'le', 'ol', 'be'}, {'-le', '+fe'}, {'other', 'beginnerenglish', 'fluentenglish'}),
+            # Change from fluentspanish and other to just English
+            ({'ol', 'as'}, {'ne', '-as'}, {'english'}),
+            ({'le', 'ol', 'be'}, {'-le', '+fe'},
+             {'other', 'beginnerenglish', 'fluentenglish'}),
             # Upgrade beginner English to fluent, remove learning English
             ({'on'}, {'none', '+on', '+ls'}, {'other', 'learningspanish'}),
             # Clear all roles except explicitly kept other and add learningspanish
         ]
-        
+
         for test_case in test_cases:
             to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(guild, test_case[0], test_case[1])
             final_roles = {roles[role.id] for role in final_roles}
-            
+
             assert final_roles == test_case[2], f"Failed test case: {test_case}, result: {final_roles}"
 
-    
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @hf.basic_timer(0.5)
@@ -879,19 +916,22 @@ class ChannelMods(commands.Cog):
 
             # Check DB for voice mute entry
             voice_muted = False
-            voice_unmute_time_left_str: Optional[str]  # unmute_date looks like "2021/06/26 23:24 UTC"
+            # unmute_date looks like "2021/06/26 23:24 UTC"
+            voice_unmute_time_left_str: Optional[str]
             if voice_unmute_time_left_str := self.bot.db['voice_mutes'] \
                     .get(str(ctx.guild.id), {}) \
                     .get('timed_mutes', {}) \
                     .get(user_id, None):
                 voice_muted = True
-                voice_unmute_date = hf.convert_to_datetime(voice_unmute_time_left_str)
+                voice_unmute_date = hf.convert_to_datetime(
+                    voice_unmute_time_left_str)
             else:
                 voice_unmute_date = None
 
             # Check for mute role in member roles
             if member:
-                mute_role_id: str = self.bot.db['mutes'].get(str(ctx.guild.id), {}).get('role', 0)
+                mute_role_id: str = self.bot.db['mutes'].get(
+                    str(ctx.guild.id), {}).get('role', 0)
                 mute_role: discord.Role = ctx.guild.get_role(int(mute_role_id))
                 if mute_role in member.roles:
                     muted = True
@@ -906,12 +946,14 @@ class ChannelMods(commands.Cog):
 
             # Check for voice mute role in member roles
             if member:
-                mute_role_id: str = self.bot.db['voice_mutes'].get(str(ctx.guild.id), {}).get('role', 0)
+                mute_role_id: str = self.bot.db['voice_mutes'].get(
+                    str(ctx.guild.id), {}).get('role', 0)
                 mute_role: discord.Role = ctx.guild.get_role(int(mute_role_id))
                 if mute_role in member.roles:
                     voice_muted = True
                 else:
-                    voice_muted = False  # even if the user is in the DB, if they don't the role they aren't muted
+                    # even if the user is in the DB, if they don't the role they aren't muted
+                    voice_muted = False
 
             banned = False  # unban_date looks like "2021/06/26 23:24 UTC"
             unban_date = None
@@ -944,7 +986,8 @@ class ChannelMods(commands.Cog):
             else:
                 name = f"{str(user)}\n{user_id}"
 
-            emb.set_author(name=name, icon_url=user.display_avatar.replace(static_format="png").url)
+            emb.set_author(name=name, icon_url=user.display_avatar.replace(
+                static_format="png").url)
 
             if banned:
                 emb.color = 0x141414  # very dark black, but not completely black
@@ -1006,7 +1049,8 @@ class ChannelMods(commands.Cog):
                         if 'channels' not in user_stats:
                             continue
                         for channel in user_stats['channels']:
-                            message_count[channel] = message_count.get(channel, 0) + user_stats['channels'][channel]
+                            message_count[channel] = message_count.get(
+                                channel, 0) + user_stats['channels'][channel]
                             days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d")
                                         .replace(tzinfo=timezone.utc)).days
                             if days_ago <= 7:
@@ -1016,7 +1060,8 @@ class ChannelMods(commands.Cog):
             # ### Calculate voice time ###
             voice_time_str = "0h"
             if 'voice' in self.bot.stats.get(str(ctx.guild.id), {}):
-                voice_config = self.bot.stats[str(ctx.guild.id)]['voice']['total_time']
+                voice_config = self.bot.stats[str(
+                    ctx.guild.id)]['voice']['total_time']
                 voice_time = 0
                 for day in voice_config:
                     if str(member.id) in voice_config[day]:
@@ -1029,19 +1074,22 @@ class ChannelMods(commands.Cog):
 
             # ### Add sentiment information ###
             if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
-                user_sentiment = self.bot.db['sentiments'][str(ctx.guild.id)].get(str(member.id), [])
+                user_sentiment = self.bot.db['sentiments'][str(
+                    ctx.guild.id)].get(str(member.id), [])
                 num_sentiment_msg = len(user_sentiment)
                 if user_sentiment:
                     if num_sentiment_msg == 1000:
                         user_sentiment_total = round(sum(user_sentiment), 2)
                         emb.description += f"\n**`Recent sentiment ({num_sentiment_msg} msgs)`** : " \
-                                           f"{user_sentiment_total}"
+                            f"{user_sentiment_total}"
                     else:
-                        user_sentiment_total = round(sum(user_sentiment) * 1000 / num_sentiment_msg, 2)
+                        user_sentiment_total = round(
+                            sum(user_sentiment) * 1000 / num_sentiment_msg, 2)
                         emb.description += f"\n**`Recent sentiment (scale {num_sentiment_msg}→1000 msgs)`** : " \
-                                           f"{user_sentiment_total}"
+                            f"{user_sentiment_total}"
 
-        join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get('join_history', {}).get(user_id, None)
+        join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get(
+            'join_history', {}).get(user_id, None)
 
         # most invites recorded between june 26, 2021 and july 23, 2022 had a bug that caused them to default to
         # the same invite. For those invites, I jump to the jump_url in the join_history object and check in that embed
@@ -1058,7 +1106,8 @@ class ChannelMods(commands.Cog):
             invite_creator_id: Optional[int]
             if invite := join_history.get('invite'):
                 if invite not in ['Through server discovery', ctx.guild.vanity_url_code]:
-                    invite_creator_id = join_history.get('invite_creator')  # all old join entries don't have this field
+                    # all old join entries don't have this field
+                    invite_creator_id = join_history.get('invite_creator')
                     if not invite_creator_id:
                         invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
                                                                                   await ctx.guild.invites())
@@ -1066,7 +1115,8 @@ class ChannelMods(commands.Cog):
                             if invite == ctx.guild.vanity_url_code:
                                 invite_obj = await ctx.guild.vanity_invite()
 
-                        invite_creator_id = getattr(getattr(invite_obj, "inviter", None), "id", None)
+                        invite_creator_id = getattr(
+                            getattr(invite_obj, "inviter", None), "id", None)
 
                     invite_creator_user = None
                     if invite_creator_id:
@@ -1085,7 +1135,7 @@ class ChannelMods(commands.Cog):
                     invite_author_str = ""
 
                 emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
-                                   f"{invite} {invite_author_str}"
+                    f"{invite} {invite_author_str}"
 
         #
         #
@@ -1103,7 +1153,8 @@ class ChannelMods(commands.Cog):
                 if role.id in roles:
                     found_roles.append(role)
             if found_roles:
-                emb.description += "\n**`Current Language Roles`** : " + ", ".join([r.mention for r in found_roles])
+                emb.description += "\n**`Current Language Roles`** : " + \
+                    ", ".join([r.mention for r in found_roles])
 
         if member:
             emb.description += f"\n{member.mention}\n"
@@ -1151,7 +1202,8 @@ class ChannelMods(commands.Cog):
         else:  # Non-existent user
             config = []
 
-        first_embed: Optional[discord.Embed] = None  # only to be used if the first embed goes over 6000 characters
+        # only to be used if the first embed goes over 6000 characters
+        first_embed: Optional[discord.Embed] = None
         valid_logs = []
         for entry in config:
             if entry['silent']:
@@ -1219,12 +1271,15 @@ class ChannelMods(commands.Cog):
             if len(value) <= 1024:
                 emb.add_field(name=name, value=value[:1024], inline=False)
             else:
-                emb.add_field(name=name, value=value[:1021] + "...", inline=False)
+                emb.add_field(
+                    name=name, value=value[:1021] + "...", inline=False)
                 to_add_value = value[1021:]
                 if len(to_add_value) > 1021:
                     over_amount = len(to_add_value) - 1014
-                    to_add_value = to_add_value[:500] + " [...] " + to_add_value[500 + over_amount:]
-                emb.add_field(name=name + "(cont.)", value="..." + to_add_value, inline=False)
+                    to_add_value = to_add_value[:500] + \
+                        " [...] " + to_add_value[500 + over_amount:]
+                emb.add_field(name=name + "(cont.)",
+                              value="..." + to_add_value, inline=False)
 
             # if there are more than 25 fields (the max), remove extra
             extra_fields = len(emb.fields) - 25
@@ -1269,7 +1324,8 @@ class ChannelMods(commands.Cog):
                                        "`-all` to clear the user's modlog.")
             return
 
-        indices = indices.split()  # Creates a list from the prompted argument of the command.
+        # Creates a list from the prompted argument of the command.
+        indices = indices.split()
         indices = list(set(indices))  # Removing duplicates from the list.
 
         if str(ctx.guild.id) not in ctx.bot.db['modlog']:
@@ -1287,10 +1343,13 @@ class ChannelMods(commands.Cog):
         config: dict = config[user_id]
 
         # Performs the deletions:
-        if '-a' in indices or '-all' in indices:  # If any of these flags is found in the list:
-            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]  # clear the modlog...
+        # If any of these flags is found in the list:
+        if '-a' in indices or '-all' in indices:
+            # clear the modlog...
+            del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
             await utils.safe_send(ctx,
-                                  embed=utils.red_embed(f"Deleted all modlog entries for <@{user_id}>."))  # send emb.
+                                  # send emb.
+                                  embed=utils.red_embed(f"Deleted all modlog entries for <@{user_id}>."))
 
         elif len(indices) == 1:  # If there is a single argument given, then:
             try:
@@ -1327,11 +1386,14 @@ class ChannelMods(commands.Cog):
                         return True
 
             invalid_indices: list = [i for i in indices
-                                     if invalid_indices_check(i)]  # list of non-digit arguments
+                                     # list of non-digit arguments
+                                     if invalid_indices_check(i)]
             not_found_indices: list = [i for i in indices
-                                       if not_found_check(i, config)]  # list of indices not found in modlog
+                                       # list of indices not found in modlog
+                                       if not_found_check(i, config)]
             valid_indices: list = [i for i in indices
-                                   if indices_check(i, not_found_indices)]  # list of valid arguments
+                                   # list of valid arguments
+                                   if indices_check(i, not_found_indices)]
             removed_indices: list = []  # eventual list of modlog entries successfully removed
             valid_indices.sort(key=int)  # Sort it numerically
             assert len(valid_indices) + len(invalid_indices) + len(not_found_indices) == len(indices), \
@@ -1340,10 +1402,12 @@ class ChannelMods(commands.Cog):
 
             n = 1
             for index in valid_indices:  # For every index in the list...
-                del config[int(index) - n]  # delete them from the user's modlog.
+                # delete them from the user's modlog.
+                del config[int(index) - n]
                 n += 1  # For every deleted log, the next ones will be shifted by -1. Therefore,
                 # add 1 every time a log gets deleted to counter that.
-                removed_indices.append(index)  # for every successfully deleted log, append
+                # for every successfully deleted log, append
+                removed_indices.append(index)
                 # the index to the corresponding 'removed_indexes' list.
             await ctx.message.add_reaction('✅')
 
@@ -1351,28 +1415,46 @@ class ChannelMods(commands.Cog):
             summary_text = "Task completed."
 
             if removed_indices:  # If it removed logs in config:
-                removed_indices = ["#**" + i + "**" for i in removed_indices]  # format it...
-                rmv_indx_str = f"\n**-** Removed entries: {', '.join(removed_indices)}."  # change it to string...
-                summary_text = summary_text + rmv_indx_str  # add it to the text.
+                # format it...
+                removed_indices = ["#**" + i + "**" for i in removed_indices]
+                # change it to string...
+                rmv_indx_str = f"\n**-** Removed entries: {', '.join(removed_indices)}."
+                # add it to the text.
+                summary_text = summary_text + rmv_indx_str
 
             if not_found_indices:  # If there were indices with no match in the config modlog:
-                not_found_indices = ["#**" + i + "**" for i in not_found_indices[:10]]  # format for first ten indices
-                n_fnd_indx_str = ', '.join(not_found_indices)  # change it to string...
-                summary_text = summary_text + f"\n**-** Not found entries: {n_fnd_indx_str}."  # add it to the text.
-                if len(not_found_indices) > 10:  # If there are more than ten...
-                    summary_text = summary_text[:-1] + f"and {len(not_found_indices) - 10} more..."  # add to the text.
+                # format for first ten indices
+                not_found_indices = ["#**" + i +
+                                     "**" for i in not_found_indices[:10]]
+                # change it to string...
+                n_fnd_indx_str = ', '.join(not_found_indices)
+                # add it to the text.
+                summary_text = summary_text + \
+                    f"\n**-** Not found entries: {n_fnd_indx_str}."
+                # If there are more than ten...
+                if len(not_found_indices) > 10:
+                    # add to the text.
+                    summary_text = summary_text[:-1] + \
+                        f"and {len(not_found_indices) - 10} more..."
 
-            if invalid_indices:  # If invalid indices were found (TypeError or <= 0):
-                invalid_indices = [str(i)[0].lower() for i in invalid_indices[:10]]  # first 10 indices only
+            # If invalid indices were found (TypeError or <= 0):
+            if invalid_indices:
+                # first 10 indices only
+                invalid_indices = [str(i)[0].lower()
+                                   for i in invalid_indices[:10]]
                 invalid_indices = ["**" + i + "**" for i in invalid_indices]
-                invalid_indices = list(set(invalid_indices))  # remove duplicates...
-                invalid_indices = sorted(invalid_indices, key=str)  # sort them numerically (aesthetics)...
+                # remove duplicates...
+                invalid_indices = list(set(invalid_indices))
+                # sort them numerically (aesthetics)...
+                invalid_indices = sorted(invalid_indices, key=str)
                 inv_indx_str = f"\n**-** Invalid indices: {', '.join(invalid_indices)}."
                 summary_text = summary_text + inv_indx_str
                 if len(invalid_indices) > 10:
-                    summary_text = summary_text[:-1] + f" and {len(invalid_indices) - 10} more..."
+                    summary_text = summary_text[:-1] + \
+                        f" and {len(invalid_indices) - 10} more..."
 
-            emb = utils.green_embed(summary_text)  # Make the embed with the summary text previously built.
+            # Make the embed with the summary text previously built.
+            emb = utils.green_embed(summary_text)
             await utils.safe_send(ctx, embed=emb)  # Send the embed.
 
     @modlog.command(name="edit", aliases=['reason'])
@@ -1408,7 +1490,7 @@ class ChannelMods(commands.Cog):
                 else:
                     if message.author != ctx.author:
                         await utils.safe_send(ctx, f"Only admins (or the creator of the log) can edit the "
-                                                   f"reason for this entry.")
+                                              f"reason for this entry.")
                         return
             else:
                 await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
@@ -1418,7 +1500,7 @@ class ChannelMods(commands.Cog):
             old_reason = log['reason']
         except IndexError:
             await utils.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
-                                       f"and try again.")
+                                  f"and try again.")
             return
 
         config[index - 1]['reason'] = reason
@@ -1446,7 +1528,7 @@ class ChannelMods(commands.Cog):
         length = args.length
         reason = args.reason
         target_ids = args.user_ids
-        
+
         if timedelta_obj.days > 28:
             await utils.safe_reply(ctx, "You can not mute for longer than 28 days. "
                                         "Please consider a temporary ban.")
@@ -1456,26 +1538,30 @@ class ChannelMods(commands.Cog):
             await utils.safe_send(ctx, "I couldn't understand your command properly. Please mention a user to mute, "
                                        "and if you write a time, format it like `2d`, `3h`, `5d6h`, etc.")
             return
-        
+
         def change_mute_duration(days: int):
             _time_arg = f"{days}d"
             _time_string, _length = hf.parse_time(_time_arg)
-            _time_obj = datetime.strptime(_time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
+            _time_obj = datetime.strptime(
+                _time_string, "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
             _timedelta_obj = _time_obj - discord.utils.utcnow()
             return _time_arg, _time_string, _length, _time_obj, _timedelta_obj
 
         if not length:
-            time_arg, time_string, length, time_obj, timedelta_obj = change_mute_duration(1)
+            time_arg, time_string, length, time_obj, timedelta_obj = change_mute_duration(
+                1)
             await utils.safe_reply(ctx, "Indefinitite mutes are not possilbe; changing duration to 1d.")
-        
-        assert bool(time_string)  # time_string should always be *something* now
-        
+
+        # time_string should always be *something* now
+        assert bool(time_string)
+
         # for channel helpers, limit mute time to three hours
         if not hf.submod_check(ctx):
             if time_string:  # if the channel helper specified a time for the mute
                 total_hours = timedelta_obj.total_seconds() * 60 * 60
                 if total_hours > 24:
-                    time_arg, time_string, length, time_obj, timedelta_obj = change_mute_duration(1)
+                    time_arg, time_string, length, time_obj, timedelta_obj = change_mute_duration(
+                        1)
                     await utils.safe_send(ctx.author, "Channel helpers can only mute for a maximum of 24 "
                                                       "hours, so I set the duration of the mute to 24h.")
 
@@ -1484,7 +1570,8 @@ class ChannelMods(commands.Cog):
             if '-s' in reason or '-n' in reason:
                 if ctx.guild.id == JP_SERV:
                     await utils.safe_send(ctx, "Maybe you meant to use Ciri?")
-                reason = reason.replace(' -s', '').replace('-s ', '').replace('-s', '')
+                reason = reason.replace(
+                    ' -s', '').replace('-s ', '').replace('-s', '')
                 silent = True
 
         for target_id in target_ids:
@@ -1499,20 +1586,20 @@ class ChannelMods(commands.Cog):
                 except discord.HTTPException:  # Possible if Rai is sending a message to itself for automatic mutes
                     pass
                 continue
-            
+
             try:
                 await target.timeout(time_obj, reason=reason)
             except discord.Forbidden:
                 await utils.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
-                                           f"Please check my permissions "
-                                           f"(I can't timeout people higher than me on the rolelist)")
+                                      f"Please check my permissions "
+                                      f"(I can't timeout people higher than me on the rolelist)")
                 return
             except discord.HTTPException:
                 await utils.safe_send(ctx,
                                       f"There was some kind of HTTP error that prevented me from timing out {target.id}"
                                       " user. Please try again.")
                 return
-            
+
             description = f"You have been muted on {ctx.guild.name}"
             emb = utils.red_embed("")
             emb.title = description
@@ -1557,7 +1644,8 @@ class ChannelMods(commands.Cog):
             # Prepare confirmation message to be sent to ctx channel of mute command
             notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chats."
             if time_string:
-                interval_str = format_interval(timedelta(days=length[0], hours=length[1], minutes=length[2]))
+                interval_str = format_interval(
+                    timedelta(days=length[0], hours=length[1], minutes=length[2]))
                 notif_text = f"{notif_text[:-1]} for {interval_str} (until <t:{int(time_obj.timestamp())}:f>)."
             if reason:
                 notif_text += f"\nReason: {reason}"
@@ -1598,7 +1686,8 @@ class ChannelMods(commands.Cog):
                 emb.add_field(name="Jump URL", value=ctx.message.jump_url,
                               inline=False)
 
-            emb.set_footer(text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+            emb.set_footer(
+                text=f"Muted by {ctx.author.name} ({ctx.author.id})")
 
             if silent:
                 emb.title += " (The user was not notified of this)"
@@ -1610,7 +1699,8 @@ class ChannelMods(commands.Cog):
                 await utils.safe_send(ctx, additonal_text, embed=emb)
 
             # Add mute info to modlog
-            modlog_config = hf.add_to_modlog(ctx, target, 'Mute', reason, silent, time_arg)
+            modlog_config = hf.add_to_modlog(
+                ctx, target, 'Mute', reason, silent, time_arg)
 
             # Add info about mute to modlog channel
             modlog_channel = self.bot.get_channel(modlog_config['channel'])
@@ -1644,15 +1734,16 @@ class ChannelMods(commands.Cog):
         role = guild.get_role(config['role'])
         if not role:
             await utils.safe_send(ctx, f"I could not find the mute role "
-                                       f"(guild_id: {guild.id}, role_id: {config['role']}). "
-                                       f"Maybe it has been deleted?")
+                                  f"(guild_id: {guild.id}, role_id: {config['role']}). "
+                                  f"Maybe it has been deleted?")
             # delete the role from the database
             del self.bot.db['mutes'][str(guild.id)]
             return
 
         voice_role = None
         if str(ctx.guild.id) in self.bot.db['voice_mutes']:
-            voice_role = guild.get_role(self.bot.db['voice_mutes'][str(ctx.guild.id)]['role'])
+            voice_role = guild.get_role(
+                self.bot.db['voice_mutes'][str(ctx.guild.id)]['role'])
 
         failed = False
         if target:
@@ -1693,7 +1784,8 @@ class ChannelMods(commands.Cog):
         if not failed:
             return True
 
-    compare = app_commands.Group(name="compare", description="Compare two things", guild_ids=[SP_SERV])
+    compare = app_commands.Group(
+        name="compare", description="Compare two things", guild_ids=[SP_SERV])
 
     @compare.command()
     @app_commands.default_permissions()
@@ -1703,7 +1795,8 @@ class ChannelMods(commands.Cog):
                     user_id_3: str = None):
         """Compares the join/leave dates, creation dates, and used invite of two users"""
         guild = interaction.guild
-        join_history = self.bot.db['joins'].get(str(guild.id), {}).get('join_history', {})
+        join_history = self.bot.db['joins'].get(
+            str(guild.id), {}).get('join_history', {})
         if not join_history:
             await interaction.response.send_message("This guild is not set up properly to use this command",
                                                     ephemeral=True)
@@ -1716,7 +1809,8 @@ class ChannelMods(commands.Cog):
         invites = []
 
         try:
-            user_ids = list(map(int, [user_id_1, user_id_2 or 0, user_id_3 or 0]))
+            user_ids = list(
+                map(int, [user_id_1, user_id_2 or 0, user_id_3 or 0]))
         except (ValueError, TypeError):
             await interaction.response.send_message("Please only input IDs as arguments.", ephemeral=True)
             return
@@ -1736,9 +1830,11 @@ class ChannelMods(commands.Cog):
                 else:
                     joins.append(None)
             users.append(user)
-            modlogs.append(self.bot.db['modlog'].get(str(guild.id), {}).get(str(user_id), []))
+            modlogs.append(self.bot.db['modlog'].get(
+                str(guild.id), {}).get(str(user_id), []))
             creates.append(user.created_at)
-            invites.append(join_history.get((str(user.id)), {}).get("invite", None))
+            invites.append(join_history.get(
+                (str(user.id)), {}).get("invite", None))
 
         emb = discord.Embed()
         for num, user in enumerate(users):
@@ -1754,7 +1850,8 @@ class ChannelMods(commands.Cog):
                 for modlog_entry in modlog[::-1]:
                     if modlog_entry['type'] == "Warning" and modlog_entry.get("silent", False):
                         continue
-                    last_modlog_date = hf.convert_to_datetime(modlog_entry['date'])
+                    last_modlog_date = hf.convert_to_datetime(
+                        modlog_entry['date'])
                     emb_value += f"Last modlog date ({modlog_entry['type']}): <t:{int(last_modlog_date.timestamp())}>\n"
                     break
 
