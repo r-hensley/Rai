@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from sre_constants import error as sre_constants_error
+from re._constants import error as sre_constants_error
 from typing import Optional, List
 
 import aiohttp
@@ -60,7 +60,7 @@ class Admin(commands.Cog):
             for i_input in args.split('\n'):
                 if len(i_input.split()) < 3:
                     await utils.safe_send(ctx, "One of your lines didn't have enough arguments. Please check "
-                                            "the help command.")
+                                          "the help command.")
                     return
                 x = i_input.split()
                 x = await self.quick_reaction_roles(ctx, x[0], x[1], ' '.join(x[2:]))
@@ -92,7 +92,7 @@ class Admin(commands.Cog):
                 await i_message.add_reaction(*[i for i in msg_emoji_dict[i_message]])
             except discord.Forbidden:
                 await utils.safe_send(ctx, "I lack permissions to add reactions. Please attach your emojis to the "
-                                        "target message yourself.")
+                                      "target message yourself.")
         try:
             await ctx.message.add_reaction('✅')
         except (discord.NotFound, discord.HTTPException):
@@ -105,27 +105,30 @@ class Admin(commands.Cog):
             msg_id = msg_id[0]
         else:
             await utils.safe_send(ctx, f"{text} is an invalid response. Please make sure to only respond with a message "
-                                    "ID that looks like 708540770323529758. Please start over.")
+                                  "ID that looks like 708540770323529758. Please start over.")
             return
 
         try:
             return await ctx.channel.fetch_message(msg_id)
         except discord.NotFound:
             await utils.safe_send(ctx, f"I was not able to find the message you linked to with {text}. Make sure it is a"
-                                    " message in this channel. Please start over.")
+                                  " message in this channel. Please start over.")
             return
 
     @staticmethod
     async def get_role(ctx, text):
-        role_id = re.findall(r'^<@&(\d{17,22})>$', text)  # a mention like <@&380195245071138816>
+        # a mention like <@&380195245071138816>
+        role_id = re.findall(r'^<@&(\d{17,22})>$', text)
         if role_id:
             role_id = int(role_id[0])
         else:
-            role_id = re.findall(r'^\d{17,22}$', text)  # only the ID like 380195245071138816
+            # only the ID like 380195245071138816
+            role_id = re.findall(r'^\d{17,22}$', text)
             if role_id:
                 role_id = int(role_id[0])
             else:  # gives the name of the role in text
-                role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == text, ctx.guild.roles)
+                role: Optional[discord.Role] = discord.utils.find(
+                    lambda r: r.name == text, ctx.guild.roles)
                 if not role:
                     await utils.safe_send(ctx, f"I couldn't find the role {text} you were looking for. Please start over.")
                     return
@@ -138,10 +141,11 @@ class Admin(commands.Cog):
                 return
             return role
 
-    async def reaction_roles_guide(self, ctx):  # returns 1) reaction_msg 2) emoji 3) role
+    # returns 1) reaction_msg 2) emoji 3) role
+    async def reaction_roles_guide(self, ctx):
         # ########### STEP 1: MSG_ID ################# # gives "reaction_msg"
         emb = utils.green_embed("First, please paste the `message id` of the reaction roles message. It must be a "
-                             "message in this channel. Example: `708540770323529758`")
+                                "message in this channel. Example: `708540770323529758`")
         emb.title = "Reaction Roles - Step 1"
         msg = await utils.safe_send(ctx, embed=emb)
 
@@ -162,7 +166,7 @@ class Admin(commands.Cog):
 
         # ############## STEP 2: EMOJI ###################  # gives "emoji"
         emb = utils.green_embed("Next, please react to this message with the emoji you wish to associate with your "
-                             "reaction role. It must be an emoji from a guild I have access to.")
+                                "reaction role. It must be an emoji from a guild I have access to.")
         emb.title = "Reaction Roles - Step 2"
         await msg.edit(embed=emb)
 
@@ -176,7 +180,8 @@ class Admin(commands.Cog):
         emoji = reaction.emoji
 
         # ############## STEP 3: ROLE NAME ################# # gives "role"
-        emb = utils.green_embed("Finally, please ping or write the ID or name of the role you wish to give.")
+        emb = utils.green_embed(
+            "Finally, please ping or write the ID or name of the role you wish to give.")
         emb.title = "Reaction Roles - Step 3"
         await msg.edit(embed=emb)
 
@@ -197,11 +202,11 @@ class Admin(commands.Cog):
 
         # ############## FINISHED #######################
         emb = utils.green_embed("Finished! You can now delete all messages except for the message you selected as your "
-                             "reaction roles message.\n\nIn the future, you can speed up this process by using this "
-                             f"command in the pattern of `;rr <reaction_msg_id> <emoji> <role_id_mention_or_name>`.\n\n"
-                             f"For you, that would've been: `;rr {reaction_msg.id} {str(emoji)} {role.id}`. You can "
-                             f"also do this for multiple roles in one command, just add new lines between each new "
-                             f"emoji you want to add.")
+                                "reaction roles message.\n\nIn the future, you can speed up this process by using this "
+                                f"command in the pattern of `;rr <reaction_msg_id> <emoji> <role_id_mention_or_name>`.\n\n"
+                                f"For you, that would've been: `;rr {reaction_msg.id} {str(emoji)} {role.id}`. You can "
+                                f"also do this for multiple roles in one command, just add new lines between each new "
+                                f"emoji you want to add.")
         await msg.edit(embed=emb)
 
         return reaction_msg, emoji, role
@@ -296,7 +301,8 @@ class Admin(commands.Cog):
         mutes: List[dict] = []
         author: Optional[discord.User] = None
         try:
-            mute_config = self.bot.db['mutes'][str(ctx.guild.id)]['timed_mutes']
+            mute_config = self.bot.db['mutes'][str(
+                ctx.guild.id)]['timed_mutes']
         except KeyError:
             return
         else:
@@ -329,8 +335,8 @@ class Admin(commands.Cog):
                         .replace(tzinfo=timezone.utc) - discord.utils.utcnow())
             interval_str = format_interval(interval)
             embed_text += f"• {member_text}\n" \
-                          f"Until {mute['until']} (in {interval_str})\n" \
-                          f"{mute['reason']} (by {author.name})\n"
+                f"Until {mute['until']} (in {interval_str})\n" \
+                f"{mute['reason']} (by {author.name})\n"
         await utils.safe_send(ctx, embed=utils.green_embed(embed_text))
 
     @commands.command(aliases=['baibairai'])
@@ -338,7 +344,8 @@ class Admin(commands.Cog):
         """Sets Rai to ignore commands from users."""
         config = self.bot.db['modsonly']
         if str(ctx.guild.id) in config:
-            config[str(ctx.guild.id)]['enable'] = not config[str(ctx.guild.id)]['enable']
+            config[str(ctx.guild.id)]['enable'] = not config[str(
+                ctx.guild.id)]['enable']
         else:
             config[str(ctx.guild.id)] = {'enable': True}
         value = config[str(ctx.guild.id)]['enable']
@@ -368,7 +375,8 @@ class Admin(commands.Cog):
             except KeyError:
                 config['crosspost'] = True
         else:
-            config = self.bot.db['bans'][str(ctx.guild.id)] = {'enable': False, 'channel': None, 'crosspost': True}
+            config = self.bot.db['bans'][str(ctx.guild.id)] = {
+                'enable': False, 'channel': None, 'crosspost': True}
         if config['crosspost']:
             await utils.safe_send(ctx, "Rai will now crosspost ban logs")
         else:
@@ -492,9 +500,11 @@ class Admin(commands.Cog):
                     await msg.add_reaction("✏")
                     await msg.add_reaction('📆')
                     if channel == 1:
-                        self.bot.db['roles'][str(ctx.guild.id)]['message1'] = msg.id
+                        self.bot.db['roles'][str(
+                            ctx.guild.id)]['message1'] = msg.id
                     elif channel == 2:
-                        self.bot.db['roles'][str(ctx.guild.id)]['message2'] = msg.id
+                        self.bot.db['roles'][str(
+                            ctx.guild.id)]['message2'] = msg.id
                 else:
                     await utils.safe_send(ctx, "Something went wrong")
                     return
@@ -506,7 +516,7 @@ class Admin(commands.Cog):
                     raise
             if not msg:
                 await utils.safe_send(ctx, "⠀\n⠀\n⠀\nThere was an error with one of your posts in the Google Doc.  Maybe "
-                                        "check your usage of `########`.  Eight hashes means a new message.")
+                                      "check your usage of `########`.  Eight hashes means a new message.")
                 return
 
             if channel == 0:
@@ -578,12 +588,12 @@ class Admin(commands.Cog):
     async def captcha(self, ctx):
         """Sets up a checkmark requirement to enter a server"""
         await utils.safe_send(ctx,
-                           'This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
-                           '\n1) First, do `;captcha toggle` to setup the module'
-                           '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
-                           '\n3) Then, do `;captcha set_role <role name>` '
-                           'to set the role you wish to add upon them captchaing.'
-                           '\n4) Finally, do `;captcha post_message` to post the message people will react to.')
+                              'This module sets up a requirement to enter a server based on a user pushing a checkmark.  '
+                              '\n1) First, do `;captcha toggle` to setup the module'
+                              '\n2) Then, do `;captcha set_channel` in the channel you want to activate it in.'
+                              '\n3) Then, do `;captcha set_role <role name>` '
+                              'to set the role you wish to add upon them captchaing.'
+                              '\n4) Finally, do `;captcha post_message` to post the message people will react to.')
 
     @captcha.command()
     @commands.bot_has_permissions(manage_roles=True)
@@ -599,7 +609,8 @@ class Admin(commands.Cog):
                 guild_config['enable'] = True
                 await utils.safe_send(ctx, 'Captcha module enabled')
         else:
-            self.bot.db['captcha'][guild] = {'enable': True, 'channel': '', 'role': ''}
+            self.bot.db['captcha'][guild] = {
+                'enable': True, 'channel': '', 'role': ''}
             await utils.safe_send(ctx, 'Captcha module setup and enabled.')
 
     @captcha.command(name="set_channel")
@@ -633,10 +644,11 @@ class Admin(commands.Cog):
         if guild not in self.bot.db['captcha']:
             await self.toggle(ctx)
         guild_config = self.bot.db['captcha'][guild]
-        role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_input, ctx.guild.roles)
+        role: Optional[discord.Role] = discord.utils.find(
+            lambda r: r.name == role_input, ctx.guild.roles)
         if not role:
             await utils.safe_send(ctx, 'Failed to find a role.  Please type the name of the role after the command, like '
-                                    '`;captcha set_role New User`')
+                                  '`;captcha set_role New User`')
         else:
             guild_config['role'] = role.id
             await utils.safe_send(ctx, f'Set role to {role.name} ({role.id})')
@@ -657,8 +669,10 @@ class Admin(commands.Cog):
     async def clearall(self, ctx: commands.Context, target_in: str, time_in: str = '1h'):
         """Deletes all messages matching a user or ID in all channels. Defaults to one hour if no time is inputted.
         Usage: `;clearall <ID> [time: 10m, 2h, etc]`"""
-        target_id = int(re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
-        time = hf.parse_time(time_in)[1]  # gives list of integers: [days, hours, minutes]
+        target_id = int(
+            re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
+        # gives list of integers: [days, hours, minutes]
+        time = hf.parse_time(time_in)[1]
         if not time:
             await utils.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")
             return
@@ -697,13 +711,16 @@ class Admin(commands.Cog):
 
         deleted_messages.sort(key=lambda m: m.created_at)
 
-        deleted_message_logging_channel_id = self.bot.db['deletes'].get(str(ctx.guild.id), {}).get('channel', 0)
-        deleted_message_logging_channel = ctx.guild.get_channel_or_thread(deleted_message_logging_channel_id)
+        deleted_message_logging_channel_id = self.bot.db['deletes'].get(
+            str(ctx.guild.id), {}).get('channel', 0)
+        deleted_message_logging_channel = ctx.guild.get_channel_or_thread(
+            deleted_message_logging_channel_id)
         if deleted_message_logging_channel:
             await utils.safe_send(ctx, f"Deleted all messages from {target_in}.")
         else:
             deleted_messages_text = hf.message_list_to_text(deleted_messages)
-            deleted_messages_file = hf.text_to_file(deleted_messages_text, f"deleted_messages_M{target_id}.txt")
+            deleted_messages_file = hf.text_to_file(
+                deleted_messages_text, f"deleted_messages_M{target_id}.txt")
 
             await utils.safe_send(ctx, "Deleted messages attached in below file", file=deleted_messages_file)
 
@@ -728,15 +745,15 @@ class Admin(commands.Cog):
             int(num)
         except ValueError:
             await utils.safe_send(ctx, "You need to put a number of messages. "
-                                    "Type `;help clear` for information on syntax.")
+                                  "Type `;help clear` for information on syntax.")
             return
         if 1000 < int(num):
             await utils.safe_send(ctx, "I can't erase a server for you! Capping the number of messages down "
-                                    "to 1000.", delete_after=5)
+                                  "to 1000.", delete_after=5)
             num = 1000
         if 100 < int(num):
             msg = await utils.safe_send(ctx, f"You're trying to delete the last {num} messages. "
-                                          f"Please type `y` to confirm this.")
+                                        f"Please type `y` to confirm this.")
             try:
                 await self.bot.wait_for('message', timeout=10,
                                         check=lambda m: m.author == ctx.author and m.content == 'y')
@@ -764,7 +781,6 @@ class Admin(commands.Cog):
                 return
             except IndexError:  # no message ID given
                 msg = None
-                pass
         else:
             user = None
             msg = None
@@ -799,20 +815,22 @@ class Admin(commands.Cog):
         config = hf.database_toggle(ctx.guild, self.bot.db['auto_bans'])
         if config['enable']:
             await utils.safe_send(ctx,
-                               'Enabled the auto bans module.  I will now automatically ban all users who join with '
-                               'a discord invite link username or who join and immediately send an '
-                               'amazingsexdating link')
+                                  'Enabled the auto bans module.  I will now automatically ban all users who join with '
+                                  'a discord invite link username or who join and immediately send an '
+                                  'amazingsexdating link')
         else:
             await utils.safe_send(ctx, 'Disabled the auto bans module.  I will no longer auto ban users who join with a '
-                                    'discord invite link username or who spam a link to amazingsexdating.')
+                                  'discord invite link username or who spam a link to amazingsexdating.')
 
     @commands.command()
     async def set_modlog_channel(self, ctx):
         """Sets the channel for modlog events"""
         if str(ctx.guild.id) in self.bot.db['modlog']:
-            self.bot.db['modlog'][str(ctx.guild.id)]['channel'] = ctx.channel.id
+            self.bot.db['modlog'][str(ctx.guild.id)
+                                  ]['channel'] = ctx.channel.id
         else:
-            self.bot.db['modlog'][str(ctx.guild.id)] = {'channel': ctx.channel.id}
+            self.bot.db['modlog'][str(ctx.guild.id)] = {
+                'channel': ctx.channel.id}
         await utils.safe_send(ctx, f"Set modlog channel as {ctx.channel.mention}.")
 
     @commands.command()
@@ -826,7 +844,8 @@ class Admin(commands.Cog):
             del self.bot.db['mod_role'][str(ctx.guild.id)]
             await utils.safe_send(ctx, "Removed mod role setting for this server")
             return
-        mod_role: Optional[discord.Role] = discord.utils.find(lambda role: role.name == role_name, ctx.guild.roles)
+        mod_role: Optional[discord.Role] = discord.utils.find(
+            lambda role: role.name == role_name, ctx.guild.roles)
         if not mod_role:
             await utils.safe_send(ctx, "The role with that name was not found")
             return None
@@ -858,7 +877,8 @@ class Admin(commands.Cog):
             config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles']
             config['enable'] = not config['enable']
         except KeyError:  # the guild was in 'joins' but it didn't have 'readd_roles'
-            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {'enable': True, 'users': {}, 'roles': {}}
+            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {
+                'enable': True, 'users': {}, 'roles': {}}
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
                 await utils.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
@@ -893,9 +913,9 @@ class Admin(commands.Cog):
                                                        {"users": {}, "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
         await utils.safe_send(ctx, f"Messages sent from users on the super_watch list will be sent to {ctx.channel.name} "
-                                f"({ctx.channel.id}).  \n\n"
-                                f"Type `;sw add <ID>` to add someone to the list, or `;sw remove <ID>` to remove them. "
-                                f"You can change the channel that super_watch sends posts to by typing `;sw set`.")
+                              f"({ctx.channel.id}).  \n\n"
+                              f"Type `;sw add <ID>` to add someone to the list, or `;sw remove <ID>` to remove them. "
+                              f"You can change the channel that super_watch sends posts to by typing `;sw set`.")
 
     @super_watch.command(name="add")
     async def superwatch_add(self, ctx, target):
@@ -933,7 +953,8 @@ class Admin(commands.Cog):
     @super_watch.command(name="list")
     async def super_watch_list(self, ctx):
         """Lists the users in superwatch list."""
-        config: list = self.bot.db['super_watch'].get(str(ctx.guild.id), {'users': []})['users']
+        config: list = self.bot.db['super_watch'].get(
+            str(ctx.guild.id), {'users': []})['users']
         users = [f"<@{ID}>" for ID in config]
         if config:
             await utils.safe_send(ctx, f"Users currently on the super_watch list: {', '.join(users)}")
@@ -945,33 +966,36 @@ class Admin(commands.Cog):
         """Log everytime chosen users join/leave the voice channels.  This sets the super voice watch log channel"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await utils.safe_send(ctx,
-                               "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
-                               "channel you want to designate.")
+                                  "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
+                                  "channel you want to designate.")
             return
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {"users": [], "channel": ctx.channel.id})
+        config = self.bot.db['super_voicewatch'].setdefault(
+            str(ctx.guild.id), {"users": [], "channel": ctx.channel.id})
         config['channel'] = ctx.channel.id
         await utils.safe_send(ctx, f"I've set the log channel for super voice watch to {ctx.channel.mention}\n\n"
-                                "**About svw:** Puts a message in the mod channel every time someone on the super "
-                                "watchlist joins a voice channel.  Use `;super_voicewatch add USER` or "
-                                "`'super_voicewatch remove USER` to manipulate the list.  Type `;super_voicewatch "
-                                "list` to see a full list.  Alias: `;svw`")
+                              "**About svw:** Puts a message in the mod channel every time someone on the super "
+                              "watchlist joins a voice channel.  Use `;super_voicewatch add USER` or "
+                              "`'super_voicewatch remove USER` to manipulate the list.  Type `;super_voicewatch "
+                              "list` to see a full list.  Alias: `;svw`")
 
     @super_voicewatch.command(name="add")
     async def voicewatch_add(self, ctx, member: discord.Member):
         """Add a member to super voice watch"""
         if str(ctx.guild.id) not in self.bot.db['mod_channel']:
             await utils.safe_send(ctx,
-                               "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
-                               "channel you want to designate.")
+                                  "Before using this, you have to set your mod channel using `;set_mod_channel` in the "
+                                  "channel you want to designate.")
             return
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
+        config = self.bot.db['super_voicewatch'].setdefault(
+            str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
         config['users'].append(member.id)
         await utils.safe_send(ctx, f"Added `{member.name} ({member.id})` to the super voice watchlist.")
 
     @super_voicewatch.command(name="remove")
     async def voicewatch_remove(self, ctx, member):
         """Remove a user from super voice watch"""
-        config = self.bot.db['super_voicewatch'].setdefault(str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
+        config = self.bot.db['super_voicewatch'].setdefault(
+            str(ctx.guild.id), {'users': [], 'channel': ctx.channel.id})
         target_obj = await utils.member_converter(ctx, member)
         if not target_obj:
             try:
@@ -1019,10 +1043,10 @@ class Admin(commands.Cog):
         """A command for setting up a role to be added when a user is in voice for a certain amount of time"""
         # #############  how long do they need to stay in a channel #################################
         q = await utils.safe_send(ctx, "Welcome to the setup module. This will give a role to a user if they've been "
-                                    "in voice for sufficiently long. \n\n**First question: how long should they stay "
-                                    "in voice to receive a role? (Please give a number of minutes).**\n\n"
-                                    "Alternatively, type `cancel` at any time in this process to leave the module, or "
-                                    "`disable` now to disable this feature completely.")
+                                  "in voice for sufficiently long. \n\n**First question: how long should they stay "
+                                  "in voice to receive a role? (Please give a number of minutes).**\n\n"
+                                  "Alternatively, type `cancel` at any time in this process to leave the module, or "
+                                  "`disable` now to disable this feature completely.")
         timeout_message = "The module has timed out. Please start the command over."
         try:
             msg = await self.bot.wait_for("message", timeout=30.0,
@@ -1041,7 +1065,7 @@ class Admin(commands.Cog):
                 await msg.delete()
             except ValueError:
                 await utils.safe_send(ctx, "I failed to detect your time. Please start the command over and input a "
-                                        "single number.")
+                                      "single number.")
                 return
             except discord.Forbidden:
                 pass
@@ -1051,7 +1075,7 @@ class Admin(commands.Cog):
             # ####### should the role be removed when they leave #############################
 
             q = await utils.safe_send(ctx, "Thanks. Next, should the role be removed when the user leaves voice chat? "
-                                        "Type `yes` or `no`.")
+                                      "Type `yes` or `no`.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
@@ -1069,14 +1093,14 @@ class Admin(commands.Cog):
                 await msg.delete()
             except ValueError:
                 await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
-                                        "either exactly `yes` or `no`.")
+                                      "either exactly `yes` or `no`.")
                 return
             await q.delete()
 
             # ####### should the timer be reset for going into the afk channel #############################
 
             q = await utils.safe_send(ctx, "Thanks. Next, should the role be removed if the user goes to the AFK channel? "
-                                        "Type `yes` or `no`.")
+                                      "Type `yes` or `no`.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
@@ -1094,14 +1118,14 @@ class Admin(commands.Cog):
                 await msg.delete()
             except ValueError:
                 await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
-                                        "either exactly `yes` or `no`.")
+                                      "either exactly `yes` or `no`.")
                 return
             await q.delete()
 
             # ####### specify the role #############################
 
             q = await utils.safe_send(ctx, "Thanks. Next, please specify the role that you want me to assign to "
-                                        "the users. Type the exact name of the role.")
+                                      "the users. Type the exact name of the role.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
@@ -1118,14 +1142,14 @@ class Admin(commands.Cog):
                 await msg.delete()
             except ValueError:
                 await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
-                                        "exactly the name of the role..")
+                                      "exactly the name of the role..")
                 return
             await q.delete()
 
             # ####### specify the channel #############################
 
             q = await utils.safe_send(ctx, "Thanks. Finally, please specify the channel that you wish I watch. Type the "
-                                        "name of the voice channel. Alternatively, type `none` to watch all channels.")
+                                      "name of the voice channel. Alternatively, type `none` to watch all channels.")
 
             msg = await self.bot.wait_for("message", timeout=30.0,
                                           check=lambda m: m.channel == ctx.channel and m.author == ctx.author)
@@ -1146,7 +1170,7 @@ class Admin(commands.Cog):
                 await msg.delete()
             except ValueError:
                 await utils.safe_send(ctx, "I failed to detect your answer. Please start the command over and input "
-                                        "exactly the name of the channel.")
+                                      "exactly the name of the channel.")
                 return
             await q.delete()
 
@@ -1160,7 +1184,7 @@ class Admin(commands.Cog):
                                                               'channel': channel_id,
                                                               'role': role.id}
         await utils.safe_send(ctx, f"Thanks, I've saved your settings. I will assign `{role.name} ({role.id})`. "
-                                f"You can run this command again at any time to change the settings or disable it.")
+                              f"You can run this command again at any time to change the settings or disable it.")
 
     @commands.group(invoke_without_command=True, aliases=['setprefix'])
     async def set_prefix(self, ctx, prefix):
@@ -1168,14 +1192,14 @@ class Admin(commands.Cog):
         if prefix:
             self.bot.db['prefix'][str(ctx.guild.id)] = prefix
             await utils.safe_send(ctx,
-                               f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset`"
-                               f" to reset it back to the default prefix of `;`")
+                                  f"Set prefix to `{prefix}`.  You can change it again, or type `{prefix}set_prefix reset`"
+                                  f" to reset it back to the default prefix of `;`")
         else:
             prefix = self.bot.db['prefix'].get(str(ctx.guild.id), ';')
             await utils.safe_send(ctx, f"This is the command to set a custom prefix for the bot.  The current prefix is "
-                                    f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
-                                    f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the "
-                                    f"default prefix.")
+                                  f"`{prefix}`.  To change this, type `{prefix}set_prefix [prefix]` (for example, "
+                                  f"`{prefix}set_prefix !`).  Type `{prefix}set_prefix reset` to reset to the "
+                                  f"default prefix.")
 
     @set_prefix.command(name='reset')
     async def prefix_reset(self, ctx):
@@ -1200,7 +1224,8 @@ class Admin(commands.Cog):
         emb.add_field(name="Options", value=options)
         return emb
 
-    async def wait_menu(self, ctx, menu, emb_in, choices_in):  # posts wait menu, gets a response, returns choice
+    # posts wait menu, gets a response, returns choice
+    async def wait_menu(self, ctx, menu, emb_in, choices_in):
         if menu:
             try:
                 await menu.delete()
@@ -1235,13 +1260,17 @@ class Admin(commands.Cog):
 
         while True:
             options = ["Set/view the mod/submod role (`;set_(sub)mod_role <role name>`)",  # 1
-                       "Set/view the mod/submod channel (`;set_(sub)mod_channel`)",  # 2
-                       "Set/view the custom prefix (`;set_prefix <prefix>`)",  # 3
+                       # 2
+                       "Set/view the mod/submod channel (`;set_(sub)mod_channel`)",
+                       # 3
+                       "Set/view the custom prefix (`;set_prefix <prefix>`)",
                        "Logging modules",  # 4
                        "Report module (`;report`)",  # 5
                        "Setup a questions channel (`;q`)",  # 6
-                       "Automatically readd roles to users who rejoin the server (`;readd_roles`)",  # 7
-                       "Reaction-to-enter requirement for the server (`;captcha`)",  # 8
+                       # 7
+                       "Automatically readd roles to users who rejoin the server (`;readd_roles`)",
+                       # 8
+                       "Reaction-to-enter requirement for the server (`;captcha`)",
                        "Super voice watch (`;svw`)",  # 9
                        "Super text watch (`;sw`)",  # 10
                        ]
@@ -1252,7 +1281,7 @@ class Admin(commands.Cog):
                 choice, menu = await self.wait_menu(ctx, menu, emb, choices)
             except discord.Forbidden:
                 await utils.safe_send(ctx,
-                                   "I lack the ability to manage messages, which I require for the options module")
+                                      "I lack the ability to manage messages, which I require for the options module")
                 return
             if choice == 'time_out':
                 return
@@ -1275,7 +1304,8 @@ class Admin(commands.Cog):
                             role = ctx.guild.get_role(config['id'][0])
                         else:
                             role = ctx.guild.get_role(config['id'])
-                        emb.description = f"Current role is {role.mention} ({role.id})\n" + emb.description
+                        emb.description = f"Current role is {role.mention} ({role.id})\n" + \
+                            emb.description
                     except KeyError:
                         emb.description = "No role is currently set\n" + emb.description
 
@@ -1291,8 +1321,8 @@ class Admin(commands.Cog):
                         return
                     elif choice == '1':
                         instr_msg = await utils.safe_send(ctx,
-                                                       "Please input the exact name of the role you wish to set as "
-                                                       "the mod role")
+                                                          "Please input the exact name of the role you wish to set as "
+                                                          "the mod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
                                                             check=lambda x: x.author == ctx.author)
@@ -1307,8 +1337,8 @@ class Admin(commands.Cog):
                             await utils.safe_send(ctx, "You currently don't have a mod role set")
                     elif choice == '3':
                         instr_msg = await utils.safe_send(ctx,
-                                                       "Please input the exact name of the role you wish to set as "
-                                                       "the submod role")
+                                                          "Please input the exact name of the role you wish to set as "
+                                                          "the submod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
                                                             check=lambda x: x.author == ctx.author)
@@ -1331,8 +1361,10 @@ class Admin(commands.Cog):
                     emb.title = "Setting mod channel"
                     config = self.bot.db['mod_channel']
                     try:
-                        channel = ctx.guild.get_channel_or_thread(config[str(ctx.guild.id)])
-                        emb.description = f"Current channel is {channel.mention} ({channel.id})\n" + emb.description
+                        channel = ctx.guild.get_channel_or_thread(
+                            config[str(ctx.guild.id)])
+                        emb.description = f"Current channel is {channel.mention} ({channel.id})\n" + \
+                            emb.description
                     except KeyError:
                         emb.description = "There is no mod channel currently set\n" + emb.description
 
@@ -1366,7 +1398,8 @@ class Admin(commands.Cog):
                     emb.title = "Custom Prefix"
                     config = self.bot.db['prefix']
                     current_prefix = config.get(str(ctx.guild.id), 'not set')
-                    emb.description = f"The custom prefix is {current_prefix}\n" + emb.description
+                    emb.description = f"The custom prefix is {current_prefix}\n" + \
+                        emb.description
 
                     choices = ['1', '2', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
@@ -1380,7 +1413,7 @@ class Admin(commands.Cog):
                         return
                     elif choice == '1':
                         instr_msg = await utils.safe_send(ctx,
-                                                       "Please input the custom prefix you wish to use on this server")
+                                                          "Please input the custom prefix you wish to use on this server")
                         try:
                             reply_msg = await self.bot.wait_for('message',
                                                                 timeout=20.0,
@@ -1400,7 +1433,8 @@ class Admin(commands.Cog):
                 while True:
                     options = ['Deleted messages (`;deletes`)',  # 1
                                'Edited messages (`;edits`)',  # 2
-                               'Joins and invite link tracking (`;joins`)',  # 3
+                               # 3
+                               'Joins and invite link tracking (`;joins`)',
                                'Leaves (`;leaves`)',  # 4
                                'Kicks (`;kicks`)',  # 5
                                'Bans (`;bans`)',  # 6
@@ -1410,7 +1444,8 @@ class Admin(commands.Cog):
                     emb = self.make_options_embed(options)
                     emb.title = "Logging Module"
 
-                    choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'x']
+                    choices = ['1', '2', '3', '4', '5',
+                               '6', '7', '8', '9', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
                     if choice == 'time_out':
                         return
@@ -1431,10 +1466,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track deleted messages in " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks deleted messages " \
                                                   "by users.\n\nReply with any of the option numbers or letters (b/x)"
@@ -1465,10 +1501,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track edited messages in " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks edited messages " \
                                                   "by users.\n\nReply with any of the option numbers or letters (b/x)"
@@ -1500,10 +1537,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to log member joins in " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks joins " \
                                                   "by users.\n\nReply with any of the option numbers or letters (b/x)"
@@ -1536,10 +1574,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to log when members leave the server in " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It logs when a member leaves." \
                                                   "\n\nReply with any of the option numbers or letters (b/x)"
@@ -1570,10 +1609,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track kicked members " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks kicked members " \
                                                   "\n\nReply with any of the option numbers or letters (b/x)"
@@ -1603,10 +1643,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track banned members " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks banned members " \
                                                   "\n\nReply with any of the option numbers or letters (b/x)"
@@ -1637,10 +1678,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track member nickname changes " \
-                                                  f"{channel.mention}\n\nReply with any of the option numbers " \
-                                                  f"or letters (b/x)"
+                                    f"{channel.mention}\n\nReply with any of the option numbers " \
+                                    f"or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks member nickname " \
                                                   "changes.\n\nReply with any of the option numbers or letters (b/x)"
@@ -1671,10 +1713,11 @@ class Admin(commands.Cog):
 
                         while True:
                             if config['enable']:
-                                channel = ctx.guild.get_channel_or_thread(config['channel'])
+                                channel = ctx.guild.get_channel_or_thread(
+                                    config['channel'])
                                 emb.description = f"I am currently set to track when users remove a reaction from a " \
-                                                  f"message in {channel.mention}\n\nReply with any of the option " \
-                                                  f"numbers or letters (b/x)"
+                                    f"message in {channel.mention}\n\nReply with any of the option " \
+                                    f"numbers or letters (b/x)"
                             else:
                                 emb.description = "This module is currently disabled.  It tracks when users remove " \
                                                   "a reaction from a\n\nReply with any of the option numbers or " \
@@ -1711,13 +1754,15 @@ class Admin(commands.Cog):
                     emb.title = "Setting up the report module"
                     try:
                         config = self.bot.db['report'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel_or_thread(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(
+                            config['channel'])
                         emb.description = f"Current report channel is {channel.mention} ({channel.id})\n" \
-                                          f"{emb.description}"
+                            f"{emb.description}"
                     except KeyError:
                         emb.description = f"The report room is not setup yet.\n{emb.description}"
 
-                    choices = ['1', '2', '3', '4', '5', '6', '7', '8', 'b', 'x']
+                    choices = ['1', '2', '3', '4',
+                               '5', '6', '7', '8', 'b', 'x']
                     choice, menu = await self.wait_menu(ctx, menu, emb, choices)
                     if choice == 'time_out':
                         return
@@ -1731,8 +1776,8 @@ class Admin(commands.Cog):
                     # set mod role
                     elif choice == '1':
                         instr_msg = await utils.safe_send(ctx,
-                                                       "Please input the exact name of the role you wish to set as "
-                                                       "the mod role")
+                                                          "Please input the exact name of the role you wish to set as "
+                                                          "the mod role")
                         reply_msg = await self.bot.wait_for('message',
                                                             timeout=20.0,
                                                             check=lambda x: x.author == ctx.author)
@@ -1788,13 +1833,14 @@ class Admin(commands.Cog):
                     emb.title = "Reaction-to-enter requirement for entering the server"
                     try:
                         config = self.bot.db['captcha'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel_or_thread(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(
+                            config['channel'])
                         role = ctx.guild.get_role(config['role'])
                         word_dict = {True: 'enabled', False: 'disabled'}
                         emb.description = f"This module is currently {word_dict[config['enable']]}.\n" \
-                                          f"Current entry channel is {channel.mention} ({channel.id})\n" \
-                                          f"The role new users receive is {role.mention} ({role.id})\n" \
-                                          f"{emb.description}"
+                            f"Current entry channel is {channel.mention} ({channel.id})\n" \
+                            f"The role new users receive is {role.mention} ({role.id})\n" \
+                            f"{emb.description}"
                     except KeyError:
                         await ctx.invoke(self.toggle)
                         continue
@@ -1834,11 +1880,13 @@ class Admin(commands.Cog):
                     emb = self.make_options_embed(options)
                     emb.title = "Super voice watch"
                     try:
-                        config = self.bot.db['super_voicewatch'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel_or_thread(config['channel'])
+                        config = self.bot.db['super_voicewatch'][str(
+                            ctx.guild.id)]
+                        channel = ctx.guild.get_channel_or_thread(
+                            config['channel'])
                         emb.description = f"When a user on the super voice list joins a voice channel, this will be " \
-                                          f"logged in {channel.mention}\n" \
-                                          f"{emb.description}"
+                            f"logged in {channel.mention}\n" \
+                            f"{emb.description}"
                     except KeyError:
                         await ctx.invoke(self.super_voicewatch)
                         continue
@@ -1871,11 +1919,12 @@ class Admin(commands.Cog):
                     emb.title = "Super text watch"
                     try:
                         config = self.bot.db['super_watch'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel_or_thread(config['channel'])
+                        channel = ctx.guild.get_channel_or_thread(
+                            config['channel'])
                         emb.description = f"When a user on the super text watch list sends any message, this will be " \
-                                          f"logged in {channel.mention}.  The purpose for this is if a user joins " \
-                                          f"who you suspect to be a troll, and you want to watch them very carefully." \
-                                          f"\n{emb.description}"
+                            f"logged in {channel.mention}.  The purpose for this is if a user joins " \
+                            f"who you suspect to be a troll, and you want to watch them very carefully." \
+                            f"\n{emb.description}"
                     except KeyError:
                         await ctx.invoke(self.super_watch)
                         continue
@@ -1907,7 +1956,8 @@ class Admin(commands.Cog):
     async def asar(self, ctx, *args):
         """Adds a self-assignable role to the list of self-assignable roles."""
         try:
-            if re.search(r"^\d{1,2}$", args[0]):  # I want a string, but want to see if it's a number first
+            # I want a string, but want to see if it's a number first
+            if re.search(r"^\d{1,2}$", args[0]):
                 group = args[0]
                 role_name = ' '.join(args[1:])
             else:
@@ -1920,7 +1970,8 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(
+                lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await utils.safe_send(ctx, "The role with that name was not found")
             return None
@@ -1929,12 +1980,12 @@ class Admin(commands.Cog):
         for config_group in config:
             if role.id in config[config_group]:
                 await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** Role "
-                                                           f"**{role.name}** is already in the list."))
+                                                                 f"**{role.name}** is already in the list."))
                 return
         config[group].append(role.id)
         await utils.safe_send(ctx, embed=utils.green_embed(f"**{str(ctx.author)}** Role "
-                                                     f"**{role.name}** has been added to the list in group "
-                                                     f"**{group}**."))
+                                                           f"**{role.name}** has been added to the list in group "
+                                                           f"**{group}**."))
 
     @commands.command()
     async def rsar(self, ctx, *, role_name):
@@ -1943,7 +1994,8 @@ class Admin(commands.Cog):
         if re.search(r"\d{17,22}", role_name):
             role = ctx.guild.get_role(int(role_name))
         else:
-            role: Optional[discord.Role] = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            role: Optional[discord.Role] = discord.utils.find(
+                lambda r: r.name == role_name, ctx.guild.roles)
         if not role:
             await utils.safe_send(ctx, "Role not found")
             return
@@ -1951,7 +2003,7 @@ class Admin(commands.Cog):
             if role.id in config[group]:
                 config[group].remove(role.id)
                 await utils.safe_send(ctx, embed=utils.red_embed(f"**{str(ctx.author)}** Role "
-                                                           f"**{role.name}** has been removed from the list."))
+                                                                 f"**{role.name}** has been removed from the list."))
 
     @commands.command()
     @commands.check(lambda x: x.guild.id == 243838819743432704 or x.author.id == 202995638860906496)
@@ -2085,7 +2137,7 @@ class Admin(commands.Cog):
         except (discord.NotFound, discord.Forbidden):
             pass
         await menu.edit(embed=utils.green_embed(f"I will ban anyone who says this within **{minutes}** minutes of joining:"
-                                             f"```{word}```"))
+                                                f"```{word}```"))
 
     async def wordfilter_delete(self, ctx, menu):
         config = self.bot.db['wordfilter'][str(ctx.guild.id)]
@@ -2116,7 +2168,7 @@ class Admin(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
             await utils.safe_send(ctx, embed=utils.red_embed("I couldn't find that filter. Please start over and try again."),
-                               delete_after=10.0)
+                                  delete_after=10.0)
 
     @commands.group(invoke_without_command=True, aliases=['antiraid'])
     @commands.bot_has_permissions(embed_links=True, ban_members=True)
@@ -2129,11 +2181,12 @@ class Admin(commands.Cog):
                                                                         'ban_override': None})
         if config['enable']:
             settings = f"**The current settings are as follows:\n" \
-                       f"    - Message threshold: {config['message_threshold']}\n" \
-                       f"    - Time threshold (seconds): {config['time_threshold']}\n" \
-                       f"    - Punishment: {config['action'].capitalize()}**"
+                f"    - Message threshold: {config['message_threshold']}\n" \
+                f"    - Time threshold (seconds): {config['time_threshold']}\n" \
+                f"    - Punishment: {config['action'].capitalize()}**"
             if config.get('ban_override', None):
-                settings = settings[:-2] + f"\n    - Ban override threshold (minutes): {config['ban_override']}**"
+                settings = settings[:-2] + \
+                    f"\n    - Ban override threshold (minutes): {config['ban_override']}**"
         else:
             settings = "The antispam module is currently disabled."
         emb = discord.Embed(title="Configuration for the antispam module. Please type an option.",
@@ -2198,9 +2251,9 @@ class Admin(commands.Cog):
 
     async def antispam_settings(self, ctx, menu: discord.Message):
         await menu.edit(embed=utils.green_embed("`I should [ban/kick/mute] users who spam the same message [x] times "
-                                             "in [y] seconds.`\n"
-                                             "Please fill in the three blanks\n"
-                                             "(example: `mute 5 10`)"))
+                                                "in [y] seconds.`\n"
+                                                "Please fill in the three blanks\n"
+                                                "(example: `mute 5 10`)"))
         try:
             msg = await self.bot.wait_for('message',
                                           timeout=60.0,
@@ -2214,24 +2267,26 @@ class Admin(commands.Cog):
             return
         if len(msg.content.split()) != 3:
             await utils.safe_send(ctx, "Invalid options given. Please start over the command and give three answers "
-                                    "in one message.")
+                                  "in one message.")
             return
         choices = msg.content.split()
         if choices[0].casefold() not in ['ban', 'kick', 'mute']:
             await utils.safe_send(ctx, "Your choice for the punishment was not one of either `ban`, `kick`, or `mute`. "
-                                    "Please start over the command and try again.")
+                                  "Please start over the command and try again.")
             return
         try:
             message_threshold = int(choices[1])
             time_threshold = int(choices[2])
         except ValueError:
             await utils.safe_send(ctx, "Your choice for either the message or time threshold was not a number. Please "
-                                    "start over the command and try again.")
+                                  "start over the command and try again.")
             return
         self.bot.db['antispam'][str(ctx.guild.id)]['enable'] = True
         self.bot.db['antispam'][str(ctx.guild.id)]['action'] = choices[0]
-        self.bot.db['antispam'][str(ctx.guild.id)]['message_threshold'] = message_threshold
-        self.bot.db['antispam'][str(ctx.guild.id)]['time_threshold'] = time_threshold
+        self.bot.db['antispam'][str(ctx.guild.id)
+                                ]['message_threshold'] = message_threshold
+        self.bot.db['antispam'][str(ctx.guild.id)
+                                ]['time_threshold'] = time_threshold
 
         await utils.safe_send(ctx, embed=utils.green_embed("Antispam has been configured!"), delete_after=10.0)
         await ctx.invoke(self.antispam, menu)
@@ -2288,10 +2343,10 @@ class Admin(commands.Cog):
 
     async def antispam_ban_override(self, ctx: commands.Context, menu: discord.Message, config: dict):
         await menu.edit(embed=utils.green_embed("I should override my other selected settings and ban users that "
-                                             "spam within `[X]` minutes of joining the server.\n\n"
-                                             "Please input an integer number.\n"
-                                             "Type `0` to disable the module.\n"
-                                             "Type `cancel` to exit."))
+                                                "spam within `[X]` minutes of joining the server.\n\n"
+                                                "Please input an integer number.\n"
+                                                "Type `0` to disable the module.\n"
+                                                "Type `cancel` to exit."))
         while True:
             try:
                 msg: discord.Message = await self.bot.wait_for('message',
@@ -2355,17 +2410,20 @@ class Admin(commands.Cog):
                 joins[user_id] = (time, channel_id)
             else:
                 if user_id in joins:
-                    times[channel_id] = times.get(channel_id, 0) + round(time - joins[user_id][0], 3)
+                    times[channel_id] = times.get(
+                        channel_id, 0) + round(time - joins[user_id][0], 3)
                     del joins[user_id]
 
-        sorted_dict = sorted(list(times.items()), key=lambda channel: channel[1], reverse=True)
+        sorted_dict = sorted(list(times.items()),
+                             key=lambda channel: channel[1], reverse=True)
         msg = '__Most active voice channels (mins. of voice activity)__\n'
         first_msg = ''  # only to be used if character length goes over 2000char
         for channel in sorted_dict:
             channel_obj = ctx.guild.get_channel_or_thread(channel[0])
             if not channel_obj:
                 continue
-            category_c = channel_obj.category.name[0].replace("S", " Ｓ ").replace("G", " Ｇ ")
+            category_c = channel_obj.category.name[0].replace(
+                "S", " Ｓ ").replace("G", " Ｇ ")
             time = channel[1]
             interval_str = format_interval(time, show_seconds=True)
             addition = f"[{category_c}] {channel_obj.mention}: {interval_str}\n"
@@ -2381,15 +2439,15 @@ class Admin(commands.Cog):
             await utils.safe_send(ctx, msg)
         else:
             await utils.safe_send(ctx, msg)
-            
+
     @commands.command()
     @commands.guild_only()
     @commands.bot_has_permissions(ban_members=True)
     async def unban(self, ctx: commands.Context, *users):
         """Unban users from the server via IDs.
-        
+
         Usage: `;unban <user_id> <user_id> ...`
-        
+
         Examples:
         - `;unban 123456789012345678`
         - `;unban <@123456789012345678> 123456789012345678`"""
@@ -2399,11 +2457,12 @@ class Admin(commands.Cog):
             # noinspection PyTypeChecker
             await ctx.invoke(self.bot.get_command('help'), 'unban')
             return
-        
+
         # use regex to extract IDs from <@ID> or <@!ID> format, or directly parse if already an ID
         user_ids = []
         for user in users:
-            re_result = re.search(r"<@!?(\d{17,22})>", user)  # Match <@123456789012345678> or <@!123456789012345678>
+            # Match <@123456789012345678> or <@!123456789012345678>
+            re_result = re.search(r"<@!?(\d{17,22})>", user)
             if re_result:
                 user_ids.append(int(re_result.group(1)))
             else:
@@ -2413,7 +2472,7 @@ class Admin(commands.Cog):
                 except ValueError:
                     await utils.safe_reply(ctx, f"Invalid user ID: {user}")
                     continue
-        
+
         for user_id in user_ids:
             try:
                 await ctx.guild.unban(discord.Object(id=user_id))
@@ -2421,10 +2480,10 @@ class Admin(commands.Cog):
                 await utils.safe_reply(ctx, f"Ban entry for user with ID {user_id} not found")
             except discord.Forbidden:
                 await utils.safe_reply(ctx, f"I don't have permission to unban user with ID {user_id} "
-                                            f"(<@{user_id}>)")
+                                       f"(<@{user_id}>)")
             else:
                 await utils.safe_reply(ctx, f"User with ID {user_id} (<@{user_id}>) has been unbanned")
-                
+
                 # log the action
                 log_command = self.bot.get_command('log')
                 # noinspection PyTypeChecker
