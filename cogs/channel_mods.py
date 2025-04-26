@@ -294,8 +294,14 @@ class ChannelMods(commands.Cog):
         - `;sd 2h`  Sets two hour slowmode
         - `;delay 0` (or `0s`, `0m`, `0h`)  Disables slowmode
         """
-        if len(time_in) in [1, 2] and time_in[0] == '0':
+        if re.search(r'^\d+$', time_in):
+            # they passed a single number as argument
+            time_in = time_in + 's'
+            # default to seconds
+            
+        if len(time_in) == 2 and time_in[0] == '0':
             time_in = "0s"  # to be checked at final confirmation message again
+            
         time_string, (days, hours, minutes, seconds) = hf.parse_time(time_in, return_seconds=True)
         if not time_string:
             await utils.safe_reply(ctx,
