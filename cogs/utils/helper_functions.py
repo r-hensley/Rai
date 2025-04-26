@@ -373,50 +373,73 @@ def add_to_modlog(ctx: Optional[commands.Context],
     return config
 
 
-def parse_time(time_in: str) -> Tuple[str, list[int]]:
+def parse_time(
+        time_in: str,
+        return_seconds: bool = False
+    ) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
     """
-    Parses time from a string and returns a datetime formatted string plus a number of days and hours
-    :param time_in: a string like "2d3h" or "10h"
-    :return: Two things:
-    - *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
-    - *length*: a list with ints [days, hours, minutes]
+    Parses a time string and returns a formatted UTC datetime string plus a time length.
+    
+    Allowed time units:
+        - Seconds (s)
+        - Minutes (m)
+        - Hours (h)
+        - Days (d)
+        - Weeks (w)
+        - Years (y)
+
+    :param time_in: a string like "2d3h", "10h", "1y2d", "1y", "10s", etc.
+    :return:
+      - *time_string*: Formatted UTC datetime string ("%Y/%m/%d %H:%M UTC")
+      - *length*: tuple (days, hours, minutes) if parsed successfully, or (None, None, None) if failed.
     """
-    time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$',
-                        time_in)  # group 2, 4, 6, 8: years, days, hours, minutes
-    if time_re:
-        if years := time_re.group(2):
-            years: int = int(years)
+    time_re = re.fullmatch(r''
+                           r'((\d+)y)?'
+                           r'((\d+)w)?'
+                           r'((\d+)d)?'
+                           r'((\d+)h)?'
+                           r'((\d+)m)?'
+                           r'((\d+)s)?', time_in)
+    if not time_re:
+        if return_seconds:
+            return '', (None, None, None, None)
         else:
-            years = 0
-
-        if days := time_re.group(4):
-            days: int = years * 365 + int(days)
-        else:
-            days = years * 365
-
-        if hours := time_re.group(6):
-            hours: int = int(hours)
-        else:
-            hours = 0
-
-        if minutes := time_re.group(8):
-            minutes: int = int(minutes)
-        else:
-            minutes = 0
-
-        length: List[int] = [days, hours, minutes]
-
+            return '', (None, None, None)
+    
+    years = int(time_re.group(2) or 0)
+    weeks = int(time_re.group(4) or 0)
+    days = int(time_re.group(6) or 0)
+    hours = int(time_re.group(8) or 0)
+    minutes = int(time_re.group(10) or 0)
+    seconds = int(time_re.group(12) or 0)
+    
+    # move years and weeks into days
+    total_days = (years * 365) + (weeks * 7) + days
+    
+    # keep hours the same
+    total_hours = hours
+    
+    # move seconds into minutes
+    if return_seconds:
+        total_minutes = minutes
+        total_seconds = seconds
     else:
-        return '', []
-    total_days = length[0] + length[1] / 24 + length[2] / 1440
-    # catch c integer overflow
-    if total_days > 1000000:
-        # reset to just 1000000 - 1 days
-        length = [999999, 0, 0]
+        total_minutes = int(minutes + seconds / 86400)
+        total_seconds = None
+    
+    if total_days > 1_000_000:
+        # to avoid C integer overflow at 1,000,000 days
+        length: tuple[int, int, int] = (999_999, 0, 0)
+    else:
+        length = (total_days, total_hours, total_minutes)
+        
     finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
-    time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    if return_seconds:
+        length += (total_seconds,)
+        finish_time += timedelta(seconds=length[3])
+    time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    
     return time_string, length
-
 
 
 def submod_check(ctx: commands.Context):
