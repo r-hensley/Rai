@@ -283,11 +283,33 @@ class ChannelMods(commands.Cog):
                     continue
                 await utils.safe_send(channel, embed=embed)
 
-    @commands.command(name="setdelay", aliases=["delay", "sd"])
+    @commands.command(name="setdelay", aliases=["delay", "sd", "slowmode"])
     @commands.bot_has_permissions(send_messages=True, manage_channels=True)
-    async def setdelay(self, ctx, seconds: int):
-        await ctx.channel.edit(slowmode_delay=seconds)
-        await ctx.send(f"Set the slowmode delay in this channel to {seconds} seconds!")
+    async def setdelay(self, ctx, time_in: str):
+        """
+        Set slowmode for a channel.
+        Usage: `;setdelay/sd/delay/slowmode <time: 1h, 3h10m, etc>`.
+        Examples:
+        - `;slowmode 5s`  Sets five second slowmode
+        - `;sd 2h`  Sets two hour slowmode
+        - `;delay 0` (or `0s`, `0m`, `0h`)  Disables slowmode
+        """
+        if len(time_in) in [1, 2] and time_in[0] == '0':
+            time_in = "0s"  # to be checked at final confirmation message again
+        time_string, (days, hours, minutes, seconds) = hf.parse_time(time_in, return_seconds=True)
+        if not time_string:
+            await utils.safe_reply(ctx,
+                                   "I could not parse your input. Please see the following.\n" + ctx.command.help)
+            return
+        total_seconds = days * 86400 + hours * 3600 + minutes * 60 + seconds
+        if not (0 <= total_seconds <= 21600):
+            await utils.safe_reply(ctx, "Slowmode must be between 0s and 6h.")
+            return
+        await ctx.channel.edit(slowmode_delay=total_seconds)
+        if time_in == '0s':
+            await utils.safe_reply(ctx, "Turned off slowmode!")
+        else:
+            await utils.safe_reply(ctx, f"Set the slowmode delay in this channel to {time_in}!")
 
     @commands.command(name="pin")
     # @commands.bot_has_permissions(send_messages=True, manage_messages=True)
