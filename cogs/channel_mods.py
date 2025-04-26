@@ -285,7 +285,7 @@ class ChannelMods(commands.Cog):
 
     @commands.command(name="setdelay", aliases=["delay", "sd", "slowmode"])
     @commands.bot_has_permissions(send_messages=True, manage_channels=True)
-    async def setdelay(self, ctx, time_in: str = "0s"):
+    async def setdelay(self, ctx, time_in: str = ''):
         """
         Set slowmode for a channel.
         Usage: `;setdelay/sd/delay/slowmode <time: 1h, 3h10m, etc>`.
@@ -294,6 +294,11 @@ class ChannelMods(commands.Cog):
         - `;sd 2h`  Sets two hour slowmode
         - `;delay 0` (or `0s`, `0m`, `0h`)  Disables slowmode
         """
+        if not time_in:
+            # if no argument was passed in
+            # this will cause slowmode to be disabled
+            time_in = '0s'
+
         if re.search(r'^\d+$', time_in):
             # they passed a single number as argument
             time_in = time_in + 's'
