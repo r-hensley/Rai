@@ -285,7 +285,7 @@ class ChannelMods(commands.Cog):
 
     @commands.command(name="setdelay", aliases=["delay", "sd", "slowmode"])
     @commands.bot_has_permissions(send_messages=True, manage_channels=True)
-    async def setdelay(self, ctx, time_in: str):
+    async def setdelay(self, ctx, time_in: str = "0s"):
         """
         Set slowmode for a channel.
         Usage: `;setdelay/sd/delay/slowmode <time: 1h, 3h10m, etc>`.
