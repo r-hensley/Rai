@@ -298,11 +298,12 @@ class ChannelMods(commands.Cog):
             # they passed a single number as argument
             time_in = time_in + 's'
             # default to seconds
-            
+
         if len(time_in) == 2 and time_in[0] == '0':
             time_in = "0s"  # to be checked at final confirmation message again
-            
-        time_string, (days, hours, minutes, seconds) = hf.parse_time(time_in, return_seconds=True)
+
+        time_string, (days, hours, minutes, seconds) = hf.parse_time(
+            time_in, return_seconds=True)
         if not time_string:
             await utils.safe_reply(ctx,
                                    "I could not parse your input. Please see the following.\n" + ctx.command.help)
