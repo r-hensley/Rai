@@ -300,7 +300,7 @@ class ChannelMods(commands.Cog):
             time_in = time_in + 's'
             # default to seconds
 
-        if re.search(r'^0[s,m,h,S,M,H]$', time_in):
+        if re.search(r'^0[smhSMH]$', time_in):
             time_in = ''  # to be checked at final confirmation message again
 
         time_string, (days, hours, minutes, seconds) = hf.parse_time(
