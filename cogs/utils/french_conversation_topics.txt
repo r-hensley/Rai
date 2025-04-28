@@ -156,7 +156,6 @@ Préférerais-tu avoir des lèvres gercées qui ne guérissent jamais ou des pel
 Préférerais-tu vivre sans eau chaude pour les douches/bains ou vivre sans machine à laver ?
 Préférerais-tu être seul·e pour le reste de ta vie ou être toujours entouré·e de personnes ennuyeuses ?
 Préférerais-tu être enfermé·e dans une pièce constamment sombre pendant une semaine ou une pièce constamment lumineuse pendant une semaine ?
-Préférerais-tu être accidentellement responsable de la mort d'un enfant ou accidentellement responsable de la mort de trois adultes ?
 Préférerais-tu savoir quand tu vas mourir ou comment tu vas mourir (tu ne peux pas changer le moment ou la méthode de ta mort) ?
 Préférerais-tu que tout ce que tu manges soit trop salé ou pas assez salé, quelle que soit la quantité de sel que tu ajoutes ?
 Préférerais-tu ne plus jamais devoir travailler ou dormir (tu ne te sentiras pas fatigué·e et ne souffriras pas d'effets négatifs sur ta santé) ? 
@@ -455,7 +454,6 @@ Quelle ancienne tendance revient en ce moment ?
 Quelle est une tendance de mode que tu es vraiment content·e d'avoir vu disparaître ?
 Quel est le vêtement le plus confortable que tu possèdes ?
 Quel est le vêtement le plus embarrassant que tu possèdes ?
-Comment les vêtements changent-ils la façon dont le sexe opposé perçoit une personne ?
 T'intéresses-tu à la mode ? Quel style de vêtements portes-tu habituellement ?
 Si tu ne te préoccupais pas du tout de ce que les gens pensent de toi, quels vêtements porterais-tu ?
 Quelle est la meilleure paire des chaussures que tu aies jamais eue ? Pourquoi étaient-elles si bonnes ?
@@ -859,7 +857,6 @@ Quel animal serait le plus terrifiant s'il pouvait parler ?
 Quelle est la pire coiffure que tu aies jamais eue ?
 Quelle est l'habitude que tu as maintenant et que tu aimerais avoir prise bien plus tôt ?
 Si l'on te donnait mille acres de terre exempts de taxes mais que tu ne pouvais pas vendre, que ferais-tu avec ?
-Qu'est-ce qui te trouble le plus dans le sexe opposé ?
 À quand remonte la dernière fois où tu as crié sur quelqu'un ?
 Quel est l'opposé d'un koala ?
 Quelles sortes de choses aimes-tu cuisiner ou sais-tu cuisiner ?
