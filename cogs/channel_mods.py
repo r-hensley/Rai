@@ -294,20 +294,17 @@ class ChannelMods(commands.Cog):
         - `;sd 2h`  Sets two hour slowmode
         - `;delay 0` (or `0s`, `0m`, `0h`)  Disables slowmode
         """
-        if not time_in:
-            # if no argument was passed in
-            # this will cause slowmode to be disabled
-            time_in = '0s'
-            
+
         if re.search(r'^\d+$', time_in):
             # they passed a single number as argument
             time_in = time_in + 's'
             # default to seconds
-            
-        if len(time_in) == 2 and time_in[0] == '0':
-            time_in = "0s"  # to be checked at final confirmation message again
-            
-        time_string, (days, hours, minutes, seconds) = hf.parse_time(time_in, return_seconds=True)
+
+        if re.search(r'^0[s,m,h,S,M,H]$', time_in):
+            time_in = ''  # to be checked at final confirmation message again
+
+        time_string, (days, hours, minutes, seconds) = hf.parse_time(
+            time_in, return_seconds=True)
         if not time_string:
             await utils.safe_reply(ctx,
                                    "I could not parse your input. Please see the following.\n" + ctx.command.help)
@@ -317,7 +314,7 @@ class ChannelMods(commands.Cog):
             await utils.safe_reply(ctx, "Slowmode must be between 0s and 6h.")
             return
         await ctx.channel.edit(slowmode_delay=total_seconds)
-        if time_in == '0s':
+        if not time_in:
             await utils.safe_reply(ctx, "Turned off slowmode!")
         else:
             await utils.safe_reply(ctx, f"Set the slowmode delay in this channel to {time_in}!")
