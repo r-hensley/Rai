@@ -850,7 +850,7 @@ class Owner(commands.Cog):
     async def raise_error(self, _):
         """Raises an error for testing purposes"""
         print("raising error")
-        raise Exception
+        x = 1 / 0
 
     @commands.command()
     async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
