@@ -669,8 +669,9 @@ class ChannelMods(commands.Cog):
         except ValueError as e:
             await utils.safe_reply(ctx, f"Error: {e}")
             return
-        if not to_add_lang_roles:
-            await utils.safe_reply(ctx, "There was an error with one of the roles you tried to specify.")
+        if not to_add_lang_roles and not to_remove:
+            await utils.safe_reply(ctx, "There are no changes for me to make (maybe this user already has "
+                                        "these roles).")
             return
 
         try:
