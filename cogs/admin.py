@@ -838,7 +838,7 @@ class Admin(commands.Cog):
         To remove the mod role, type `;set_mod_role none`."""
         config = hf.database_toggle(ctx.guild, self.bot.db['mod_role'])
         if 'enable' in config:
-            del (config['enable'])
+            del config['enable']
         if role_name.casefold() == "none":
             del self.bot.db['mod_role'][str(ctx.guild.id)]
             await utils.safe_send(ctx, "Removed mod role setting for this server")
@@ -944,7 +944,7 @@ class Admin(commands.Cog):
         else:
             target_id = target_obj.id
         try:
-            del (config[str(target_id)])
+            del config[str(target_id)]
             await utils.safe_send(ctx, f"Removed <@{target_id}> from super_watch list")
         except KeyError:
             await utils.safe_send(ctx, "That user wasn't on the super_watch list")
@@ -2159,7 +2159,7 @@ class Admin(commands.Cog):
                 await msg.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            del (config[msg.content])
+            del config[msg.content]
             await menu.edit(embed=utils.green_embed("Success! I've deleted that filter."))
         else:
             try:
