@@ -23,7 +23,7 @@ async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_hist
         return join_history
     notification_message_url = join_history['jump_url']
     # example: https://discord.com/channels/266695661670367232/321837027295363073/858265556297187328
-    guild_id, channel_id, message_id = map(
+    _guild_id, channel_id, message_id = map(
         int, notification_message_url.split('/')[-3:])
     channel = ctx.bot.get_channel(channel_id)
 
@@ -885,7 +885,7 @@ class ChannelMods(commands.Cog):
         ]
 
         for test_case in test_cases:
-            to_add_lang_roles, to_remove, final_roles = await self.process_role_changes(guild, test_case[0], test_case[1])
+            _to_add_lang_roles, _to_remove, final_roles = await self.process_role_changes(guild, test_case[0], test_case[1])
             final_roles = {roles[role.id] for role in final_roles}
 
             assert final_roles == test_case[2], f"Failed test case: {test_case}, result: {final_roles}"
@@ -1278,7 +1278,7 @@ class ChannelMods(commands.Cog):
                             continue
                         if not channel:
                             continue
-                    attachment_id = (int(attachment[1]))
+                    attachment_id = int(attachment[1])
 
                     async def find_attachment(message_id):
                         async for m in channel.history(limit=5, around=discord.Object(id=message_id)):
@@ -1292,7 +1292,7 @@ class ChannelMods(commands.Cog):
                             value = re.sub(
                                 rf"https://cdn\.discordapp\.com/attachments/\d+/{attachment_id}/[\w.&=?]*",
                                 new_url, value)
-                    except (discord.Forbidden, discord.HTTPException, IndexError) as e:
+                    except (discord.Forbidden, discord.HTTPException, IndexError):
                         continue
 
             if (len(emb) + len(name) + len(value[:1024])) > 6000:
@@ -1670,7 +1670,6 @@ class ChannelMods(commands.Cog):
                 except discord.Forbidden:
                     await utils.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
                                                "keep them muted but they won't receive the notification for it.")
-                    pass
 
             # Prepare confirmation message to be sent to ctx channel of mute command
             notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chats."
