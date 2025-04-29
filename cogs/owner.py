@@ -62,7 +62,7 @@ class Owner(commands.Cog):
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day,
                             "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
-                    del (config[guild_id]['messages'][day])
+                    del config[guild_id]['messages'][day]
                 else:
                     message_count += config[guild_id]['messages'][day]
 
@@ -71,7 +71,7 @@ class Owner(commands.Cog):
                 days_ago = (discord.utils.utcnow() - datetime.strptime(day,
                             "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
-                    del (config[guild_id]['commands'][day])
+                    del config[guild_id]['commands'][day]
                 else:
                     command_count += config[guild_id]['commands'][day]
 
@@ -252,10 +252,10 @@ class Owner(commands.Cog):
 
             # Split the output into chunks Discord can send
             chunks = utils.split_text_into_segments(formatted_structure, 1900)
-            for i, chunk in enumerate(chunks[:3]):
+            for _i, chunk in enumerate(chunks[:3]):
                 await ctx.send(f"```json\n{chunk}```")
             if len(chunks) > 3:
-                await ctx.send(f"Output truncated. Showing only the first 3 messages.")
+                await ctx.send("Output truncated. Showing only the first 3 messages.")
 
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
@@ -366,7 +366,7 @@ class Owner(commands.Cog):
         try:
             await self.bot.load_extension(f'cogs.{cog}')
         except Exception as e:
-            await utils.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
+            await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
             await utils.safe_send(ctx, '**`SUCCESS`**')
 
@@ -375,7 +375,7 @@ class Owner(commands.Cog):
         try:
             await self.bot.unload_extension(f'cogs.{cog}')
         except Exception as e:
-            await utils.safe_send(ctx, '**`ERROR:`** {} - {}'.format(type(e).__name__, e))
+            await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
             await utils.safe_send(ctx, '**`SUCCESS`**')
 
@@ -636,7 +636,7 @@ class Owner(commands.Cog):
 
     @commands.command(aliases=['fd'])
     async def get_left_users(self, ctx):
-        print(f'>>finding messages<<')
+        print('>>finding messages<<')
         channel = self.bot.get_channel(277384105245802497)
         name_to_id = {role.name: role.id for role in channel.guild.roles}
         # id_to_role = {role.id: role for role in channel.guild.roles}
@@ -948,7 +948,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def mostbansdate(self, ctx: commands.Context):
         """Finds the date of the most bans"""
-        seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
+        _seven_days_ago = discord.utils.utcnow() - timedelta(days=7)
         daily_bans = Counter()
 
         # save bans locally, so I don't keep spamming audit log
