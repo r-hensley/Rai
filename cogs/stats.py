@@ -40,8 +40,8 @@ async def add_message_to_database(msg):
             await c.execute(f"INSERT OR IGNORE INTO channels (channel_id) VALUES ({msg.channel.id})")
             await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES ({msg.author.id})")
 
-            query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
-                f"VALUES (?, ?, ?, ?, ?)"
+            query = "INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
+                "VALUES (?, ?, ?, ?, ?)"
             parameters = (msg.id, msg.author.id,
                           msg.guild.id, msg.channel.id, lang)
             await c.execute(query, parameters)
@@ -951,8 +951,8 @@ class Stats(commands.Cog):
                     (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id],
                      channel_dict[msg.channel.id], 'en')
                     for msg in message_pool]
-                query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
-                    f"VALUES (?, ?, ?, ?, ?)"
+                query = "INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
+                    "VALUES (?, ?, ?, ?, ?)"
                 await c.executemany(query, param_list)
 
     @commands.Cog.listener()
