@@ -900,11 +900,11 @@ class ChannelMods(commands.Cog):
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
         member: discord.Member = await utils.member_converter(ctx, id_in)
         if member:
-            user: Optional[Union[discord.User, discord.Member]] = member
+            user: discord.Member = member
             user_id = str(member.id)
         else:
             try:
-                user = await self.bot.fetch_user(int(id_in))
+                user: discord.User = await self.bot.fetch_user(int(id_in))
                 user_id = id_in
             except discord.NotFound:
                 user = user_id = None
