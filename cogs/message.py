@@ -6,8 +6,8 @@ import time
 import traceback
 import urllib
 from datetime import timedelta
-from functools import wraps, partial
-from typing import Optional, Any
+from functools import wraps
+from typing import Optional
 from urllib.error import HTTPError
 
 import discord
@@ -15,13 +15,13 @@ import openai
 from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
-from openai.types import Moderation
+
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from Levenshtein import distance as LDist
-from deep_translator import GoogleTranslator, single_detection
+from deep_translator import GoogleTranslator
 
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
