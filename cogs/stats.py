@@ -41,8 +41,9 @@ async def add_message_to_database(msg):
             await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES ({msg.author.id})")
 
             query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
-                    f"VALUES (?, ?, ?, ?, ?)"
-            parameters = (msg.id, msg.author.id, msg.guild.id, msg.channel.id, lang)
+                f"VALUES (?, ?, ?, ?, ?)"
+            parameters = (msg.id, msg.author.id,
+                          msg.guild.id, msg.channel.id, lang)
             await c.execute(query, parameters)
     print('\n\n', msg.author, msg.content, msg.guild.name, query, parameters)
     sys.stdout.flush()
@@ -133,8 +134,10 @@ class Stats(commands.Cog):
                     continue
                 user = config[day][str(member_id)]
                 for channel in user.get('channels', []):
-                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
-        sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
+                    message_count[channel] = message_count.get(
+                        channel, 0) + user['channels'][channel]
+        sorted_msgs = sorted(message_count.items(),
+                             key=lambda x: x[1], reverse=True)
         emb = discord.Embed(title=f'Usage stats for {name_str}',
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
@@ -151,7 +154,8 @@ class Stats(commands.Cog):
                 if channel_tuple[0] in self.bot.stats[str(ctx.guild.id)]['hidden']:
                     continue
             try:
-                channel = ctx.guild.get_channel_or_thread(int(channel_tuple[0]))
+                channel = ctx.guild.get_channel_or_thread(
+                    int(channel_tuple[0]))
                 if not channel:
                     continue
                 lb += (f"**{index}) {escape_markdown(channel.name)}**: "
@@ -203,8 +207,10 @@ class Stats(commands.Cog):
         # If user in bot.db['joindates'], override their join date for users who have left and rejoined server
         if member:
             if str(member.id) in self.bot.db.setdefault('joindates', {}):
-                actual_joined_timestamp = self.bot.db['joindates'][str(member.id)]
-                member.joined_at = datetime.fromtimestamp(actual_joined_timestamp, tz=timezone.utc)
+                actual_joined_timestamp = self.bot.db['joindates'][str(
+                    member.id)]
+                member.joined_at = datetime.fromtimestamp(
+                    actual_joined_timestamp, tz=timezone.utc)
 
         # ### Collect all the data from the database ###
         total_activity = hf.count_activity(user_id, ctx.guild)
@@ -212,10 +218,13 @@ class Stats(commands.Cog):
             hf.get_stats_per_channel(user_id, ctx.guild)
 
         # ### Sort the data ###
-        sorted_msgs = sorted(message_count.items(), key=lambda x: x[1], reverse=True)
+        sorted_msgs = sorted(message_count.items(),
+                             key=lambda x: x[1], reverse=True)
         # looks like [('284045742652260352', 15), ('296491080881537024', 3), ('296013414755598346', 1)]
-        sorted_emojis = sorted(emoji_count.items(), key=lambda x: x[1], reverse=True)
-        sorted_langs = sorted(lang_count.items(), key=lambda x: x[1], reverse=True)
+        sorted_emojis = sorted(emoji_count.items(),
+                               key=lambda x: x[1], reverse=True)
+        sorted_langs = sorted(lang_count.items(),
+                              key=lambda x: x[1], reverse=True)
 
         # ### Make embed ###
         if member:
@@ -255,7 +264,8 @@ class Stats(commands.Cog):
         # ### Format top 3 channels text field / Add field to embed ###
         def format_channel(number):
             channel_id = sorted_msgs[number][0]
-            message_percentage = round(100 * sorted_msgs[number][1] / total_msgs_month, 2)
+            message_percentage = round(
+                100 * sorted_msgs[number][1] / total_msgs_month, 2)
             if channel_id == '0':  # category for all deleted channels
                 text = f"**#Deleted Channels**: {message_percentage}%⠀\n"
             else:
@@ -276,7 +286,8 @@ class Stats(commands.Cog):
                           value=f"{channeltext}")
 
         # ### Calculate voice time / Add field to embed ###
-        voice_time: int = hf.calculate_voice_time(user_id, ctx.guild.id)  # number of minutes
+        voice_time: int = hf.calculate_voice_time(
+            user_id, ctx.guild.id)  # number of minutes
         if voice_time:
             emb.add_field(name="Time in voice chats",
                           value=format_interval(voice_time))
@@ -339,7 +350,8 @@ class Stats(commands.Cog):
                     join_order = sorted_members_by_join.index(i)
                     break
             if join_order + 1:
-                emb.set_footer(text=f"(#{join_order + 1} to join this server) Joined on:")
+                emb.set_footer(
+                    text=f"(#{join_order + 1} to join this server) Joined on:")
 
         # ### Send ###
         if post_embed:
@@ -362,13 +374,16 @@ class Stats(commands.Cog):
                             timestamp=discord.utils.utcnow())
 
         if "Activity Score" in title:
-            emb.set_footer(text="Try `;lb` or `;chlb` for the message count leaderboard")
+            emb.set_footer(
+                text="Try `;lb` or `;chlb` for the message count leaderboard")
         else:
-            emb.set_footer(text="Try `;alb` or `;achlb` for the activity score leaderboard")
+            emb.set_footer(
+                text="Try `;alb` or `;achlb` for the activity score leaderboard")
 
         if channel_in:
             if isinstance(channel_in, list):
-                emb.title += " for #" + ', #'.join([c.name for c in channel_in])
+                emb.title += " for #" + \
+                    ', #'.join([c.name for c in channel_in])
             else:
                 emb.title += " for #{channel_in.name}"
         number_of_users_found = 0
@@ -381,7 +396,8 @@ class Stats(commands.Cog):
                         number_of_users_found > 24 and member == ctx.author:
                     value = sorted_dict[i][1]
                     if title.startswith("Voice"):
-                        value = format_interval(value * 60)  # value is counted in minutes
+                        # value is counted in minutes
+                        value = format_interval(value * 60)
                     emb.add_field(name=f"{number_of_users_found + 1}) {escape_markdown(member.name)}",
                                   value=value)
                 number_of_users_found += 1
@@ -541,7 +557,8 @@ class Stats(commands.Cog):
                     else:
                         emojis[emoji] = config[date][user_id]['emoji'][emoji]
 
-        emoji_dict: dict[str, discord.Emoji] = {emoji.name: emoji for emoji in ctx.guild.emojis}
+        emoji_dict: dict[str, discord.Emoji] = {
+            emoji.name: emoji for emoji in ctx.guild.emojis}
         msg = 'Top Emojis:\n'
 
         if args == '-s':
@@ -555,7 +572,8 @@ class Stats(commands.Cog):
             args = '-a'
             msg = 'Scaled Emoji Counts (last 30 days, emojis created in the last 30 days have ' \
                   'numbers scaled to 30 days):\n'
-        top_emojis = sorted(list(emojis.items()), key=lambda x: x[1], reverse=True)
+        top_emojis = sorted(list(emojis.items()),
+                            key=lambda x: x[1], reverse=True)
 
         saved_msgs = []
 
@@ -580,7 +598,8 @@ class Stats(commands.Cog):
         elif args == '-l':
             emb = utils.red_embed("Least Used Emojis (last 30 days)")
 
-            zero_use_emoji_list = [e for e in ctx.guild.emojis if not e.animated and '_kana_' not in e.name]
+            zero_use_emoji_list = [
+                e for e in ctx.guild.emojis if not e.animated and '_kana_' not in e.name]
             uses_to_emoji_list_dict = {}
             for emoji in top_emojis:
                 try:
@@ -591,9 +610,11 @@ class Stats(commands.Cog):
                     continue
 
                 if emoji_obj in zero_use_emoji_list:
-                    zero_use_emoji_list.remove(emoji_obj)  # now a list of emojis with zero uses
+                    # now a list of emojis with zero uses
+                    zero_use_emoji_list.remove(emoji_obj)
 
-                uses_to_emoji_list_dict.setdefault(emoji[1], []).append(emoji_obj)
+                uses_to_emoji_list_dict.setdefault(
+                    emoji[1], []).append(emoji_obj)
 
             if zero_use_emoji_list:
                 uses_to_emoji_list_dict[0] = zero_use_emoji_list
@@ -614,7 +635,8 @@ class Stats(commands.Cog):
                         if len(field_value + new_addition) < 1024:
                             field_value += new_addition
                         else:
-                            emb.add_field(name=field_name, value=field_value, inline=True)
+                            emb.add_field(name=field_name,
+                                          value=field_value, inline=True)
 
                             if field_counter == 1:
                                 field_name = f"{field_counter} use (cont.)"
@@ -625,9 +647,11 @@ class Stats(commands.Cog):
                         total_emojis += 1
 
                     if 'cont' in field_name:
-                        emb.add_field(name=field_name, value=field_value, inline=True)
+                        emb.add_field(name=field_name,
+                                      value=field_value, inline=True)
                     else:
-                        emb.add_field(name=field_name, value=field_value, inline=False)
+                        emb.add_field(name=field_name,
+                                      value=field_value, inline=False)
 
                 field_counter += 1
 
@@ -640,7 +664,8 @@ class Stats(commands.Cog):
                 if field_counter < 25:
                     if emoji[0] in emoji_dict:
                         emoji_obj = emoji_dict[emoji[0]]
-                        emb.add_field(name=f"{field_counter + 1}) {str(emoji_obj)}", value=emoji[1])
+                        emb.add_field(
+                            name=f"{field_counter + 1}) {str(emoji_obj)}", value=emoji[1])
                         field_counter += 1
                 else:
                     break
@@ -684,7 +709,7 @@ class Stats(commands.Cog):
             else:
                 config.append(channel_id)
                 await utils.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
-                                           f"When someone calls their stats page, it will not be shown.")
+                                      f"When someone calls their stats page, it will not be shown.")
 
         # view list of channels
         elif flag in ['list', 'view'] and config:
@@ -743,10 +768,12 @@ class Stats(commands.Cog):
                 return
 
         if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
-            user_sentiment = self.bot.db['sentiments'][str(ctx.guild.id)].get(user_id, [])
+            user_sentiment = self.bot.db['sentiments'][str(
+                ctx.guild.id)].get(user_id, [])
             len_user_sentiment = len(user_sentiment)
             if user_sentiment:
-                user_sentiment = round(sum(user_sentiment) * 1000 / len_user_sentiment, 2)
+                user_sentiment = round(
+                    sum(user_sentiment) * 1000 / len_user_sentiment, 2)
         else:
             return
 
@@ -755,14 +782,14 @@ class Stats(commands.Cog):
         else:
             if len_user_sentiment == 1000:
                 reply_text = f"{str(user)}'s current sentiment rating (last 1000 messages) " \
-                             f"is **{user_sentiment}**." \
-                             f"\n([What is a 'sentiment rating'?]" \
-                             f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
+                    f"is **{user_sentiment}**." \
+                    f"\n([What is a 'sentiment rating'?]" \
+                    f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
             else:
                 reply_text = f"{str(user)}'s current sentiment rating ({len_user_sentiment} scaled up " \
-                             f"to 1000 messages) is **{user_sentiment}**." \
-                             f"\n([What is a 'sentiment rating'?]" \
-                             f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
+                    f"to 1000 messages) is **{user_sentiment}**." \
+                    f"\n([What is a 'sentiment rating'?]" \
+                    f"(https://medium.com/@piocalderon/vader-sentiment-analysis-explained-f1c4f9101cd9))"
             emb = utils.green_embed(reply_text)
             footer_msg = ["Check the leaderboard with ;slb", "Sentiment is only recorded for English messages",
                           "Users with at least 1000 English messages calculated with sentiment will appear in the "
@@ -804,10 +831,12 @@ class Stats(commands.Cog):
             if member_tuple[0] == ctx.author:
                 found_author = True
             if pos <= 25:
-                emb.add_field(name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
+                emb.add_field(
+                    name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
             else:
                 if found_author:
-                    emb.set_field_at(24, name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
+                    emb.set_field_at(
+                        24, name=f"{pos}) {str(member_tuple[0])}", value=member_tuple[1])
                     break
             pos += 1
 
@@ -829,7 +858,8 @@ class Stats(commands.Cog):
 
         fig, ax = plt.subplots()
 
-        msgs_per_day: dict[datetime, int] = hf.get_messages_per_day(user.id, ctx.guild)
+        msgs_per_day: dict[datetime, int] = hf.get_messages_per_day(
+            user.id, ctx.guild)
         if not msgs_per_day:
             await utils.safe_reply(ctx, "The user you specified has no activity in the last month.")
             return
@@ -878,9 +908,12 @@ class Stats(commands.Cog):
         existing_channels = {c_id[0] for c_id in channels}
         existing_users = {u_id[0] for u_id in users}
 
-        new_guild_ids = {msg.guild.id for msg in message_pool if msg.guild.id not in existing_guilds}
-        new_channel_ids = {msg.channel.id for msg in message_pool if msg.channel.id not in existing_channels}
-        new_user_ids = {msg.author.id for msg in message_pool if msg.author.id not in existing_users}
+        new_guild_ids = {
+            msg.guild.id for msg in message_pool if msg.guild.id not in existing_guilds}
+        new_channel_ids = {
+            msg.channel.id for msg in message_pool if msg.channel.id not in existing_channels}
+        new_user_ids = {
+            msg.author.id for msg in message_pool if msg.author.id not in existing_users}
 
         guild_dict = {g_id[0]: g_id[1] for g_id in guilds}  # Create only once
         channel_dict = {c_id[0]: c_id[1] for c_id in channels}
@@ -915,10 +948,11 @@ class Stats(commands.Cog):
                     user_dict.update({row[0]: row[1] for row in await res.fetchall()})
 
                 param_list = [
-                    (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id], channel_dict[msg.channel.id], 'en')
+                    (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id],
+                     channel_dict[msg.channel.id], 'en')
                     for msg in message_pool]
                 query = f"INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
-                        f"VALUES (?, ?, ?, ?, ?)"
+                    f"VALUES (?, ?, ?, ?, ?)"
                 await c.executemany(query, param_list)
 
     @commands.Cog.listener()
@@ -946,14 +980,17 @@ class Stats(commands.Cog):
     @commands.command(aliases=['agelb'])
     async def age_leaderboard(self, ctx: commands.Context, less_than: int = 500):
         """Make a leaderbord of the oldest users in the server that have at least five messages in the last month"""
-        activity_list: list[tuple[discord.Member, int]] = hf.get_top_server_members(ctx.guild, True)
+        activity_list: list[tuple[discord.Member, int]
+                            ] = hf.get_top_server_members(ctx.guild, True)
         oldest_users = []
         for member, activity in activity_list:
             if activity < less_than:
                 continue
             if str(member.id) in self.bot.db['joindates']:
-                actual_joined_timestamp = self.bot.db['joindates'][str(member.id)]
-                member.joined_at = datetime.fromtimestamp(actual_joined_timestamp, tz=timezone.utc)
+                actual_joined_timestamp = self.bot.db['joindates'][str(
+                    member.id)]
+                member.joined_at = datetime.fromtimestamp(
+                    actual_joined_timestamp, tz=timezone.utc)
             oldest_users.append((member, member.joined_at))
         oldest_users.sort(key=lambda x: x[1], reverse=False)
         emb = utils.green_embed("")
@@ -968,7 +1005,8 @@ class Stats(commands.Cog):
                               value=discord.utils.format_dt(user_tuple[1], style='d'))
             elif pos == 25:
                 try:
-                    self_joined_pos = oldest_users.index((ctx.author, ctx.author.joined_at)) + 1
+                    self_joined_pos = oldest_users.index(
+                        (ctx.author, ctx.author.joined_at)) + 1
                 except ValueError:
                     self_joined_pos = None
                 if not found_self and self_joined_pos:
