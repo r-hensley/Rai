@@ -2,7 +2,6 @@ import asyncio
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from re._constants import error as sre_constants_error
 from typing import Optional, List
 
 import aiohttp
@@ -2095,7 +2094,7 @@ class Admin(commands.Cog):
 
         try:
             re.compile(msg.content)
-        except sre_constants_error as e:
+        except re.PatternError as e:
             await menu.edit(embed=utils.red_embed(f"Your regex returned an error: `{e}`."))
             return
 
