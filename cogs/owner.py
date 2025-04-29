@@ -545,8 +545,8 @@ class Owner(commands.Cog):
 
         func = env['func']
         # noinspection PyBroadException
+        ret = None
         try:
-            ret = None
             with redirect_stdout(stdout):
                 ret = await asyncio.wait_for(func(), seconds)
         except asyncio.TimeoutError:
