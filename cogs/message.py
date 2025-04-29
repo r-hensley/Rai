@@ -998,7 +998,7 @@ class Message(commands.Cog):
             return
 
         if msg.reference:
-            if type(msg.reference.resolved) == discord.Message:
+            if isinstance(msg.reference.resolved, discord.Message):
                 await msg.reference.resolved.reply(ping)
             else:
                 await msg.reply(ping)
