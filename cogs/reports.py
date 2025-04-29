@@ -137,7 +137,7 @@ class Reports(commands.Cog):
         try:
             mod_channel = self.bot.db['mod_channel'][str(ctx.guild.id)]
             if not mod_channel:
-                del (self.bot.db['mod_channel'][str(ctx.guild.id)])
+                del self.bot.db['mod_channel'][str(ctx.guild.id)]
                 await utils.safe_send(ctx, "Please set a mod channel by typing `;set_mod_channel` in a channel.")
                 return
         except KeyError:
