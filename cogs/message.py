@@ -164,7 +164,7 @@ class Message(commands.Cog):
             else:
                 raise
 
-    async def lang_check(self, msg: hf.RaiMessage) -> (Optional[str], bool):
+    async def lang_check(self, msg: hf.RaiMessage) -> tuple[Optional[str], bool]:
         """
         Will check if above 3 characters + hardcore, or if above 15 characters + stats
         :param msg:
