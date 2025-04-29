@@ -332,7 +332,7 @@ class Reports(commands.Cog):
         await msg.add_reaction('4⃣')  # cancel
 
         try:
-            reaction, user = await ctx.bot.wait_for('reaction_add', timeout=300.0, check=check)
+            reaction, _user = await ctx.bot.wait_for('reaction_add', timeout=300.0, check=check)
             return reaction
         except asyncio.TimeoutError:
             await utils.safe_send(ctx.author, "Module timed out.")
