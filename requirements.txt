@@ -70,3 +70,6 @@ python-dotenv
 emoji
 langdetect
 ipywidgets
+openai
+lingua-language-detector
+deep-translator

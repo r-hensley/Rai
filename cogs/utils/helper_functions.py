@@ -50,6 +50,7 @@ BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
 CH_SERV_ID = 266695661670367232
 JP_SERVER_ID = 189571157446492161
+REAL_RAI_ID = 270366726737231884
 FEDE_GUILD = discord.Object(941155953682821201)
 RY_SERV = discord.Object(275146036178059265)
 
@@ -958,18 +959,26 @@ async def log_message_context(interaction: discord.Interaction, message: discord
     await Interactions.log_message(interaction, message)
 
 
-async def hf_sync():
-    # Sp serv
-    commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
-                        context_view_modlog, context_view_user_stats, get_id_from_message,
-                        ban_and_clear_member, ban_and_clear_message, log_message_context]
-
+async def hf_sync(remove=False):
+    # only sync context menu commands for real Rai bot (not forks)
+    if here.bot.user.id == REAL_RAI_ID:
+        commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
+                            context_view_modlog, context_view_user_stats, get_id_from_message,
+                            ban_and_clear_member, ban_and_clear_message, log_message_context]
+    else:
+        # commands_in_file = []
+        pass
+        
+    # add option to forcibly remove commands. this is really here for demonstration / ;eval use
+    if remove:
+        here.bot.tree.clear_commands(guild=SP_SERV_GUILD)
+        here.bot.tree.clear_commands(guild=JP_SERV_GUILD)
+    
     # Add any commands from this file not currently registered in the tree (new/renamed commands)
     for command in commands_in_file:
         # if command.name not in command_names_in_tree:
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
         here.bot.tree.add_command(command, guild=JP_SERV_GUILD, override=True)
-
 
     # Try to sync
     try:
