@@ -388,7 +388,7 @@ class Stats(commands.Cog):
                 emb.title += " for #{channel_in.name}"
         number_of_users_found = 0
         found_yourself = False
-        for i in range(len(sorted_dict)):
+        for i, sorted_dict in enumerate(sorted_dict):
             member = ctx.guild.get_member(int(sorted_dict[i][0]))
             if member:
                 if number_of_users_found < 24 or \
