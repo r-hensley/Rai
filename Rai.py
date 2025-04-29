@@ -33,11 +33,11 @@ intents.message_content = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 try:
-    with open(f"{dir_path}/.env", 'r') as f:
+    with open(f"{dir_path}/.env", 'r', encoding='utf-8') as f:
         pass
 except FileNotFoundError:
     txt = """BOT_TOKEN=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL=\nOWNER_ID=\nGCSE_API="""
-    with open(f'{dir_path}/.env', 'w') as f:
+    with open(f'{dir_path}/.env', 'w', encoding='utf-8') as f:
         f.write(txt)
     print("I've created a .env file for you, go in there and put your bot token in the file, as well as a "
           "spot to put a channel ID for a channel for logging tracebacks.\n"
@@ -89,7 +89,7 @@ class Rai(Bot):
         print('starting loading of jsons')
         # Create json files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
-            db = open(f"{dir_path}/db.json", 'w')
+            db = open(f"{dir_path}/db.json", 'w', encoding='utf-8')
             new_db = {'ultraHardcore': {}, 'hardcore': {}, 'welcome_message': {}, 'roles': {}, 'ID': {},
                       'mod_channel': {}, 'mod_role': {}, 'deletes': {}, 'nicknames': {}, 'edits': {},
                       'leaves': {}, 'reactions': {}, 'captcha': {}, 'bans': {}, 'kicks': {}, 'welcomes': {},
@@ -108,12 +108,12 @@ class Rai(Bot):
             json.dump(new_db, db)
             db.close()
         if not os.path.exists(f"{dir_path}/stats.json"):
-            db = open(f"{dir_path}/stats.json", 'w')
+            db = open(f"{dir_path}/stats.json", 'w', encoding='utf-8')
             print("Creating new stats database.")
             json.dump({}, db)
             db.close()
         if not os.path.exists(f"{dir_path}/message_queue.json"):
-            db = open(f"{dir_path}/message_queue.json", 'w')
+            db = open(f"{dir_path}/message_queue.json", 'w', encoding='utf-8')
             print("Creating new message_queue database.")
             json.dump({}, db)
             db.close()
