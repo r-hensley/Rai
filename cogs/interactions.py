@@ -39,7 +39,8 @@ DATABASE_PATH = rf'{dir_path}/database.db'
 
 async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
     qualified_name = getattr(interaction.command, 'qualified_name', None)
-    e = discord.Embed(title=f'App Command Error ({interaction.type})', colour=0xcc3366)
+    e = discord.Embed(
+        title=f'App Command Error ({interaction.type})', colour=0xcc3366)
     if qualified_name:
         e.add_field(name='Name', value=qualified_name)
     e.add_field(name='Author', value=interaction.user)
@@ -57,7 +58,7 @@ async def on_tree_error(interaction: discord.Interaction, error: discord.app_com
         e.add_field(name="Extras", value=f"```{interaction.extras}```")
 
     await utils.send_error_embed(interaction.client, interaction, error, e)
-    
+
 
 class ModlogReasonModal(ui.Modal, title='Modlog Entry Reason'):
     default_reason = "Muted with command shortcut"
@@ -215,7 +216,8 @@ class Interactions(commands.Cog):
                                             ephemeral=True)
             return
 
-        member_list: List[str] = list(set(regex_result))  # unique list of users
+        member_list: List[str] = list(
+            set(regex_result))  # unique list of users
 
         if len(member_list) > 9:
             if slash:
@@ -243,7 +245,7 @@ class Interactions(commands.Cog):
 
         alarm_emb = discord.Embed(title="Staff Ping",
                                   description=f"- **From**: {from_text}"
-                                              f"\n- **In**: {ctx.channel.mention}",
+                                  f"\n- **In**: {ctx.channel.mention}",
                                   color=discord.Color(int('FFAA00', 16)),
                                   timestamp=discord.utils.utcnow())
         if jump_url:
@@ -253,9 +255,11 @@ class Interactions(commands.Cog):
         if user_id_str:
             alarm_emb.description += f"\n- **Reported Users**: {user_id_str}"
         if ref_msg:
-            alarm_emb.add_field(name="Reported message content", value=ref_msg.content[:1024])
+            alarm_emb.add_field(name="Reported message content",
+                                value=ref_msg.content[:1024])
 
-        button_author = discord.ui.Button(label='0', style=discord.ButtonStyle.primary)
+        button_author = discord.ui.Button(
+            label='0', style=discord.ButtonStyle.primary)
 
         button_1 = discord.ui.Button(label='1', style=discord.ButtonStyle.gray)
         button_2 = discord.ui.Button(label='2', style=discord.ButtonStyle.gray)
@@ -267,7 +271,8 @@ class Interactions(commands.Cog):
         button_8 = discord.ui.Button(label='8', style=discord.ButtonStyle.gray)
         button_9 = discord.ui.Button(label='9', style=discord.ButtonStyle.gray)
 
-        button_solved = discord.ui.Button(label='Mark as Solved', style=discord.ButtonStyle.green)
+        button_solved = discord.ui.Button(
+            label='Mark as Solved', style=discord.ButtonStyle.green)
 
         buttons = [button_author, button_1, button_2, button_3, button_4,
                    button_5, button_6, button_7, button_8, button_9]
@@ -373,7 +378,8 @@ class Interactions(commands.Cog):
             new_embed = msg.embeds[0]
             new_embed.color = 0x77B255  # green background color of the checkmark ✅
             new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
-            new_embed.set_footer(text=f"Resolved by {str(button_interaction.user)}")
+            new_embed.set_footer(
+                text=f"Resolved by {str(button_interaction.user)}")
             await msg.edit(view=None, embed=new_embed)
             await msg.add_reaction("✅")
 
@@ -383,7 +389,8 @@ class Interactions(commands.Cog):
 
         # Try to find the channel set by the staffping command first
         mod_channel = None
-        mod_channel_id = self.bot.db['staff_ping'].get(guild_id, {}).get("channel")
+        mod_channel_id = self.bot.db['staff_ping'].get(
+            guild_id, {}).get("channel")
         if mod_channel_id:
             mod_channel = ctx.guild.get_channel_or_thread(mod_channel_id)
             if not mod_channel:
@@ -417,9 +424,11 @@ class Interactions(commands.Cog):
         if slash:
             config = self.bot.db['staff_ping'].get(guild_id)
             if config:
-                staff_role_id = config.get("role")  # try to get role id from staff_ping db
+                # try to get role id from staff_ping db
+                staff_role_id = config.get("role")
                 if not staff_role_id:  # no entry in staff_ping db
-                    staff_role_id = self.bot.db['mod_role'].get(guild_id, {}).get("id")
+                    staff_role_id = self.bot.db['mod_role'].get(
+                        guild_id, {}).get("id")
                     if isinstance(staff_role_id, list):
                         staff_role_id = staff_role_id[0]
         if staff_role_id:
@@ -489,7 +498,8 @@ class Interactions(commands.Cog):
             """
             Create embed callback should send a blank template embed and then launch the edit_embed code on it
             """
-            template_embed = discord.Embed(title="Title", description="Description")
+            template_embed = discord.Embed(
+                title="Title", description="Description")
             template_embed.set_footer(text="Footer")
 
             try:
@@ -531,7 +541,8 @@ class Interactions(commands.Cog):
             await self.edit_embed(interaction=interaction, msg=msg)
             return
 
-        embed = discord.Embed(description="Click the following buttons to edit the above embed")
+        embed = discord.Embed(
+            description="Click the following buttons to edit the above embed")
 
         add_button_button = ui.Button(style=discord.ButtonStyle.primary,
                                       label="Add a button",
@@ -607,7 +618,8 @@ class Interactions(commands.Cog):
 
         async def button_callback(button_interaction: discord.Interaction):
             modal = JumpURLModal()
-            await button_interaction.response.send_modal(modal)  # This should make a call to edit_embed()
+            # This should make a call to edit_embed()
+            await button_interaction.response.send_modal(modal)
 
         input_jump_url_button.callback = button_callback
 
@@ -641,8 +653,10 @@ class Interactions(commands.Cog):
 
         s = ''
         if category:
-            config = self.bot.db['voice_lock'].setdefault(str(interaction.guild.id), {'categories': {}})
-            previous_state = config['categories'].setdefault(str(category.id), False)
+            config = self.bot.db['voice_lock'].setdefault(
+                str(interaction.guild.id), {'categories': {}})
+            previous_state = config['categories'].setdefault(
+                str(category.id), False)
             if previous_state is None:
                 await interaction.response.send_message("There has been an error, the database read `None`",
                                                         ephemeral=True)
@@ -653,12 +667,14 @@ class Interactions(commands.Cog):
                 else:
                     new_state = "disabled"
                 guild_id = str(interaction.guild.id)
-                self.bot.db['voice_lock'][guild_id]['categories'][str(category.id)] = not previous_state
+                self.bot.db['voice_lock'][guild_id]['categories'][str(
+                    category.id)] = not previous_state
                 s += f"Voice locking for new users in {category.name} is now {new_state}.\n\n"
 
         s += "The list of current categories with voice locking enabled is:\n"
         for category in self.bot.db['voice_lock'][str(interaction.guild.id)]['categories']:
-            category = discord.utils.get(interaction.guild.channels, id=int(category))
+            category = discord.utils.get(
+                interaction.guild.channels, id=int(category))
             if self.bot.db['voice_lock'][str(interaction.guild.id)]['categories'][str(category.id)]:
                 s += f"- {category.name.upper()}\n"
 
@@ -702,14 +718,15 @@ class Interactions(commands.Cog):
         voice_approved_role = interaction.guild.get_role(978148690873167973)
         try:
             await interaction.response.defer(ephemeral=False)
-            
+
             if voice_approved_role not in member.roles:
                 await member.add_roles(voice_approved_role)
                 await interaction.followup.send(f"I've successfully attached the role to {member.mention}.",
                                                 ephemeral=False)
 
             else:
-                emb = utils.green_embed("This user already has the Voice Approved role. Do you wish to remove it?")
+                emb = utils.green_embed(
+                    "This user already has the Voice Approved role. Do you wish to remove it?")
                 remove_button = ui.Button(label="Yes, remove it")
                 keep_button = ui.Button(label="No, keep it")
                 view = utils.RaiView()
@@ -778,7 +795,7 @@ class Interactions(commands.Cog):
 
                 def check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=60 * 60, check=check)
@@ -809,7 +826,7 @@ class Interactions(commands.Cog):
 
                 def modal_return_check(i):
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 try:
                     await ctx.bot.wait_for('interaction', timeout=60 * 60, check=modal_return_check)
@@ -846,19 +863,24 @@ class Interactions(commands.Cog):
                     ctx.message = m
                     break
         else:
-            raise TypeError(f"Invalid type of member_or_author passed ({type(member_or_message)})")
+            raise TypeError(
+                f"Invalid type of member_or_author passed ({type(member_or_message)})")
 
         emb = utils.red_embed(f"Attempting to ban user {author.mention}. "
-                           f"Please select one of the below options.\n\n"
-                           f"**- DELETE:** Bans and __deletes the last one day__ of messages.\n"
-                           f"**- KEEP:** Bans and preserves messages.\n"
-                           f"**- CANCEL:** Cancels the ban")
+                              f"Please select one of the below options.\n\n"
+                              f"**- DELETE:** Bans and __deletes the last one day__ of messages.\n"
+                              f"**- KEEP:** Bans and preserves messages.\n"
+                              f"**- CANCEL:** Cancels the ban")
         emb.add_field(name="Reason", value=reason)
 
-        delete_button = ui.Button(label="DELETE", style=discord.ButtonStyle.red, row=0)
-        keep_button = ui.Button(label="KEEP", style=discord.ButtonStyle.red, row=0)
-        cancel_button = ui.Button(label="CANCEL", style=discord.ButtonStyle.gray, row=0)
-        reason_button = ui.Button(label="Edit ban reason", style=discord.ButtonStyle.primary, row=1)
+        delete_button = ui.Button(
+            label="DELETE", style=discord.ButtonStyle.red, row=0)
+        keep_button = ui.Button(
+            label="KEEP", style=discord.ButtonStyle.red, row=0)
+        cancel_button = ui.Button(
+            label="CANCEL", style=discord.ButtonStyle.gray, row=0)
+        reason_button = ui.Button(
+            label="Edit ban reason", style=discord.ButtonStyle.primary, row=1)
 
         view = utils.RaiView()
         view.add_item(delete_button)
@@ -915,13 +937,13 @@ class Interactions(commands.Cog):
                 def modal_return_check(i):
                     """Check to make sure the modal submitted corresponds to the current application"""
                     return i.type == discord.InteractionType.modal_submit and \
-                           i.application_id == interaction.application_id
+                        i.application_id == interaction.application_id
 
                 await ctx.bot.wait_for("interaction", timeout=60 * 60, check=modal_return_check)
             except asyncio.TimeoutError:
                 await interaction.followup.send("You took too long to respond. Logging will not complete. "
                                                 "Please try again.", ephemeral=True)
-                pass
+
             else:
                 nonlocal reason  # to make the below line assign to the outer scope variable rather than making new one
                 reason = modal.reason.value  # edit reason
@@ -952,10 +974,10 @@ class Interactions(commands.Cog):
         await interaction.response.send_modal(modal)
         ctx = await commands.Context.from_interaction(interaction)
         log = ctx.bot.get_command("log")
-        
+
         def check(i):
             return i.type == discord.InteractionType.modal_submit and \
-                   i.application_id == interaction.application_id
+                i.application_id == interaction.application_id
 
         try:
             await ctx.bot.wait_for("interaction", timeout=60 * 60, check=check)
@@ -963,7 +985,8 @@ class Interactions(commands.Cog):
             # Add > to make the whole message quoted
             # Replace [] with () to guarantee the Markdown hyperlink works
             content = "> " + message.content
-            content = content.replace("\n", "\n> ").replace("[", "(").replace("]", ")")
+            content = content.replace("\n", "\n> ").replace(
+                "[", "(").replace("]", ")")
             text = f"{message.author.id} Logging following message: \n{content[:200]}"
             if len(message.content) > 200:
                 text += "..."
@@ -1086,7 +1109,8 @@ class Interactions(commands.Cog):
 
             destination_member = intr.guild.get_member(destination_id)
             if not destination_member:
-                destination_member = intr.guild.get_channel_or_thread(destination_id)  # a text channel
+                destination_member = intr.guild.get_channel_or_thread(
+                    destination_id)  # a text channel
                 if not destination_member:
                     try:
                         destination_member = await self.bot.fetch_user(destination_id)
@@ -1131,7 +1155,8 @@ class Interactions(commands.Cog):
                                      f"maximum of 45 users. Sorry!", ephemeral=True)
             return
 
-        ping_message = "Inviting following users:\n" + ", ".join([u.mention for u in list_of_users])
+        ping_message = "Inviting following users:\n" + \
+            ", ".join([u.mention for u in list_of_users])
         ping_message += "\n***(Since the mentions in this command were edited in, no users were actually pinged)***"
 
         try:
@@ -1208,18 +1233,19 @@ class Interactions(commands.Cog):
         await hf.send_to_test_channel(1)
 
         chosen_args = [i for i in [user1, user2, id1, id2] if i]
-        assert len(chosen_args) == 2, "More than two arguments remaining in /linkusers"
+        assert len(
+            chosen_args) == 2, "More than two arguments remaining in /linkusers"
 
         await hf.send_to_test_channel(2, id_1, id_2, intr.guild.id)
 
         async with asqlite.connect(DATABASE_PATH) as c:
-            await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_1)
-            await c.execute(f"INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_2)
-            await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES (?)", intr.guild.id)
+            await c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_1)
+            await c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", id_2)
+            await c.execute("INSERT OR IGNORE INTO guilds (guild_id) VALUES (?)", intr.guild.id)
 
         await hf.send_to_test_channel(3)
 
-        check_condition = f"((id_1 = ? AND id_2 = ?) OR (id_1 = ? AND id_2 = ?)) AND guild_id = ?"
+        check_condition = "((id_1 = ? AND id_2 = ?) OR (id_1 = ? AND id_2 = ?)) AND guild_id = ?"
         check_parameters = (id_1, id_2, id_2, id_1, intr.guild.id)
         async with asqlite.connect(DATABASE_PATH) as c:
             cur = await c.execute(f"SELECT * from linkedusers WHERE {check_condition}", check_parameters)
@@ -1235,7 +1261,7 @@ class Interactions(commands.Cog):
 
         else:
             async with asqlite.connect(DATABASE_PATH) as c:
-                await c.execute(f"INSERT OR IGNORE INTO linkedusers (id_1, id_2, guild_id) VALUES (?, ?, ?)",
+                await c.execute("INSERT OR IGNORE INTO linkedusers (id_1, id_2, guild_id) VALUES (?, ?, ?)",
                                 (id_1, id_2, intr.guild.id))
             await intr.response.send_message(f"I've linked the user's {id_1} and {id_2}.")
 
