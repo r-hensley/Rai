@@ -1026,7 +1026,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** Temporarily Banned "
                                         f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Banned"
+                    emb.description += "**`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
                 emb.color = utils.red_embed("").color
@@ -1034,7 +1034,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** "
                                         f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Voice Muted"
+                    emb.description += "**`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
                 emb.color = utils.red_embed("").color
@@ -1042,7 +1042,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** "
                                         f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Muted"
+                    emb.description += "**`Current Status`** Indefinitely Muted"
 
             elif timeout:
                 emb.color = utils.red_embed("").color
@@ -1057,9 +1057,9 @@ class ChannelMods(commands.Cog):
                 if muted and not banned:
                     emb.description += " (user has left the server)"
                 elif not muted and not banned:
-                    emb.description += f"**`Current Status`** : User is not in server"
+                    emb.description += "**`Current Status`** : User is not in server"
             else:
-                emb.description += f"**`Current Status`** : No active incidents"
+                emb.description += "**`Current Status`** : No active incidents"
 
         #
         #
@@ -1246,7 +1246,7 @@ class ChannelMods(commands.Cog):
             name = f"{config.index(entry) + 1}) "
             if entry['silent']:
                 if entry['type'] == "Warning":
-                    name += f"Silent Log"
+                    name += "Silent Log"
                 else:
                     name += f"{entry['type']} (silent)"
             else:
@@ -1516,15 +1516,15 @@ class ChannelMods(commands.Cog):
                 try:
                     message = await ctx.bot.get_channel(channel_id).fetch_message(message_id)
                 except discord.NotFound:
-                    await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                    await utils.safe_send(ctx, "Only admins can edit the reason for this entry.")
                     return
                 else:
                     if message.author != ctx.author:
-                        await utils.safe_send(ctx, f"Only admins (or the creator of the log) can edit the "
-                                              f"reason for this entry.")
+                        await utils.safe_send(ctx, "Only admins (or the creator of the log) can edit the "
+                                              "reason for this entry.")
                         return
             else:
-                await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                await utils.safe_send(ctx, "Only admins can edit the reason for this entry.")
                 return
 
         try:
