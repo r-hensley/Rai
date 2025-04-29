@@ -1,3 +1,4 @@
+import re
 import logging
 import urllib
 
@@ -8,7 +9,6 @@ import discord
 from bs4 import BeautifulSoup
 from discord.ext import commands
 
-import re
 
 from cogs.utils.BotUtils import bot_utils as utils
 
