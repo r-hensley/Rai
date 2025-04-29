@@ -309,7 +309,7 @@ class Owner(commands.Cog):
     @commands.command(aliases=['rdb'], hidden=True)
     async def reload_database(self, ctx):
         """Reloads the database"""
-        with open(f"{dir_path}/db.json", "r") as read_file:
+        with open(f"{dir_path}/db.json", "r", encoding='utf-8') as read_file:
             self.bot.db = json.load(read_file)
         self.bot.ID = self.bot.db["ID"]
         await ctx.message.add_reaction('♻')
@@ -317,7 +317,7 @@ class Owner(commands.Cog):
     @commands.command(aliases=['rsdb'], hidden=True)
     async def reload_stats(self, ctx):
         """Reloads the messages"""
-        with open(f"{dir_path}/stats.json", "r") as read_file:
+        with open(f"{dir_path}/stats.json", "r", encoding='utf-8') as read_file:
             self.bot.stats = json.load(read_file)
         await ctx.message.add_reaction('♻')
 
@@ -479,7 +479,7 @@ class Owner(commands.Cog):
         mCount = {}
         for memberTuple in mSorted:
             mCount[memberTuple[0].id] = [memberTuple[0].name, memberTuple[1]]
-        with open("sorted_members.json", "w") as write_file:
+        with open("sorted_members.json", "w", encoding='utf-8') as write_file:
             json.dump(mCount, write_file)
 
         ping_party_role = next(
