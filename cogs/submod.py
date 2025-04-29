@@ -849,9 +849,9 @@ class Submod(commands.Cog):
                 return u == ctx.author and str(r) in '✅❌'
 
             try:
-                reaction_added, user_react = await self.bot.wait_for("reaction_add",
-                                                                     check=reaction_check,
-                                                                     timeout=10)
+                reaction_added, _user_react = await self.bot.wait_for("reaction_add",
+                                                                      check=reaction_check,
+                                                                      timeout=10)
             except asyncio.TimeoutError:
                 await utils.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
                 raise
