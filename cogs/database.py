@@ -243,14 +243,14 @@ class Connect(SQLCommands):
                 if order_by is not None:
                     query += f" ORDER BY {order_by}"
                 if ascending is False:
-                    query += f" DESC"
+                    query += " DESC"
                 else:
-                    query += f""
+                    query += ""
                 if limit is not None:
-                    query += f" LIMIT ?"
+                    query += " LIMIT ?"
                     parameters.append(limit)
                 if offset is not None and limit is not None:
-                    query += f" OFFSET ?"
+                    query += " OFFSET ?"
                     parameters.append(offset)
                 elif offset is not None and limit is None:
                     raise Exception(
