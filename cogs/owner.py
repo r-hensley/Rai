@@ -824,7 +824,8 @@ class Owner(commands.Cog):
                          stderr=PIPE,
                          universal_newlines=True,
                          shell=True,
-                         timeout=15)
+                         timeout=15,
+                         check=False)
         except TimeoutExpired:
             await utils.safe_send(ctx, "Command timed out")
             return
