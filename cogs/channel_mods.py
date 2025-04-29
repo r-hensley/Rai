@@ -1,3 +1,5 @@
+import os
+import re
 from copy import deepcopy
 from typing import Optional, Union, List
 from datetime import datetime, timedelta, timezone
@@ -5,12 +7,10 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
+from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 from .utils.helper_functions import format_interval
-from cogs.utils.BotUtils import bot_utils as utils
-import re
 
-import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SP_SERV = 243838819743432704
@@ -900,11 +900,11 @@ class ChannelMods(commands.Cog):
         config = ctx.bot.db['modlog'][str(ctx.guild.id)]
         member: discord.Member = await utils.member_converter(ctx, id_in)
         if member:
-            user: Optional[Union[discord.User, discord.Member]] = member
+            user: discord.Member = member
             user_id = str(member.id)
         else:
             try:
-                user = await self.bot.fetch_user(int(id_in))
+                user: discord.User = await self.bot.fetch_user(int(id_in))
                 user_id = id_in
             except discord.NotFound:
                 user = user_id = None
@@ -1026,7 +1026,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** Temporarily Banned "
                                         f"(unban <t:{int(unban_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Banned"
+                    emb.description += "**`Current Status`** Indefinitely Banned"
 
             elif voice_muted:
                 emb.color = utils.red_embed("").color
@@ -1034,7 +1034,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** "
                                         f"Voice Muted (unmuted <t:{int(voice_unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Voice Muted"
+                    emb.description += "**`Current Status`** Indefinitely Voice Muted"
 
             elif muted:
                 emb.color = utils.red_embed("").color
@@ -1042,7 +1042,7 @@ class ChannelMods(commands.Cog):
                     emb.description += (f"**`Current Status`** "
                                         f"Muted (unmute <t:{int(unmute_date.timestamp())}:R>)")
                 else:
-                    emb.description += f"**`Current Status`** Indefinitely Muted"
+                    emb.description += "**`Current Status`** Indefinitely Muted"
 
             elif timeout:
                 emb.color = utils.red_embed("").color
@@ -1057,9 +1057,9 @@ class ChannelMods(commands.Cog):
                 if muted and not banned:
                     emb.description += " (user has left the server)"
                 elif not muted and not banned:
-                    emb.description += f"**`Current Status`** : User is not in server"
+                    emb.description += "**`Current Status`** : User is not in server"
             else:
-                emb.description += f"**`Current Status`** : No active incidents"
+                emb.description += "**`Current Status`** : No active incidents"
 
         #
         #
@@ -1246,7 +1246,7 @@ class ChannelMods(commands.Cog):
             name = f"{config.index(entry) + 1}) "
             if entry['silent']:
                 if entry['type'] == "Warning":
-                    name += f"Silent Log"
+                    name += "Silent Log"
                 else:
                     name += f"{entry['type']} (silent)"
             else:
@@ -1516,15 +1516,15 @@ class ChannelMods(commands.Cog):
                 try:
                     message = await ctx.bot.get_channel(channel_id).fetch_message(message_id)
                 except discord.NotFound:
-                    await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                    await utils.safe_send(ctx, "Only admins can edit the reason for this entry.")
                     return
                 else:
                     if message.author != ctx.author:
-                        await utils.safe_send(ctx, f"Only admins (or the creator of the log) can edit the "
-                                              f"reason for this entry.")
+                        await utils.safe_send(ctx, "Only admins (or the creator of the log) can edit the "
+                                              "reason for this entry.")
                         return
             else:
-                await utils.safe_send(ctx, f"Only admins can edit the reason for this entry.")
+                await utils.safe_send(ctx, "Only admins can edit the reason for this entry.")
                 return
 
         try:

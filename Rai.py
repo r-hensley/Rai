@@ -14,15 +14,14 @@ from discord.ext import commands, tasks
 
 # check to make sure this submodule is initialized
 try:
-    if not os.listdir('cogs/utils/BotUtils'):
-        raise FileNotFoundError
-except FileNotFoundError:
-    raise FileNotFoundError("The BotUtils submodule is not initialized. "
-                            "Please run 'git submodule update --init --recursive' to initialize it.")
-from cogs.utils.BotUtils import bot_utils as utils
+    from cogs.utils.BotUtils import bot_utils as utils
+except ImportError as exc:
+    ERRMSG = ("The BotUtils submodule is not initialized.\n"
+              "Please run 'git submodule update --init --recursive' to initialize it.")
+    exc.add_note(ERRMSG)
+    raise
 from cogs.utils import helper_functions as hf
 from cogs.database import create_database_tables
-
 
 
 # noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
@@ -50,7 +49,8 @@ except FileNotFoundError:
 load_dotenv(f'{dir_path}/.env')
 
 if not os.getenv("BOT_TOKEN"):
-    raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
+    raise discord.LoginFailure(
+        "You need to add your bot token to the .env file in your bot folder.")
 if not os.getenv("TRACEBACK_LOGGING_CHANNEL") or not os.getenv("BOT_TEST_CHANNEL"):
     raise discord.LoginFailure("Add the IDs for a logging channel and a tracebacks channel into the .env file "
                                "in your bot folder.")
@@ -62,6 +62,7 @@ BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 t_start = datetime.now()
 
 max_messages = 10000
+
 
 def prefix(bot: commands.Bot, msg: discord.Message) -> str:
     if bot.user.name == "Rai":
@@ -116,13 +117,14 @@ class Rai(Bot):
             print("Creating new message_queue database.")
             json.dump({}, db)
             db.close()
-            
+
     async def setup_hook(self):
         utils.load_db(self, 'db')
         utils.load_db(self, 'stats')
         utils.load_db(self, 'message_queue')
-        
-        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+
+        # this is to define here.bot in the hf file
+        hf.setup(bot=self, loop=asyncio.get_event_loop())
         utils.setup(bot=self, loop=asyncio.get_event_loop())
 
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
@@ -139,15 +141,13 @@ class Rai(Bot):
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
-            
+
         if os.path.exists(f"{dir_path}/cogs/rl/rl.py"):
             await self.load_extension('cogs.rl.rl')
         else:
             print("Rai RL not found, skipping loading of Rai RL cog.")
 
         await create_database_tables()
-
-        
 
 
 def run_bot():
