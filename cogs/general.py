@@ -655,7 +655,7 @@ class General(commands.Cog):
         args = args.replace('\n', ' ').split()
         list_of_ids = []
         reason = "None"
-        for arg_index in range(len(args)):
+        for arg_index, args in enumerate(args):
             potential_id = re.search(r'\d{17,22}', args[arg_index])
             if potential_id:
                 # using regex, add to list_of_ids just the ID digits (ignore characters around it)
@@ -1362,7 +1362,7 @@ class General(commands.Cog):
                                             ephemeral=True)
             return
 
-        if type(format_option) == str:
+        if isinstance(format_option, str):
             formt = format_option
         else:
             formt = format_option.value
