@@ -1,4 +1,3 @@
-import logging
 import textwrap
 import asyncio
 import traceback
@@ -11,6 +10,7 @@ import os
 import importlib
 import datetime
 from collections import Counter, deque
+from ast import literal_eval
 from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run, TimeoutExpired
 from contextlib import redirect_stdout
@@ -21,8 +21,8 @@ from discord.ext import commands
 from matplotlib import pyplot as plt, cm
 from matplotlib.colors import Normalize
 
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -248,7 +248,6 @@ class Owner(commands.Cog):
                 return
 
             # Use JSON for pretty printing
-            import json
             formatted_structure = json.dumps(structure, indent=2)
 
             # Split the output into chunks Discord can send
