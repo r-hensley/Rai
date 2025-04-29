@@ -1644,7 +1644,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             if stripped_content.count(" ") == 0:
                 return
 
-        confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(
+        _confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(
             stripped_content)
         confidence_levels_two = self.lingua_detector_full.compute_language_confidence_values(
             stripped_content)
