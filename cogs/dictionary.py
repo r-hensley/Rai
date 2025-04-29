@@ -328,8 +328,8 @@ class Dictionary(commands.Cog):
             ul_tag = words_section.find("ul", class_=["c-related-words"])
             if ul_tag:
                 lists = ul_tag.find_all("li")
-                for list in lists:
-                    text = ' '.join(list.stripped_strings)
+                for lst in lists:
+                    text = ' '.join(lst.stripped_strings)
                     # Remove extra spaces before periods and commas
                     text = self.trim_spaces_before_symbols(text)
                     words.append(f'- {text}')
