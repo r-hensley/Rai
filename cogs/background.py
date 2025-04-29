@@ -354,7 +354,7 @@ class Background(commands.Cog):
 
         # check if fireside channel has active event
         try:
-            stage_instance = await fireside_channel_stage.fetch_instance()
+            _stage_instance = await fireside_channel_stage.fetch_instance()
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return
 
