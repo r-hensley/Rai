@@ -15,9 +15,10 @@ from cogs.utils.BotUtils import bot_utils as utils
 # Silence asyncio warnings
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
+
 class PaginationView(discord.ui.View):
     def __init__(self, embeds, author, caller_function, is_rae_def_available, is_rae_exp_available,
-                              is_rae_syn_available, is_rae_ant_available, bot, ctx):
+                 is_rae_syn_available, is_rae_ant_available, bot, ctx):
         super().__init__(timeout=60)
         self.bot = bot
         self.embeds = embeds
@@ -147,6 +148,7 @@ class PaginationView(discord.ui.View):
                 pass
         self.stop()
 
+
 class Dictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -157,8 +159,10 @@ class Dictionary(commands.Cog):
         self.is_rae_ant_available = False
         self.superscript_characters = "⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ"
         self.punctuation_without_spaces = "].,:)|»"
-        self.definition_classes = ["j", "j1", "j2", "j3", "j4", "j5", "j6", "l2"]
-        self.expression_classes = ["k1", "k2", "k3", "k4", "k5", "k6", "l1", "l2", "l3", "l4", "l5", "l6", "b"]
+        self.definition_classes = ["j", "j1",
+                                   "j2", "j3", "j4", "j5", "j6", "l2"]
+        self.expression_classes = [
+            "k1", "k2", "k3", "k4", "k5", "k6", "l1", "l2", "l3", "l4", "l5", "l6", "b"]
 
     async def send_embeds(self, ctx, embeds, formatted_word):
         if not embeds:
@@ -198,7 +202,8 @@ class Dictionary(commands.Cog):
         self.check_info_availability(articles)
 
         # in headers: <meta name="rights" content="Real Academia Española © Todos los derechos reservados">
-        copyright_text = resp.headers.get("rights", "Real Academia Española © Todos los derechos reservados")
+        copyright_text = resp.headers.get(
+            "rights", "Real Academia Española © Todos los derechos reservados")
 
         return articles, url, copyright_text, soup
 
@@ -212,7 +217,8 @@ class Dictionary(commands.Cog):
             intro_section = article.find(class_="c-text-intro")
             definition = None
             if definition_section:
-                definition = definition_section.find("li", class_=self.definition_classes)
+                definition = definition_section.find(
+                    "li", class_=self.definition_classes)
             self.is_rae_def_available = bool(definition or intro_section)
 
             # Check expression availability
@@ -221,16 +227,20 @@ class Dictionary(commands.Cog):
                 self.is_rae_exp_available = True
 
             # Check synonym availability
-            synonym_section = article.find("section", class_=["c-section"], id=re.compile("^sinonimos"))
+            synonym_section = article.find(
+                "section", class_=["c-section"], id=re.compile("^sinonimos"))
             if synonym_section:
-                synonym = synonym_section.find("ul", class_=["c-related-words"])
+                synonym = synonym_section.find(
+                    "ul", class_=["c-related-words"])
                 if synonym:
                     self.is_rae_syn_available = True
 
             # Check antonym availability
-            antonym_section = article.find("section", class_=["c-section"], id=re.compile("^antonimos"))
+            antonym_section = article.find(
+                "section", class_=["c-section"], id=re.compile("^antonimos"))
             if antonym_section:
-                antonym = antonym_section.find("ul", class_=["c-related-words"])
+                antonym = antonym_section.find(
+                    "ul", class_=["c-related-words"])
                 if antonym:
                     self.is_rae_ant_available = True
 
@@ -244,7 +254,8 @@ class Dictionary(commands.Cog):
 
     async def check_article_availability(self, ctx, word):
         # noinspection PyUnresolvedReferences
-        formatted_word = urllib.parse.quote(word)  # Convert text to a URL-supported format
+        # Convert text to a URL-supported format
+        formatted_word = urllib.parse.quote(word)
         main_articles, url, copyright_text, soup = await self.fetch_rae_data(formatted_word)
 
         related_words = []
@@ -259,17 +270,18 @@ class Dictionary(commands.Cog):
                 related_words_articles = related_words_div.find_all("article")
                 for article in related_words_articles:
                     related_words.append("- " +
-                        article.text.strip())
+                                         article.text.strip())
 
             if related_words:
                 # Split an article into multiple pages/embeds if the number of related words exceeds 10
                 chunk_size = 10
-                chunks = [related_words[i:i + chunk_size] for i in range(0, len(related_words), chunk_size)]
-                
+                chunks = [related_words[i:i + chunk_size]
+                          for i in range(0, len(related_words), chunk_size)]
+
                 new_line = '\n'  # my version of python can't have \n in f-string
                 for chunk in chunks:
                     description = f'La palabra `{word}` no existe en el diccionario. Las entradas que se muestran a continuación podrían estar relacionadas:\n' \
-                                  f'{new_line.join(chunk)}'  # Join words in the chunk
+                        f'{new_line.join(chunk)}'  # Join words in the chunk
 
                     embed = discord.Embed(
                         title="Palabra no encontrada",
@@ -277,7 +289,8 @@ class Dictionary(commands.Cog):
                         color=0xFF5733
                     )
 
-                    embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+                    embed.set_footer(
+                        text=f'{copyright_text} | Comando hecho por jobcuenca')
                     embeds.append(embed)
 
                 await self.send_embeds(ctx, embeds, formatted_word)
@@ -286,10 +299,11 @@ class Dictionary(commands.Cog):
             embedded_error = discord.Embed(
                 title="Palabra no encontrada",
                 description=f'La palabra `{word}` no existe en el diccionario. '
-                            f'Por favor verifique que la palabra esté escrita correctamente.',
+                f'Por favor verifique que la palabra esté escrita correctamente.',
                 color=0xFF5733
             )
-            embedded_error.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+            embedded_error.set_footer(
+                text=f'{copyright_text} | Comando hecho por jobcuenca')
             await utils.safe_reply(ctx, embed=embedded_error, delete_after=30)
             return None, None, None, None
 
@@ -297,7 +311,8 @@ class Dictionary(commands.Cog):
 
     def trim_spaces_before_symbols(self, text):
         text = re.sub(
-            r'\s+([' + re.escape(self.punctuation_without_spaces + self.superscript_characters) + '])', r'\1',
+            r'\s+([' + re.escape(self.punctuation_without_spaces +
+                                 self.superscript_characters) + '])', r'\1',
             text)
         return text
 
@@ -321,7 +336,8 @@ class Dictionary(commands.Cog):
 
         # Split an article into multiple pages/embeds if the number of entries exceeds 10
         chunk_size = 10
-        chunks = [words[i:i + chunk_size] for i in range(0, len(words), chunk_size)]
+        chunks = [words[i:i + chunk_size]
+                  for i in range(0, len(words), chunk_size)]
 
         for chunk in chunks:
             description = "\n".join(chunk)
@@ -331,13 +347,15 @@ class Dictionary(commands.Cog):
                 description=f'**{word_type}**: \n{description}',
                 color=discord.Color.blue()
             )
-            embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+            embed.set_footer(
+                text=f'{copyright_text} | Comando hecho por jobcuenca')
             embeds.append(embed)
 
         return embeds
 
     def to_superscript(self, article):
-        superscript_map = str.maketrans("0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
+        superscript_map = str.maketrans(
+            "0123456789abcdefghijklmnopqrstuvwxyz", self.superscript_characters)
 
         for sup_tag in article.find_all("sup"):
             sup_tag_text = sup_tag.string
@@ -347,7 +365,8 @@ class Dictionary(commands.Cog):
     def to_italicize(self, article):
         italic_tags = article.find_all(lambda tag:
                                        tag.name in ["em", "i"] or
-                                       (tag.name == "span" and "h" in tag.get("class", []))
+                                       (tag.name == "span" and "h" in tag.get(
+                                           "class", []))
                                        )
         if italic_tags:
             for italic_tag in italic_tags:
@@ -357,9 +376,9 @@ class Dictionary(commands.Cog):
         return article
 
     def to_bold(self, article):
-        #bold_tags = article.find_all(lambda tag:
+        # bold_tags = article.find_all(lambda tag:
         #                                  (tag.name == ["b", "strong"]) or (tag.name == "a" and "a" in tag.get("class", []))
-        #)
+        # )
         bold_tags = article.find_all(["b", "strong"])
         if bold_tags:
             for bold_tag in bold_tags:
@@ -370,7 +389,8 @@ class Dictionary(commands.Cog):
 
     def to_underline(self, article):
         underline_tags = article.find_all(lambda tag:
-                                          (tag.name == "u") or (tag.name == "span" and "u" in tag.get("class", []))
+                                          (tag.name == "u") or (
+                                              tag.name == "span" and "u" in tag.get("class", []))
                                           )
 
         if underline_tags:
@@ -403,18 +423,19 @@ class Dictionary(commands.Cog):
         """
         Look up definitions of a word from the Real Academia Española dictionary.
         - Example usage: `;rae libro`.
-        
+
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
-        
+
         -------
         Buscar definiciones de palabras del Diccionario de la Real Academia Española.
         - Ejemplo de uso: `;rae libro`.
-        
+
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.caller_function = "get_rae_def_results"
 
@@ -438,9 +459,11 @@ class Dictionary(commands.Cog):
             # Format words according to their HTML tag or class
             article = self.format_article(article)
 
-            title = article.find("h1", class_="c-page-header__title").text.strip()
+            title = article.find(
+                "h1", class_="c-page-header__title").text.strip()
 
-            intro_texts = [text.get_text().strip() for text in article.find_all(class_="c-text-intro")]
+            intro_texts = [text.get_text().strip()
+                           for text in article.find_all(class_="c-text-intro")]
             intro_texts_with_newlines = [text + "\n" for text in intro_texts]
             intro_texts_combined = ''.join(intro_texts_with_newlines)
 
@@ -450,21 +473,25 @@ class Dictionary(commands.Cog):
             definitions_list = article.find("ol", class_="c-definitions")
 
             # Remove the entire footer section (with synonyms, etc.)
-            footer = article.find_all("div", class_="c-definitions__item-footer")
+            footer = article.find_all(
+                "div", class_="c-definitions__item-footer")
             for footer_item in footer:
                 footer_item.decompose()
 
             if definitions_list:
                 # Iterate through each list item
                 for definition_item in (definitions_list.find_all("li", class_=self.definition_classes)):
-                    definition_text = ' '.join(definition_item.stripped_strings)
+                    definition_text = ' '.join(
+                        definition_item.stripped_strings)
                     # Remove extra spaces before certain punctuation marks and superscript characters
-                    definition_text = self.trim_spaces_before_symbols(definition_text)
+                    definition_text = self.trim_spaces_before_symbols(
+                        definition_text)
                     definitions.append(definition_text)
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 10
-            chunks = [definitions[i:i + chunk_size] for i in range(0, len(definitions), chunk_size)]
+            chunks = [definitions[i:i + chunk_size]
+                      for i in range(0, len(definitions), chunk_size)]
 
             if chunks:
                 for i, chunk in enumerate(chunks):
@@ -480,7 +507,8 @@ class Dictionary(commands.Cog):
                         description=description,
                         color=discord.Color.blue()
                     )
-                    embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+                    embed.set_footer(
+                        text=f'{copyright_text} | Comando hecho por jobcuenca')
                     embeds.append(embed)
             elif intro_texts_combined:
                 embed = discord.Embed(
@@ -489,7 +517,8 @@ class Dictionary(commands.Cog):
                     description=intro_texts_combined,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+                embed.set_footer(
+                    text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
@@ -510,7 +539,8 @@ class Dictionary(commands.Cog):
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.caller_function = "get_rae_exp_results"
 
@@ -533,7 +563,8 @@ class Dictionary(commands.Cog):
         for article in articles:
             article = self.format_article(article)
 
-            title = article.find("h1", class_="c-page-header__title").text.strip()
+            title = article.find(
+                "h1", class_="c-page-header__title").text.strip()
             expressions = {}
 
             # Find all h3 tags containing expressions
@@ -550,20 +581,21 @@ class Dictionary(commands.Cog):
                     expressions[expression] = []
 
                 if definition:
-                    definitions = [li.text.strip() for li in definition.find_all("li", class_="m")]
+                    definitions = [li.text.strip()
+                                   for li in definition.find_all("li", class_="m")]
                     expressions[expression] = definitions
-
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 6
-            chunks = [list(expressions.items())[i:i + chunk_size] for i in range(0, len(expressions), chunk_size)]
+            chunks = [list(expressions.items())[i:i + chunk_size]
+                      for i in range(0, len(expressions), chunk_size)]
 
             for chunk in chunks:
                 description = ""
                 for expression, definitions in chunk:
                     description += f"**{expression}**\n"
                     if definitions:
-                       for definition in definitions:
+                        for definition in definitions:
                             description += f"{definition}\n"
 
                 embed = discord.Embed(
@@ -572,7 +604,8 @@ class Dictionary(commands.Cog):
                     description=description,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(text=f'{copyright_text} | Comando hecho por jobcuenca')
+                embed.set_footer(
+                    text=f'{copyright_text} | Comando hecho por jobcuenca')
                 embeds.append(embed)
 
         await self.send_embeds(ctx, embeds, formatted_word)
@@ -593,7 +626,8 @@ class Dictionary(commands.Cog):
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.caller_function = "get_rae_syn_results"
 
@@ -615,14 +649,15 @@ class Dictionary(commands.Cog):
 
         for article in articles:
             article = self.to_superscript(article)
-            title = article.find("h1", class_="c-page-header__title").text.strip()
+            title = article.find(
+                "h1", class_="c-page-header__title").text.strip()
 
             # Find all tags containing synonyms
-            synonyms_section = article.find("section", class_=["c-section"], id=re.compile("^sinonimos"))
+            synonyms_section = article.find(
+                "section", class_=["c-section"], id=re.compile("^sinonimos"))
             embeds = await self.handle_synonyms_antonyms(synonyms_section, embeds, copyright_text, title, url)
 
         await self.send_embeds(ctx, embeds, formatted_word)
-
 
     @commands.command(aliases=['raeant'])
     async def get_rae_ant_results(self, ctx, *, word: str):
@@ -640,7 +675,8 @@ class Dictionary(commands.Cog):
         Este comando fue desarrollado por `@jobcuenca`. Para consultas, sugerencias y reportes de problemas,
         puedes contactarlo a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.caller_function = "get_rae_ant_results"
 
@@ -662,13 +698,16 @@ class Dictionary(commands.Cog):
 
         for article in articles:
             article = self.to_superscript(article)
-            title = article.find("h1", class_="c-page-header__title").text.strip()
+            title = article.find(
+                "h1", class_="c-page-header__title").text.strip()
 
             # Find all tags containing antonyms
-            antonyms_section = article.find("section", class_=["c-section"], id=re.compile("^antonimos"))
+            antonyms_section = article.find(
+                "section", class_=["c-section"], id=re.compile("^antonimos"))
             embeds = await self.handle_synonyms_antonyms(antonyms_section, embeds, copyright_text, title, url)
 
         await self.send_embeds(ctx, embeds, formatted_word)
+
 
 async def setup(bot):
     await bot.add_cog(Dictionary(bot))
