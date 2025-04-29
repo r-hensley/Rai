@@ -565,7 +565,7 @@ class Owner(commands.Cog):
             # noinspection PyBroadException
             try:
                 await ctx.message.add_reaction('\u2705')
-            except:
+            except Exception:
                 pass
 
             if ret is None:
