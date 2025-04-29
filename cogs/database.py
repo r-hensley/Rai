@@ -77,9 +77,6 @@ class Connect(SQLCommands):
     Most of the credit for this module goes to: https://github.com/sabrysm/asqlitedict
     """
 
-    def __init__(self, database_name: str, table_name: str = None, primary_key: str = None):
-        super().__init__(database_name, table_name, primary_key)
-
     async def to_dict(self, my_id, *column_names: str) -> dict:
         """
         Convert a sqlite3 table into a python dictionary.
