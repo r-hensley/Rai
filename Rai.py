@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 import discord
 from discord.ext.commands import Bot
-from discord.ext import commands, tasks
+from discord.ext import commands
 
 # check to make sure this submodule is initialized
 try:
