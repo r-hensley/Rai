@@ -47,7 +47,7 @@ class Clubs(commands.Cog):
         clubs = Connect("database.db", "clubs")
 
         list_of_clubs = await clubs.execute(f"SELECT club_id, name FROM clubs WHERE guild_id = {ctx.guild.id}")
-        text = f"__List of clubs__\n"
+        text = "__List of clubs__\n"
         list_of_clubs = sorted(list_of_clubs, key=lambda x: x[1])
         for club in list_of_clubs:
             count = (await clubs.execute(f"SELECT COUNT(*) FROM club_members WHERE club_id = {club[0]}"))[0][0]
@@ -98,7 +98,7 @@ class Clubs(commands.Cog):
         if len(club_name) > 32:
             await utils.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
             return
-        query1 = f"SELECT name, club_id FROM clubs WHERE name = ?"
+        query1 = "SELECT name, club_id FROM clubs WHERE name = ?"
         query2 = f"DELETE FROM clubs WHERE name = ? and guild_id = {ctx.guild.id}"
         parameters = (club_name, )
 
@@ -151,7 +151,7 @@ class Clubs(commands.Cog):
             await ctx.message.add_reaction("✅")
         except sqlite3.IntegrityError as e:
             if e.args[0].startswith("UNIQUE constraint failed"):
-                await ctx.send(f"You are already in that club!")
+                await ctx.send("You are already in that club!")
             else:
                 raise
 
@@ -224,7 +224,7 @@ class Clubs(commands.Cog):
         async with asqlite.connect(DATABASE_PATH) as c:
             await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({ctx.guild.id})")
 
-        query = f"UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
+        query = "UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
         parameters = (to_give_id, club_name, ctx.guild.id)
         try:
             await clubs.execute(query, parameters)
@@ -273,7 +273,7 @@ class Clubs(commands.Cog):
             await utils.safe_send(ctx, "Please choose a shorter club name")
             return
 
-        query = f"UPDATE clubs SET name = ? WHERE name = ? AND guild_id = ?"
+        query = "UPDATE clubs SET name = ? WHERE name = ? AND guild_id = ?"
         parameters = (new_name, old_name, ctx.guild.id)
         try:
             await clubs.execute(query, parameters)
