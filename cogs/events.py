@@ -1,15 +1,14 @@
 import asyncio
 import os
 import re
-from collections import defaultdict
 from datetime import timedelta, datetime
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
@@ -65,7 +64,7 @@ class Events(commands.Cog):
             except TypeError:
                 continue
         for i in to_delete:
-            del (self.bot.db[i[0]][i[1]])
+            del self.bot.db[i[0]][i[1]]
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
@@ -114,7 +113,8 @@ class Events(commands.Cog):
             await asyncio.sleep(60 * 60)
 
             # refresh author roles
-            refreshed_author = reaction.message.channel.guild.get_member(reaction.message.author.id)
+            refreshed_author = reaction.message.channel.guild.get_member(
+                reaction.message.author.id)
             if not refreshed_author:
                 return
             refreshed_role_ids = [role.id for role in refreshed_author.roles]
@@ -132,7 +132,7 @@ class Events(commands.Cog):
             msg = (f"User {refreshed_author.mention} has potentially sent a message with their native language and is "
                    f"still untagged:\n>>> [{msg_content}](<{reaction.message.jump_url}>)")
             sent_msg = await nif_channel.send(msg)
-            
+
             # go through last 50 messages in current channel and search for messages starting with
             # "User has been tagged now" by this bot and delete those messages
             async for msg in nif_channel.history(limit=50):
@@ -175,16 +175,17 @@ class Events(commands.Cog):
                             config[guild_id]['waiting_list'].remove(user.id)
                             await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
 
-                            mod_channel = self.bot.get_channel(self.bot.db["mod_channel"][guild_id])
+                            mod_channel = self.bot.get_channel(
+                                self.bot.db["mod_channel"][guild_id])
                             msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
-                                                 f"report room but just removed themselves."
+                                f"report room but just removed themselves."
                             await utils.safe_send(mod_channel, msg_to_mod_channel)
                             return
                     await user.send("You aren't on the waiting list.")
 
         await remove_from_waiting_list()
 
-        "I or people with manage messages permission can delete bot messages by attaching X or trash can"
+        # "I or people with manage messages permission can delete bot messages by attaching X or trash can"
 
         async def delete_rai_message():
             if str(reaction.emoji) in '🗑':
@@ -196,7 +197,7 @@ class Events(commands.Cog):
 
         await delete_rai_message()
 
-        "Count emojis for stats"
+        # "Count emojis for stats"
 
         def count_emojis_for_stats():
             if user.bot:
@@ -217,7 +218,8 @@ class Events(commands.Cog):
                 today = config['messages'][date_str]
                 today.setdefault(str(user.id), {})
                 today[str(user.id)].setdefault('emoji', {})
-                today[str(user.id)]['emoji'][emoji] = today[str(user.id)]['emoji'].get(emoji, 0) + 1
+                today[str(user.id)]['emoji'][emoji] = today[str(
+                    user.id)]['emoji'].get(emoji, 0) + 1
 
         count_emojis_for_stats()
 
@@ -280,7 +282,8 @@ class Events(commands.Cog):
                                     new_embed.colour = 0x77B255  # green background color of the checkmark ✅
                                     new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
                                     if not user.bot:
-                                        new_embed.set_footer(text=f"Resolved by {str(user)}")
+                                        new_embed.set_footer(
+                                            text=f"Resolved by {str(user)}")
                                     await target.edit(view=None, embed=new_embed)
 
         await synchronize_reactions()
@@ -301,7 +304,8 @@ class Events(commands.Cog):
                 role_id = self.bot.db['reactionroles'][guild_id][message_id][emoji_str]
                 role = guild.get_role(role_id)
                 if not role:
-                    del (self.bot.db['reactionroles'][guild_id][message_id][emoji_str])
+                    del (self.bot.db['reactionroles']
+                         [guild_id][message_id][emoji_str])
                     return
                 return role
 
@@ -325,7 +329,8 @@ class Events(commands.Cog):
                     voting_guild_id = config['residency'][str(payload.user_id)]
                     if voting_guild_id not in config['votes'][user_id]['votes']:
                         if message.embeds[0].color != discord.Color(int('ff0000', 16)):
-                            blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
+                            blacklist_add: commands.Command = self.bot.get_command(
+                                "global_blacklist add")
                             # ignore below error in pycharm "Expected Type"
                             # noinspection PyTypeChecker
                             await ctx.invoke(blacklist_add, args=user_id)
@@ -333,10 +338,10 @@ class Events(commands.Cog):
                     print('not in residency')
                     try:
                         await utils.safe_send(ctx.author, "Please claim residency on a server first with "
-                                                       "`;global_blacklist residency`")
+                                              "`;global_blacklist residency`")
                     except discord.Forbidden:
                         await utils.safe_send(ctx, "Please claim residency on a server first with `;global_blacklist "
-                                                "residency`.")
+                                              "residency`.")
                     return
 
             elif payload.channel_id == BANS_CHANNEL_ID:
@@ -345,17 +350,20 @@ class Events(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 ctx.author = self.bot.get_user(payload.user_id)
                 ctx.reacted_user_id = payload.user_id
-                user_id = re.search(r'^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
+                user_id = re.search(
+                    r'^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
                 try:
-                    reason = re.search('__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
+                    reason = re.search(
+                        '__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
                 except AttributeError:
                     await utils.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
-                                                "the GBL.")
+                                          "the GBL.")
                     return
                 config = self.bot.db['global_blacklist']
                 if str(payload.user_id) in config['residency']:
                     if user_id not in config['blacklist'] and str(user_id) not in config['votes']:
-                        blacklist_add: commands.Command = self.bot.get_command("global_blacklist add")
+                        blacklist_add: commands.Command = self.bot.get_command(
+                            "global_blacklist add")
                         await ctx.invoke(blacklist_add,
                                          args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
                 else:
@@ -562,7 +570,8 @@ class Events(commands.Cog):
         try:
             join_time = float(join_time)
         except ValueError:
-            join_time = datetime.strptime(join_time, "%Y/%m/%d %H:%M UTC").timestamp()
+            join_time = datetime.strptime(
+                join_time, "%Y/%m/%d %H:%M UTC").timestamp()
         total_length = discord.utils.utcnow().timestamp() - join_time
         hours = total_length // 3600
         minutes = total_length % 3600 // 60
@@ -578,7 +587,8 @@ class Events(commands.Cog):
             today[member_id] = hours * 60 + minutes
         else:
             if isinstance(today[member_id], list):
-                today[member_id] = today[member_id][0] * 60 + today[member_id][1]
+                today[member_id] = today[member_id][0] * \
+                    60 + today[member_id][1]
             today[member_id] += hours * 60 + minutes
 
     @commands.Cog.listener()
@@ -600,7 +610,8 @@ class Events(commands.Cog):
                 return
             if not self.bot.stats[guild]['enable']:
                 return
-            if str(member.id) not in self.bot.stats[guild]['voice']['in_voice']:  # not in DB
+            # not in DB
+            if str(member.id) not in self.bot.stats[guild]['voice']['in_voice']:
                 if after.self_deaf or after.deaf or after.afk or not after.channel:
                     await self.out_of_voice(member)
                     return
@@ -632,12 +643,15 @@ class Events(commands.Cog):
                 config = self.bot.db['timed_voice_role'][str(member.guild.id)]
                 role = member.guild.get_role(config['role'])
                 if not before.channel and after.channel and config['remove_when_leave']:
-                    await member.remove_roles(role)  # in case there was some bug and the user has the role already
+                    # in case there was some bug and the user has the role already
+                    await member.remove_roles(role)
                 if not role:
-                    await asyncio.sleep(20)  # in case there's some weird temporary discord outage
+                    # in case there's some weird temporary discord outage
+                    await asyncio.sleep(20)
                     role = member.guild.get_role(config['role'])
                     if not role:
-                        del self.bot.db['timed_voice_role'][str(member.guild.id)]
+                        del self.bot.db['timed_voice_role'][str(
+                            member.guild.id)]
                         return
                 if config['channel']:
                     channel = self.bot.get_channel(config['channel'])
@@ -660,15 +674,16 @@ class Events(commands.Cog):
                                 if aft.channel != channel:
                                     await member.remove_roles(role)
                                     return
-                            if aft.afk and config['remove_when_afk']:  # going to afk channel
+                            # going to afk channel
+                            if aft.afk and config['remove_when_afk']:
                                 await member.remove_roles(role)
                                 return
                         except (discord.HTTPException, discord.Forbidden):
                             await utils.safe_send(member, "I tried to give you a role for being in a voice channel for "
-                                                       "over 30 minutes, but either there was some kind of HTML "
-                                                       "error or I lacked permission to assign/remove roles. Please "
-                                                       "tell the admins of your server, or use the command "
-                                                       "`;timed_voice_role` to disable the module.")
+                                                  "over 30 minutes, but either there was some kind of HTML "
+                                                  "error or I lacked permission to assign/remove roles. Please "
+                                                  "tell the admins of your server, or use the command "
+                                                  "`;timed_voice_role` to disable the module.")
                             return
 
                     except asyncio.TimeoutError:
@@ -678,11 +693,11 @@ class Events(commands.Cog):
                                 await member.add_roles(role)
                             except (discord.HTTPException, discord.Forbidden):
                                 await utils.safe_send(member,
-                                                   "I tried to give you a role for being in a voice channel for "
-                                                   "over 30 minutes, but either there was some kind of HTML "
-                                                   "error or I lacked permission to assign/remove roles. Please "
-                                                   "tell the admins of your server, or use the command "
-                                                   "`;timed_voice_role` to disable the module.")
+                                                      "I tried to give you a role for being in a voice channel for "
+                                                      "over 30 minutes, but either there was some kind of HTML "
+                                                      "error or I lacked permission to assign/remove roles. Please "
+                                                      "tell the admins of your server, or use the command "
+                                                      "`;timed_voice_role` to disable the module.")
                                 return
                         if not member.voice:
                             try:
@@ -690,11 +705,11 @@ class Events(commands.Cog):
                                     await member.remove_roles(role)
                             except (discord.HTTPException, discord.Forbidden):
                                 await utils.safe_send(member,
-                                                   "I tried to give you a role for being in a voice channel for "
-                                                   "over 30 minutes, but either there was some kind of HTML "
-                                                   "error or I lacked permission to assign/remove roles. Please "
-                                                   "tell the admins of your server, or use the command "
-                                                   "`;timed_voice_role` to disable the module.")
+                                                      "I tried to give you a role for being in a voice channel for "
+                                                      "over 30 minutes, but either there was some kind of HTML "
+                                                      "error or I lacked permission to assign/remove roles. Please "
+                                                      "tell the admins of your server, or use the command "
+                                                      "`;timed_voice_role` to disable the module.")
                                 return
                             return
 
@@ -827,7 +842,7 @@ class Events(commands.Cog):
             # Only function on Spanish server
             if member.guild.id != SP_SERVER_ID:
                 return
-            
+
             # only work if after channel *has* a user_limit
             if after.channel.user_limit == 0:
                 return
@@ -835,7 +850,7 @@ class Events(commands.Cog):
             # watch for users joining full voice rooms
             if len(after.channel.members) <= after.channel.user_limit:
                 return
-            
+
             # only work if member does not have permission to view staff channel already (exempt mods)
             staff_channel = self.bot.get_channel(913886469809115206)
             if staff_channel.permissions_for(member).view_channel:
@@ -848,25 +863,27 @@ class Events(commands.Cog):
                                                      after=discord.utils.utcnow() - timedelta(seconds=15),
                                                      oldest_first=False):
                 if log.extra.channel == after.channel:
-                    
+
                     emb = utils.red_embed(f"The user {member.mention} ({member.id}) has potentially moved themselves "
-                                       f"into a full channel ({after.channel.mention}). Please check this.")
+                                          f"into a full channel ({after.channel.mention}). Please check this.")
                     if before.channel.members:
-                        list_of_before_users = '- ' + '\n- '.join([m.mention for m in before.channel.members])
+                        list_of_before_users = '- ' + \
+                            '\n- '.join([m.mention for m in before.channel.members])
                     else:
                         list_of_before_users = ''
 
                     if after.channel.members:
-                        list_of_after_users = '- ' + '\n- '.join([m.mention for m in after.channel.members])
+                        list_of_after_users = '- ' + \
+                            '\n- '.join([m.mention for m in after.channel.members])
                     else:
                         list_of_after_users = ''
 
                     emb.add_field(name="Previous Channel",
                                   value=f"{before.channel.mention} ({len(before.channel.members)}/"
-                                        f"{before.channel.user_limit})\n{list_of_before_users}")
+                                  f"{before.channel.user_limit})\n{list_of_before_users}")
                     emb.add_field(name="Final Channel",
                                   value=f"{after.channel.mention} ({len(after.channel.members)}/"
-                                        f"{after.channel.user_limit})\n{list_of_after_users}")
+                                  f"{after.channel.user_limit})\n{list_of_after_users}")
                     await staff_channel.send(str(member.id), embed=emb)
                     break
         await sp_serv_canti_voice_entry_hack_check()
@@ -876,12 +893,12 @@ class Events(commands.Cog):
         if not ctx.guild:
             return
         if str(ctx.guild.id) not in self.bot.db['guildstats']:
-            self.bot.db['guildstats'][str(ctx.guild.id)] = {'messages': {}, 'commands': {}}
+            self.bot.db['guildstats'][str(ctx.guild.id)] = {
+                'messages': {}, 'commands': {}}
         config: dict = self.bot.db['guildstats'][str(ctx.guild.id)]['commands']
 
         date_str = discord.utils.utcnow().strftime("%Y%m%d")
         config[date_str] = config.setdefault(date_str, 0) + 1
-        
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
@@ -925,7 +942,8 @@ class Events(commands.Cog):
             if thread.guild.id == SP_SERVER_ID:
                 instructions += addition
 
-            await asyncio.sleep(2)  # give time for discord to process thread starter message
+            # give time for discord to process thread starter message
+            await asyncio.sleep(2)
             if thread.starter_message:
                 await thread.starter_message.reply(instructions)
             else:
@@ -955,9 +973,10 @@ class Events(commands.Cog):
             return
 
         text = hf.message_list_to_text(cached_messages_in_channel)
-        file = hf.text_to_file(text, f"deleted_channel_{channel.name}_messages.txt")
+        file = hf.text_to_file(
+            text, f"deleted_channel_{channel.name}_messages.txt")
         embed_text = f"Saving {len(cached_messages_in_channel)} cached messages from deleted channel " \
-                     f"__#{channel.name}__.\nThe file contains messages from the following authors:"
+            f"__#{channel.name}__.\nThe file contains messages from the following authors:"
         for author in authors_in_channel:
             embed_text += f"\n- M{author.id} ({str(author)})"
             embed_text += f" **x{len([m for m in cached_messages_in_channel if m.author == author])}**"
@@ -986,9 +1005,9 @@ class Events(commands.Cog):
         if execution.rule_trigger_type == discord.AutoModRuleTriggerType.keyword:
             rule_description = f"Used banned keyword from filter named **{rule.name}**"
         elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.spam:
-            rule_description = f"User spammed a message"
+            rule_description = "User spammed a message"
         elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.keyword_preset:
-            rule_description = f"User triggered one of the default filters: "
+            rule_description = "User triggered one of the default filters: "
             if rule.trigger.presets.profanity:
                 rule_description += "Profanity"
             if rule.trigger.presets.sexual_content:
@@ -996,9 +1015,9 @@ class Events(commands.Cog):
             if rule.trigger.presets.slurs:
                 rule_description += "Slurs"
         elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.harmful_link:
-            rule_description = f"User sent a potentially harmful link: "
+            rule_description = "User sent a potentially harmful link: "
         elif execution.rule_trigger_type == discord.AutoModRuleTriggerType.mention_spam:
-            rule_description = f"User spammed mentions: "
+            rule_description = "User spammed mentions: "
         else:
             rule_description = "User triggered some kind of AutoMod rule (unknown type)"
 
@@ -1018,13 +1037,15 @@ class Events(commands.Cog):
             formatted_content = execution.content.replace(execution.matched_content,
                                                           f'**{execution.matched_content}**')
         else:
-            formatted_content = execution.content  # if no matched content, just use the content
+            # if no matched content, just use the content
+            formatted_content = execution.content
 
         reason = (f"{rule_description}\n"
                   f">>> {formatted_content}")
 
-        hf.add_to_modlog(None, [member, guild], modlog_type, reason, silent, execution.action.duration)
+        hf.add_to_modlog(None, [member, guild], modlog_type,
+                         reason, silent, execution.action.duration)
 
-    
+
 async def setup(bot):
     await bot.add_cog(Events(bot))
