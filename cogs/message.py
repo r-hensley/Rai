@@ -303,7 +303,13 @@ class Message(commands.Cog):
             thread = await new_tracebacks_channel.create_thread(name=post_name, content=msg.content, embeds=msg.embeds)
             # thread is actually a ThreadWithMessaged named tuple (thread, message)
             thread = thread.thread
-        except (discord.HTTPException, discord.Forbidden):
+        except discord.Forbidden as e:
+            errmsg = f"Permission denied while creating thread in channel {new_tracebacks_channel.id}"
+            e.add_note(errmsg)
+            raise
+        except discord.HTTPException as e:
+            errmsg = f"HTTP error while creating thread: {e}"
+            e.add_note(errmsg)
             raise
         for msg_split in post_content_split:
             await thread.send(msg_split)
@@ -1732,10 +1738,10 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                 channel_id = int(source_msg_search.group(3))
                 source_channel = msg.guild.get_channel(channel_id)
                 source_msg = await source_channel.fetch_message(int(source_msg_search.group(4)))
-            except (AttributeError, ValueError, discord.NotFound) as e:
+            except (AttributeError, ValueError, discord.NotFound):
                 return
 
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return
 
         if str(payload.emoji) == "⚠️":
