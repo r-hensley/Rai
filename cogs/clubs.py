@@ -28,7 +28,7 @@ def club_owners(ctx):
 class Clubs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        
+
     async def cog_check(self, ctx: Context[BotT]) -> bool:
         if ctx.guild is None:
             await ctx.send("This command can only be used in a server.")
@@ -79,7 +79,8 @@ class Clubs(commands.Cog):
             await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({ctx.guild.id})")
 
         query = "INSERT INTO clubs (name, guild_id, created_at, owner_id) VALUES (?, ?, ?, ?)"
-        parameters = (club_name, ctx.guild.id, ctx.message.created_at, ctx.author.id)
+        parameters = (club_name, ctx.guild.id,
+                      ctx.message.created_at, ctx.author.id)
         try:
             async with asqlite.connect(DATABASE_PATH) as c:
                 await c.execute(query, parameters)
@@ -108,7 +109,7 @@ class Clubs(commands.Cog):
             await utils.safe_send(ctx, "I couldn't find a club with that name, please try again.")
             return
         assert len(current_clubs) == 1, f"The result of this search was somehow greater than 1: " \
-                                        f"{[list(i) for i in current_clubs]}"
+            f"{[list(i) for i in current_clubs]}"
 
         try:
             await clubs.execute(query2, parameters)
@@ -134,7 +135,7 @@ class Clubs(commands.Cog):
             return
 
         assert len(to_join_club) == 1, f"The above SQL line should've returned one result only: " \
-                                       f"{[list(i) for i in to_join_club]}"
+            f"{[list(i) for i in to_join_club]}"
 
         to_join_id = to_join_club[0][0]
 
@@ -193,7 +194,7 @@ class Clubs(commands.Cog):
             user_id = int(user_id)
         except ValueError:
             await utils.safe_send(ctx, "Please send the command in this format: `giveclub <recipient-id> <club name>`. "
-                                    "Example: `;giveclub 1234567890 example club`")
+                                  "Example: `;giveclub 1234567890 example club`")
             return
 
         clubs = Connect("database.db", "clubs")
@@ -204,7 +205,7 @@ class Clubs(commands.Cog):
                 to_give_id = user_id
                 if not club_owners(ctx) and owner_id != ctx.author.id:
                     await utils.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
-                                            "this club away.")
+                                          "this club away.")
                     return
 
         if not to_give_id:
