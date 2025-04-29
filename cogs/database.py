@@ -2,11 +2,8 @@ import os
 from ast import literal_eval
 from typing import Optional, Iterable
 
-import discord
-from discord.ext import commands
 import asqlite
 
-from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
