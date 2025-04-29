@@ -253,7 +253,7 @@ class Connect(SQLCommands):
                     raise Exception(
                         "You can't use kwarg 'offset' without kwarg 'limit'")
                 parameters = str(tuple(parameters))
-                parameters = eval(parameters)
+                parameters = literal_eval(parameters)
                 # print(f"query ==> await cursor.execute(\"{query}\", {parameters})")
                 # print(parameters)
                 getValues = await cursor.execute(query, parameters)
@@ -281,8 +281,8 @@ class Connect(SQLCommands):
                     elif i == 'None' or i is None:
                         my_list.append(i)
                     elif check_type(i, list) or check_type(i, dict) or check_type(i, tuple):
-                        i = eval(i)
-                        my_list.append(eval(i))
+                        i = literal_eval(i)
+                        my_list.append(literal_eval(i))
                     elif i.isascii():
                         i = i[1:-1]
                         my_list.append(i)
