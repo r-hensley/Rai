@@ -9,9 +9,9 @@ from discord.ext import commands
 from discord.ext.commands import Context
 from discord.ext.commands._types import BotT
 
-from .database import Connect
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
+from .database import Connect
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATABASE_PATH = rf'{dir_path}/database.db'
