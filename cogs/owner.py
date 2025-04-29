@@ -187,7 +187,7 @@ class Owner(commands.Cog):
                         # if I pass a key like "ctx.guild.id", return the actual value of ctx.guild.id as a str
                         if key.startswith("ctx"):
                             try:
-                                key = str(eval(key))
+                                key = str(literal_eval(key))
                             except Exception as e:
                                 await ctx.send(f"An error occurred: {e}")
                                 return
