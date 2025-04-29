@@ -14,12 +14,12 @@ from discord.ext import commands, tasks
 
 # check to make sure this submodule is initialized
 try:
-    if not os.listdir('cogs/utils/BotUtils'):
-        raise FileNotFoundError
-except FileNotFoundError:
-    raise FileNotFoundError("The BotUtils submodule is not initialized. "
-                            "Please run 'git submodule update --init --recursive' to initialize it.")
-from cogs.utils.BotUtils import bot_utils as utils
+    from cogs.utils.BotUtils import bot_utils as utils
+except ImportError as exc:
+    ERRMSG = ("The BotUtils submodule is not initialized.\n"
+              "Please run 'git submodule update --init --recursive' to initialize it.")
+    exc.add_note(ERRMSG)
+    raise
 from cogs.utils import helper_functions as hf
 from cogs.database import create_database_tables
 
