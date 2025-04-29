@@ -41,7 +41,8 @@ class SQLCommands(object):
         :type primary_key: str
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 await cursor.execute(
@@ -93,7 +94,8 @@ class Connect(SQLCommands):
         :rtype: dict
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 data = {}
@@ -154,7 +156,8 @@ class Connect(SQLCommands):
         :rtype: sqlite
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 getUser = await cursor. \
@@ -167,7 +170,7 @@ class Connect(SQLCommands):
                             dictionary[key] = str(val)
                     await cursor.execute(f"UPDATE {self._table_name} SET " + ', '.join(
                         "{}=?".format(k) for k in dictionary.keys()) + f" WHERE {self._primary_key}=?",
-                                         list(dictionary.values()) + [my_id])
+                        list(dictionary.values()) + [my_id])
                 else:
                     await cursor.execute(f"INSERT INTO {self._table_name} ({self._primary_key}) VALUES ( ? )", (my_id,))
                     for key, val in dictionary.items():
@@ -175,7 +178,7 @@ class Connect(SQLCommands):
                             dictionary[key] = str(val)
                     await cursor.execute(f"UPDATE {self._table_name} SET " + ', '.join(
                         "{}=?".format(k) for k in dictionary.keys()) + f" WHERE {self._primary_key}=?",
-                                         list(dictionary.values()) + [my_id])
+                        list(dictionary.values()) + [my_id])
 
             await db.commit()
 
@@ -206,7 +209,8 @@ class Connect(SQLCommands):
         :rtype: list
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
 
@@ -252,7 +256,8 @@ class Connect(SQLCommands):
                     query += f" OFFSET ?"
                     parameters.append(offset)
                 elif offset is not None and limit is None:
-                    raise Exception("You can't use kwarg 'offset' without kwarg 'limit'")
+                    raise Exception(
+                        "You can't use kwarg 'offset' without kwarg 'limit'")
                 parameters = str(tuple(parameters))
                 parameters = eval(parameters)
                 # print(f"query ==> await cursor.execute(\"{query}\", {parameters})")
