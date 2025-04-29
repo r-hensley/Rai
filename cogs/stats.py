@@ -200,7 +200,7 @@ class Stats(commands.Cog):
                 return
 
         try:
-            config = self.bot.stats[str(ctx.guild.id)]['messages']
+            _config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
             return
 
@@ -856,7 +856,7 @@ class Stats(commands.Cog):
 
         assert user is not None, "Code failed to find user and advanced wrongly to this stage"
 
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
 
         msgs_per_day: dict[datetime, int] = hf.get_messages_per_day(
             user.id, ctx.guild)
