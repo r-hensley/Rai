@@ -464,10 +464,10 @@ class General(commands.Cog):
         else:
             await utils.safe_send(ctx, "The language module being used by Rai no longer works. A new one will be found.")
             return
-        str = f"Your message:```{msg}```" \
+        strng = f"Your message:```{msg}```" \
             f"The message I see (no emojis or urls): ```{stripped_msg}```" \
             f"The language I detect: ```{lang_result}```"
-        await utils.safe_send(ctx, str)
+        await utils.safe_send(ctx, strng)
 
     @commands.command(aliases=['server', 'info', 'sinfo'])
     @commands.cooldown(1, 30, type=commands.BucketType.channel)
@@ -1279,7 +1279,7 @@ class General(commands.Cog):
                 return
 
             try:
-                reaction_added, user_react = await self.bot.wait_for("reaction_add", check=check_reactions, timeout=1)
+                reaction_added, _user_react = await self.bot.wait_for("reaction_add", check=check_reactions, timeout=1)
             except asyncio.TimeoutError:
                 time_left -= 1  # Restart loop
             else:
@@ -1363,11 +1363,11 @@ class General(commands.Cog):
             return
 
         if type(format_option) == str:
-            format = format_option
+            formt = format_option
         else:
-            format = format_option.value
+            formt = format_option.value
 
-        date_str = f"<t:{int(date.timestamp())}:{format}>"
+        date_str = f"<t:{int(date.timestamp())}:{formt}>"
         await itx.response.send_message(date_str, ephemeral=True)
         await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
