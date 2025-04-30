@@ -2,11 +2,8 @@ import os
 from ast import literal_eval
 from typing import Optional, Iterable
 
-import discord
-from discord.ext import commands
 import asqlite
 
-from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -41,7 +38,8 @@ class SQLCommands(object):
         :type primary_key: str
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 await cursor.execute(
@@ -79,9 +77,6 @@ class Connect(SQLCommands):
     Most of the credit for this module goes to: https://github.com/sabrysm/asqlitedict
     """
 
-    def __init__(self, database_name: str, table_name: str = None, primary_key: str = None):
-        super().__init__(database_name, table_name, primary_key)
-
     async def to_dict(self, my_id, *column_names: str) -> dict:
         """
         Convert a sqlite3 table into a python dictionary.
@@ -93,7 +88,8 @@ class Connect(SQLCommands):
         :rtype: dict
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 data = {}
@@ -154,7 +150,8 @@ class Connect(SQLCommands):
         :rtype: sqlite
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
                 getUser = await cursor. \
@@ -167,7 +164,7 @@ class Connect(SQLCommands):
                             dictionary[key] = str(val)
                     await cursor.execute(f"UPDATE {self._table_name} SET " + ', '.join(
                         "{}=?".format(k) for k in dictionary.keys()) + f" WHERE {self._primary_key}=?",
-                                         list(dictionary.values()) + [my_id])
+                        list(dictionary.values()) + [my_id])
                 else:
                     await cursor.execute(f"INSERT INTO {self._table_name} ({self._primary_key}) VALUES ( ? )", (my_id,))
                     for key, val in dictionary.items():
@@ -175,7 +172,7 @@ class Connect(SQLCommands):
                             dictionary[key] = str(val)
                     await cursor.execute(f"UPDATE {self._table_name} SET " + ', '.join(
                         "{}=?".format(k) for k in dictionary.keys()) + f" WHERE {self._primary_key}=?",
-                                         list(dictionary.values()) + [my_id])
+                        list(dictionary.values()) + [my_id])
 
             await db.commit()
 
@@ -206,7 +203,8 @@ class Connect(SQLCommands):
         :rtype: list
         """
         if not self._table_name or not self._primary_key:
-            raise ValueError("table_name and primary_key need to be specified to use this command.")
+            raise ValueError(
+                "table_name and primary_key need to be specified to use this command.")
         async with asqlite.connect(self._database_name) as db:
             async with db.cursor() as cursor:
 
@@ -242,19 +240,20 @@ class Connect(SQLCommands):
                 if order_by is not None:
                     query += f" ORDER BY {order_by}"
                 if ascending is False:
-                    query += f" DESC"
+                    query += " DESC"
                 else:
-                    query += f""
+                    query += ""
                 if limit is not None:
-                    query += f" LIMIT ?"
+                    query += " LIMIT ?"
                     parameters.append(limit)
                 if offset is not None and limit is not None:
-                    query += f" OFFSET ?"
+                    query += " OFFSET ?"
                     parameters.append(offset)
                 elif offset is not None and limit is None:
-                    raise Exception("You can't use kwarg 'offset' without kwarg 'limit'")
+                    raise Exception(
+                        "You can't use kwarg 'offset' without kwarg 'limit'")
                 parameters = str(tuple(parameters))
-                parameters = eval(parameters)
+                parameters = literal_eval(parameters)
                 # print(f"query ==> await cursor.execute(\"{query}\", {parameters})")
                 # print(parameters)
                 getValues = await cursor.execute(query, parameters)
@@ -282,8 +281,8 @@ class Connect(SQLCommands):
                     elif i == 'None' or i is None:
                         my_list.append(i)
                     elif check_type(i, list) or check_type(i, dict) or check_type(i, tuple):
-                        i = eval(i)
-                        my_list.append(eval(i))
+                        i = literal_eval(i)
+                        my_list.append(literal_eval(i))
                     elif i.isascii():
                         i = i[1:-1]
                         my_list.append(i)
@@ -354,4 +353,5 @@ async def create_database_tables() -> None:
 
 
 async def setup(bot):
+    # this file is not formatted like a typical cog but this is necessary to allow reloading of this file
     pass

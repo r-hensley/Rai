@@ -8,8 +8,8 @@ from datetime import timedelta, datetime, timezone
 import discord
 from discord import app_commands, Interaction
 from discord.ext import commands
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -849,9 +849,9 @@ class Submod(commands.Cog):
                 return u == ctx.author and str(r) in '✅❌'
 
             try:
-                reaction_added, user_react = await self.bot.wait_for("reaction_add",
-                                                                     check=reaction_check,
-                                                                     timeout=10)
+                reaction_added, _user_react = await self.bot.wait_for("reaction_add",
+                                                                      check=reaction_check,
+                                                                      timeout=10)
             except asyncio.TimeoutError:
                 await utils.safe_send(ctx, f"Action timed out, I will not warn the user {user.mention}.")
                 raise
