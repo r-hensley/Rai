@@ -6,8 +6,8 @@ import time
 import traceback
 import urllib
 from datetime import timedelta
-from functools import wraps, partial
-from typing import Optional, Any
+from functools import wraps
+from typing import Optional
 from urllib.error import HTTPError
 
 import discord
@@ -15,13 +15,13 @@ import openai
 from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
-from openai.types import Moderation
+
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from Levenshtein import distance as LDist
-from deep_translator import GoogleTranslator, single_detection
+from deep_translator import GoogleTranslator
 
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
 
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
@@ -164,7 +164,7 @@ class Message(commands.Cog):
             else:
                 raise
 
-    async def lang_check(self, msg: hf.RaiMessage) -> (Optional[str], bool):
+    async def lang_check(self, msg: hf.RaiMessage) -> tuple[Optional[str], bool]:
         """
         Will check if above 3 characters + hardcore, or if above 15 characters + stats
         :param msg:
@@ -273,16 +273,16 @@ class Message(commands.Cog):
             return
 
         # Ask ChatGPT for summary of traceback
-        messages = [{"role": "system", "content": f"Please summarize the following Python traceback to be parsed "
-                     f"with a bot. All errors will be things happening in a Discord bot, "
-                     f"so you don't need to state that in the post title:\n"
-                     f"1) A title for the post for the error "
-                     f"(100 characters max, plain text)\n"
-                     f"(New line)"
-                     f"2) A summary for why the error happened, and which file / line the "
-                     f"error happened on. Recommendations for fixing "
-                     f"the error are not needed (2000 characters max, "
-                     f"new lines and Discord formatting allowed)"},
+        messages = [{"role": "system", "content": "Please summarize the following Python traceback to be parsed "
+                     "with a bot. All errors will be things happening in a Discord bot, "
+                     "so you don't need to state that in the post title:\n"
+                     "1) A title for the post for the error "
+                     "(100 characters max, plain text)\n"
+                     "(New line)"
+                     "2) A summary for why the error happened, and which file / line the "
+                     "error happened on. Recommendations for fixing "
+                     "the error are not needed (2000 characters max, "
+                     "new lines and Discord formatting allowed)"},
                     {"role": "user", "content": "< assume traceback content here >"},
                     {'role': 'assistant', 'content': "HTTPException in on_raw_message_delete from malformed footer URL"
                                                      "\nThis bug comes from an HTTPException in ... "
@@ -303,7 +303,13 @@ class Message(commands.Cog):
             thread = await new_tracebacks_channel.create_thread(name=post_name, content=msg.content, embeds=msg.embeds)
             # thread is actually a ThreadWithMessaged named tuple (thread, message)
             thread = thread.thread
-        except (discord.HTTPException, discord.Forbidden):
+        except discord.Forbidden as e:
+            errmsg = f"Permission denied while creating thread in channel {new_tracebacks_channel.id}"
+            e.add_note(errmsg)
+            raise
+        except discord.HTTPException as e:
+            errmsg = f"HTTP error while creating thread: {e}"
+            e.add_note(errmsg)
             raise
         for msg_split in post_content_split:
             await thread.send(msg_split)
@@ -616,7 +622,7 @@ class Message(commands.Cog):
                         except (discord.Forbidden, discord.HTTPException):
                             pass
 
-    """Ping me if someone says my name"""
+    # """Ping me if someone says my name"""
 
     @on_message_function()
     async def mention_ping(self, msg: hf.RaiMessage):
@@ -711,7 +717,7 @@ class Message(commands.Cog):
                 f'\n{msg.content}'
                 f'\n{msg.jump_url}'[:2000])
 
-    """Self mute"""
+    # """Self mute"""
 
     @on_message_function()
     async def self_mute(self, msg: hf.RaiMessage):
@@ -724,7 +730,7 @@ class Message(commands.Cog):
         except KeyError:
             pass
 
-    """Owner self mute"""
+    # """Owner self mute"""
 
     @on_message_function()
     async def owner_self_mute(self, msg: hf.RaiMessage):
@@ -737,7 +743,7 @@ class Message(commands.Cog):
         except AttributeError:
             pass
 
-    """check for mutual servers of banned users"""
+    # """check for mutual servers of banned users"""
 
     @on_message_function()
     async def check_guilds(self, msg: hf.RaiMessage):
@@ -998,7 +1004,7 @@ class Message(commands.Cog):
             return
 
         if msg.reference:
-            if type(msg.reference.resolved) == discord.Message:
+            if isinstance(msg.reference.resolved, discord.Message):
                 await msg.reference.resolved.reply(ping)
             else:
                 await msg.reply(ping)
@@ -1106,7 +1112,7 @@ class Message(commands.Cog):
             config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
             config[str(msg.author.id)].append(sentiment)
 
-    """Message counting"""
+    # """Message counting"""
 
     # 'stats':
     #     guild id: str:
@@ -1280,7 +1286,7 @@ class Message(commands.Cog):
     #         except KeyError:
     #             self.bot.db['forcehardcore'] = []
 
-    """Spanish server hardcore"""
+    # """Spanish server hardcore"""
 
     @on_message_function()
     async def spanish_server_hardcore(self, msg: hf.RaiMessage):
@@ -1418,7 +1424,7 @@ class Message(commands.Cog):
             return  # exempt staff channels
 
         # remove the staff ping from the message for the next part
-        new_content = msg.content.replace(f"<@&642782671109488641>", "")
+        new_content = msg.content.replace("<@&642782671109488641>", "")
 
         # if the message without the ping is less than 4 characters, it's likely just a ping with no text
         if len(new_content) < 4:
@@ -1489,7 +1495,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             pass
 
         incidents_channel = msg.guild.get_channel(808077477703712788)
-        await utils.safe_send(incidents_channel, f"⚠️ Banning above user / sending instructions for appeal ⚠️")
+        await utils.safe_send(incidents_channel, "⚠️ Banning above user / sending instructions for appeal ⚠️")
 
         # replace dangerous URLs from message with placeholder text
         content = re.sub(r"([\w-]+)\.com", "URL_REMOVED.com", content)
@@ -1638,7 +1644,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             if stripped_content.count(" ") == 0:
                 return
 
-        confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(
+        _confidence_levels_one = self.lingua_detector_eng_sp.compute_language_confidence_values(
             stripped_content)
         confidence_levels_two = self.lingua_detector_full.compute_language_confidence_values(
             stripped_content)
@@ -1696,7 +1702,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                   f"({round(confidence_levels_two[0].value, 3)})")
             if msg.created_at.second % 10 in [0]:
                 # randomly for messages that happen on seconds ending in "0" (1/10 chance), add extra information
-                s += f"\n__Information on below emojis__"
+                s += "\n__Information on below emojis__"
                 s += "\n- ⚠️ - Format a warning to send to the user"
                 s += "\n- ℹ️ - Format a friendlier modbot warning to send to the channel"
                 s += "\n- ❌ - Delete this log (it was a mistaken detection)"
@@ -1732,10 +1738,10 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                 channel_id = int(source_msg_search.group(3))
                 source_channel = msg.guild.get_channel(channel_id)
                 source_msg = await source_channel.fetch_message(int(source_msg_search.group(4)))
-            except (AttributeError, ValueError, discord.NotFound) as e:
+            except (AttributeError, ValueError, discord.NotFound):
                 return
 
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return
 
         if str(payload.emoji) == "⚠️":
@@ -1943,8 +1949,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
                               for category in result.categories if category[1]]
 
         s = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
-        s += f"Flagged categories:\n"
-        s += f"Category scores:\n"
+        s += "Flagged categories:\n"
+        s += "Category scores:\n"
         over_80 = False
         for category, score in result.category_scores:
             if category in flagged_categories:
