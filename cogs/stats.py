@@ -61,14 +61,14 @@ class Stats(commands.Cog):
         try:
             category_id = ctx.channel.category.id
         except AttributeError:
-            return
+            return False
         if category_id in [685446008129585176, 685445852009201674]:
             try:
                 if ctx.message.content != ";help":
                     await ctx.reply("Please use that command in <#247135634265735168>.")
-                return
+                return False
             except (discord.Forbidden, discord.HTTPException):
-                return
+                return False
         if ctx.guild:
             return True
         else:
@@ -197,12 +197,12 @@ class Stats(commands.Cog):
                 user_id = user.id
             else:
                 await utils.safe_send(ctx, "I couldn't find the user.")
-                return
+                return None
 
         try:
             _config = self.bot.stats[str(ctx.guild.id)]['messages']
         except KeyError:
-            return
+            return None
 
         # If user in bot.db['joindates'], override their join date for users who have left and rejoined server
         if member:
@@ -269,8 +269,8 @@ class Stats(commands.Cog):
             if channel_id == '0':  # category for all deleted channels
                 text = f"**#Deleted Channels**: {message_percentage}%⠀\n"
             else:
-                channel = ctx.guild.get_channel_or_thread(int(channel_id))
-                text = f"**#{escape_markdown(channel.name)}**: {message_percentage}%⠀\n"
+                _channel = ctx.guild.get_channel_or_thread(int(channel_id))
+                text = f"**#{escape_markdown(_channel.name)}**: {message_percentage}%⠀\n"
             return text
 
         channeltext = ''
@@ -366,8 +366,18 @@ class Stats(commands.Cog):
         return emb
 
     @staticmethod
-    def make_leaderboard_embed(ctx, channel_in, dict_in, title):
-        sorted_dict = sorted(dict_in.items(), reverse=True, key=lambda x: x[1])
+    def make_leaderboard_embed(ctx,
+                               channel_in: list[discord.abc.GuildChannel],
+                               dict_in: dict[str: int],
+                               title: str):
+        """
+        Dict should look like
+        {str(user_id): int(number_of_messages)}
+        """
+        sorted_dict_list: list[tuple[str, int]] = sorted(dict_in.items(),
+                                                         reverse=True, key=lambda x: x[1])
+        # sorted_dict_list looks like:
+        # [ ('1234', 10), ('4567', 15), ... ]
         emb = discord.Embed(title=title,
                             description="Last 30 days",
                             color=discord.Color(int('00ccFF', 16)),
@@ -381,28 +391,29 @@ class Stats(commands.Cog):
                 text="Try `;alb` or `;achlb` for the activity score leaderboard")
 
         if channel_in:
-            if isinstance(channel_in, list):
-                emb.title += " for #" + \
-                    ', #'.join([c.name for c in channel_in])
-            else:
-                emb.title += " for #{channel_in.name}"
+            channel_names = [f"#{c.name}" for c in channel_in]
+            # looks: "#channel, #channel, ..."
+            channel_name_list_string = ', '.join(channel_names)
+            emb.title += " for " + channel_name_list_string
         number_of_users_found = 0
         found_yourself = False
-        for i, sorted_dict in enumerate(sorted_dict):
-            member = ctx.guild.get_member(int(sorted_dict[i][0]))
-            if member:
-                if number_of_users_found < 24 or \
-                        (number_of_users_found == 24 and (found_yourself or member == ctx.author)) or \
-                        number_of_users_found > 24 and member == ctx.author:
-                    value = sorted_dict[i][1]
-                    if title.startswith("Voice"):
-                        # value is counted in minutes
-                        value = format_interval(value * 60)
-                    emb.add_field(name=f"{number_of_users_found + 1}) {escape_markdown(member.name)}",
-                                  value=value)
-                number_of_users_found += 1
-                if member == ctx.author:
-                    found_yourself = True
+        for user_id, value in sorted_dict_list:
+            # "value" is either a number of messages (text leaderboard),
+            # or a number of minutes (voice leaderboard)
+            member = ctx.guild.get_member(int(user_id))
+            if not member:
+                continue
+            if number_of_users_found < 24 or \
+                    (number_of_users_found == 24 and (found_yourself or member == ctx.author)) \
+                    or number_of_users_found > 24 and member == ctx.author:
+                if title.startswith("Voice"):
+                    # value is counted in minutes
+                    value = format_interval(value * 60)
+                emb.add_field(name=f"{number_of_users_found + 1}) {escape_markdown(member.name)}",
+                              value=value)
+            number_of_users_found += 1
+            if member == ctx.author:
+                found_yourself = True
             if number_of_users_found >= 25 and found_yourself:
                 break
         return emb
@@ -417,9 +428,11 @@ class Stats(commands.Cog):
         # if channels_in is passed, calculate the proper list of channels:
         # if it comes from ;lb, it will be "False"
         # if it comes from ;chlb, it will be a (possibly empty) tuple of channel link strings
-        if channels_in is False:  # came from ;lb, take all channels
+        if channels_in is False:
+            # came from ;lb, take all channels
             channel_obs = []
-        elif not channels_in:  # came from ;chlb but no channel specification, take ctx as specified channel
+        elif not channels_in:
+            # came from ;chlb but no channel specification, take ctx as specified channel
             if isinstance(ctx.channel, discord.Thread):
                 channel_obs = [ctx.channel.parent]
             else:
@@ -437,11 +450,13 @@ class Stats(commands.Cog):
                             c = c.parent
                         channel_obs.append(c)
                     else:
-                        await utils.safe_send(ctx, f"I couldn't find the channel `{channel_id}`.")
+                        await utils.safe_send(ctx,
+                                              f"I couldn't find the channel `{channel_id}`.")
                         continue
                 except ValueError:
                     await utils.safe_send(ctx,
-                                          "Please provide a link to a channel, not just the channel name "
+                                          "Please provide a link to a channel, "
+                                          "not just the channel name "
                                           "(e.g. `;chlb #general`), or if you just type `;chlb` "
                                           "it will show the leaderboard for the current channel.")
                     return
@@ -471,10 +486,12 @@ class Stats(commands.Cog):
             else:
                 title = "Activity Score Leaderboard"
             await utils.safe_send(ctx,
-                                  embed=self.make_leaderboard_embed(ctx, channel_obs, msg_count, title))
+                                  embed=self.make_leaderboard_embed(ctx, channel_obs,
+                                                                    msg_count, title))
         except discord.Forbidden:
             try:
-                await utils.safe_send(ctx, "I lack the permissions to send embeds in this channel")
+                await utils.safe_send(ctx,
+                                      "I lack the permissions to send embeds in this channel")
             except discord.Forbidden:
                 pass
 
@@ -521,22 +538,23 @@ class Stats(commands.Cog):
                     lb_dict[user] += config[day][user]
                 else:
                     lb_dict[user] = config[day][user]
-        await utils.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, None, lb_dict, "Voice Leaderboard"))
+        await utils.safe_send(ctx, embed=self.make_leaderboard_embed(ctx, [],
+                                                                     lb_dict, "Voice Leaderboard"))
 
     @commands.command(aliases=['emojis', 'emoji'])
     @commands.bot_has_permissions(embed_links=True)
     @commands.cooldown(3, 5, commands.BucketType.user)
-    async def emotes(self, ctx, args=None):
+    async def emotes(self, ctx: commands.Context, args=None):
         """Shows top emojis usage of the server.
         `;emojis` - Displays the top 25
         `;emojis -a` - Shows usage stats on all emojis
-        `;emojis -l` - Shows least used emojis.
+        `;emojis -l` - Shows the least used emojis.
         `;emojis -s` - Same as `-a` but it scales the usage of emojis created in the last 30 days
         `;emojis -me` - Shows only your emoji stats"""
         if str(ctx.guild.id) not in self.bot.stats:
             return
         config = self.bot.stats[str(ctx.guild.id)]['messages']
-        emojis: dict[str, int] = {}
+        emoji_count_dict: dict[str, int] = {}  # {emoji_name[str] : count[int]}
 
         if args == '-me':
             me = True
@@ -550,38 +568,41 @@ class Stats(commands.Cog):
                         continue
                 if 'emoji' not in config[date][user_id]:
                     continue
-                for emoji in config[date][user_id]['emoji']:
-                    emoji: str
-                    if emoji in emojis:
-                        emojis[emoji] += config[date][user_id]['emoji'][emoji]
+                for emoji_name in config[date][user_id]['emoji']:
+                    if emoji_name in emoji_count_dict:
+                        emoji_count_dict[emoji_name] += config[date][user_id]['emoji'][emoji_name]
                     else:
-                        emojis[emoji] = config[date][user_id]['emoji'][emoji]
+                        emoji_count_dict[emoji_name] = config[date][user_id]['emoji'][emoji_name]
 
         emoji_dict: dict[str, discord.Emoji] = {
-            emoji.name: emoji for emoji in ctx.guild.emojis}
+            e.name: e for e in ctx.guild.emojis}
         msg = 'Top Emojis:\n'
 
         if args == '-s':
-            for emoji in emojis:
-                if emoji not in emoji_dict:
+            for emoji_name in emoji_count_dict:
+                if emoji_name not in emoji_dict:
                     continue
-                emoji_obj = emoji_dict[emoji]
+                emoji_obj = emoji_dict[emoji_name]
                 x = discord.utils.utcnow() - emoji_obj.created_at
                 if x < timedelta(days=30):
-                    emojis[emoji] = int(emojis[emoji] * 30 / (x.days + 1))
+                    emoji_count = int(
+                        emoji_count_dict[emoji_name] * 30 / (x.days + 1))
+                    emoji_count_dict[emoji_name] = emoji_count
             args = '-a'
             msg = 'Scaled Emoji Counts (last 30 days, emojis created in the last 30 days have ' \
                   'numbers scaled to 30 days):\n'
-        top_emojis = sorted(list(emojis.items()),
-                            key=lambda x: x[1], reverse=True)
+        top_emojis = sorted(list(emoji_count_dict.items()),
+                            key=lambda e: e[1], reverse=True)
+        # top_emojis: sorted list of [ (name: count) ... ]
 
         saved_msgs = []
 
         if args == '-a':
-            for emoji in top_emojis:
-                if emoji[0] in emoji_dict:
-                    emoji_obj = emoji_dict[emoji[0]]
-                    addition = f"{str(emoji_obj)}: {emoji[1]}\n"
+            for emoji_name, count in top_emojis:
+                count: int
+                if emoji_name in emoji_dict:
+                    emoji_obj = emoji_dict[emoji_name]
+                    addition = f"{str(emoji_obj)}: {count}\n"
                     if len(msg + addition) < 2000:
                         msg += addition
                     else:
@@ -601,9 +622,9 @@ class Stats(commands.Cog):
             zero_use_emoji_list = [
                 e for e in ctx.guild.emojis if not e.animated and '_kana_' not in e.name]
             uses_to_emoji_list_dict = {}
-            for emoji in top_emojis:
+            for emoji_name, count in top_emojis:
                 try:
-                    emoji_obj = emoji_dict[emoji[0]]
+                    emoji_obj = emoji_dict[emoji_name]
                 except KeyError:
                     continue
                 if emoji_obj.animated or '_kana_' in emoji_obj.name:
@@ -613,8 +634,8 @@ class Stats(commands.Cog):
                     # now a list of emojis with zero uses
                     zero_use_emoji_list.remove(emoji_obj)
 
-                uses_to_emoji_list_dict.setdefault(
-                    emoji[1], []).append(emoji_obj)
+                # {4: [emoji_obj, emoji_obj], 5: [...], ...}
+                uses_to_emoji_list_dict.setdefault(count, []).append(emoji_obj)
 
             if zero_use_emoji_list:
                 uses_to_emoji_list_dict[0] = zero_use_emoji_list
@@ -628,10 +649,10 @@ class Stats(commands.Cog):
                     else:
                         field_name = f"{field_counter} uses"
                     field_value = ''
-                    for emoji in uses_to_emoji_list_dict[field_counter]:
-                        if emoji.animated:
+                    for emoji_obj in uses_to_emoji_list_dict[field_counter]:
+                        if emoji_obj.animated:
                             continue
-                        new_addition = f"{str(emoji)} "
+                        new_addition = f"{str(emoji_obj)} "
                         if len(field_value + new_addition) < 1024:
                             field_value += new_addition
                         else:
@@ -660,12 +681,12 @@ class Stats(commands.Cog):
         else:
             emb = utils.green_embed("Most Used Emojis (last 30 days)")
             field_counter = 0
-            for emoji in top_emojis:
+            for emoji_name, count in top_emojis:
                 if field_counter < 25:
-                    if emoji[0] in emoji_dict:
-                        emoji_obj = emoji_dict[emoji[0]]
+                    if emoji_name in emoji_dict:
+                        emoji_obj = emoji_dict[emoji_name]
                         emb.add_field(
-                            name=f"{field_counter + 1}) {str(emoji_obj)}", value=emoji[1])
+                            name=f"{field_counter + 1}) {str(emoji_obj)}", value=count)
                         field_counter += 1
                 else:
                     break
@@ -749,11 +770,10 @@ class Stats(commands.Cog):
 
         For a tool to test your own messages, try [this](https://monkeylearn.com/sentiment-analysis-online/)."""
         if ctx.message.content.startswith(";sentiment "):
-            if not re.search(r"(?:;sentiment @)|(?:;sentiment <?@?!?\d{17,22}>?)", ctx.message.content):
+            if not re.search(r";sentiment @|;sentiment <?@?!?\d{17,22}>?", ctx.message.content):
                 return  # in on_message, there is separate code handling this case
                 # this is so users can test their sentiment on their messages
 
-        user_sentiment = 0
         if not user_id:
             user_id = str(ctx.author.id)
             user = ctx.author

@@ -352,5 +352,6 @@ async def create_database_tables() -> None:
                            "FOREIGN KEY (guild_id) REFERENCES guilds (guild_id) ON DELETE RESTRICT)")
 
 
-# async def setup(bot):
-#     pass
+async def setup(bot):
+    # this file is not formatted like a typical cog but this is necessary to allow reloading of this file
+    pass

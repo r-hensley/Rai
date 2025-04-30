@@ -655,13 +655,13 @@ class General(commands.Cog):
         args = args.replace('\n', ' ').split()
         list_of_ids = []
         reason = "None"
-        for arg_index, args in enumerate(args):
-            potential_id = re.search(r'\d{17,22}', args[arg_index])
+        for arg_index, arg in enumerate(args):
+            potential_id = re.search(r'\d{17,22}', arg)
             if potential_id:
                 # using regex, add to list_of_ids just the ID digits (ignore characters around it)
                 list_of_ids.append(potential_id.group())
             else:
-                reason = ' '.join(args[arg_index:])
+                reason = ' '.join(arg)
                 break
         channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         config = self.bot.db['global_blacklist']
