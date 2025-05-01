@@ -1749,7 +1749,12 @@ class Logger(commands.Cog):
                     if entry.target == before:
                         author = entry.user
                         if author == guild.me:
-                            return  # A timeout by Rai, probably in the mute command. Let that command handle the modlog
+                            # A timeout by Rai, probably in the mute command.
+                            # Let that command handle the modlog
+                            continue
+                        if not after.is_timed_out() and before.is_timed_out():
+                            # user was UNMUTED by admin, ignore this log
+                            continue
                         if after.timed_out_until:
                             time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         else:
@@ -1758,7 +1763,7 @@ class Logger(commands.Cog):
 
                         if reason:
                             if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
-                                return
+                                continue
 
                         if 0 < time_left < 70:  # 60 SEC
                             timeout_length_str = "1m"
@@ -1774,10 +1779,15 @@ class Logger(commands.Cog):
                             timeout_length_str = "7d"
                         else:
                             timeout_length_str = "Unknown"
-
-                        break  # this breaks the for entry in guild.audit_logs() if it finds the entry
+                        
+                        # we need two breaks, one for (while), one for (for entry)
+                        # this breaks the for entry in guild.audit_logs() if it finds the entry
+                        break
                 if time_left:
-                    break  # this breaks the while loop if it found an entry
+                    # second "break" statement
+                    # this breaks the while loop if it found an entry
+                    break
+                # if here, that means nothing was found from the audit_logs, wait 15s and try again
                 attempts += 1
                 await hf.sleep("member_update", 15)
 
