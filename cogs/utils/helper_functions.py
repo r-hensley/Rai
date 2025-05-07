@@ -105,7 +105,12 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
 def get_top_stats_list(stats_type: str,
                        guild: discord.Guild,
                        return_numbers=False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
-    """Returns a sorted list of the most active members of the guild"""
+    """Returns a sorted list of the most active members of the guild.
+    Only returns members currently in the server. If a member has left the server, they will
+    not be returned in this list.
+    
+    If return_numbers = True, it will return a list of [(member, number_of_messages), ...]
+    If false, it will be just a list of members, [member, member, ...]"""
     try:
         config = here.bot.stats[str(guild.id)]['messages']
     except (KeyError, AttributeError):
@@ -136,7 +141,10 @@ def get_top_stats_list(stats_type: str,
     return top_members
 
 
-def get_top_server_members(guild: discord.Guild, return_numbers: bool = False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
+def get_top_server_members(
+        guild: discord.Guild,
+        return_numbers: bool = False
+) -> list[discord.Member] | list[tuple[discord.Member, int]]:
     return get_top_stats_list('messages', guild, return_numbers)
 
 
@@ -966,7 +974,7 @@ async def hf_sync(remove=False):
                             context_view_modlog, context_view_user_stats, get_id_from_message,
                             ban_and_clear_member, ban_and_clear_message, log_message_context]
     else:
-        # commands_in_file = []
+        commands_in_file = []
         pass
         
     # add option to forcibly remove commands. this is really here for demonstration / ;eval use

@@ -6,13 +6,13 @@ import re
 from typing import Optional
 from inspect import cleandoc
 from random import choice
-from collections import Counter
+from collections import Counter, OrderedDict
 from dateparser import parse
 
 import discord
 from discord.ext import commands
 from discord import app_commands
-from Levenshtein import distance as LDist
+from Levenshtein import distance as l_dist
 
 from cogs.utils.helper_functions import format_interval
 
@@ -39,22 +39,22 @@ RYRY_RAI_BOT_ID = 270366726737231884
 
 def doneq_check(ctx):
     if not ctx.guild:
-        return
+        return False
     if ctx.guild.id not in [JP_SERVER_ID, SP_SERVER_ID]:
-        return
+        return False
     if not isinstance(ctx.channel, discord.Thread):
-        return
+        return False
     if not isinstance(ctx.channel.parent, discord.ForumChannel):
-        return
+        return False
     return True
 
 
 def fe_check(ctx):
     """Checks if a user has the correct combination of roles for the fe() command"""
     if not ctx.guild:
-        return
+        return False
     if ctx.guild.id != JP_SERVER_ID:
-        return
+        return False
     role_ids = [role.id for role in ctx.author.roles]
     lower_fluent_english = 241997079168155649
     native_japanese = 196765998706196480
@@ -63,19 +63,21 @@ def fe_check(ctx):
         return True
     if fluent_japanese in role_ids and lower_fluent_english in role_ids:
         return True
+    return False
 
 
 def blacklist_check():
-    async def pred(ctx):
+    async def pred(ctx) -> bool:
         if not ctx.guild:
-            return
+            return False
         modchat = ctx.bot.get_guild(MODCHAT_SERVER_ID)
         if not modchat:
-            return
+            return False
         if ctx.author in modchat.members:
             if ctx.guild.id == MODCHAT_SERVER_ID or hf.admin_check(ctx):
                 return True
-
+        return False
+    
     return commands.check(pred)
 
 
@@ -339,9 +341,9 @@ class General(commands.Cog):
             config['ignore'] = [ctx.channel.id]
             await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
 
-    @hardcore.command()
+    @hardcore.command(name="list")
     @hf.is_admin()
-    async def list(self, ctx):
+    async def list_channels(self, ctx):
         """Lists the channels in hardcore mode."""
         channels = []
         try:
@@ -945,10 +947,10 @@ class General(commands.Cog):
                     lambda r: r.name.casefold().startswith(r_name), ctx.guild.roles)
                 if not found_role:
                     if 3 <= len(r_name) <= 6:
-                        found_role = discord.utils.find(lambda r: LDist(r.name.casefold()[:len(r_name)], r_name) <= 1,
+                        found_role = discord.utils.find(lambda r: l_dist(r.name.casefold()[:len(r_name)], r_name) <= 1,
                                                         ctx.guild.roles)
                     elif 6 < len(r_name):
-                        found_role = discord.utils.find(lambda r: LDist(r.name.casefold()[:len(r_name)], r_name) <= 3,
+                        found_role = discord.utils.find(lambda r: l_dist(r.name.casefold()[:len(r_name)], r_name) <= 3,
                                                         ctx.guild.roles)
         return found_role
 
@@ -1453,7 +1455,132 @@ class General(commands.Cog):
             await ctx.reply(f"Error: {e}")
             return
         await utils.safe_send(ctx.channel, content, embeds=embeds)
+        
+    @app_commands.command(name="search")
+    async def search(self, interaction: discord.Interaction, search_result: str):
+        """Dynamically search for a Discord object using Discord auto-complete."""
+        # split result at right-most '-'.
+        # For example, 'user-name-123123' will be split into 'user-name' and '123'
+        split_result = search_result.rsplit("-", 1)
+        result_type: str = split_result[0]
+        id_int: int = int(split_result[1])
+        if result_type == 'member':
+            member = interaction.guild.get_member(id_int)
+            if member:
+                await interaction.response.send_message(
+                    member.mention,
+                    ephemeral = False,
+                    allowed_mentions = discord.AllowedMentions(users=False)
+                )
+                await interaction.followup.send(member.id)
+            else:
+                await interaction.response.send_message(
+                    f"Member not found: {id_int}",
+                    ephemeral = True
+                )
+        elif result_type == "role":
+            role = interaction.guild.get_role(id_int)
+            if role:
+                await interaction.response.send_message(
+                    role.mention,
+                    ephemeral = False,
+                    allowed_mentions = discord.AllowedMentions(roles=False)
+                )
+                await interaction.followup.send(role.id)
+            else:
+                await interaction.response.send_message(
+                    f"Role not found: {id_int}",
+                    ephemeral = True
+                )
+        else:
+            raise ValueError(f"Unknown result type: {result_type}")
 
+    @search.autocomplete("search_result")
+    async def search_autocomplete(
+            self,
+            interaction: discord.Interaction,
+            current: str
+    ) -> list[app_commands.Choice[str]]:
+        """Auto-complete for the search command."""
+        suggestions = []
+        
+        if not current:
+            return []
+        
+        current = current.lower()
+        
+        # find members in order of activity in server
+        active_members: list[discord.Member] = hf.get_top_server_members(interaction.guild)
+        
+        active_ids = {m.id for m in active_members}
+        inactive_members = [m for m in interaction.guild.members if m.id not in active_ids]
+        active_names = OrderedDict((member.name.lower(), member)
+                                    for member in active_members)
+        inactive_names = OrderedDict((member.name.lower(), member)
+                                        for member in inactive_members)
+        active_dnames = OrderedDict((member.display_name.lower(), member)
+                                    for member in active_members)
+        inactive_dnames = OrderedDict((member.display_name.lower(), member)
+                                       for member in inactive_members)
+        seen: set[int] = set()
+        
+        # define new exception for "suggestions list has reached 25 length"
+        class ListFull(Exception):
+            pass
+        
+        def append_to_list(_member):
+            if _member in seen:
+                return
+            if _member.display_name != _member.name:
+                display = f"{_member.display_name} ({_member.name})"
+            else:
+                display = _member.name
+            seen.add(_member)
+            suggestions.append((f"Member: {display}", f'member-{_member.id}'))
+            if len(suggestions) == 25:
+                raise ListFull
+        
+        def match_prefix(d: dict):
+            for name, m in d.items():
+                if name.startswith(current):
+                    append_to_list(m)
+
+        def populate_suggestions_list():
+            # member names: full match
+            # active members
+            if current in active_names:
+                append_to_list(active_names[current])
+            elif current in active_dnames:
+                append_to_list(active_dnames[current])
+            # inactive members
+            elif current in inactive_names:
+                append_to_list(inactive_names[current])
+            elif current in inactive_dnames:
+                append_to_list(inactive_dnames[current])
+                
+            # active member names: beginning match
+            match_prefix(active_names)
+            match_prefix(active_dnames)
+            
+            # inactive members: beginning name match
+            match_prefix(inactive_names)
+            match_prefix(inactive_dnames)
+            
+            # roles
+            for role in interaction.guild.roles:
+                if current in role.name.lower():
+                    suggestions.append((f"Role: {role.name}", f'role-{role.id}'))
+                    if len(suggestions) == 25:
+                        raise ListFull
+        
+        try:
+            populate_suggestions_list()
+        except ListFull:
+            pass
+        results = [(name, value) for name, value in suggestions]
+        choices = [app_commands.Choice(name=name, value=value) for name, value in results[:25]]
+        return choices
+    
 
 async def setup(bot):
     await bot.add_cog(General(bot))
