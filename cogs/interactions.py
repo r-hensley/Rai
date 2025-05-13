@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import os
 import re
 from typing import Union, List, Optional
@@ -23,6 +24,7 @@ CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
+RAI_MAIN_FORK_ID = 270366726737231884
 
 RY_GUILD = discord.Object(id=RY_SERVER_ID)
 FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
@@ -110,6 +112,19 @@ class Interactions(commands.Cog):
 
     async def sync_main(self):
         """Main code for syncing app commands"""
+        allow_slash_commands_in_forks = False
+        current_line_no = inspect.currentframe().f_lineno
+        if self.bot.user.id != RAI_MAIN_FORK_ID and not allow_slash_commands_in_forks:
+            print("Not syncing commands, not the main fork")
+            current_file_path = os.path.realpath(__file__)
+            print(f"Please set the variable to True at {current_file_path}:{current_line_no-1} "
+                  f"to sync commands on a forked bot")
+            self.bot.tree.clear_commands(guild=None)
+            self.bot.tree.clear_commands(guild=RY_GUILD)
+            self.bot.tree.clear_commands(guild=SP_GUILD)
+            await self.bot.tree.sync()
+            return
+        
         # Sync interactions here in this file
         bot_guilds = [g.id for g in self.bot.guilds]
         # for guild_id in [FEDE_TESTER_SERVER_ID]:
@@ -119,9 +134,9 @@ class Interactions(commands.Cog):
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)
-
+        
         await self.bot.tree.sync()  # global commands
-
+        
         # Sync context commands in helper_functions()
         await hf.hf_sync()
 
