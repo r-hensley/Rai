@@ -1522,6 +1522,7 @@ class MessageQueue(deque[MiniMessage]):
         # MessageQueue(message_queue, maxlen=1000)  # give message queue with new maxlen
         # MessageQueue(maxlen=1000)  # create new message queue with maxlen 1000
         # MessageQueue()  # create new message queue with default maxlen
+        self._lock = asyncio.Lock()
         if maxlen == 0:
             raise ValueError("Parameter `maxlen` cannot be 0.")
         
@@ -1596,7 +1597,8 @@ class MessageQueue(deque[MiniMessage]):
 
     def to_dict_list(self) -> List[dict]:
         """Convert all messages in the queue to a list of dictionaries."""
-        return [message.to_dict() for message in self]
+        snapshot = list(self)
+        return [message.to_dict() for message in snapshot]
 
     def find_by_author(self, author: Union[int, discord.User, discord.Member]) -> List[MiniMessage]:
         """Find all messages by a specific author."""
@@ -1657,11 +1659,12 @@ class MessageQueue(deque[MiniMessage]):
     
     def change_length(self, new_length: int) -> "MessageQueue":
         """Change the maximum length of the queue by creating a new queue and returning it."""
-        if len(self) > new_length:
-            sliced_queue = list(self)[-new_length:]
-        else:
-            sliced_queue = list(self)
-        return MessageQueue(sliced_queue, maxlen=new_length)
+        with self._lock:
+            if len(self) > new_length:
+                sliced_queue = list(self)[-new_length:]
+            else:
+                sliced_queue = list(self)
+            return MessageQueue(sliced_queue, maxlen=new_length)
     
     def __repr__(self) -> str:
         """Print a preview of the list"""
@@ -1678,13 +1681,13 @@ class MessageQueue(deque[MiniMessage]):
     
     def __dict__(self) -> list[dict]:
         """Convert the MessageQueue to a list of dictionaries."""
-        return [msg.to_dict() for msg in self]
+        with self._lock:
+            return [msg.to_dict() for msg in self]
     
     @classmethod
     def from_dict(cls, data):
         """Create a MessageQueue object from a list of dictionaries."""
         return cls([MiniMessage(**msg_kwargs) for msg_kwargs in data])
-
 
 
 async def excessive_dm_activity(guild_id: int, user_id: int) -> Optional[datetime]:
