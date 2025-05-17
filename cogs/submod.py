@@ -581,7 +581,12 @@ class Submod(commands.Cog):
                                                                 {'enable': False, 'channel': None, 'timed_bans': {}})
                         timed_bans = config.setdefault('timed_bans', {})
                         timed_bans[str(target.id)] = time_string
-
+                    else:
+                        # if the user was already scheduled to be unbanned at some point,
+                        # delete the entry, changing it to a permanent ban
+                        if str(target.id) in self.bot.db['bans'][str(ctx.guild.id)]['timed_bans']:
+                            del self.bot.db['bans'][str(ctx.guild.id)]['timed_bans'][str(target.id)]
+                    
                     # format length string and add to modlog
                     if length:
                         length_str = f"{length[0]}d{length[1]}h"
