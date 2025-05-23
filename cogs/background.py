@@ -13,12 +13,30 @@ RYRY_SPAM_CHAN = 275879535977955330
 TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 
 
+def rai_task(*loop_args, **loop_kwargs):
+    def decorator(func):
+        task_loop = tasks.loop(*loop_args, **loop_kwargs)(func)
+
+        # Attach default error handler
+        @task_loop.error
+        async def _default_loop_error_handler(self, error):
+            if hasattr(self, 'handle_error'):
+                await self.handle_error(error)
+            else:
+                raise error
+
+        return task_loop
+    return decorator
+
+
+
 class Background(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.live_latency, self.fireside_message}
+                             self.check_downed_tasks, self.save_db, self.live_latency,
+                             self.fireside_message}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -89,14 +107,14 @@ class Background(commands.Cog):
             except (discord.Forbidden, discord.NotFound):
                 pass
 
-    @tasks.loop(hours=1.0)
+    @rai_task(hours=1.0)
     async def check_downed_tasks(self):
         ch = self.bot.get_channel(RYRY_SPAM_CHAN)
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 await utils.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
 
-    @tasks.loop(minutes=10.0)
+    @rai_task(minutes=10.0)
     async def save_db(self):
         if getattr(self.bot, 'db', None) is not None:
             await utils.dump_json('db')
@@ -113,7 +131,7 @@ class Background(commands.Cog):
         else:
             print("message queue not yet fully loaded, so skipping message queue saving")
 
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def check_desync_voice(self):
         config = self.bot.stats
         for guild_id in list(config):
@@ -161,11 +179,7 @@ class Background(commands.Cog):
                     # in voice but no vs? remove
                     await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
 
-    @check_desync_voice.error
-    async def check_desync_voice_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unban_users(self):
         config = self.bot.db['bans']
         for guild_id in config:
@@ -208,11 +222,7 @@ class Background(commands.Cog):
                                                           f"the time for their temporary ban has expired",
                                                           color=discord.Color(int('00ffaa', 16))))
 
-    @unban_users.error
-    async def unban_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unmute_users(self):
         configs = ['mutes', 'voice_mutes']
         for db_name in configs:
@@ -259,11 +269,7 @@ class Background(commands.Cog):
                                                               f"the time for their temporary mute has expired",
                                                               color=discord.Color(int('00ffaa', 16))))
 
-    @unmute_users.error
-    async def unmute_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unselfmute_users(self):
         config = self.bot.db['selfmute']
         for guild_id in config:
@@ -294,11 +300,7 @@ class Background(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-    @unselfmute_users.error
-    async def unselfmute_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(hours=24)
+    @rai_task(hours=24)
     async def delete_old_stats_days(self):
         for server_id in self.bot.stats:
             config = self.bot.stats[server_id]
@@ -326,11 +328,7 @@ class Background(commands.Cog):
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 
-    @delete_old_stats_days.error
-    async def delete_old_stats_days_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(seconds=5)
+    @rai_task(seconds=5)
     async def live_latency(self):
         t1 = time.perf_counter()
         try:
@@ -340,7 +338,7 @@ class Background(commands.Cog):
         t2 = time.perf_counter()
         self.bot.live_latency = t2 - t1
 
-    @tasks.loop(minutes=5)
+    @rai_task(minutes=5)
     async def fireside_message(self):
         fireside_channel_stage: discord.StageChannel = self.bot.get_channel(
             905992800250773564)
