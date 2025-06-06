@@ -329,14 +329,17 @@ class Main(commands.Cog):
         elif isinstance(error, commands.CheckFailure):
             # the predicates in Command.checks have failed.
             if ctx.command.name == 'global_blacklist':
+                # ignore global_blacklist command errors
                 return
             if ctx.guild:
                 if str(ctx.guild.id) in self.bot.db['modsonly']:
                     if self.bot.db['modsonly'][str(ctx.guild.id)]['enable']:
                         if not hf.admin_check(ctx):
+                            # if the server is set to modsonly, and the user is not a mod, return
                             return
 
-                # prevent users from using stats commands in spanish server learning channels, supress warnings
+                # prevent users from using stats commands in spanish server learning channels,
+                # supress warnings
                 if getattr(ctx.channel.category, "id", None) in [685446008129585176, 685445852009201674]:
                     return
 
@@ -359,7 +362,8 @@ class Main(commands.Cog):
                 return
             try:
                 if not ctx.guild:
-                    raise error
+                    # ignore command check errors if in DMs
+                    return
                 if str(ctx.guild.id) in self.bot.db['mod_role']:
                     await ctx.send("You lack permissions to do that.")
                 else:
