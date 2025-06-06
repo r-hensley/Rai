@@ -1239,7 +1239,10 @@ class Logger(commands.Cog):
                         pass
                 except discord.Forbidden:
                     pass
-                del readd_config['users'][str(member.id)]
+                try:
+                    del readd_config['users'][str(member.id)]
+                except KeyError:
+                    pass
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
             log_message = await utils.safe_send(log_channel, member.id, embed=x)
