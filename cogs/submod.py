@@ -602,9 +602,12 @@ class Submod(commands.Cog):
                     else:
                         # if the user was already scheduled to be unbanned at some point,
                         # delete the entry, changing it to a permanent ban
-                        if (str(target.id) in self.bot.db['bans'][str(ctx.guild.id)]
-                                .get('timed_bans', [])):
-                            del self.bot.db['bans'][str(ctx.guild.id)]['timed_bans'][str(target.id)]
+                        try:
+                            g_id = str(ctx.guild.id)
+                            if str(target.id) in self.bot.db['bans'][g_id]['timed_bans']:
+                                del self.bot.db['bans'][g_id]['timed_bans'][str(target.id)]
+                        except KeyError:
+                            pass
                     
                     # format length string and add to modlog
                     if length:
