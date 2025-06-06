@@ -1462,6 +1462,12 @@ class General(commands.Cog):
         # split result at right-most '-'.
         # For example, 'user-name-123123' will be split into 'user-name' and '123'
         split_result = search_result.rsplit("-", 1)
+        if len(split_result) != 2:
+            await interaction.response.send_message(
+                "Could not find a valid search result. Please try again.",
+                ephemeral=True
+            )
+            return
         result_type: str = split_result[0]
         id_int: int = int(split_result[1])
         if result_type == 'member':
