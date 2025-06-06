@@ -373,7 +373,7 @@ class Message(commands.Cog):
         await msg.get_ctx()
 
         # Search for direct mentions of IDs
-        user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
+        user_ids = re.findall(r"<?@?!?(\d{17,19})>?", content)
         user_ids = set(user_ids)  # eliminate duplicate IDs
         for user_id in user_ids:
             try:
@@ -385,7 +385,7 @@ class Message(commands.Cog):
                 try:
                     _: discord.User = await self.bot.fetch_user(user_id)
                     # if found, then keep going, I just want to see if the user *exists* or not
-                except discord.NotFound:
+                except (discord.NotFound, discord.HTTPException):
                     continue
             # noinspection PyTypeChecker
             await msg.ctx.invoke(modlog, id_in=str(user_id))
