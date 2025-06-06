@@ -824,7 +824,7 @@ class Events(commands.Cog):
             except Exception:
                 try:
                     await after.channel.set_permissions(member, overwrite=None)
-                except (discord.Forbidden, discord.NotFound):
+                except (discord.Forbidden, discord.NotFound, AttributeError):
                     pass
                 raise
 
