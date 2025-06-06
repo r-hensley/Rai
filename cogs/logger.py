@@ -1745,6 +1745,11 @@ class Logger(commands.Cog):
             timeout_length_str = None
             reason = None
             author = None
+            
+            # check if bot has permissions to view audit logs
+            if not guild.me.guild_permissions.view_audit_log:
+                return
+            
             while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
                 async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                     action=discord.AuditLogAction.member_update,
