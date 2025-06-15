@@ -10,12 +10,18 @@ from dotenv import load_dotenv
 
 import discord
 from discord.ext.commands import Bot
-from discord.ext import commands, tasks
+from discord.ext import commands
 
+# check to make sure this submodule is initialized
+try:
+    from cogs.utils.BotUtils import bot_utils as utils
+except ImportError as exc:
+    ERRMSG = ("The BotUtils submodule is not initialized.\n"
+              "Please run 'git submodule update --init --recursive' to initialize it.")
+    exc.add_note(ERRMSG)
+    raise
 from cogs.utils import helper_functions as hf
-from cogs.utils.BotUtils import bot_utils as utils
 from cogs.database import create_database_tables
-
 
 
 # noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
@@ -27,15 +33,14 @@ intents.message_content = True
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 try:
-    with open(f"{dir_path}/.env", 'r') as f:
+    with open(f"{dir_path}/.env", 'r', encoding='utf-8') as f:
         pass
 except FileNotFoundError:
     txt = """BOT_TOKEN=\nTRACEBACK_LOGGING_CHANNEL=\nBOT_TEST_CHANNEL=\nOWNER_ID=\nGCSE_API="""
-    with open(f'{dir_path}/.env', 'w') as f:
+    with open(f'{dir_path}/.env', 'w', encoding='utf-8') as f:
         f.write(txt)
-    print("I've created a .env file for you, go in there and put your bot token in the file, as well as a channel "
-          "for tracebacks and "
-          ", put channel IDs in those.\n"
+    print("I've created a .env file for you, go in there and put your bot token in the file, as well as a "
+          "spot to put a channel ID for a channel for logging tracebacks.\n"
           "There is also a spot for your GCSE api key if you have one, \n"
           "but if you don't you can leave that blank.")
     exit()
@@ -44,7 +49,8 @@ except FileNotFoundError:
 load_dotenv(f'{dir_path}/.env')
 
 if not os.getenv("BOT_TOKEN"):
-    raise discord.LoginFailure("You need to add your bot token to the .env file in your bot folder.")
+    raise discord.LoginFailure(
+        "You need to add your bot token to the .env file in your bot folder.")
 if not os.getenv("TRACEBACK_LOGGING_CHANNEL") or not os.getenv("BOT_TEST_CHANNEL"):
     raise discord.LoginFailure("Add the IDs for a logging channel and a tracebacks channel into the .env file "
                                "in your bot folder.")
@@ -56,6 +62,7 @@ BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
 t_start = datetime.now()
 
 max_messages = 10000
+
 
 def prefix(bot: commands.Bot, msg: discord.Message) -> str:
     if bot.user.name == "Rai":
@@ -82,7 +89,7 @@ class Rai(Bot):
         print('starting loading of jsons')
         # Create json files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
-            db = open(f"{dir_path}/db.json", 'w')
+            db = open(f"{dir_path}/db.json", 'w', encoding='utf-8')
             new_db = {'ultraHardcore': {}, 'hardcore': {}, 'welcome_message': {}, 'roles': {}, 'ID': {},
                       'mod_channel': {}, 'mod_role': {}, 'deletes': {}, 'nicknames': {}, 'edits': {},
                       'leaves': {}, 'reactions': {}, 'captcha': {}, 'bans': {}, 'kicks': {}, 'welcomes': {},
@@ -93,36 +100,37 @@ class Rai(Bot):
                       'selfmute': {}, 'voicemod': {}, 'staff_ping': {}, 'voice': {}, 'new_user_watch': {},
                       'reactionroles': {}, 'pmbot': {}, 'joins': {}, 'timed_voice_role': {}, 'banlog': {},
                       'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
-                      'lovehug': {}, 'rawmangas': {}, 'risk': {}, 'guildstats': {}, 'bannedservers': [],
+                      'risk': {}, 'guildstats': {}, 'bannedservers': [],
                       'spvoice': [], 'spam_links': [], 'voice_lock': {}, "helper_role": {}, "helper_channel": {},
-                      'channels': {}}
+                      'channels': {}, 'joindates': {}}
             # A lot of these are unnecessary now but I'll fix that later when I make a new database
             print("Creating default values for database.")
             json.dump(new_db, db)
             db.close()
         if not os.path.exists(f"{dir_path}/stats.json"):
-            db = open(f"{dir_path}/stats.json", 'w')
+            db = open(f"{dir_path}/stats.json", 'w', encoding='utf-8')
             print("Creating new stats database.")
             json.dump({}, db)
             db.close()
         if not os.path.exists(f"{dir_path}/message_queue.json"):
-            db = open(f"{dir_path}/message_queue.json", 'w')
+            db = open(f"{dir_path}/message_queue.json", 'w', encoding='utf-8')
             print("Creating new message_queue database.")
             json.dump({}, db)
             db.close()
-            
+
     async def setup_hook(self):
         utils.load_db(self, 'db')
         utils.load_db(self, 'stats')
         utils.load_db(self, 'message_queue')
-        
-        hf.setup(bot=self, loop=asyncio.get_event_loop())  # this is to define here.bot in the hf file
+
+        # this is to define here.bot in the hf file
+        hf.setup(bot=self, loop=asyncio.get_event_loop())
         utils.setup(bot=self, loop=asyncio.get_event_loop())
 
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
-                              'cogs.dictionary', 'cogs.heartbeat']
+                              'cogs.dictionary', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.cnserver']
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:
@@ -133,13 +141,13 @@ class Rai(Bot):
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
-            
-        if os.getenv("OWNER_ID") == "202995638860906496":
+
+        if os.path.exists(f"{dir_path}/cogs/rl/rl.py"):
             await self.load_extension('cogs.rl.rl')
+        else:
+            print("Rai RL not found, skipping loading of Rai RL cog.")
 
         await create_database_tables()
-
-        
 
 
 def run_bot():

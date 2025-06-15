@@ -6,10 +6,12 @@ from sqlite3 import IntegrityError
 
 import asqlite
 from discord.ext import commands
+from discord.ext.commands import Context
+from discord.ext.commands._types import BotT
 
-from .database import Connect
-from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .utils import helper_functions as hf
+from .database import Connect
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATABASE_PATH = rf'{dir_path}/database.db'
@@ -27,6 +29,12 @@ class Clubs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_check(self, ctx: Context[BotT]) -> bool:
+        if ctx.guild is None:
+            await ctx.send("This command can only be used in a server.")
+            return False
+        return True
+
     @commands.command(aliases=['parties'])
     async def clubs(self, ctx):
         """Returns a list of clubs. Related ommands:
@@ -39,7 +47,7 @@ class Clubs(commands.Cog):
         clubs = Connect("database.db", "clubs")
 
         list_of_clubs = await clubs.execute(f"SELECT club_id, name FROM clubs WHERE guild_id = {ctx.guild.id}")
-        text = f"__List of clubs__\n"
+        text = "__List of clubs__\n"
         list_of_clubs = sorted(list_of_clubs, key=lambda x: x[1])
         for club in list_of_clubs:
             count = (await clubs.execute(f"SELECT COUNT(*) FROM club_members WHERE club_id = {club[0]}"))[0][0]
@@ -71,7 +79,8 @@ class Clubs(commands.Cog):
             await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({ctx.guild.id})")
 
         query = "INSERT INTO clubs (name, guild_id, created_at, owner_id) VALUES (?, ?, ?, ?)"
-        parameters = (club_name, ctx.guild.id, ctx.message.created_at, ctx.author.id)
+        parameters = (club_name, ctx.guild.id,
+                      ctx.message.created_at, ctx.author.id)
         try:
             async with asqlite.connect(DATABASE_PATH) as c:
                 await c.execute(query, parameters)
@@ -89,7 +98,7 @@ class Clubs(commands.Cog):
         if len(club_name) > 32:
             await utils.safe_send(ctx, "Please use a name shorter than 32 characters for your club.")
             return
-        query1 = f"SELECT name, club_id FROM clubs WHERE name = ?"
+        query1 = "SELECT name, club_id FROM clubs WHERE name = ?"
         query2 = f"DELETE FROM clubs WHERE name = ? and guild_id = {ctx.guild.id}"
         parameters = (club_name, )
 
@@ -100,7 +109,7 @@ class Clubs(commands.Cog):
             await utils.safe_send(ctx, "I couldn't find a club with that name, please try again.")
             return
         assert len(current_clubs) == 1, f"The result of this search was somehow greater than 1: " \
-                                        f"{[list(i) for i in current_clubs]}"
+            f"{[list(i) for i in current_clubs]}"
 
         try:
             await clubs.execute(query2, parameters)
@@ -126,7 +135,7 @@ class Clubs(commands.Cog):
             return
 
         assert len(to_join_club) == 1, f"The above SQL line should've returned one result only: " \
-                                       f"{[list(i) for i in to_join_club]}"
+            f"{[list(i) for i in to_join_club]}"
 
         to_join_id = to_join_club[0][0]
 
@@ -142,7 +151,7 @@ class Clubs(commands.Cog):
             await ctx.message.add_reaction("✅")
         except sqlite3.IntegrityError as e:
             if e.args[0].startswith("UNIQUE constraint failed"):
-                await ctx.send(f"You are already in that club!")
+                await ctx.send("You are already in that club!")
             else:
                 raise
 
@@ -185,7 +194,7 @@ class Clubs(commands.Cog):
             user_id = int(user_id)
         except ValueError:
             await utils.safe_send(ctx, "Please send the command in this format: `giveclub <recipient-id> <club name>`. "
-                                    "Example: `;giveclub 1234567890 example club`")
+                                  "Example: `;giveclub 1234567890 example club`")
             return
 
         clubs = Connect("database.db", "clubs")
@@ -196,7 +205,7 @@ class Clubs(commands.Cog):
                 to_give_id = user_id
                 if not club_owners(ctx) and owner_id != ctx.author.id:
                     await utils.safe_send(ctx, "You must be a moderator or the club's owner in order to give "
-                                            "this club away.")
+                                          "this club away.")
                     return
 
         if not to_give_id:
@@ -215,7 +224,7 @@ class Clubs(commands.Cog):
         async with asqlite.connect(DATABASE_PATH) as c:
             await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({ctx.guild.id})")
 
-        query = f"UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
+        query = "UPDATE clubs SET owner_id = ? WHERE name = ? AND guild_id = ?"
         parameters = (to_give_id, club_name, ctx.guild.id)
         try:
             await clubs.execute(query, parameters)
@@ -264,7 +273,7 @@ class Clubs(commands.Cog):
             await utils.safe_send(ctx, "Please choose a shorter club name")
             return
 
-        query = f"UPDATE clubs SET name = ? WHERE name = ? AND guild_id = ?"
+        query = "UPDATE clubs SET name = ? WHERE name = ? AND guild_id = ?"
         parameters = (new_name, old_name, ctx.guild.id)
         try:
             await clubs.execute(query, parameters)

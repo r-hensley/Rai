@@ -13,12 +13,30 @@ RYRY_SPAM_CHAN = 275879535977955330
 TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 
 
+def rai_task(*loop_args, **loop_kwargs):
+    def decorator(func):
+        task_loop = tasks.loop(*loop_args, **loop_kwargs)(func)
+
+        # Attach default error handler
+        @task_loop.error
+        async def _default_loop_error_handler(self, error):
+            if hasattr(self, 'handle_error'):
+                await self.handle_error(error)
+            else:
+                raise error
+
+        return task_loop
+    return decorator
+
+
+
 class Background(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
-                             self.check_downed_tasks, self.save_db, self.live_latency, self.fireside_message}
+                             self.check_downed_tasks, self.save_db, self.live_latency,
+                             self.fireside_message}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -37,12 +55,12 @@ class Background(commands.Cog):
             # now "name" is the same as the name of the coro here in this file (e.g. "save_db")
             if name in task_names:
                 task.cancel()
-            
+
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 task.start()
                 self.bot.running_tasks.append(task)
-                
+
         for task in self.bot.running_tasks:
             # remove tasks that are finished from the list
             if not task.is_running():
@@ -51,7 +69,7 @@ class Background(commands.Cog):
     def cog_unload(self):
         for task in self.bot.bg_tasks:
             task.cancel()
-            
+
         for task in self.bot.running_tasks:
             # remove tasks that are finished from the list
             if not task.is_running():
@@ -64,7 +82,8 @@ class Background(commands.Cog):
         print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
         # get traceback channel ID from env
         channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL_ID)
-        exc = ''.join(traceback.format_exception(type(error), error, error.__traceback__, chain=False))
+        exc = ''.join(traceback.format_exception(
+            type(error), error, error.__traceback__, chain=False))
         traceback_text = f'```py\n{exc}\n```'
         message = f'<@202995638860906496> Error in background task:\n{traceback_text}'
         if len(message) < 2000:
@@ -88,31 +107,31 @@ class Background(commands.Cog):
             except (discord.Forbidden, discord.NotFound):
                 pass
 
-    @tasks.loop(hours=1.0)
+    @rai_task(hours=1.0)
     async def check_downed_tasks(self):
         ch = self.bot.get_channel(RYRY_SPAM_CHAN)
         for task in self.bot.bg_tasks:
             if not task.is_running():
                 await utils.safe_send(ch, f"{task.coro.__name__} ISN'T RUNNING!")
 
-    @tasks.loop(minutes=10.0)
+    @rai_task(minutes=10.0)
     async def save_db(self):
         if getattr(self.bot, 'db', None) is not None:
             await utils.dump_json('db')
         else:
             print("main database not yet fully loaded, so skipping db saving")
-        
+
         if getattr(self.bot, 'stats', None) is not None:
             await utils.dump_json('stats')
         else:
             print("stats database not yet fully loaded, so skipping stats saving")
-            
+
         if getattr(self.bot, 'message_queue', None) is not None:
             await utils.dump_json('message_queue')
         else:
             print("message queue not yet fully loaded, so skipping message queue saving")
-    
-    @tasks.loop(minutes=5.0)
+
+    @rai_task(minutes=5.0)
     async def check_desync_voice(self):
         config = self.bot.stats
         for guild_id in list(config):
@@ -135,8 +154,10 @@ class Background(commands.Cog):
                 continue
             users_in_voice = []
             for channel in voice_channels:
-                users_in_voice += [str(member.id) for member in channel.members]
-            for user_id in list(guild_config['voice']['in_voice']):  # all users in the database
+                users_in_voice += [str(member.id)
+                                   for member in channel.members]
+            # all users in the database
+            for user_id in list(guild_config['voice']['in_voice']):
                 if user_id not in users_in_voice:  # if not in voice, remove from database
                     member = guild.get_member(int(user_id))
                     if not member:
@@ -150,24 +171,23 @@ class Background(commands.Cog):
                 if vs:
                     if vs.deaf or vs.self_deaf or vs.afk:  # deafened or afk but in database, remove
                         await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
-                    if user_id not in guild_config['voice']['in_voice']:  # in voice, not in database, add
+                    # in voice, not in database, add
+                    if user_id not in guild_config['voice']['in_voice']:
                         if vs.channel:
                             await ctx.invoke(self.bot.get_command("command_into_voice"), member, vs)
                 else:
-                    await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)  # in voice but no vs? remove
+                    # in voice but no vs? remove
+                    await ctx.invoke(self.bot.get_command("command_out_of_voice"), member)
 
-    @check_desync_voice.error
-    async def check_desync_voice_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unban_users(self):
         config = self.bot.db['bans']
         for guild_id in config:
             unbanned_users: list[str] = []
             guild_config = config[guild_id]
             try:
-                mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
+                mod_channel = self.bot.get_channel(
+                    self.bot.db['mod_channel'][guild_id])
             except KeyError:
                 mod_channel = None
             if 'timed_bans' in guild_config:
@@ -198,15 +218,11 @@ class Background(commands.Cog):
                 if not text_list:
                     return  # weird scenario where a user was unbanned but it coudldn't find their account afterwards
                 await utils.safe_send(mod_channel,
-                                   embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as "
-                                                                   f"the time for their temporary ban has expired",
-                                                       color=discord.Color(int('00ffaa', 16))))
+                                      embed=discord.Embed(description=f"I've unbanned {', '.join(text_list)}, as "
+                                                          f"the time for their temporary ban has expired",
+                                                          color=discord.Color(int('00ffaa', 16))))
 
-    @unban_users.error
-    async def unban_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unmute_users(self):
         configs = ['mutes', 'voice_mutes']
         for db_name in configs:
@@ -222,7 +238,8 @@ class Background(commands.Cog):
                 unmuted_users = []
                 guild_config = config[guild_id]
                 try:
-                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][guild_id])
+                    mod_channel = self.bot.get_channel(
+                        self.bot.db['mod_channel'][guild_id])
                 except KeyError:
                     mod_channel = None
                 if 'timed_mutes' in guild_config:
@@ -245,17 +262,14 @@ class Background(commands.Cog):
                         if not user:
                             text_list.append(f"{i}")
                     if mod_channel.guild.id == 243838819743432704:  # spanish server
-                        mod_channel = self.bot.get_channel(297877202538594304)  # incidents channel
+                        mod_channel = self.bot.get_channel(
+                            297877202538594304)  # incidents channel
                     await utils.safe_send(mod_channel,
-                                       embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
-                                                                       f"the time for their temporary mute has expired",
-                                                           color=discord.Color(int('00ffaa', 16))))
+                                          embed=discord.Embed(description=f"I've unmuted {', '.join(text_list)}, as "
+                                                              f"the time for their temporary mute has expired",
+                                                              color=discord.Color(int('00ffaa', 16))))
 
-    @unmute_users.error
-    async def unmute_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(minutes=5.0)
+    @rai_task(minutes=5.0)
     async def unselfmute_users(self):
         config = self.bot.db['selfmute']
         for guild_id in config:
@@ -265,12 +279,14 @@ class Background(commands.Cog):
                 try:
                     unmute_time = guild_config[user_id]['time']
                     if isinstance(unmute_time, int):
-                        unmute_time_obj = datetime.fromtimestamp(unmute_time, tz=timezone.utc)
+                        unmute_time_obj = datetime.fromtimestamp(
+                            unmute_time, tz=timezone.utc)
                     else:
                         unmute_time_obj = datetime.strptime(guild_config[user_id]['time'],
                                                             "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
                 except TypeError as e:
-                    print("TypeError in unselfmute for", guild_id, user_id, guild_config[user_id]['time'], e)
+                    print("TypeError in unselfmute for", guild_id,
+                          user_id, guild_config[user_id]['time'], e)
                     del guild_config[user_id]
                     continue
                 if unmute_time_obj < discord.utils.utcnow():
@@ -284,21 +300,19 @@ class Background(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-    @unselfmute_users.error
-    async def unselfmute_users_error(self, error):
-        await self.handle_error(error)
-
-    @tasks.loop(hours=24)
+    @rai_task(hours=24)
     async def delete_old_stats_days(self):
         for server_id in self.bot.stats:
             config = self.bot.stats[server_id]
             for day in list(config['messages']):
-                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day,
+                            "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     for user_id in config['messages'][day]:
                         for channel_id in config['messages'][day][user_id]:
                             try:
-                                int(channel_id)  # skip 'emoji' and 'lang' entries
+                                # skip 'emoji' and 'lang' entries
+                                int(channel_id)
                             except ValueError:
                                 continue
                             if 'member_totals' not in config:
@@ -309,15 +323,12 @@ class Background(commands.Cog):
                                 config['member_totals'][user_id] = config['messages'][day][user_id][channel_id]
                     del config['messages'][day]
             for day in list(config['voice']['total_time']):
-                days_ago = (discord.utils.utcnow() - datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                days_ago = (discord.utils.utcnow() - datetime.strptime(day,
+                            "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
 
-    @delete_old_stats_days.error
-    async def delete_old_stats_days_error(self, error):
-        await self.handle_error(error)
-        
-    @tasks.loop(seconds=5)
+    @rai_task(seconds=5)
     async def live_latency(self):
         t1 = time.perf_counter()
         try:
@@ -327,10 +338,12 @@ class Background(commands.Cog):
         t2 = time.perf_counter()
         self.bot.live_latency = t2 - t1
 
-    @tasks.loop(minutes=5)
+    @rai_task(minutes=5)
     async def fireside_message(self):
-        fireside_channel_stage: discord.StageChannel = self.bot.get_channel(905992800250773564)
-        fireside_channel_text: discord.TextChannel = self.bot.get_channel(905993064479342622)
+        fireside_channel_stage: discord.StageChannel = self.bot.get_channel(
+            905992800250773564)
+        fireside_channel_text: discord.TextChannel = self.bot.get_channel(
+            905993064479342622)
         if not fireside_channel_stage or not fireside_channel_text:
             return
         oriana = fireside_channel_stage.guild.get_member(581324505331400733)
@@ -339,7 +352,7 @@ class Background(commands.Cog):
 
         # check if fireside channel has active event
         try:
-            stage_instance = await fireside_channel_stage.fetch_instance()
+            _stage_instance = await fireside_channel_stage.fetch_instance()
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return
 
