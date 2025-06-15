@@ -1,3 +1,4 @@
+import logging
 import sys
 import time
 import asyncio
@@ -36,14 +37,21 @@ class HeartbeatMonitor(commands.Cog):
     async def heartbeat(self, ctx):
         """Toggle the heartbeat monitor."""
         # all confirmation of starts and stops of heartbeat monitor are taken care of in the f1 function
+        logger_asyncio = logging.getLogger('asyncio')
         if hasattr(self.bot, 'heartbeat_monitor'):
             if self.bot.heartbeat_monitor:
+                self.bot.loop.set_debug(False)
+                logger_asyncio.setLevel(logging.INFO)
                 self.bot.heartbeat_monitor = False
             else:
                 # invoke f1 with 0.1 period
+                self.bot.loop.set_debug(True)
+                logger_asyncio.setLevel(logging.DEBUG)
                 await self.f1(ctx, 0.1)
         else:
             # invoke f1 with 0.1 period
+            self.bot.loop.set_debug(True)
+            logger_asyncio.setLevel(logging.DEBUG)
             await self.f1(ctx, 0.1)
             
             

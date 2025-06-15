@@ -588,10 +588,18 @@ class Logger(commands.Cog):
             if file_bool:
                 emb.add_field(name='**File Attachments:**', value='\n'.join(attachment_names))
 
-        emb.set_footer(text=f'#{message.channel.name}',
-                       icon_url=message.author.display_avatar.replace(static_format="png").url)
+        # every once in a while I was getting "embeds.0.footer.icon_url: Not a well formed URL." errors
+        # maybe it was returning "None"?
+        url = message.author.display_avatar.replace(static_format="png").url
+        if url:
+            emb.set_footer(text=f'#{message.channel.name}', icon_url=url)
         
-        log_message = await utils.safe_send(channel, embed=emb)
+        try:
+            log_message = await utils.safe_send(channel, embed=emb)
+        except Exception as e:
+            if "embeds.0.footer.icon_url: Not a well formed URL." in str(e):
+                await hf.send_to_test_channel("on_raw_message_delete: bad avatar URL:", [url])
+            raise
         await hf.send_attachments_to_thread_on_message(log_message, message)
 
     @commands.Cog.listener()
@@ -1231,7 +1239,10 @@ class Logger(commands.Cog):
                         pass
                 except discord.Forbidden:
                     pass
-                del readd_config['users'][str(member.id)]
+                try:
+                    del readd_config['users'][str(member.id)]
+                except KeyError:
+                    pass
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
             log_message = await utils.safe_send(log_channel, member.id, embed=x)
@@ -1444,7 +1455,18 @@ class Logger(commands.Cog):
         )
 
         if len(member.roles) > 1:  # all members have the @everyone role
-            emb.add_field(name='Roles:', value=', '.join(reversed([role.name for role in member.roles[1:]])))
+            role_strs = []
+            for role in member.roles[1:]:
+                if not role_strs:
+                    role_strs.append(role.name)
+                else:
+                    if len(role_strs[-1]) + len(role.name) < 1024:
+                        role_strs[-1] += f", {role.name}"
+                    else:
+                        role_strs.append(role.name)
+            
+            for role_str in role_strs:
+                emb.add_field(name="Roles:", value=role_str, inline=False)
 
         emb.set_footer(
             text=f'User Leave ({member.guild.member_count}) - {member.id}',
@@ -1723,6 +1745,11 @@ class Logger(commands.Cog):
             timeout_length_str = None
             reason = None
             author = None
+            
+            # check if bot has permissions to view audit logs
+            if not guild.me.guild_permissions.view_audit_log:
+                return
+            
             while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
                 async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                     action=discord.AuditLogAction.member_update,
@@ -1730,7 +1757,12 @@ class Logger(commands.Cog):
                     if entry.target == before:
                         author = entry.user
                         if author == guild.me:
-                            return  # A timeout by Rai, probably in the mute command. Let that command handle the modlog
+                            # A timeout by Rai, probably in the mute command.
+                            # Let that command handle the modlog
+                            continue
+                        if not after.is_timed_out() and before.is_timed_out():
+                            # user was UNMUTED by admin, ignore this log
+                            continue
                         if after.timed_out_until:
                             time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
                         else:
@@ -1739,7 +1771,7 @@ class Logger(commands.Cog):
 
                         if reason:
                             if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
-                                return
+                                continue
 
                         if 0 < time_left < 70:  # 60 SEC
                             timeout_length_str = "1m"
@@ -1755,10 +1787,15 @@ class Logger(commands.Cog):
                             timeout_length_str = "7d"
                         else:
                             timeout_length_str = "Unknown"
-
-                        break  # this breaks the for entry in guild.audit_logs() if it finds the entry
+                        
+                        # we need two breaks, one for (while), one for (for entry)
+                        # this breaks the for entry in guild.audit_logs() if it finds the entry
+                        break
                 if time_left:
-                    break  # this breaks the while loop if it found an entry
+                    # second "break" statement
+                    # this breaks the while loop if it found an entry
+                    break
+                # if here, that means nothing was found from the audit_logs, wait 15s and try again
                 attempts += 1
                 await hf.sleep("member_update", 15)
 
@@ -1771,7 +1808,8 @@ class Logger(commands.Cog):
             emb.add_field(name="User", value=f"{after.name} ({after.id})", inline=False)
             timestamp = int(after.timed_out_until.timestamp())
             emb.add_field(name="Length",
-                          value=f"{timeout_length_str} (unmute time: <t:{timestamp}> - <t:{timestamp}:R>)",
+                          value=f"{timeout_length_str} "
+                                f"(unmute time: <t:{timestamp}> - <t:{timestamp}:R>)",
                           inline=False)
             if reason:
                 emb.add_field(name="Reason", value=reason)
@@ -1789,9 +1827,10 @@ class Logger(commands.Cog):
             try:
                 await utils.safe_send(after, content, embed=emb)
             except discord.Forbidden:
+                notif_msg = ("Notification: I was unable to notify the user of the timeout due to "
+                             "their privacy settings.")
                 try:
-                    await utils.safe_send(author, "Notification: I was unable to notify the user of the timeout due to "
-                                               "their privacy settings.", embed=emb)
+                    await utils.safe_send(author, notif_msg, embed=emb)
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
@@ -1807,31 +1846,38 @@ class Logger(commands.Cog):
                     notif_msg = await utils.safe_send(modlog_channel, str(after.id), embed=emb)
                     ctx = await self.bot.get_context(notif_msg)
 
-                hf.add_to_modlog(ctx, after, 'Timeout', reason, False, timeout_length_str)
+                hf.add_to_modlog(ctx, after, 'Timeout', reason,
+                                 False, timeout_length_str)
             else:
-                hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason, False, timeout_length_str)
+                hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason,
+                                 False, timeout_length_str)
 
             # send second notification for sesion mods
             event_helper = guild.get_role(830821949382983751)
             voice_mod = guild.get_role(1228581686443507722)
             event_host = guild.get_role(874020674124021760)
-            if {event_helper, voice_mod, event_host} & set(author.roles):  # if any of the lower helper roles exist
+            # if any of the lower helper roles exist
+            if {event_helper, voice_mod, event_host} & set(author.roles):
                 trial_staff = guild.get_role(591745589054668817)
                 server_helper = guild.get_role(258819531193974784)
                 admin = guild.get_role(243854949522472971)
-                if not {trial_staff, server_helper, admin} & set(author.roles):  # check to make sure no higher roles
+                # check to make sure no higher roles
+                if not {trial_staff, server_helper, admin} & set(author.roles):
                     event_helpers_channel = guild.get_channel(861337623636475944)
                     if event_helpers_channel:
                         await utils.safe_send(event_helpers_channel, str(after.id), embed=emb)
-                        await utils.safe_send(event_helpers_channel,
-                                              f"{author.mention}: \n- If you have any extra information to add "
-                                              f"for this timeout for us, please let us know here when you get the "
-                                              f"chance. For example, why you muted, what was happening when you muted, "
-                                              f"etc. Thanks!\n"
-                                              f"- Si tienes alguna información extra que añadir para este tiempo "
-                                              f"de espera para nosotros, por favor háznoslo saber aquí cuando "
-                                              f"tengas la oportunidad. Por ejemplo, por qué lo silenciaste, "
-                                              f"qué estaba pasando cuando lo silenciaste, etc. ¡Gracias!")
+                        req_msg = (f"{author.mention}: \n- If you have any extra "
+                                   f"information to add "
+                                   f"for this timeout for us, please let us know here "
+                                   f"when you get the "
+                                   f"chance. For example, why you muted, what was happening "
+                                   f"when you muted, etc. Thanks!\n"
+                                   f"- Si tienes alguna información extra que añadir "
+                                   f"para este tiempo "
+                                   f"de espera para nosotros, por favor háznoslo saber aquí cuando "
+                                   f"tengas la oportunidad. Por ejemplo, por qué lo silenciaste, "
+                                   f"qué estaba pasando cuando lo silenciaste, etc. ¡Gracias!")
+                        await utils.safe_send(event_helpers_channel, req_msg)
 
         await check_timeouts()
 
@@ -1848,9 +1894,11 @@ class Logger(commands.Cog):
             await utils.safe_send(ctx, 'Enabled reaction logging for this server')
         elif result == 3:
             await utils.safe_send(ctx,
-                               'You have not yet set a channel for reaction logging yet. Run `;reaction_logging set`')
+                               'You have not yet set a channel for reaction logging yet. '
+                               'Run `;reaction_logging set`')
         elif result == 4:
-            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;reaction_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging '
+                                       'with `;reaction_logging set`.  '
                                     'Then, enable/disable logging by typing `;reaction_logging`.')
 
     @reactions.command(name='set')
@@ -1858,10 +1906,12 @@ class Logger(commands.Cog):
     async def reactions_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['reactions'])
         if result == 1:
-            await utils.safe_send(ctx, f'Set the reaction logging channel as {ctx.channel.name}')
+            await utils.safe_send(ctx,
+                                  f'Set the reaction logging channel as {ctx.channel.name}')
         elif result == 2:
             await utils.safe_send(ctx,
-                               f'Enabled reaction logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'Enabled reaction logging and set the channel '
+                               f'to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;reaction_logging`.')
 
     @staticmethod
@@ -1908,9 +1958,11 @@ class Logger(commands.Cog):
         log_channel = self.bot.get_channel(guild_config["channel"])
         try:
             await utils.safe_send(log_channel,
-                               embed=self.make_reaction_embed(emoji, member, message, payload.message_id, channel))
+                               embed=self.make_reaction_embed(emoji, member, message,
+                                                              payload.message_id, channel))
         except discord.Forbidden:
-            await self.module_disable_notification(guild, guild_config, 'reaction remove')
+            await self.module_disable_notification(guild, guild_config,
+                                                   'reaction remove')
             return
         except AttributeError:
             del guild_config
@@ -1923,7 +1975,8 @@ class Logger(commands.Cog):
         """Logs deleted bans"""
         if not ctx.me.guild_permissions.view_audit_log or not ctx.me.guild_permissions.embed_links:
             await utils.safe_send(ctx,
-                               "I lack the permission to either view audit logs or embed links.  Please try again.")
+                               "I lack the permission to either view audit logs or "
+                               "embed links.  Please try again.")
             return
         result = await self.module_logging(ctx, self.bot.db['bans'])
         if result == 1:
@@ -1931,9 +1984,11 @@ class Logger(commands.Cog):
         elif result == 2:
             await utils.safe_send(ctx, 'Enabled ban logging for this server')
         elif result == 3:
-            await utils.safe_send(ctx, 'You have not yet set a channel for ban logging yet. Run `;ban_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for ban logging yet. '
+                                       'Run `;ban_logging set`')
         elif result == 4:
-            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;ban_logging set`.  '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with '
+                                       '`;ban_logging set`.  '
                                     'Then, enable/disable logging by typing `;ban_logging`.')
 
     @bans.command(name='set', short_name='set')
@@ -1944,7 +1999,8 @@ class Logger(commands.Cog):
         if result == 1:
             await utils.safe_send(ctx, f'Set the ban logging channel as {ctx.channel.name}')
         elif result == 2:
-            await utils.safe_send(ctx, f'Enabled ban logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled ban logging and set the channel to '
+                                       f'`{ctx.channel.name}`.  Enable/disable'
                                     f' logging by typing `;ban_logging`.')
 
     async def make_ban_embed(self, guild: discord.Guild, member: discord.User):
@@ -1957,9 +2013,10 @@ class Logger(commands.Cog):
         await hf.sleep("member_ban", 3)
         attempts = 0
         while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
+            sixty_sec_ago = discord.utils.utcnow() - timedelta(seconds=60)
             async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                 action=discord.AuditLogAction.ban,
-                                                after=discord.utils.utcnow() - timedelta(seconds=60)):
+                                                after=sixty_sec_ago):
                 if entry.action == discord.AuditLogAction.ban and entry.target == member:
                     ban_entry = entry
                     reason = ban_entry.reason
@@ -1973,7 +2030,9 @@ class Logger(commands.Cog):
         if not reason:
             reason = '(none given)'
         if reason.startswith('⁣') or '-s' in reason:  # skip crossposting if enabled
-            reason = reason.replace('⁣', '').replace('-s ', '').replace(' -s', '')
+            reason = (reason.replace('⁣', '')
+                      .replace('-s ', '')
+                      .replace(' -s', ''))
             emb.description = '⁣'
         if reason.startswith('⠀') or '-c' in reason:  # specially crosspost if disabled
             reason = reason.replace('⠀', '').replace('-c', '')
@@ -1989,21 +2048,26 @@ class Logger(commands.Cog):
 
         emb.set_footer(text=f'User Banned - {member.id}',
                        icon_url=member.display_avatar.replace(static_format="png").url)
-
-        already_added = False  # if the ban event has already been added to the modlog, don't do it here again
+        
+        # if the ban event has already been added to the modlog, don't do it here again
+        already_added = False
         try:
             last_modlog = self.bot.db['modlog'][str(guild.id)][str(member.id)][-1]
-            time = datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").replace(tzinfo=timezone.utc)
-            if (discord.utils.utcnow() - time).total_seconds() < 70 and last_modlog['type'] == "Ban":
+            time = (datetime.strptime(last_modlog['date'], "%Y/%m/%d %H:%M UTC").
+                    replace(tzinfo=timezone.utc))
+            num_sec_ago = (discord.utils.utcnow() - time).total_seconds()
+            if num_sec_ago < 70 and last_modlog['type'] == "Ban":
                 already_added = True
             if last_modlog['length'] and last_modlog['type'] == 'Ban':
                 emb.add_field(name="Temporary ban length", value=last_modlog['length'])
         except KeyError:
             pass
 
-        # if you used the Rai command, then this should've already been run in that command with more info
+        # if you used the Rai command,
+        # then this should've already been run in that command with more info
         if not already_added:
-            hf.add_to_modlog(None, [member, guild], 'Ban', reason, False, None)
+            hf.add_to_modlog(None, [member, guild], 'Ban', reason,
+                             False, None)
 
         ban_emb = emb  # saving for later
 
@@ -2011,14 +2075,17 @@ class Logger(commands.Cog):
 
         colour = 0x9C1313
         if reason:
-            for text in ['Automatic ban: Chinese banned words spam', 'Rai automatic word filter ban',
-                         'For posting spam link', 'Name was a discord invite link', "On the global blacklist"]:
+            for text in ['Automatic ban: Chinese banned words spam',
+                         'Rai automatic word filter ban',
+                         'For posting spam link',
+                         'Name was a discord invite link',
+                         "On the global blacklist"]:
                 if text in reason:
                     colour = 0xDD2E44
             reason = reason.replace('%20', ' ')
-
-        author = re.search(r'^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})(> |: |\. )'
-                           r'(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)',
+        reg_pat = (r'^(\*by\* |Issued by: |^)(<@!?)?((?P<ID>\d{17,21})|(?P<name>.*?)#\d{0,4})'
+                   r'(> |: |\. )(\(.*?\)\n?\*\*Reason:\*\* |Reason: |)(?P<reason>.*)')
+        author = re.search(reg_pat,
                            reason,
                            flags=re.DOTALL)  # make "." include new lines
         if author:
@@ -2026,7 +2093,8 @@ class Logger(commands.Cog):
                 admin = self.bot.get_user(int(author.group("ID")))
             elif author.group('name'):
                 m_server = self.bot.get_guild(M_SERVER)
-                admin: Optional[discord.Member] = discord.utils.get(m_server.members, name=author.group('name'))
+                admin: Optional[discord.Member] = discord.utils.get(m_server.members,
+                                                                    name=author.group('name'))
             else:
                 admin = None
             if author.group('reason'):
@@ -2052,7 +2120,8 @@ class Logger(commands.Cog):
             emb.set_footer(text=f"Messages: {messages_in_guild}\n",
                            icon_url=member.display_avatar.replace(static_format="png").url)
         else:
-            emb.set_footer(text='Ban', icon_url=member.display_avatar.replace(static_format="png").url)
+            emb.set_footer(text='Ban',
+                           icon_url=member.display_avatar.replace(static_format="png").url)
 
         creation_date = member.created_at.strftime("%Y/%m/%d")
         time_ago = discord.utils.utcnow() - member.created_at
@@ -2087,7 +2156,8 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
         if not isinstance(member, discord.Member):
-            id_to_member_dict = {m.id: m for m in self.bot.recently_removed_members.get(str(guild.id), [])}
+            recently_removed_member_list = self.bot.recently_removed_members.get(str(guild.id), [])
+            id_to_member_dict = {m.id: m for m in recently_removed_member_list}
             if member.id in id_to_member_dict:
                 member = id_to_member_dict[member.id]
 
@@ -2113,7 +2183,8 @@ class Logger(commands.Cog):
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'].get(guild, 0))
                     if mod_channel:
                         try:
-                            await utils.safe_send(mod_channel, f"@here {member.mention}", embed=crosspost_emb)
+                            await utils.safe_send(mod_channel, f"@here {member.mention}",
+                                                  embed=crosspost_emb)
                         except (discord.Forbidden, discord.HTTPException):
                             pass
 
@@ -2121,13 +2192,15 @@ class Logger(commands.Cog):
                         return
 
                     if member not in bans_channel.guild.members:
-                        await hf.ban_check_servers(self.bot, bans_channel, member, ping=True, embed=crosspost_emb)
+                        await hf.ban_check_servers(self.bot, bans_channel, member,
+                                                   ping=True, embed=crosspost_emb)
 
                     await crosspost_msg.add_reaction('⬆')
 
                     # if member not in bans_channel.guild.members:
                     if member not in bans_channel.guild.members:
-                        self.bot.db['banlog'].setdefault(str(member.id), []).append([guild.id, crosspost_msg.id])
+                        (self.bot.db['banlog'].setdefault(str(member.id), [])
+                         .append([guild.id, crosspost_msg.id]))
 
         if member.id == ABELIAN_ID:
             try:
@@ -2169,15 +2242,17 @@ class Logger(commands.Cog):
                     if not self.bot.db['banlog'][str(user.id)]:
                         del (self.bot.db['banlog'][str(user.id)])  # if the list is now empty
                     try:
-                        crosspost_msg = await self.bot.get_channel(329576845949534208).fetch_message(entry[1])
+                        crosspost_msg = await (self.bot.get_channel(329576845949534208)
+                                               .fetch_message(entry[1]))
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                         pass
                     else:
                         emb = crosspost_msg.embeds[0]
                         emb.colour = 0xFFFFFE  # for some reason, FFFFFF defaults to black, and FFFFFE is fine
                         emb.description.replace('\n', '~~\n')
-                        emb.description = f"UNBANNED {discord.utils.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')}\n" \
-                                          f"~~{emb.description}~~"
+                        unban_time_str = discord.utils.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')
+                        emb.description = (f"UNBANNED {unban_time_str}\n"
+                                           f"~~{emb.description}~~")
                         await crosspost_msg.edit(embed=emb)
 
         if guild_id in self.bot.db['bans']:
@@ -2202,9 +2277,13 @@ class Logger(commands.Cog):
         elif result == 2:
             await utils.safe_send(ctx, 'Enabled kick logging for this server')
         elif result == 3:
-            await utils.safe_send(ctx, 'You have not yet set a channel for kick logging yet. Run `;kick_logging set`')
+            await utils.safe_send(ctx,
+                                  'You have not yet set a channel for kick logging yet. '
+                                  'Run `;kick_logging set`')
         elif result == 4:
-            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;kick_logging set`.  '
+            await utils.safe_send(ctx,
+                                  'Before doing this, set a channel for logging with '
+                                  '`;kick_logging set`.  '
                                     'Then, enable/disable logging by typing `;kick_logging`.')
 
     @kicks.command(name='set')
@@ -2214,7 +2293,8 @@ class Logger(commands.Cog):
         if result == 1:
             await utils.safe_send(ctx, f'Set the kick logging channel as {ctx.channel.name}')
         elif result == 2:
-            await utils.safe_send(ctx, f'Enabled kick logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled kick logging and set the channel to '
+                                       f'`{ctx.channel.name}`.  Enable/disable'
                                     f' logging by typing `;kick_logging`.')
 
     async def make_kick_embed(self, member):
@@ -2223,16 +2303,18 @@ class Logger(commands.Cog):
         kick_entry = None
         try:
             emb = None  # action=discord.AuditLogAction.kick
-            async for entry in member.guild.audit_logs(limit=1, oldest_first=False, action=discord.AuditLogAction.kick,
-                                                       after=discord.utils.utcnow() - timedelta(seconds=10)):
-                if entry.created_at > discord.utils.utcnow() - timedelta(seconds=10) and entry.target == member:
+            ten_sec_ago = discord.utils.utcnow() - timedelta(seconds=10)
+            async for entry in member.guild.audit_logs(limit=1, oldest_first=False,
+                                                       action=discord.AuditLogAction.kick,
+                                                       after=ten_sec_ago):
+                if entry.created_at > ten_sec_ago and entry.target == member:
                     kick_entry = entry
                     reason = kick_entry.reason
                     emb = True
         except discord.Forbidden:
             await log_channel.send('I tried to check the audit log to see if a user who just left the server was '
                                    'kicked, but I lack the permission to view the audit log. ')
-            return
+            return None
         if not reason:
             reason = "(no reason given)"
 
@@ -2247,7 +2329,7 @@ class Logger(commands.Cog):
             emb.set_footer(text='User Kicked',
                            icon_url=member.display_avatar.replace(static_format="png").url)
             return emb
-
+    
     # ############### channel modifications logging #####################
 
     @commands.group(invoke_without_command=True, name='channels')
@@ -2256,14 +2338,19 @@ class Logger(commands.Cog):
         """Logs creation, deletion, and modifications to channels"""
         result = await self.module_logging(ctx, self.bot.db['channels'])
         if result == 1:
-            await utils.safe_send(ctx, 'Disabled logging of channel modifications for this server')
+            await utils.safe_send(ctx,
+                                  'Disabled logging of channel modifications for this server')
         elif result == 2:
-            await utils.safe_send(ctx, 'Enabled logging of channel modifications for this server')
+            await utils.safe_send(ctx,
+                                  'Enabled logging of channel modifications for this server')
         elif result == 3:
-            await utils.safe_send(ctx, 'You have not yet set a channel for channel logging yet. Run `;channels set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for channel '
+                                       'logging yet. Run `;channels set`')
         elif result == 4:
-            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;channels set`.  '
-                                    'Then, enable/disable logging by typing `;channels`.')
+            await utils.safe_send(ctx,
+                                  'Before doing this, set a channel for logging with '
+                                  '`;channels set`.  Then, enable/disable logging by typing '
+                                  '`;channels`.')
 
     @channels.command(name='set')
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -2273,7 +2360,8 @@ class Logger(commands.Cog):
             await utils.safe_send(ctx, f'Set the channel logging channel as {ctx.channel.name}')
         elif result == 2:
             await utils.safe_send(ctx,
-                               f'Enabled channel logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+                               f'Enabled channel logging and set the channel to '
+                               f'`{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;channels`.')
 
     async def make_channels_embed(self, guild: discord.Guild,
@@ -2294,7 +2382,8 @@ class Logger(commands.Cog):
             color = 0x23ddf1  # green
             action = discord.AuditLogAction.channel_create
             channel = after
-            description = f'❇️ Channel "**{channel.name}**" ({channel.mention} - {channel.id}) was `created`'
+            description = (f'❇️ Channel "**{channel.name}**" '
+                           f'({channel.mention} - {channel.id}) was `created`')
             # above line includes https://emojipedia.org/variation-selector-16/ to specify emoji presentation
 
         else:  # MODIFIED

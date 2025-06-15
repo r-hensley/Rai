@@ -50,6 +50,7 @@ BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
 CH_SERV_ID = 266695661670367232
 JP_SERVER_ID = 189571157446492161
+REAL_RAI_ID = 270366726737231884
 FEDE_GUILD = discord.Object(941155953682821201)
 RY_SERV = discord.Object(275146036178059265)
 
@@ -104,7 +105,12 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
 def get_top_stats_list(stats_type: str,
                        guild: discord.Guild,
                        return_numbers=False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
-    """Returns a sorted list of the most active members of the guild"""
+    """Returns a sorted list of the most active members of the guild.
+    Only returns members currently in the server. If a member has left the server, they will
+    not be returned in this list.
+    
+    If return_numbers = True, it will return a list of [(member, number_of_messages), ...]
+    If false, it will be just a list of members, [member, member, ...]"""
     try:
         config = here.bot.stats[str(guild.id)]['messages']
     except (KeyError, AttributeError):
@@ -135,7 +141,10 @@ def get_top_stats_list(stats_type: str,
     return top_members
 
 
-def get_top_server_members(guild: discord.Guild, return_numbers: bool = False) -> Union[list[tuple[discord.Member, int]], list[discord.Member]]:
+def get_top_server_members(
+        guild: discord.Guild,
+        return_numbers: bool = False
+) -> list[discord.Member] | list[tuple[discord.Member, int]]:
     return get_top_stats_list('messages', guild, return_numbers)
 
 
@@ -373,50 +382,73 @@ def add_to_modlog(ctx: Optional[commands.Context],
     return config
 
 
-def parse_time(time_in: str) -> Tuple[str, list[int]]:
+def parse_time(
+        time_in: str,
+        return_seconds: bool = False
+    ) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
     """
-    Parses time from a string and returns a datetime formatted string plus a number of days and hours
-    :param time_in: a string like "2d3h" or "10h"
-    :return: Two things:
-    - *time_string*: A string for the database corresponding to a datetime formatted with "%Y/%m/%d %H:%M UTC"/
-    - *length*: a list with ints [days, hours, minutes]
+    Parses a time string and returns a formatted UTC datetime string plus a time length.
+    
+    Allowed time units:
+        - Seconds (s)
+        - Minutes (m)
+        - Hours (h)
+        - Days (d)
+        - Weeks (w)
+        - Years (y)
+
+    :param time_in: a string like "2d3h", "10h", "1y2d", "1y", "10s", etc.
+    :return:
+      - *time_string*: Formatted UTC datetime string ("%Y/%m/%d %H:%M UTC")
+      - *length*: tuple (days, hours, minutes) if parsed successfully, or (None, None, None) if failed.
     """
-    time_re = re.search(r'^((\d+)y)?((\d+)d)?((\d+)h)?((\d+)m)?$',
-                        time_in)  # group 2, 4, 6, 8: years, days, hours, minutes
-    if time_re:
-        if years := time_re.group(2):
-            years: int = int(years)
+    time_re = re.fullmatch(r''
+                           r'((\d+)y)?'
+                           r'((\d+)w)?'
+                           r'((\d+)d)?'
+                           r'((\d+)h)?'
+                           r'((\d+)m)?'
+                           r'((\d+)s)?', time_in)
+    if not time_re:
+        if return_seconds:
+            return '', (None, None, None, None)
         else:
-            years = 0
-
-        if days := time_re.group(4):
-            days: int = years * 365 + int(days)
-        else:
-            days = years * 365
-
-        if hours := time_re.group(6):
-            hours: int = int(hours)
-        else:
-            hours = 0
-
-        if minutes := time_re.group(8):
-            minutes: int = int(minutes)
-        else:
-            minutes = 0
-
-        length: List[int] = [days, hours, minutes]
-
+            return '', (None, None, None)
+    
+    years = int(time_re.group(2) or 0)
+    weeks = int(time_re.group(4) or 0)
+    days = int(time_re.group(6) or 0)
+    hours = int(time_re.group(8) or 0)
+    minutes = int(time_re.group(10) or 0)
+    seconds = int(time_re.group(12) or 0)
+    
+    # move years and weeks into days
+    total_days = (years * 365) + (weeks * 7) + days
+    
+    # keep hours the same
+    total_hours = hours
+    
+    # move seconds into minutes
+    if return_seconds:
+        total_minutes = minutes
+        total_seconds = seconds
     else:
-        return '', []
-    total_days = length[0] + length[1] / 24 + length[2] / 1440
-    # catch c integer overflow
-    if total_days > 1000000:
-        # reset to just 1000000 - 1 days
-        length = [999999, 0, 0]
+        total_minutes = int(minutes + seconds / 86400)
+        total_seconds = None
+    
+    if total_days > 1_000_000:
+        # to avoid C integer overflow at 1,000,000 days
+        length: tuple[int, int, int] = (999_999, 0, 0)
+    else:
+        length = (total_days, total_hours, total_minutes)
+        
     finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
-    time_string: str = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    if return_seconds:
+        length += (total_seconds,)
+        finish_time += timedelta(seconds=length[3])
+    time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
+    
     return time_string, length
-
 
 
 def submod_check(ctx: commands.Context):
@@ -760,18 +792,56 @@ class ModlogEntry:
 @dataclass
 class Args:
     def __init__(self,
-                 user_ids: List[int],
+                 user_ids: list[int],
                  time_string: str,
-                 length: List[int],
+                 length: list[int],
                  time_arg: str,
                  time_obj: datetime,
                  reason: str):
-        self.user_ids = user_ids  # list of users
-        self.time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
-        self.length = length  # list of [days, hours, minutes]
-        self.time_arg = time_arg
-        self.time_obj = time_obj
-        self.reason = reason
+        self._user_ids = user_ids  # list of users
+        self._time_string = time_string  # string formatted like %Y/%m/%d %H:%M UTC
+        self._length = length  # list of [days, hours, minutes]
+        self._time_arg = time_arg
+        self._time_obj = time_obj
+        self._reason = reason
+        
+    @property
+    def user_ids(self) -> list[int]:
+        """List of users IDs (integers)"""
+        return self._user_ids
+    
+    @property
+    def time_string(self) -> str:
+        """String formatted like %Y/%m/%d %H:%M UTC"""
+        return self._time_string
+    
+    @property
+    def length(self) -> Optional[list[int]]:
+        """List of [days, hours, minutes] as integers"""
+        return self._length
+    
+    @property
+    def time_arg(self) -> Optional[str]:
+        """String passed in that was parsed, for example, '2h' or '3d2h'"""
+        return self._time_arg
+    
+    @property
+    def time_obj(self) -> Optional[datetime]:
+        """Datetime object corresponding to ending point of action (a mute, for example)"""
+        return self._time_obj
+    
+    @property
+    def timedelta_obj(self) -> timedelta:
+        """Timedelta object corresponding to length of action, or 0s timedelta if None"""
+        if self._time_obj:
+            return self._time_obj - discord.utils.utcnow()
+        else:
+            return timedelta(seconds=0)
+    
+    @property
+    def reason(self) -> str:
+        """The reason for the action"""
+        return self._reason
 
 
 def args_discriminator(args: str) -> Args:
@@ -897,18 +967,26 @@ async def log_message_context(interaction: discord.Interaction, message: discord
     await Interactions.log_message(interaction, message)
 
 
-async def hf_sync():
-    # Sp serv
-    commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
-                        context_view_modlog, context_view_user_stats, get_id_from_message,
-                        ban_and_clear_member, ban_and_clear_message, log_message_context]
-
+async def hf_sync(remove=False):
+    # only sync context menu commands for real Rai bot (not forks)
+    if here.bot.user.id == REAL_RAI_ID:
+        commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
+                            context_view_modlog, context_view_user_stats, get_id_from_message,
+                            ban_and_clear_member, ban_and_clear_message, log_message_context]
+    else:
+        commands_in_file = []
+        pass
+        
+    # add option to forcibly remove commands. this is really here for demonstration / ;eval use
+    if remove:
+        here.bot.tree.clear_commands(guild=SP_SERV_GUILD)
+        here.bot.tree.clear_commands(guild=JP_SERV_GUILD)
+    
     # Add any commands from this file not currently registered in the tree (new/renamed commands)
     for command in commands_in_file:
         # if command.name not in command_names_in_tree:
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
         here.bot.tree.add_command(command, guild=JP_SERV_GUILD, override=True)
-
 
     # Try to sync
     try:
@@ -1444,6 +1522,7 @@ class MessageQueue(deque[MiniMessage]):
         # MessageQueue(message_queue, maxlen=1000)  # give message queue with new maxlen
         # MessageQueue(maxlen=1000)  # create new message queue with maxlen 1000
         # MessageQueue()  # create new message queue with default maxlen
+        self._lock = asyncio.Lock()
         if maxlen == 0:
             raise ValueError("Parameter `maxlen` cannot be 0.")
         
@@ -1518,7 +1597,8 @@ class MessageQueue(deque[MiniMessage]):
 
     def to_dict_list(self) -> List[dict]:
         """Convert all messages in the queue to a list of dictionaries."""
-        return [message.to_dict() for message in self]
+        snapshot = list(self)
+        return [message.to_dict() for message in snapshot]
 
     def find_by_author(self, author: Union[int, discord.User, discord.Member]) -> List[MiniMessage]:
         """Find all messages by a specific author."""
@@ -1579,11 +1659,12 @@ class MessageQueue(deque[MiniMessage]):
     
     def change_length(self, new_length: int) -> "MessageQueue":
         """Change the maximum length of the queue by creating a new queue and returning it."""
-        if len(self) > new_length:
-            sliced_queue = list(self)[-new_length:]
-        else:
-            sliced_queue = list(self)
-        return MessageQueue(sliced_queue, maxlen=new_length)
+        with self._lock:
+            if len(self) > new_length:
+                sliced_queue = list(self)[-new_length:]
+            else:
+                sliced_queue = list(self)
+            return MessageQueue(sliced_queue, maxlen=new_length)
     
     def __repr__(self) -> str:
         """Print a preview of the list"""
@@ -1600,13 +1681,13 @@ class MessageQueue(deque[MiniMessage]):
     
     def __dict__(self) -> list[dict]:
         """Convert the MessageQueue to a list of dictionaries."""
-        return [msg.to_dict() for msg in self]
+        with self._lock:
+            return [msg.to_dict() for msg in self]
     
     @classmethod
     def from_dict(cls, data):
         """Create a MessageQueue object from a list of dictionaries."""
         return cls([MiniMessage(**msg_kwargs) for msg_kwargs in data])
-
 
 
 async def excessive_dm_activity(guild_id: int, user_id: int) -> Optional[datetime]:
