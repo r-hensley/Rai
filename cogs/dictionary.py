@@ -304,7 +304,8 @@ class Dictionary(commands.Cog):
             )
             embedded_error.set_footer(
                 text=f'{copyright_text} | Comando hecho por jobcuenca')
-            await utils.safe_reply(ctx, embed=embedded_error, delete_after=30)
+
+            await utils.safe_reply(ctx, embed=embedded_error, delete_after=5)
             return None, None, None, None
 
         return main_articles, url, copyright_text, formatted_word
