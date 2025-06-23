@@ -1239,7 +1239,10 @@ class Logger(commands.Cog):
                         pass
                 except discord.Forbidden:
                     pass
-                del readd_config['users'][str(member.id)]
+                try:
+                    del readd_config['users'][str(member.id)]
+                except KeyError:
+                    pass
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
             log_message = await utils.safe_send(log_channel, member.id, embed=x)
@@ -1742,6 +1745,11 @@ class Logger(commands.Cog):
             timeout_length_str = None
             reason = None
             author = None
+            
+            # check if bot has permissions to view audit logs
+            if not guild.me.guild_permissions.view_audit_log:
+                return
+            
             while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
                 async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                     action=discord.AuditLogAction.member_update,

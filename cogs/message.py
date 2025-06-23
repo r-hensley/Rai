@@ -373,7 +373,7 @@ class Message(commands.Cog):
         await msg.get_ctx()
 
         # Search for direct mentions of IDs
-        user_ids = re.findall(r"<?@?!?(\d{17,22})>?", content)
+        user_ids = re.findall(r"<?@?!?(\d{17,19})>?", content)
         user_ids = set(user_ids)  # eliminate duplicate IDs
         for user_id in user_ids:
             try:
@@ -385,7 +385,7 @@ class Message(commands.Cog):
                 try:
                     _: discord.User = await self.bot.fetch_user(user_id)
                     # if found, then keep going, I just want to see if the user *exists* or not
-                except discord.NotFound:
+                except (discord.NotFound, discord.HTTPException):
                     continue
             # noinspection PyTypeChecker
             await msg.ctx.invoke(modlog, id_in=str(user_id))
@@ -1840,11 +1840,15 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             # send to chatgpt logs channel
             await hf.segment_send(1351956893119283270, messages)
             moderation_result = None
-            if 'invalid_image_format' in str(e) or 'image_url_unavailable' in str(e) or 'file_too_large' in str(e):
-                for m in messages:
-                    if m['type'] == 'image_url':
-                        messages.remove(m)
-                        moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
+            ignore_strings = ['invalid_image_format', 'image_url_unavailable', 'file_too_large', 'Failed to download']
+            for i_string in ignore_strings:
+                if i_string in str(e):
+                    for m in messages:
+                        if m['type'] == 'image_url':
+                            messages.remove(m)
+                            moderation_result = await self.bot.openai.moderations.create(
+                                model="omni-moderation-latest", input=messages
+                            )
             if not moderation_result:
                 raise
         except Exception as e:
