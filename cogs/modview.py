@@ -74,6 +74,15 @@ class ModView(discord.ui.View):
         ctx = await self.cog.bot.get_context(fake_message)
         await self.cog.bot.invoke(ctx)
 
+    # async def on_timeout(self, interaction: discord.Interaction) -> None:
+    #     if interaction.message:
+    #         try:
+    #             # Remove all buttons after timeout
+    #             await interaction.message.edit(view=None)
+    #         except discord.NotFound:
+    #             pass
+    #     self.stop()
+
 
 class ModLogView(discord.ui.View):
     def __init__(self, parent_view: "ModView"):
@@ -130,7 +139,7 @@ class BanView(discord.ui.View):
         embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, user_id, member, user)
 
         # Recreate the original ModView
-        mod_cog = self.ctx.bot.get_cog("ChannelMods")
+        _mod_cog = self.ctx.bot.get_cog("ChannelMods")
         view = BanConfirmationView(self)
         await interaction.message.edit(embed=embed, view=view)
 
@@ -147,7 +156,7 @@ class BanView(discord.ui.View):
         embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, user_id, member, user)
 
         # Recreate the original ModView
-        mod_cog = self.ctx.bot.get_cog("ChannelMods")
+        _mod_cog = self.ctx.bot.get_cog("ChannelMods")
         view = BanConfirmationView(self)
         await interaction.message.edit(embed=embed, view=view)
 
@@ -164,7 +173,7 @@ class BanView(discord.ui.View):
         embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, user_id, member, user)
 
         # Recreate the original ModView
-        mod_cog = self.ctx.bot.get_cog("ChannelMods")
+        _mod_cog = self.ctx.bot.get_cog("ChannelMods")
         view = BanConfirmationView(self)
         await interaction.message.edit(embed=embed, view=view)
 
