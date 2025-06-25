@@ -172,7 +172,7 @@ async def build_user_summary_embed(bot, ctx: commands.Context, user_id: str, mem
 
     # ==== Basic Embed Setup ====
     emb = utils.green_embed("")
-    name = f"Username: {str(user)}\nDisplay name: {getattr(user, 'nick', '')})\n{user_id}" if getattr(
+    name = f"Username: {str(user)}\nDisplay name: {getattr(user, 'nick', '')}\n{user_id}" if getattr(
         user, "nick", None) else f"{str(user)}\n{user_id}"
     emb.set_author(name=name, icon_url=user.display_avatar.replace(
         static_format="png").url)
