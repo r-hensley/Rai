@@ -373,3 +373,45 @@ async def get_modlog_entries(guild_id: int, user_id: str, bot) -> list[dict]:
     if g_id in bot.db["modlog"] and user_id in bot.db["modlog"][g_id]:
         return bot.db["modlog"][g_id][user_id]
     return []
+
+
+def build_log_message_embed(entry: dict, user: discord.User) -> discord.Embed:
+    """
+    Build an embed showing a detailed view of a single modlog entry.
+
+    :param entry: The modlog entry dict.
+    :param user: The discord.User the log belongs to.
+    :param index: The index of the entry in the user's log list.
+    :return: discord.Embed
+    """
+
+    embed = discord.Embed(
+        title=f"{entry.get('type')}",
+        color=discord.Color.orange()
+    )
+
+    # Add fields
+    embed.add_field(name="User", value=f"{user} ({user.id})")
+    embed.add_field(name="Reason", value=entry.get(
+        "reason", "No reason provided."), inline=False)
+
+    length = entry.get("length")
+    if length:
+        embed.add_field(name="Duration", value=length, inline=True)
+
+    if entry.get("silent"):
+        embed.add_field(name="Silent", value="Yes", inline=True)
+
+    if entry.get("jump_url"):
+        embed.add_field(
+            name="Jump URL", value=f"[Click here]({entry['jump_url']})", inline=False)
+    if entry.get('author'):
+        embed.add_field(
+            name='Date', value=f"<t:{entry.get('date', 'Unknown')}:f>")
+        embed.set_footer(
+            text=f"By {entry.get('author')} ({entry.get('author_id')})")
+    if "date_edited" in entry:
+        embed.set_footer(
+            text=f"{embed.footer.text} | Edited: {entry['date_edited']}")
+
+    return embed
