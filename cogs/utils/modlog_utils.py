@@ -1,3 +1,4 @@
+# pylint: disable=C0301,C0116,c0114
 from typing import Optional
 from datetime import datetime, timezone
 import discord

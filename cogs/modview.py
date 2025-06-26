@@ -1,3 +1,4 @@
+# pylint: disable=C0301,C0116,C0115,C0114
 import copy
 from datetime import datetime
 import discord
@@ -194,8 +195,8 @@ class PaginatedModLogView(discord.ui.View):
 
         # self.add_item(self.back_button)
         # self.add_item(self.add_entry_button)
-        self.previous_button.disabled = (self.page == 0)
-        self.next_button.disabled = (self.page == self.total_pages - 1)
+        self.previous_button.disabled = self.page == 0
+        self.next_button.disabled = self.page == self.total_pages - 1
 
     @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -247,16 +248,16 @@ class PaginatedModLogView(discord.ui.View):
             return False
         return True
 
-    async def interaction_dispatch(self, interaction: discord.Interaction):
-        cid = interaction.data.get("custom_id")
-        if cid == "prev":
-            self.page -= 1
-        elif cid == "next":
-            self.page += 1
+    # async def interaction_dispatch(self, interaction: discord.Interaction):
+    #     cid = interaction.data.get("custom_id")
+    #     if cid == "prev":
+    #         self.page -= 1
+    #     elif cid == "next":
+    #         self.page += 1
 
-        self.update_children()
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
-        await interaction.response.edit_message(embed=embed, view=self)
+    #     self.update_children()
+    #     embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+    #     await interaction.response.edit_message(embed=embed, view=self)
 
 
 class LogEntrySelector(discord.ui.Select):
