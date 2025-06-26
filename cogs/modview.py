@@ -95,48 +95,6 @@ class ModView(discord.ui.View):
         ctx = await self.cog.bot.get_context(fake_message)
         await self.cog.bot.invoke(ctx)
 
-    # async def on_timeout(self, interaction: discord.Interaction) -> None:
-    #     if interaction.message:
-    #         try:
-    #             # Remove all buttons after timeout
-    #             await interaction.message.edit(view=None)
-    #         except discord.NotFound:
-    #             pass
-    #     self.stop()
-
-
-# class ModLogView(discord.ui.View):
-#     def __init__(self, parent_view: "ModView"):
-#         super().__init__()
-#         self.ctx = parent_view.ctx
-#         self.user_id = parent_view.id_arg
-#         self.author_id = parent_view.author_id
-#         self.manage_cog = parent_view.manage_cog
-
-#     @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary)
-#     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         if interaction.user.id != self.author_id:
-#             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
-#             return
-
-#         await interaction.response.defer()
-
-#         # Resolve user again
-#         member, user, user_id = await mlu.resolve_user(self.ctx, self.user_id, self.manage_cog.bot)
-#         embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, user_id, member, user)
-
-#         # Recreate the original ModView
-#         mod_cog = self.ctx.bot.get_cog("ChannelMods")
-#         view = ModView(self.manage_cog, mod_cog, self.ctx, user_id)
-#         await interaction.message.edit(embed=embed, view=view)
-
-#     @discord.ui.button(label="➕ Add Entry", style=discord.ButtonStyle.success)
-#     async def add_entry_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         if interaction.user.id != self.author_id:
-#             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
-#             return
-
-#         await interaction.response.send_modal(AddModlogEntryModal(self, "Silent Log"))
 
 class PaginatedModLogView(discord.ui.View):
     def __init__(self, parent_view: "ModView", entries: list[dict], page: int = 0):
@@ -158,8 +116,6 @@ class PaginatedModLogView(discord.ui.View):
         self.update_children()
 
     def update_children(self):
-        # self.clear_items()
-        # If selector already exists, remove it
         if self.selector:
             self.remove_item(self.selector)
             self.selector = None
@@ -167,14 +123,6 @@ class PaginatedModLogView(discord.ui.View):
         start = self.page * self.max_per_page
         end = start + self.max_per_page
         page_entries = self.entries[start:end]
-
-        # options = []
-        # for i, entry in enumerate(page_entries, start=start):
-        #     label = f"[{entry.get('type', 'Unknown')}] {entry.get('reason', '')[:80]}"
-        #     options.append(discord.SelectOption(
-        #         label=label, value=str(i), description=entry.get('date', '')))
-
-        # self.add_item(LogEntrySelector(options, self))
 
         options = [
             discord.SelectOption(
@@ -271,17 +219,6 @@ class PaginatedModLogView(discord.ui.View):
             await interaction.response.send_message("🚫 Only the original author can interact.", ephemeral=True)
             return False
         return True
-
-    # async def interaction_dispatch(self, interaction: discord.Interaction):
-    #     cid = interaction.data.get("custom_id")
-    #     if cid == "prev":
-    #         self.page -= 1
-    #     elif cid == "next":
-    #         self.page += 1
-
-    #     self.update_children()
-    #     embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
-    #     await interaction.response.edit_message(embed=embed, view=self)
 
 
 class LogEntrySelector(discord.ui.Select):
@@ -383,8 +320,6 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
         except (IndexError, KeyError):
             await interaction.response.send_message("⚠️ Could not update log entry — it may have been deleted.", ephemeral=True)
             return
-
-        # Confirm
 
 
 # class BanView(discord.ui.View):
