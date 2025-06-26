@@ -157,8 +157,9 @@ def format_modlog_entries(config, user_id: str):
         if entry['silent'] and entry['type'] != "Warning":
             name += " (silent)"
 
-        incident_time = hf.convert_to_datetime(entry['date'])
-        value = f"<t:{int(incident_time.timestamp())}:f>\n"
+        # incident_time = hf.convert_to_datetime(entry['date'])
+        value = f"<t:{entry['date']}:f>\n" if isinstance(
+            entry['date'], int) else f"<t:{int(hf.convert_to_datetime(entry['date']).timestamp())}:f>\n"
         if entry['length']:
             value += f"*For {entry['length']}*\n"
         if entry['reason']:
@@ -354,8 +355,12 @@ def build_log_entry_embed(entry: dict, user: discord.User, index: int) -> discor
     if entry.get("jump_url"):
         embed.add_field(
             name="Jump URL", value=f"[Click here]({entry['jump_url']})", inline=False)
-
-    embed.set_footer(text=f"Created: {entry.get('date', 'Unknown')}")
+    if entry.get('author'):
+        embed.add_field(
+            name='Date', value=f"<t:{entry['date']}:f>\n" if isinstance(
+                entry['date'], int) else f"<t:{int(hf.convert_to_datetime(entry['date']).timestamp())}:f>\n")
+        embed.set_footer(
+            text=f"By {entry.get('author')} ({entry.get('author_id')})")
     if "date_edited" in entry:
         embed.set_footer(
             text=f"{embed.footer.text} | Edited: {entry['date_edited']}")
