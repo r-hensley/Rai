@@ -259,9 +259,10 @@ class DetailedEntryView(discord.ui.View):
     async def delete_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         guild_id = str(self.ctx.guild.id)
         del self.ctx.bot.db["modlog"][guild_id][self.user_id][self.index]
+        mlu.save_db(self.ctx.bot)
         await interaction.response.send_message("✅ Entry deleted.", ephemeral=True)
         embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
-        await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view, self.parent_view.entries, self.user))
+        await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view.parent_view, self.parent_view.entries))
 
     @discord.ui.button(label="← Back to Log", style=discord.ButtonStyle.secondary, row=1)
     async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
@@ -313,13 +314,14 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
             await interaction.response.defer()
             user = await bot.fetch_user(int(user_id))
             entries = bot.db["modlog"][guild_id][user_id]
+            mlu.save_db(bot)
 
             embed = await mlu.build_modlog_embed(bot, ctx, user)
             new_view = PaginatedModLogView(
-                self.view.parent_view, entries, user)
-
+                self.view.parent_view, entries)
+            new_view.message = interaction.message
             await interaction.message.edit(embed=embed, view=new_view)
-            await interaction.response.send_message("✅ Entry edited!", ephemeral=True)
+            await interaction.followup.send("✅ Entry edited!", ephemeral=True)
         except (IndexError, KeyError):
             await interaction.response.send_message("⚠️ Could not update log entry — it may have been deleted.", ephemeral=True)
             return
