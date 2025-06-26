@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands
@@ -7,19 +7,35 @@ from cogs.utils.BotUtils import bot_utils as utils
 from . import helper_functions as hf
 
 
-async def resolve_user(ctx, id_in: str, bot) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
-    member: discord.Member = await utils.member_converter(ctx, id_in)
-    if member:
-        return member, member, str(member.id)
+# async def resolve_user(ctx, id_in: str, bot) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
+#     member: discord.Member = await utils.member_converter(ctx, id_in)
+#     if member:
+#         return member, member, str(member.id)
+#     try:
+#         user = await bot.fetch_user(int(id_in))
+#         return None, user, id_in
+#     except (discord.NotFound, discord.HTTPException, ValueError):
+#         return None, None, None
+
+async def resolve_user(ctx: commands.Context, id_arg: str, bot) -> tuple[Optional[discord.User], Optional[str]]:
     try:
-        user = await bot.fetch_user(int(id_in))
-        return None, user, id_in
-    except (discord.NotFound, discord.HTTPException, ValueError):
-        return None, None, None
+        member = await commands.MemberConverter().convert(ctx, id_arg)
+        return member, member, str(member.id)
+    except commands.BadArgument:
+        try:
+            user = await commands.UserConverter().convert(ctx, id_arg)
+            return None, user, str(user.id)
+        except commands.BadArgument:
+            try:
+                user = await bot.fetch_user(int(id_arg))
+                return user, str(user.id)
+            except (discord.NotFound, discord.HTTPException, ValueError):
+                return None, None, None
 
 
-async def get_user_status(ctx, guild_id: str, user_id: str, member: Optional[discord.Member], user: Optional[discord.User]):
+async def get_user_status(ctx, guild_id: str, member: Optional[discord.Member], user: Optional[discord.User]):
     db = ctx.bot.db
+    user_id = str((member or user).id)
 
     muted = False
     unmute_date = None
@@ -125,7 +141,7 @@ def format_modlog_entries(config, user_id: str):
         valid_logs.append(entry)
 
     fields = []
-    for entry in valid_logs[-25:]:
+    for entry in valid_logs:
         name = f"{logs.index(entry) + 1}) "
         name += "Silent Log" if entry['silent'] and entry['type'] == "Warning" else entry['type']
         if entry['silent'] and entry['type'] != "Warning":
@@ -145,7 +161,8 @@ def format_modlog_entries(config, user_id: str):
     return fields
 
 
-async def build_modlog_embed(bot, ctx: commands.Context, user_id: str, user: Optional[discord.User]) -> discord.Embed:
+async def build_modlog_embed(bot, ctx: commands.Context, user: Optional[discord.User], page: int = 0) -> discord.Embed:
+    user_id = str(user.id)
     guild_id = str(ctx.guild.id)
     config = bot.db['modlog'].get(guild_id, {})
 
@@ -157,18 +174,28 @@ async def build_modlog_embed(bot, ctx: commands.Context, user_id: str, user: Opt
 
     # ==== Modlog Entries ====
     fields = format_modlog_entries(config, user_id)
-    for name, value in fields:
+    # Pagination: show 5 per page
+    per_page = 5
+    total_pages = (len(fields) - 1) // per_page + 1 if fields else 1
+    start = page * per_page
+    end = start + per_page
+    page_fields = fields[start:end]
+
+    for name, value in page_fields:
         emb.add_field(name=name, value=value, inline=False)
 
     if not fields:
         emb.color = utils.grey_embed("").color
         emb.description += "\n***>> NO MODLOG ENTRIES << ***"
+    else:
+        emb.set_footer(text=f"Page {page + 1} of {total_pages}")
 
     return emb
 
 
-async def build_user_summary_embed(bot, ctx: commands.Context, user_id: str, member: Optional[discord.Member], user: Optional[discord.User]) -> discord.Embed:
+async def build_user_summary_embed(bot, ctx: commands.Context, member: Optional[discord.Member], user: Optional[discord.User]) -> discord.Embed:
     guild_id = str(ctx.guild.id)
+    user_id = str(user.id)
 
     # ==== Basic Embed Setup ====
     emb = utils.green_embed("")
@@ -178,7 +205,7 @@ async def build_user_summary_embed(bot, ctx: commands.Context, user_id: str, mem
         static_format="png").url)
 
     # ==== User Status ====
-    status = await get_user_status(ctx, guild_id, user_id, member, user)
+    status = await get_user_status(ctx, guild_id, member, user)
 
     if status['banned']:
         emb.color = 0x141414
@@ -279,3 +306,50 @@ async def build_user_summary_embed(bot, ctx: commands.Context, user_id: str, mem
             emb.description += "**`Suspected Spam`** : User has been flagged for suspected spam activity\n"
 
     return emb
+
+
+def build_log_entry_embed(entry: dict, user: discord.User, index: int) -> discord.Embed:
+    """
+    Build an embed showing a detailed view of a single modlog entry.
+
+    :param entry: The modlog entry dict.
+    :param user: The discord.User the log belongs to.
+    :param index: The index of the entry in the user's log list.
+    :return: discord.Embed
+    """
+    embed = discord.Embed(
+        title=f"Log Entry #{index + 1} — {entry.get('type', 'Unknown')}",
+        color=discord.Color.orange()
+    )
+
+    embed.set_author(name=str(user), icon_url=user.display_avatar.replace(
+        static_format="png").url)
+
+    # Add fields
+    embed.add_field(name="Reason", value=entry.get(
+        "reason", "No reason provided."), inline=False)
+
+    length = entry.get("length")
+    if length:
+        embed.add_field(name="Duration", value=length, inline=True)
+
+    if entry.get("silent"):
+        embed.add_field(name="Silent", value="Yes", inline=True)
+
+    if entry.get("jump_url"):
+        embed.add_field(
+            name="Jump URL", value=f"[Click here]({entry['jump_url']})", inline=False)
+
+    embed.set_footer(text=f"Created: {entry.get('date', 'Unknown')}")
+    if "date_edited" in entry:
+        embed.set_footer(
+            text=f"{embed.footer.text} | Edited: {entry['date_edited']}")
+
+    return embed
+
+
+async def get_modlog_entries(guild_id: int, user_id: str, bot) -> list[dict]:
+    g_id = str(guild_id)
+    if g_id in bot.db["modlog"] and user_id in bot.db["modlog"][g_id]:
+        return bot.db["modlog"][g_id][user_id]
+    return []
