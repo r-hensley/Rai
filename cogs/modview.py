@@ -132,21 +132,24 @@ class PaginatedModLogView(discord.ui.View):
             )
             for i, entry in enumerate(page_entries, start=start)
         ]
-        self.selector = LogEntrySelector(options, self)
-        self.add_item(self.selector)
+        if options:
+            self.selector = LogEntrySelector(options, self)
+            self.add_item(self.selector)
+            self.previous_button.disabled = self.page == 0
+            self.first_button.disabled = self.page == 0
+            self.next_button.disabled = self.page == self.total_pages - 1
+            self.last_button.disabled = self.page == self.total_pages - 1
+        else:
+            self.clear_items()
+            self.add_item(self.back_button)
+            self.add_item(self.add_entry_button)
 
-        # Conditionally add buttons
-        # if self.page > 0:
-        #     self.add_item(self.previous_button)
-        # if self.page < self.total_pages - 1:
-        #     self.add_item(self.next_button)
-
-        # self.add_item(self.back_button)
-        # self.add_item(self.add_entry_button)
-        self.previous_button.disabled = self.page == 0
-        self.first_button.disabled = self.page == 0
-        self.next_button.disabled = self.page == self.total_pages - 1
-        self.last_button.disabled = self.page == self.total_pages - 1
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.edit(view=None)
+            except discord.NotFound:
+                pass
 
     @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
