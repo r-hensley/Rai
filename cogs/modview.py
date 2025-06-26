@@ -452,9 +452,16 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
         }
 
         bot.db["modlog"][guild_id][user_id].append(new_entry)
+        mlu.save_db(bot)
 
-        # Confirm to user
-        await interaction.response.send_message("✅ Entry added!", ephemeral=True)
+        # Send to log channel (optional)
+        log_channel_id = 1364314775789502666  # Replace with your real channel
+        log_channel = ctx.guild.get_channel(log_channel_id)
+        if log_channel:
+            embed = mlu.build_log_message_embed(new_entry, user=self.view.user)
+            await log_channel.send(embed=embed)
+
+        await interaction.followup.send("✅ Entry added!", ephemeral=True)
 
         # Refresh the modlog embed
         entries = bot.db["modlog"][guild_id][user_id]
