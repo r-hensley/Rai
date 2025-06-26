@@ -17,6 +17,15 @@ from . import helper_functions as hf
 #         return None, user, id_in
 #     except (discord.NotFound, discord.HTTPException, ValueError):
 #         return None, None, None
+def save_db(bot, path="db.json"):
+    import json
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(bot.db, f, indent=4)
+        print("✅ Database saved to disk")
+    except Exception as e:  # pylint: disable=W0718
+        print(f"❌ Failed to save DB: {e}")
+
 
 async def resolve_user(ctx: commands.Context, id_arg: str, bot) -> tuple[Optional[discord.User], Optional[str]]:
     try:
