@@ -1,6 +1,7 @@
 # pylint: disable=C0301,C0116,C0115,C0114
 import copy
-from datetime import datetime
+from typing import Optional
+from datetime import datetime, timezone
 import discord
 from discord.ext import commands
 
@@ -11,32 +12,28 @@ from cogs.utils.BotUtils import bot_utils as utils
 
 class ModView(discord.ui.View):
     def __init__(self, cog: "cm", manage_cog: "UserManage", ctx: commands.Context, id_arg: str):
-        super().__init__()
+        super().__init__(timeout=30)
         self.manage_cog = manage_cog
         self.cog = cog
         self.ctx = ctx
         self.author_id = ctx.author.id
         self.member, self.user, self.user_id = None, None, None
         self.id_arg = id_arg
+        self.message: Optional[discord.Message] = None
 
     async def init(self):
         self.member, self.user, self.user_id = await mlu.resolve_user(
             self.ctx, self.id_arg, self.cog.bot)
 
-    # @discord.ui.button(label="Open log", style=discord.ButtonStyle.primary)
-    # async def modlog_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    #     if interaction.user.id != self.author_id:
-    #         await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
-    #         return
-    #     await interaction.response.defer(ephemeral=True)
-    #     _member, user, user_id = await mlu.resolve_user(self.ctx, self.user_id, self.cog.bot)
-    #     embed = await mlu.build_modlog_embed(self.cog.bot, self.ctx, user)
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.edit(view=None)
+            except discord.NotFound:
+                pass
 
-    #     # Replace the current message
-    #     view = ModLogView(self)
-    #     await interaction.message.edit(embed=embed, view=view)
     @discord.ui.button(label="Open log", style=discord.ButtonStyle.primary)
-    async def modlog_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def modlog_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -50,10 +47,11 @@ class ModView(discord.ui.View):
 
         # Pass entries and user to the view
         view = PaginatedModLogView(self, entries=entries)
+        view.message = interaction.message
         await interaction.message.edit(embed=embed, view=view)
 
     @discord.ui.button(label="Mute", style=discord.ButtonStyle.secondary)
-    async def mute_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def mute_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -82,7 +80,7 @@ class ModView(discord.ui.View):
     #     await interaction.message.edit(embed=embed, view=view)
 
     @discord.ui.button(label="Warn", style=discord.ButtonStyle.blurple)
-    async def warn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def warn_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -142,7 +140,8 @@ class ModView(discord.ui.View):
 
 class PaginatedModLogView(discord.ui.View):
     def __init__(self, parent_view: "ModView", entries: list[dict], page: int = 0):
-        super().__init__(timeout=180)
+        super().__init__(timeout=30)
+        self.parent_view = parent_view
         self.ctx = parent_view.ctx
         self.user = parent_view.user
         self.member = parent_view.member
@@ -153,6 +152,7 @@ class PaginatedModLogView(discord.ui.View):
         self.page = page
         self.max_per_page = 5
         self.selector = None
+        self.message: Optional[discord.Message] = None
 
         self.total_pages = (len(entries) - 1) // self.max_per_page + 1
         self.update_children()
@@ -201,7 +201,7 @@ class PaginatedModLogView(discord.ui.View):
         self.last_button.disabled = self.page == self.total_pages - 1
 
     @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary, row=1)
-    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -213,18 +213,19 @@ class PaginatedModLogView(discord.ui.View):
         mod_cog = self.ctx.bot.get_cog("ChannelMods")
         view = ModView(mod_cog, self.manage_cog, self.ctx, self.user_id)
         await view.init()
+        view.message = interaction.message
         await interaction.message.edit(embed=embed, view=view)
 
     @discord.ui.button(label="➕ Add Entry", style=discord.ButtonStyle.success, row=1)
-    async def add_entry_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def add_entry_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
 
-        await interaction.response.send_modal(AddModlogEntryModal(self, "Silent Log"))
+        await interaction.response.send_modal(AddModlogEntryModal(self, "Log"))
 
     @discord.ui.button(label="<< First", style=discord.ButtonStyle.secondary, custom_id="first", row=0)
-    async def first_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def first_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 You can’t do that.", ephemeral=True)
             return
@@ -234,7 +235,7 @@ class PaginatedModLogView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="< Previous", style=discord.ButtonStyle.secondary, custom_id="prev", row=0)
-    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 You can’t do that.", ephemeral=True)
             return
@@ -244,7 +245,7 @@ class PaginatedModLogView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Next >", style=discord.ButtonStyle.secondary, custom_id="next", row=0)
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -255,7 +256,7 @@ class PaginatedModLogView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Last >>", style=discord.ButtonStyle.secondary, custom_id="last", row=0)
-    async def last_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def last_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return
@@ -265,7 +266,7 @@ class PaginatedModLogView(discord.ui.View):
         embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:  # pylint: disable=W0221
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("🚫 Only the original author can interact.", ephemeral=True)
             return False
@@ -311,11 +312,11 @@ class DetailedEntryView(discord.ui.View):
         self.manage_cog = paginated_view.manage_cog
 
     @discord.ui.button(label="✏ Edit", style=discord.ButtonStyle.blurple)
-    async def edit_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def edit_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         await interaction.response.send_modal(EditModlogEntryModal(self, self.index, self.entry))
 
     @discord.ui.button(label="🗑 Delete", style=discord.ButtonStyle.red)
-    async def delete_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def delete_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         guild_id = str(self.ctx.guild.id)
         del self.ctx.bot.db["modlog"][guild_id][self.user_id][self.index]
         await interaction.response.send_message("✅ Entry deleted.", ephemeral=True)
@@ -323,7 +324,7 @@ class DetailedEntryView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view, self.parent_view.entries, self.user))
 
     @discord.ui.button(label="← Back to Log", style=discord.ButtonStyle.secondary, row=1)
-    async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
@@ -354,7 +355,7 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
         self.add_item(self.reason)
         self.add_item(self.duration)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
         ctx = self.view.ctx
         user_id = str(self.view.user_id)
         guild_id = str(ctx.guild.id)
@@ -485,7 +486,9 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
         self.add_item(self.reason)
         self.add_item(self.duration)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
+        await interaction.response.defer(ephemeral=True)
+
         # Insert into modlog DB
         ctx = self.view.ctx
         user_id = self.view.user_id
@@ -516,7 +519,9 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
         # Refresh the modlog embed
         entries = bot.db["modlog"][guild_id][user_id]
         embed = await mlu.build_modlog_embed(bot, ctx, self.view.user)
-        new_view = PaginatedModLogView(self.view, entries, self.view.user)
+        new_view = PaginatedModLogView(
+            self.view.parent_view, entries)
+        new_view.message = interaction.message
         await interaction.message.edit(embed=embed, view=new_view)
 
 
@@ -542,7 +547,8 @@ class UserManage(commands.Cog):
         view = ModView(mod_cog, self, ctx, user_id)
         await view.init()
 
-        await utils.safe_send(ctx, embed=embed, view=view)
+        message = await utils.safe_send(ctx, embed=embed, view=view)
+        view.message = message
 
 
 async def setup(bot):
