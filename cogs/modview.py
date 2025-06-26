@@ -196,7 +196,9 @@ class PaginatedModLogView(discord.ui.View):
         # self.add_item(self.back_button)
         # self.add_item(self.add_entry_button)
         self.previous_button.disabled = self.page == 0
+        self.first_button.disabled = self.page == 0
         self.next_button.disabled = self.page == self.total_pages - 1
+        self.last_button.disabled = self.page == self.total_pages - 1
 
     @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -221,6 +223,16 @@ class PaginatedModLogView(discord.ui.View):
 
         await interaction.response.send_modal(AddModlogEntryModal(self, "Silent Log"))
 
+    @discord.ui.button(label="<< First", style=discord.ButtonStyle.secondary, custom_id="first", row=0)
+    async def first_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("🚫 You can’t do that.", ephemeral=True)
+            return
+        self.page = 0
+        self.update_children()
+        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        await interaction.response.edit_message(embed=embed, view=self)
+
     @discord.ui.button(label="< Previous", style=discord.ButtonStyle.secondary, custom_id="prev", row=0)
     async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author_id:
@@ -238,6 +250,17 @@ class PaginatedModLogView(discord.ui.View):
             return
 
         self.page += 1
+        self.update_children()
+        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Last >>", style=discord.ButtonStyle.secondary, custom_id="last", row=0)
+    async def last_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
+            return
+
+        self.page = self.total_pages-1
         self.update_children()
         embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
