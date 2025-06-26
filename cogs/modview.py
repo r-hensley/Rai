@@ -1,8 +1,7 @@
 import copy
-from typing import Optional
+from datetime import datetime
 import discord
 from discord.ext import commands
-from datetime import datetime
 
 import cogs.channel_mods as cm
 from cogs.utils import modlog_utils as mlu

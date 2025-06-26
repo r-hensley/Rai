@@ -169,8 +169,11 @@ async def build_modlog_embed(bot, ctx: commands.Context, user: Optional[discord.
     emb = utils.green_embed("")
     name = f"{str(user)} ({getattr(user, 'nick', '')})\n{user_id}" if getattr(
         user, "nick", None) else f"{str(user)}\n{user_id}"
-    emb.set_author(name=name, icon_url=user.display_avatar.replace(
-        static_format="png").url)
+    emb.set_author(name=name,
+                   icon_url=user.display_avatar.replace(
+                       static_format="png").url
+                   )
+    # emb.set_thumbnail(url=user.display_avatar.url)
 
     # ==== Modlog Entries ====
     fields = format_modlog_entries(config, user_id)
@@ -201,8 +204,10 @@ async def build_user_summary_embed(bot, ctx: commands.Context, member: Optional[
     emb = utils.green_embed("")
     name = f"Username: {str(user)}\nDisplay name: {getattr(user, 'nick', '')}\n{user_id}" if getattr(
         user, "nick", None) else f"{str(user)}\n{user_id}"
-    emb.set_author(name=name, icon_url=user.display_avatar.replace(
-        static_format="png").url)
+    emb.set_author(name=name,
+                   #    icon_url=user.display_avatar.replace(static_format="png").url
+                   )
+    emb.set_thumbnail(url=user.display_avatar.url)
 
     # ==== User Status ====
     status = await get_user_status(ctx, guild_id, member, user)
