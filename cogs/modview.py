@@ -309,8 +309,7 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
 
             entry["reason"] = self.reason.value
             entry["length"] = self.duration.value if self.duration.value else None
-            entry["date_edited"] = datetime.utcnow().strftime(
-                "%Y/%m/%d %H:%M UTC")
+            entry["date_edited"] = int(datetime.now(timezone.utc).timestamp())
             await interaction.response.defer()
             user = await bot.fetch_user(int(user_id))
             entries = bot.db["modlog"][guild_id][user_id]
@@ -448,7 +447,9 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
             "length": self.duration.value if self.duration.value else None,
             "jump_url": None,
             "silent": False,
-            "date": datetime.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+            "date": int(datetime.now(timezone.utc).timestamp()),
+            "author_id": str(interaction.user.id),
+            "author": str(interaction.user)
         }
 
         bot.db["modlog"][guild_id][user_id].append(new_entry)
