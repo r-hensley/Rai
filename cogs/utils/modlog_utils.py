@@ -248,7 +248,7 @@ async def build_user_summary_embed(bot, ctx: commands.Context, member: Optional[
     # ==== Stats ====
     if member:
         stats = get_user_stats(bot, guild_id, member)
-        emb.description += f"\n**`Number of messages M | W`** : {stats['month']} | {stats['week']}"
+        emb.description += f"\n**`# of messages M | W`** : {stats['month']} | {stats['week']}"
         emb.description += f"\n**`Time in voice`** : {stats['voice']}"
         if stats['sentiment']:
             emb.description += f"\n**`Recent sentiment ({stats['sentiment_count']} msgs)`** : {stats['sentiment']}"
