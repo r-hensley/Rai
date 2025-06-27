@@ -94,6 +94,25 @@ async def get_user_status(ctx, guild_id: str, member: Optional[discord.Member], 
     }
 
 
+def get_bot(ctx_or_interaction) -> commands.Bot:
+    return getattr(ctx_or_interaction, "bot", None) or getattr(ctx_or_interaction, "client", None)
+
+
+def get_author_id(obj) -> discord.abc.User:
+    """
+    Given a Context or Interaction, return the author/user.
+
+    :param obj: commands.Context or discord.Interaction
+    :return: discord.User or discord.Member
+    """
+    if hasattr(obj, "author"):
+        return obj.author.id  # commands.Context
+    if hasattr(obj, "user"):
+        return obj.user.id    # discord.Interaction
+    else:
+        raise AttributeError("Object has no author or user attribute")
+
+
 def get_user_stats(bot, guild_id: str, member: discord.Member):
     total_msgs_month = 0
     total_msgs_week = 0
