@@ -32,17 +32,20 @@ from cogs.interactions import Interactions
 
 from cogs.utils.BotUtils import bot_utils as utils
 
-dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+dir_path = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.realpath(__file__))))
 
 # here = sys.modules[__name__]
 # here.bot = None
 # here.loop = None
+
 
 class Here:
     def __init__(self):
         from Rai import Rai
         self.bot: Optional[Rai] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
+
 
 here = Here()
 
@@ -108,7 +111,7 @@ def get_top_stats_list(stats_type: str,
     """Returns a sorted list of the most active members of the guild.
     Only returns members currently in the server. If a member has left the server, they will
     not be returned in this list.
-    
+
     If return_numbers = True, it will return a list of [(member, number_of_messages), ...]
     If false, it will be just a list of members, [member, member, ...]"""
     try:
@@ -123,13 +126,16 @@ def get_top_stats_list(stats_type: str,
             if stats_type == 'messages':
                 if 'channels' not in user:
                     continue
-                member_activity[int(member_id)] += sum([user['channels'][c] for c in user['channels']])
+                member_activity[int(member_id)] += sum([user['channels'][c]
+                                                        for c in user['channels']])
             elif stats_type == 'activity':
                 if 'activity' not in user:
                     continue
-                member_activity[int(member_id)] += sum([user['activity'][c] for c in user['activity']])
+                member_activity[int(member_id)] += sum([user['activity'][c]
+                                                        for c in user['activity']])
 
-    sorted_members = sorted(member_activity.items(), key=lambda x: x[1], reverse=True)
+    sorted_members = sorted(member_activity.items(),
+                            key=lambda x: x[1], reverse=True)
     top_members = []
     for member_id, activity in sorted_members:
         member = guild.get_member(member_id)
@@ -171,7 +177,8 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
                 user = config[day_str][str(member_id)]
                 if 'channels' not in user:
                     continue
-                days[date] += sum([user['channels'][c] for c in user['channels']])
+                days[date] += sum([user['channels'][c]
+                                  for c in user['channels']])
     except (KeyError, AttributeError):
         return {}
 
@@ -187,7 +194,7 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
     assert first_day != last_day, f"The first {first_day} and last day {last_day} in this code should never be equal"
     assert last_day > first_day, f"The last day {last_day} here should always be greater than the first day {first_day}"
     assert first_day + timedelta(days=32) > last_day, f"There are more than 32 days separating first " \
-                                                      f"{first_day} and last {last_day} day"
+        f"{first_day} and last {last_day} day"
     one_day = timedelta(days=1)
     for day in days.copy():
         day: datetime
@@ -198,7 +205,8 @@ def get_messages_per_day(member_id: int, guild: discord.Guild) -> dict[datetime,
             next_day = next_day + one_day
             infinite_loop_avoidance_counter += 1
             if infinite_loop_avoidance_counter > 50:
-                raise ValueError("This code has somehow entered an infinite loop")
+                raise ValueError(
+                    "This code has somehow entered an infinite loop")
 
     # noinspection PyTypeChecker
     # below operation for some reason thinks it returns list[datetime], but it's like [(datetime, int), (datetime, int)]
@@ -235,10 +243,12 @@ def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: st
                 channel: str
                 guild_channel = guild.get_channel_or_thread(int(channel))
                 if guild_channel:
-                    message_count[channel] = message_count.get(channel, 0) + user['channels'][channel]
+                    message_count[channel] = message_count.get(
+                        channel, 0) + user['channels'][channel]
                 else:
                     # for channels that don't exist anymore, assign them all to a "0" channel to be grouped later
-                    message_count['0'] = message_count.get('0', 0) + user['channels'][channel]
+                    message_count['0'] = message_count.get(
+                        '0', 0) + user['channels'][channel]
 
                 days_ago = (discord.utils.utcnow() -
                             datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)).days
@@ -252,11 +262,13 @@ def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: st
                         name = emoji_dict[emoji]
                     else:
                         name = emoji
-                    emoji_count[name] = emoji_count.get(name, 0) + user['emoji'][emoji]
+                    emoji_count[name] = emoji_count.get(
+                        name, 0) + user['emoji'][emoji]
 
             if 'lang' in user:
                 for lang in user['lang']:
-                    lang_count[lang] = lang_count.get(lang, 0) + user['lang'][lang]
+                    lang_count[lang] = lang_count.get(
+                        lang, 0) + user['lang'][lang]
 
     if desired_stat.startswith('message'):
         return total_msgs_month, total_msgs_week, message_count
@@ -278,7 +290,8 @@ def count_activity(member_id: int, guild: discord.Guild) -> int:
                 user = config[day][str(member_id)]
                 if 'activity' not in user:
                     continue
-                activity_score += sum([user['activity'][c] for c in user['activity']])
+                activity_score += sum([user['activity'][c]
+                                      for c in user['activity']])
         return activity_score
     except (KeyError, AttributeError):
         return 0
@@ -290,7 +303,8 @@ def calculate_voice_time(member_id: int, guild_id: Union[int, discord.Guild]) ->
         guild_id: int = guild_id.id
     assert isinstance(guild_id, int)
     try:
-        voice_config: dict = here.bot.stats[str(guild_id)]['voice']['total_time']
+        voice_config: dict = here.bot.stats[str(
+            guild_id)]['voice']['total_time']
     except (KeyError, AttributeError):
         return 0
     voice_time_minutes: int = 0
@@ -353,14 +367,17 @@ def add_to_modlog(ctx: Optional[commands.Context],
                   modlog_type: str,
                   reason: str,
                   silent: bool,
-                  length: Union[str, timedelta] = None):  # length str is something like "24h", "3d 2h", etc
+                  # length str is something like "24h", "3d 2h", etc
+                  length: Union[str, timedelta] = None):
     if ctx:
         if ctx.message:
             jump_url = ctx.message.jump_url
         else:
             jump_url = None
-        config = here.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': None})
-    else:  # "user" is actually a list of [member, guild] here, forgive me for how shitty that is lol
+        config = here.bot.db['modlog'].setdefault(
+            str(ctx.guild.id), {'channel': None})
+    # "user" is actually a list of [member, guild] here, forgive me for how shitty that is lol
+    else:
         guild = user[1]
         user = user[0]
         jump_url = None  # this would be the case for entries that come from the logger module
@@ -383,12 +400,12 @@ def add_to_modlog(ctx: Optional[commands.Context],
 
 
 def parse_time(
-        time_in: str,
-        return_seconds: bool = False
-    ) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
+    time_in: str,
+    return_seconds: bool = False
+) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
     """
     Parses a time string and returns a formatted UTC datetime string plus a time length.
-    
+
     Allowed time units:
         - Seconds (s)
         - Minutes (m)
@@ -414,20 +431,20 @@ def parse_time(
             return '', (None, None, None, None)
         else:
             return '', (None, None, None)
-    
+
     years = int(time_re.group(2) or 0)
     weeks = int(time_re.group(4) or 0)
     days = int(time_re.group(6) or 0)
     hours = int(time_re.group(8) or 0)
     minutes = int(time_re.group(10) or 0)
     seconds = int(time_re.group(12) or 0)
-    
+
     # move years and weeks into days
     total_days = (years * 365) + (weeks * 7) + days
-    
+
     # keep hours the same
     total_hours = hours
-    
+
     # move seconds into minutes
     if return_seconds:
         total_minutes = minutes
@@ -435,19 +452,20 @@ def parse_time(
     else:
         total_minutes = int(minutes + seconds / 86400)
         total_seconds = None
-    
+
     if total_days > 1_000_000:
         # to avoid C integer overflow at 1,000,000 days
         length: tuple[int, int, int] = (999_999, 0, 0)
     else:
         length = (total_days, total_hours, total_minutes)
-        
-    finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
+
+    finish_time = discord.utils.utcnow(
+    ) + timedelta(days=length[0], hours=length[1], minutes=length[2])
     if return_seconds:
         length += (total_seconds,)
         finish_time += timedelta(seconds=length[3])
     time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
-    
+
     return time_string, length
 
 
@@ -499,7 +517,8 @@ def is_helper():
 
 
 def voicemod_check(ctx):
-    if submod_check(ctx) or ctx.author.id in [650044067194863647]:  # hardcoded mods
+    # hardcoded mods
+    if submod_check(ctx) or ctx.author.id in [650044067194863647]:
         return True
     try:
         return ctx.author.id in here.bot.db['voicemod'][str(ctx.guild.id)]
@@ -592,26 +611,28 @@ async def ban_check_servers(bot, bans_channel, member, ping=False, embed=None):
         pings = ''
         if ping:
             if str(guild_entry[0].id) in bot.db['bansub']['guild_to_role']:
-                role_id = bot.db['bansub']['guild_to_role'][str(guild_entry[0].id)]
+                role_id = bot.db['bansub']['guild_to_role'][str(
+                    guild_entry[0].id)]
                 for user in bot.db['bansub']['user_to_role']:
                     if role_id in bot.db['bansub']['user_to_role'][user]:
                         pings += f" <@{user}> "
 
             # Try to send the notification of a newly banned user directly to mod channels with pings
             sent_to_mod_channel = False
-            mod_channel_id = bot.db['mod_channel'].get(str(guild_entry[0].id), 0)
+            mod_channel_id = bot.db['mod_channel'].get(
+                str(guild_entry[0].id), 0)
             mod_channel = bot.get_channel(mod_channel_id)
             if mod_channel:
                 try:
                     if embed:
                         msg = await utils.safe_send(mod_channel,
-                                              f"{member.mention}\n"
-                                              f"@here {pings} The below user has been banned on another server "
-                                              f"and is in your server.",
-                                              embed=embed)
+                                                    f"{member.mention}\n"
+                                                    f"@here {pings} The below user has been banned on another server "
+                                                    f"and is in your server.",
+                                                    embed=embed)
                     else:
                         msg = await utils.safe_send(mod_channel, f"@here {pings} The below user has been banned on another "
-                                                           f"server and is currently in your server.")
+                                                    f"server and is currently in your server.")
                     sent_to_mod_channel = True
                     ctx = await bot.get_context(msg)
                     await ctx.invoke(bot.get_command("modlog"), member.id)
@@ -681,7 +702,7 @@ async def uhc_check(msg):
                                     await long_deleted_msg_notification(msg)
     except AttributeError:
         pass
-        
+
 
 def _pre_load_language_detection_model():
     english = []
@@ -717,7 +738,8 @@ def _pre_load_language_detection_model():
         x = np.array(_english + _spanish)
         y = np.array(['en'] * len(_english) + ['sp'] * len(_spanish))
 
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.05, random_state=42)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, test_size=0.05, random_state=42)
         cnt = CountVectorizer(analyzer='char', ngram_range=(2, 2))
 
         pipeline = Pipeline([
@@ -730,7 +752,8 @@ def _pre_load_language_detection_model():
 
         return pipeline
 
-    here.bot.langdetect = make_set(english, spanish, make_set(english, spanish, make_set(english, spanish)))
+    here.bot.langdetect = make_set(english, spanish, make_set(
+        english, spanish, make_set(english, spanish)))
 
 
 def detect_language(text) -> Optional[str]:
@@ -804,32 +827,32 @@ class Args:
         self._time_arg = time_arg
         self._time_obj = time_obj
         self._reason = reason
-        
+
     @property
     def user_ids(self) -> list[int]:
         """List of users IDs (integers)"""
         return self._user_ids
-    
+
     @property
     def time_string(self) -> str:
         """String formatted like %Y/%m/%d %H:%M UTC"""
         return self._time_string
-    
+
     @property
     def length(self) -> Optional[list[int]]:
         """List of [days, hours, minutes] as integers"""
         return self._length
-    
+
     @property
     def time_arg(self) -> Optional[str]:
         """String passed in that was parsed, for example, '2h' or '3d2h'"""
         return self._time_arg
-    
+
     @property
     def time_obj(self) -> Optional[datetime]:
         """Datetime object corresponding to ending point of action (a mute, for example)"""
         return self._time_obj
-    
+
     @property
     def timedelta_obj(self) -> timedelta:
         """Timedelta object corresponding to length of action, or 0s timedelta if None"""
@@ -837,7 +860,7 @@ class Args:
             return self._time_obj - discord.utils.utcnow()
         else:
             return timedelta(seconds=0)
-    
+
     @property
     def reason(self) -> str:
         """The reason for the action"""
@@ -884,11 +907,13 @@ def args_discriminator(args: str) -> Args:
 
     if _length:
         try:
-            _time_obj = discord.utils.utcnow() + timedelta(days=_length[0], hours=_length[1], minutes=_length[2])
+            _time_obj = discord.utils.utcnow(
+            ) + timedelta(days=_length[0], hours=_length[1], minutes=_length[2])
         except OverflowError:
             _time_arg = _time_obj = _length = _time_string = None
 
     return Args(_user_ids, _time_string, _length, _time_arg, _time_obj, _reason)
+
 
 @app_commands.context_menu(name="Delete and log")
 @app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
@@ -975,13 +1000,12 @@ async def hf_sync(remove=False):
                             ban_and_clear_member, ban_and_clear_message, log_message_context]
     else:
         commands_in_file = []
-        pass
-        
+
     # add option to forcibly remove commands. this is really here for demonstration / ;eval use
     if remove:
         here.bot.tree.clear_commands(guild=SP_SERV_GUILD)
         here.bot.tree.clear_commands(guild=JP_SERV_GUILD)
-    
+
     # Add any commands from this file not currently registered in the tree (new/renamed commands)
     for command in commands_in_file:
         # if command.name not in command_names_in_tree:
@@ -1076,7 +1100,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                                                         spoiler=True, use_cached=False)
                     except (discord.HTTPException, discord.NotFound, discord.Forbidden):
                         file = None
-            
+
             files.append((file, attachment))
 
     if attachments_message.embeds:
@@ -1087,7 +1111,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                 # posting an image expands the image to an embed without title or desc., send those into the thread
                 if embed.url and embed.thumbnail and not embed.title and not embed.description:
                     embed_urls.append(embed.url)
-       
+
     found_anything = any([f[0] for f in files] + embed_urls)
     if files + embed_urls:
         if found_anything:
@@ -1112,8 +1136,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
             return
     else:
         return  # no files or embed urls were found
-    
-    
+
     for file_tuple in files:
         # file_tuple is tuple (file, attachment)
         file = file_tuple[0]
@@ -1124,12 +1147,12 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
             except (discord.Forbidden, discord.HTTPException) as e:
                 try:
                     await utils.safe_send(thread, f"Error attempting to send {attachment.filename} "
-                                                  f"({attachment.proxy_url}): {e}")
+                                          f"({attachment.proxy_url}): {e}")
                 except (discord.Forbidden, discord.HTTPException):
                     pass
         else:
             file_info = f"Failed to download file: {attachment.filename} - {attachment.description}\n" \
-                        f"{attachment.proxy_url}"
+                f"{attachment.proxy_url}"
             try:
                 await utils.safe_send(thread, file_info)
             except (discord.Forbidden, discord.HTTPException):
