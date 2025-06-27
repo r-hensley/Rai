@@ -1,5 +1,5 @@
 # pylint: disable=C0301,C0116,c0114
-from typing import Optional
+from typing import Optional, Tuple, Union
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands
@@ -27,24 +27,49 @@ def save_db(bot, path="db.json"):
         print(f"❌ Failed to save DB: {e}")
 
 
-async def resolve_user(ctx: commands.Context, id_arg: str, bot) -> tuple[Optional[discord.User], Optional[str]]:
-    try:
-        member = await commands.MemberConverter().convert(ctx, id_arg)
-        return member, member, str(member.id)
-    except commands.BadArgument:
-        try:
-            user = await commands.UserConverter().convert(ctx, id_arg)
-            return None, user, str(user.id)
-        except commands.BadArgument:
+# async def resolve_user(ctx: commands.Context, id_arg: str, bot) -> tuple[Optional[discord.User], Optional[str]]:
+#     try:
+#         member = await commands.MemberConverter().convert(ctx, id_arg)
+#         return member, member, str(member.id)
+#     except commands.BadArgument:
+#         try:
+#             user = await commands.UserConverter().convert(ctx, id_arg)
+#             return None, user, str(user.id)
+#         except commands.BadArgument:
+#             try:
+#                 user = await bot.fetch_user(int(id_arg))
+#                 return user, str(user.id)
+#             except (discord.NotFound, discord.HTTPException, ValueError):
+#                 return None, None, None
+
+async def resolve_user(ctx_or_interaction: Union[Optional[discord.Interaction], Optional[commands.Context]], id_arg: str, bot: commands.Bot) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
+    guild = ctx_or_interaction.guild
+    member = None
+    user = None
+    user_id = int(id_arg)
+
+    if guild:
+        member = guild.get_member(user_id)
+        if member is None:
             try:
-                user = await bot.fetch_user(int(id_arg))
-                return user, str(user.id)
-            except (discord.NotFound, discord.HTTPException, ValueError):
-                return None, None, None
+                member = await guild.fetch_member(user_id)
+            except (discord.NotFound, discord.HTTPException):
+                member = None
+
+    if member:
+        return member, member, str(member.id)
+    try:
+        user = bot.get_user(user_id)
+        if user is None:
+            user = await bot.fetch_user(user_id)
+        return None, user, str(user.id)
+    except (discord.NotFound, discord.HTTPException):
+        return None, None, None
 
 
 async def get_user_status(ctx, guild_id: str, member: Optional[discord.Member], user: Optional[discord.User]):
-    db = ctx.bot.db
+    bot = get_bot(ctx)
+    db = bot.db
     user_id = str((member or user).id)
 
     muted = False
