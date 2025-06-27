@@ -993,6 +993,7 @@ async def log_message_context(interaction: discord.Interaction, message: discord
 
 
 async def hf_sync(remove=False):
+    from cogs.modview import context_user_manage
     # only sync context menu commands for real Rai bot (not forks)
     if here.bot.user.id == REAL_RAI_ID:
         commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
@@ -1012,6 +1013,9 @@ async def hf_sync(remove=False):
         here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
         here.bot.tree.add_command(command, guild=JP_SERV_GUILD, override=True)
 
+    here.bot.tree.add_command(
+        context_user_manage, guild=SP_SERV_GUILD, override=True
+    )
     # Try to sync
     try:
         await here.bot.tree.sync(guild=SP_SERV_GUILD)
