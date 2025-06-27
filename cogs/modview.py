@@ -478,26 +478,71 @@ class UserManage(commands.Cog):
         super().__init__()
         self.bot = bot
 
+    # @commands.group(aliases=['manage', 'um'], invoke_without_command=True)
+    # async def user_manage(self, ctx: commands.Context, *, id_arg: str):
+    #     member, user, user_id = await mlu.resolve_user(ctx, id_arg, self.bot)
+
+    #     if not user:
+    #         emb = utils.red_embed("")
+    #         emb.set_author(name="COULD NOT FIND USER")
+    #         await utils.safe_send(ctx, embed=emb)
+    #         return
+
+    #     # Build detailed user summary embed
+    #     embed = await mlu.build_user_summary_embed(self.bot, ctx, member, user)
+    #     mod_cog = ctx.bot.get_cog("ChannelMods")
+    #     # Create interactive button view
+    #     view = ModView(mod_cog, self, ctx, user_id)
+    #     await view.init()
+
+    #     message = await utils.safe_send(ctx, embed=embed, view=view)
+    #     view.message = message
+
+    async def launch_user_manage_view(
+        self,
+        interaction: Union[commands.Context, Interaction],
+        member,
+        user,
+        ephemeral=False
+    ):
+        embed = await mlu.build_user_summary_embed(self.bot, interaction, member, user)
+        mod_cog = self.bot.get_cog("ChannelMods")
+        view = ModView(mod_cog, self, interaction, str(user.id))
+        await view.init()
+
+        if isinstance(interaction, Interaction):
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=ephemeral)
+            view.message = await interaction.original_response()
+        else:
+            # it's a text command (Context)
+            view.message = await utils.safe_send(interaction, embed=embed, view=view)
+
     @commands.group(aliases=['manage', 'um'], invoke_without_command=True)
     async def user_manage(self, ctx: commands.Context, *, id_arg: str):
         member, user, user_id = await mlu.resolve_user(ctx, id_arg, self.bot)
-
         if not user:
             emb = utils.red_embed("")
             emb.set_author(name="COULD NOT FIND USER")
             await utils.safe_send(ctx, embed=emb)
             return
 
-        # Build detailed user summary embed
-        embed = await mlu.build_user_summary_embed(self.bot, ctx, member, user)
-        mod_cog = ctx.bot.get_cog("ChannelMods")
-        # Create interactive button view
-        view = ModView(mod_cog, self, ctx, user_id)
-        await view.init()
-
-        message = await utils.safe_send(ctx, embed=embed, view=view)
-        view.message = message
+        await self.launch_user_manage_view(ctx, member, user)
 
 
-async def setup(bot):
+@app_commands.context_menu(name="Manage User")
+@app_commands.guilds(243838819743432704)
+@app_commands.default_permissions()
+async def context_user_manage(interaction: discord.Interaction, target_user: discord.User):
+    cog: UserManage = interaction.client.get_cog("UserManage")
+    if cog is None:
+        await interaction.response.send_message("UserManage cog is not loaded.", ephemeral=True)
+        return
+
+    member = interaction.guild.get_member(target_user.id)
+
+    # Call a method on the cog instance; e.g., launch a shared method you create
+    await cog.launch_user_manage_view(interaction, member, target_user, ephemeral=True)
+
+
+async def setup(bot: commands.Bot):
     await bot.add_cog(UserManage(bot))
