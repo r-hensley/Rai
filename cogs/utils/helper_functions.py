@@ -1161,7 +1161,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                 await utils.safe_send(thread, file_info)
             except (discord.Forbidden, discord.HTTPException):
                 pass
-        
+
     for embed_url in embed_urls:
         try:
             await utils.safe_send(thread, embed_url)
@@ -1170,7 +1170,7 @@ async def send_attachments_to_thread_on_message(log_message: discord.Message, at
                 await utils.safe_send(thread, f"Error attempting to send attached link to message: {e}")
             except (discord.Forbidden, discord.HTTPException):
                 pass
-            
+
     # archive after uploading all attachments
     await thread.edit(archived=True)
 
@@ -1247,7 +1247,8 @@ class RaiMessage(discord.Message):
         if self._error_fetching_ctx:
             return None
         if self._ctx is None:
-            raise ValueError("Context has not been initialized. Call `await get_ctx()` first.")
+            raise ValueError(
+                "Context has not been initialized. Call `await get_ctx()` first.")
         return self._ctx
 
     async def get_ctx(self):
@@ -1270,7 +1271,7 @@ class MiniMessage:
     A lightweight representation of a Discord message, designed to store minimal
     information for reduced memory usage. Useful for caching and analysis without
     retaining unnecessary objects.
-    
+
     Attributes:
         message_id (int): The unique ID of the message.
         content (str): The content of the message.
@@ -1278,16 +1279,17 @@ class MiniMessage:
         channel_id (int): The ID of the channel where the message was sent.
         guild_id (Optional[int]): The ID of the guild (server), if applicable.
         attachments (List[dict]): A list of attachment dictionaries containing only URLs.
-        
+
     Properties:
         created_at: The creation timestamp of the message.
         id: The unique ID of the message.
-        
-        
+
+
     Methods:
         to_dict: Convert the MiniMessage to a dictionary for easy storage or JSON serialization.
         from_discord_message: Create a MiniMessage object from a discord.py Message object.
     """
+
     def __init__(
         self,
         message_id: int,
@@ -1318,13 +1320,14 @@ class MiniMessage:
             channel = here.bot.get_channel(self.channel_id)
             if channel:
                 self.guild_id = getattr(channel.guild, "id", None)
-        
+
         # Simplify attachments to just URLs and proxy URLs
         self.attachments = [
-            {"url": attachment.get("url", ""), "proxy_url": attachment.get("proxy_url", "")}
+            {"url": attachment.get(
+                "url", ""), "proxy_url": attachment.get("proxy_url", "")}
             for attachment in (attachments or [])
         ]
-        
+
         self.embeds = [
             {"url": embed.get("url", "")}
             for embed in (embeds or [])
@@ -1366,14 +1369,14 @@ class MiniMessage:
             author.id = self.author_id
             author.name = "Unknown User"  # Placeholder name
             author.bot = False
-            
+
         guild = here.bot.get_guild(self.guild_id) if self.guild_id else None
         channel = None
         if not guild:
             guild = Mock(spec=discord.Guild)
             guild.id = self.guild_id
             guild.name = "Unknown Server"
-        
+
         # Resolve channel
         if guild:
             channel = guild.get_channel_or_thread(self.channel_id)
@@ -1384,28 +1387,29 @@ class MiniMessage:
             channel.id = self.channel_id
             channel.name = "Unknown Channel"  # Placeholder name
             channel.guild = guild
-        
+
         # Mock attachments
         # attachments = [MockAttachment(attachment["url"],
         #                               proxy_url=attachment.get("proxy_url", ""),
         #                               filename=attachment["url"].split("/")[-1])
         #                for attachment in self.attachments]
         # discord.Attachment.to_file()
-        
+
         attachments = []
         for attachment in self.attachments:
             mock_attachment = Mock(spec=discord.Attachment)
             mock_attachment.url = attachment["url"]
             mock_attachment.proxy_url = attachment.get("proxy_url", "")
-            mock_attachment.filename = urlparse(attachment["url"]).path.split("/")[-1] if attachment["url"] else ""
+            mock_attachment.filename = urlparse(attachment["url"]).path.split(
+                "/")[-1] if attachment["url"] else ""
             attachments.append(mock_attachment)
-            
+
         embeds = []
         for embed in self.embeds:
             mock_embed = Mock(spec=discord.Embed)
             mock_embed.url = embed["url"]
             embeds.append(mock_embed)
-        
+
         # Mock the Message object
         message = Mock(spec=discord.Message)
         message.id = self.message_id
@@ -1421,9 +1425,9 @@ class MiniMessage:
         message.channel_mentions = []
         message.reference = None
         message.reactions = []
-        
+
         return message
-        
+
         # author = here.bot.get_user(self.author_id)
         # if not author:
         #     author = discord.Object(id=self.author_id)
@@ -1451,13 +1455,13 @@ class MiniMessage:
             {"url": attachment.url, "proxy_url": attachment.proxy_url}
             for attachment in message.attachments
         ]
-        
+
         # posting an image expands the image to an embed without title or desc.
         embeds = [
             {"url": embed.url}
             for embed in message.embeds if embed.url and embed.thumbnail and not embed.title and not embed.description
         ]
-        
+
         return cls(
             message_id=message.id,
             content=message.content,
@@ -1467,7 +1471,7 @@ class MiniMessage:
             attachments=attachments,
             embeds=embeds
         )
-    
+
     @classmethod
     def from_mini_message(cls, message: "MiniMessage"):
         """Used to update a MiniMessage in an old list to a new structure when MiniMessage is updated."""
@@ -1499,7 +1503,7 @@ class MiniMessage:
             f"channel_id={self.channel_id}, guild_id={self.guild_id}, "
             f"content='{content}', created_at={date_str}>"
         )
-    
+
     def __sizeof__(self) -> int:
         """
         Calculate the memory usage of the MiniMessage object.
@@ -1515,7 +1519,7 @@ class MiniMessage:
             + sum(sys.getsizeof(attachment) for attachment in self.attachments)
             + sys.getsizeof(self.attachments)
         )
-    
+
     def __dict__(self) -> dict:
         """Convert the MiniMessage to a dictionary for easy storage or JSON serialization."""
         return self.to_dict()
@@ -1524,12 +1528,12 @@ class MiniMessage:
 class MessageQueue(deque[MiniMessage]):
     """
     A queue of MiniMessage objects with a maximum length to prevent memory overflow.
-    
+
     Properties:
         depth (str): The time difference between the oldest and newest messages.
         memory_usage (str): The memory usage of the queue.
         average_message_length (float): The average length of messages in the queue.
-        
+
     Methods:
         add_message: Add a MiniMessage to the queue.
         get_recent_messages: Retrieve the most recent messages.
@@ -1538,10 +1542,11 @@ class MessageQueue(deque[MiniMessage]):
         change_length: Change the maximum length of the queue by creating a new queue and returning
         reload: Reload all messages in queue with updated MiniMessage objects (assuming MiniMessage has changed)
     """
+
     def __init__(self, iterable: Iterable = (), maxlen: Optional[int] = None):
         """
         Create a new MessageQueue object.
-        
+
         :param iterable: Any iterable, for example, a list or deque, including potentially just another MessageQueue.
         :param maxlen: The maximum length of the queue.
         """
@@ -1552,7 +1557,7 @@ class MessageQueue(deque[MiniMessage]):
         self._lock = asyncio.Lock()
         if maxlen == 0:
             raise ValueError("Parameter `maxlen` cannot be 0.")
-        
+
         default_maxlen = 100000
         if isinstance(iterable, MessageQueue):
             maxlen = maxlen or iterable.maxlen
@@ -1565,16 +1570,17 @@ class MessageQueue(deque[MiniMessage]):
                 elif isinstance(iterable[0], MiniMessage):
                     pass  # passed a list of MiniMessages rather than a MessageQueue of MiniMessages
                 else:
-                    raise TypeError(f"Expected list of `MiniMessage` or `dict`, got {type(iterable[0]).__name__}")
+                    raise TypeError(
+                        f"Expected list of `MiniMessage` or `dict`, got {type(iterable[0]).__name__}")
             super().__init__(iterable, maxlen=maxlen)
-        
+
     @property
     def depth(self) -> str:
         """Find time difference between oldest and newest message in the queue."""
         if len(self) < 2:
             return "0s"
         return format_interval(self[-1].created_at - self[0].created_at)
-    
+
     @property
     def memory_usage(self) -> str:
         """Calculate the memory usage of the queue."""
@@ -1588,7 +1594,7 @@ class MessageQueue(deque[MiniMessage]):
             out += f"{size / 1024 ** 2:.2f} MB"
         else:
             out += f"{size / 1024 ** 3:.2f} GB"
-        
+
         size_per_msg = size / len(self) if len(self) else 0
         if size_per_msg < 1024:
             out += f" ({size_per_msg:.2f} B/msg, {self.average_message_length:.1f} char/msg)"
@@ -1598,9 +1604,9 @@ class MessageQueue(deque[MiniMessage]):
             out += f" ({size_per_msg / 1024 ** 2:.2f} MB/msg, {self.average_message_length:.1f} char/msg)"
         else:
             out += f" ({size_per_msg / 1024 ** 3:.2f} GB/msg, {self.average_message_length:.1f} char/msg)"
-        
+
         return out
-    
+
     @property
     def average_message_length(self) -> float:
         """Calculate the average message length of the queue."""
@@ -1615,9 +1621,10 @@ class MessageQueue(deque[MiniMessage]):
         if isinstance(message, discord.Message):
             message = MiniMessage.from_discord_message(message)
         if not isinstance(message, MiniMessage):
-            raise TypeError(f"Expected `MiniMessage` or `discord.Message`, got {type(message).__name__}")
+            raise TypeError(
+                f"Expected `MiniMessage` or `discord.Message`, got {type(message).__name__}")
         self.append(message)
-        
+
     def get_recent_messages(self, count: int = 10) -> List[MiniMessage]:
         """Retrieve the most recent messages."""
         return list(self)[-count:]
@@ -1634,10 +1641,11 @@ class MessageQueue(deque[MiniMessage]):
         elif isinstance(author, int):
             author_id = author
         else:
-            raise TypeError(f"Expected `int`, `discord.User`, or `discord.Member`, got {type(author).__name__}")
-        
+            raise TypeError(
+                f"Expected `int`, `discord.User`, or `discord.Member`, got {type(author).__name__}")
+
         return [msg for msg in self if msg.author_id == author_id]
-    
+
     def find_by_channel(self, channel: Union[int, discord.abc.Messageable]) -> List[MiniMessage]:
         """Find all messages in a specific channel."""
         if isinstance(channel, (discord.abc.Messageable, discord.abc.GuildChannel, discord.abc.PrivateChannel)):
@@ -1645,9 +1653,10 @@ class MessageQueue(deque[MiniMessage]):
         elif isinstance(channel, int):
             channel_id = channel
         else:
-            raise TypeError(f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
+            raise TypeError(
+                f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
         return [msg for msg in self if msg.channel_id == channel_id]
-    
+
     def find_by_guild(self, guild: Union[int, discord.Guild]) -> List[MiniMessage]:
         """Find all messages in a specific guild."""
         if isinstance(guild, discord.Guild):
@@ -1655,12 +1664,13 @@ class MessageQueue(deque[MiniMessage]):
         elif isinstance(guild, int):
             guild_id = guild
         else:
-            raise TypeError(f"Expected `int` or `discord.Guild`, got {type(guild).__name__}")
+            raise TypeError(
+                f"Expected `int` or `discord.Guild`, got {type(guild).__name__}")
         return [msg for msg in self if msg.guild_id == guild_id]
-    
+
     def find(self, *args, **kwargs) -> List[MiniMessage]:
         """Find all messages that match the given criteria. The criteria are passed as keyword arguments.
-        
+
         Example:
             - find(author_id=1234567890, guild_id=1234567890): Find messages by a specific author in a specific guild.
             - find(author_id=1234567890, channel_id=1234567890): Find messages by a specific author in a specific channel.
@@ -1681,9 +1691,10 @@ class MessageQueue(deque[MiniMessage]):
             elif potential_id := re.search(r"^\d{17,22}$", str(arg)):
                 kwargs["message_id"] = int(potential_id.group())
             else:
-                raise TypeError(f"Expected some kind of ID or discord object, got {type(arg).__name__}")
+                raise TypeError(
+                    f"Expected some kind of ID or discord object, got {type(arg).__name__}")
         return [msg for msg in self if all(getattr(msg, key) == value for key, value in kwargs.items())]
-    
+
     def change_length(self, new_length: int) -> "MessageQueue":
         """Change the maximum length of the queue by creating a new queue and returning it."""
         with self._lock:
@@ -1692,7 +1703,7 @@ class MessageQueue(deque[MiniMessage]):
             else:
                 sliced_queue = list(self)
             return MessageQueue(sliced_queue, maxlen=new_length)
-    
+
     def __repr__(self) -> str:
         """Print a preview of the list"""
         return (
@@ -1701,16 +1712,16 @@ class MessageQueue(deque[MiniMessage]):
             f"{self.depth} depth ー "
             f"{self.memory_usage}>"
         )
-    
+
     def __sizeof__(self) -> int:
         """Calculate the memory usage of the queue."""
         return sys.getsizeof(super()) + sum(sys.getsizeof(msg) for msg in self)
-    
+
     def __dict__(self) -> list[dict]:
         """Convert the MessageQueue to a list of dictionaries."""
         with self._lock:
             return [msg.to_dict() for msg in self]
-    
+
     @classmethod
     def from_dict(cls, data):
         """Create a MessageQueue object from a list of dictionaries."""
@@ -1722,13 +1733,15 @@ async def excessive_dm_activity(guild_id: int, user_id: int) -> Optional[datetim
     try:
         data = await here.bot.http.get_member(guild_id, user_id)
     except (discord.NotFound):
-        return # User not found in the guild
+        return  # User not found in the guild
     # noinspection PyTypedDict
-    unusual_dm_activity_res = data.get('unusual_dm_activity_until')  # certainly exists, just not defined in TypedDict yet
+    # certainly exists, just not defined in TypedDict yet
+    unusual_dm_activity_res = data.get('unusual_dm_activity_until')
     if unusual_dm_activity_res:
-        flag_until: Optional[datetime] = discord.utils.parse_time(unusual_dm_activity_res)  # timestamp in ISO 8601 format
+        flag_until: Optional[datetime] = discord.utils.parse_time(
+            unusual_dm_activity_res)  # timestamp in ISO 8601 format
         return flag_until
-    
+
 
 async def suspected_spam_activity_flag(guild_id: int, user_id: int) -> bool:
     """Need to check 'public_flags' attr of bot.http.get_member()['user'], returns an integer which can be put into
@@ -1739,12 +1752,13 @@ async def suspected_spam_activity_flag(guild_id: int, user_id: int) -> bool:
     except discord.NotFound:
         return False  # User not found in the guild
     user_public_flags_int = data.get('user').get('public_flags')
-    
+
     if user_public_flags_int:
         # noinspection PyProtectedMember
-        flags: discord.PublicUserFlags = discord.flags.PublicUserFlags._from_value(user_public_flags_int)
+        flags: discord.PublicUserFlags = discord.flags.PublicUserFlags._from_value(
+            user_public_flags_int)
         return flags.spammer
-    
+
 
 async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.File]:
     """Mock the to_file method of discord.Attachment to download the file through the URL and return a discord.File."""
@@ -1770,7 +1784,9 @@ def profileit(sleep_time: float = 0.0):
     def decorator(func):
         if not hasattr(here.bot, 'profiling_decorators'):
             here.bot.profiling_decorators = set()
-        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
+        # add cogs that have profiling decorators
+        here.bot.profiling_decorators.add(func.__module__)
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             prof = cProfile.Profile()
@@ -1780,7 +1796,8 @@ def profileit(sleep_time: float = 0.0):
             finally:
                 prof.disable()
                 s = io.StringIO()
-                ps = pstats.Stats(prof, stream=s).sort_stats(pstats.SortKey.TIME)
+                ps = pstats.Stats(prof, stream=s).sort_stats(
+                    pstats.SortKey.TIME)
                 ps.print_stats()
                 total_string = s.getvalue()
                 total_string_split = total_string.split('\n')
@@ -1809,17 +1826,19 @@ def profileit(sleep_time: float = 0.0):
                     if tottime > 0:
                         print(line)
             return retval
-    
+
         return async_wrapper if asyncio.iscoroutinefunction(func) else func
-    
+
     return decorator
+
 
 def basic_timer(time_allowance: float = 0):
     def decorator(func):
         if not hasattr(here.bot, 'profiling_decorators'):
             here.bot.profiling_decorators = set()
-        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
-        
+        # add cogs that have profiling decorators
+        here.bot.profiling_decorators.add(func.__module__)
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             start = time.perf_counter()
@@ -1827,7 +1846,7 @@ def basic_timer(time_allowance: float = 0):
             end = time.perf_counter()
             print_timing(start, end)
             return retval
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             start = time.perf_counter()
@@ -1835,26 +1854,28 @@ def basic_timer(time_allowance: float = 0):
             end = time.perf_counter()
             print_timing(start, end)
             return retval
-        
+
         def print_timing(start, end):
             diff = end - start
             if diff > time_allowance:
-                _module = getattr(func, '__module__', '<none>').replace('cogs.', '')
+                _module = getattr(func, '__module__',
+                                  '<none>').replace('cogs.', '')
                 print(f"{_module}.{func.__name__} took {diff:.3f}s (basic_timer)")
-                
+
                 if func.__name__ == 'on_message':
                     if not hasattr(here.bot, "event_times"):
                         here.bot.event_times = defaultdict(list)
                     if not hasattr(here.bot, "live_latency"):
                         here.bot.live_latency = here.bot.latency
-                    latency = round(here.bot.live_latency, 4)  # time in seconds, for example, 0.08629303518682718
-                    
+                    # time in seconds, for example, 0.08629303518682718
+                    latency = round(here.bot.live_latency, 4)
+
                     here.bot.event_times[func.__name__].append((int(discord.utils.utcnow().timestamp()),
                                                                latency,
                                                                round(diff, 4)))
-        
+
         return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
-    
+
     return decorator
 
 
@@ -1868,8 +1889,8 @@ async def wait_for(name: str, event: str, timeout: float, check: Optional[Callab
     finally:
         t2 = time.perf_counter()
         here.bot.wait_for_times[event].append(t2 - t1)
-        
-        
+
+
 async def sleep(name, time_in: float, add: bool = False):
     if not hasattr(here.bot, "wait_for_times"):
         here.bot.wait_for_times = defaultdict(list)
@@ -1880,8 +1901,8 @@ async def sleep(name, time_in: float, add: bool = False):
         here.bot.wait_for_times[name][-1] += t2 - t1
     else:
         here.bot.wait_for_times[name].append(t2 - t1)
-        
-        
+
+
 def line_profile(t_in, description: str = "", t_threshold: float = 1, offset: float = 0):
     """
     Line profiler for measuring the time between two points in the code.
@@ -1913,10 +1934,11 @@ async def segment_send(channel: Union[int, discord.abc.Messageable], *content, m
         if not channel:
             raise ValueError(f"Channel with ID {channel} not found.")
     elif not isinstance(channel, discord.abc.Messageable):
-        raise TypeError(f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
-    
+        raise TypeError(
+            f"Expected `int` or `discord.abc.Messageable`, got {type(channel).__name__}")
+
     segments = utils.split_text_into_segments(content, 2000)
-    
+
     try:
         for segment in segments[:max_messages]:
             await utils.safe_send(channel, segment)
