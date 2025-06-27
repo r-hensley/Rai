@@ -1,8 +1,9 @@
 # pylint: disable=C0301,C0116,C0115,C0114
 import copy
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime, timezone
 import discord
+from discord import app_commands, Interaction
 from discord.ext import commands
 
 import cogs.channel_mods as cm
@@ -11,12 +12,13 @@ from cogs.utils.BotUtils import bot_utils as utils
 
 
 class ModView(discord.ui.View):
-    def __init__(self, cog: "cm", manage_cog: "UserManage", ctx: commands.Context, id_arg: str):
+    def __init__(self, parent_cog: "cm", manage_cog: "UserManage", ctx_or_interaction: Union[commands.Context, discord.Interaction], id_arg: str):
         super().__init__(timeout=30)
         self.manage_cog = manage_cog
-        self.cog = cog
-        self.ctx = ctx
-        self.author_id = ctx.author.id
+        self.cog: commands.Cog = parent_cog
+        self.ctx = ctx_or_interaction
+        self.author_id = mlu.get_author_id(ctx_or_interaction)
+        self.bot = mlu.get_bot(ctx_or_interaction)
         self.member, self.user, self.user_id = None, None, None
         self.id_arg = id_arg
         self.message: Optional[discord.Message] = None
@@ -48,7 +50,7 @@ class ModView(discord.ui.View):
         # Pass entries and user to the view
         view = PaginatedModLogView(self, entries=entries)
         view.message = interaction.message
-        await interaction.message.edit(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @discord.ui.button(label="Mute", style=discord.ButtonStyle.secondary)
     async def mute_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
@@ -101,6 +103,7 @@ class PaginatedModLogView(discord.ui.View):
         super().__init__(timeout=30)
         self.parent_view = parent_view
         self.ctx = parent_view.ctx
+        self.bot = mlu.get_bot(parent_view.ctx)
         self.user = parent_view.user
         self.member = parent_view.member
         self.user_id = parent_view.user_id
@@ -161,11 +164,11 @@ class PaginatedModLogView(discord.ui.View):
         embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, self.member, self.user)
 
         # Recreate the original ModView
-        mod_cog = self.ctx.bot.get_cog("ChannelMods")
+        mod_cog = self.bot.get_cog("ChannelMods")
         view = ModView(mod_cog, self.manage_cog, self.ctx, self.user_id)
         await view.init()
         view.message = interaction.message
-        await interaction.message.edit(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @discord.ui.button(label="➕ Add Entry", style=discord.ButtonStyle.success, row=1)
     async def add_entry_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
