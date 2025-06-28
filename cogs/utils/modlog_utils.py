@@ -1,6 +1,9 @@
 # pylint: disable=C0301,C0116,c0114
+import os
 from typing import Optional, Tuple, Union
 from datetime import datetime, timezone
+import shutil
+import json
 import discord
 from discord.ext import commands
 from cogs import channel_mods as cm
@@ -8,60 +11,51 @@ from cogs.utils.BotUtils import bot_utils as utils
 from . import helper_functions as hf
 
 
-# async def resolve_user(ctx, id_in: str, bot) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
-#     member: discord.Member = await utils.member_converter(ctx, id_in)
-#     if member:
-#         return member, member, str(member.id)
-#     try:
-#         user = await bot.fetch_user(int(id_in))
-#         return None, user, id_in
-#     except (discord.NotFound, discord.HTTPException, ValueError):
-#         return None, None, None
-def save_db(bot, path="db.json"):
-    import json
+def save_db(bot, path="db.json", backup=True):
+    temp_path = path + ".tmp"
+    backup_path = path + ".bak"
+
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(bot.db, f, indent=4)
-        print("✅ Database saved to disk")
-    except Exception as e:  # pylint: disable=W0718
-        print(f"❌ Failed to save DB: {e}")
+        if backup and os.path.exists(path):
+            shutil.copy2(path, backup_path)
+
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(bot.db, f, indent=2)
+
+        os.replace(temp_path, path)
+    except Exception as e:
+        print(f"Failed to save DB: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
-# async def resolve_user(ctx: commands.Context, id_arg: str, bot) -> tuple[Optional[discord.User], Optional[str]]:
-#     try:
-#         member = await commands.MemberConverter().convert(ctx, id_arg)
-#         return member, member, str(member.id)
-#     except commands.BadArgument:
-#         try:
-#             user = await commands.UserConverter().convert(ctx, id_arg)
-#             return None, user, str(user.id)
-#         except commands.BadArgument:
-#             try:
-#                 user = await bot.fetch_user(int(id_arg))
-#                 return user, str(user.id)
-#             except (discord.NotFound, discord.HTTPException, ValueError):
-#                 return None, None, None
-
-async def resolve_user(ctx_or_interaction: Union[Optional[discord.Interaction], Optional[commands.Context]], id_arg: str, bot: commands.Bot) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
+async def resolve_user(ctx_or_interaction: Union[discord.Interaction, commands.Context],
+                       user_id: str,
+                       bot: commands.Bot
+                       ) -> Tuple[Optional[discord.Member], Optional[discord.User], Optional[str]]:
+    try:
+        # also strip mention chars if present
+        user_id_int = int(user_id.strip("<@!>"))
+    except ValueError:
+        return None, None, None
     guild = ctx_or_interaction.guild
     member = None
     user = None
-    user_id = int(id_arg)
 
     if guild:
-        member = guild.get_member(user_id)
+        member = guild.get_member(user_id_int)
         if member is None:
             try:
-                member = await guild.fetch_member(user_id)
+                member = await guild.fetch_member(user_id_int)
             except (discord.NotFound, discord.HTTPException):
                 member = None
 
     if member:
         return member, member, str(member.id)
     try:
-        user = bot.get_user(user_id)
+        user = bot.get_user(user_id_int)
         if user is None:
-            user = await bot.fetch_user(user_id)
+            user = await bot.fetch_user(user_id_int)
         return None, user, str(user.id)
     except (discord.NotFound, discord.HTTPException):
         return None, None, None
@@ -216,7 +210,7 @@ def format_modlog_entries(config, user_id: str):
     return fields
 
 
-async def build_modlog_embed(bot, ctx: commands.Context, user: Optional[discord.User], page: int = 0) -> discord.Embed:
+async def build_modlog_embed(bot, ctx: commands.Context, user: discord.User, page: Optional[int] = None) -> Tuple[discord.Embed, int]:
     user_id = str(user.id)
     guild_id = str(ctx.guild.id)
     config = bot.db['modlog'].get(guild_id, {})
@@ -235,6 +229,8 @@ async def build_modlog_embed(bot, ctx: commands.Context, user: Optional[discord.
     # Pagination: show 5 per page
     per_page = 5
     total_pages = (len(fields) - 1) // per_page + 1 if fields else 1
+    if page is None:
+        page = total_pages - 1
     start = page * per_page
     end = start + per_page
     page_fields = fields[start:end]
@@ -248,7 +244,7 @@ async def build_modlog_embed(bot, ctx: commands.Context, user: Optional[discord.
     else:
         emb.set_footer(text=f"Page {page + 1} of {total_pages}")
 
-    return emb
+    return emb, total_pages-1
 
 
 async def build_user_summary_embed(bot, ctx: commands.Context, member: Optional[discord.Member], user: Optional[discord.User]) -> discord.Embed:
