@@ -1252,8 +1252,9 @@ class ChannelMods(commands.Cog):
             else:
                 name += entry['type']
 
-            incident_time = hf.convert_to_datetime(entry['date'])
-            value = f"<t:{int(incident_time.timestamp())}:f>\n"
+            incident_time = entry['date'] if isinstance(
+                entry['date'], int) else int(hf.convert_to_datetime(entry['date']).timestamp())
+            value = f"<t:{incident_time}:f>\n"
             if entry['length']:
                 value += f"*For {entry['length']}*\n"
             if entry['reason']:
