@@ -45,10 +45,11 @@ class ModView(discord.ui.View):
         # Resolve the user and their log
         entries = await mlu.get_modlog_entries(self.ctx.guild.id, self.user_id, self.cog.bot)
 
-        embed = await mlu.build_modlog_embed(self.cog.bot, self.ctx, self.user)
+        embed, total_pages = await mlu.build_modlog_embed(self.cog.bot, self.ctx, self.user)
 
         # Pass entries and user to the view
-        view = PaginatedModLogView(self, entries=entries)
+        view = PaginatedModLogView(
+            self, entries=entries, page=total_pages)
         view.message = interaction.message
         await interaction.edit_original_response(embed=embed, view=view)
 
@@ -100,7 +101,7 @@ class ModView(discord.ui.View):
 
 class PaginatedModLogView(discord.ui.View):
     def __init__(self, parent_view: "ModView", entries: list[dict], page: int = 0):
-        super().__init__(timeout=30)
+        super().__init__(timeout=60)
         self.parent_view = parent_view
         self.ctx = parent_view.ctx
         self.bot = mlu.get_bot(parent_view.ctx)
@@ -185,7 +186,7 @@ class PaginatedModLogView(discord.ui.View):
             return
         self.page = 0
         self.update_children()
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="< Previous", style=discord.ButtonStyle.secondary, custom_id="prev", row=0)
@@ -195,7 +196,7 @@ class PaginatedModLogView(discord.ui.View):
             return
         self.page -= 1
         self.update_children()
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Next >", style=discord.ButtonStyle.secondary, custom_id="next", row=0)
@@ -206,7 +207,7 @@ class PaginatedModLogView(discord.ui.View):
 
         self.page += 1
         self.update_children()
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Last >>", style=discord.ButtonStyle.secondary, custom_id="last", row=0)
@@ -217,7 +218,7 @@ class PaginatedModLogView(discord.ui.View):
 
         self.page = self.total_pages-1
         self.update_children()
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:  # pylint: disable=W0221
@@ -264,12 +265,12 @@ class DetailedEntryView(discord.ui.View):
         del self.ctx.bot.db["modlog"][guild_id][self.user_id][self.index]
         mlu.save_db(self.ctx.bot)
         await interaction.response.send_message("✅ Entry deleted.", ephemeral=True)
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
-        await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view.parent_view, self.parent_view.entries))
+        embed, total_pages = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
+        await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view.parent_view, self.parent_view.entries, total_pages))
 
     @discord.ui.button(label="← Back to Log", style=discord.ButtonStyle.secondary, row=1)
     async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
-        embed = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
+        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
 
@@ -318,7 +319,7 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
             entries = bot.db["modlog"][guild_id][user_id]
             mlu.save_db(bot)
 
-            embed = await mlu.build_modlog_embed(bot, ctx, user)
+            embed, _ = await mlu.build_modlog_embed(bot, ctx, user)
             new_view = PaginatedModLogView(
                 self.view.parent_view, entries)
             new_view.message = interaction.message
@@ -469,9 +470,9 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
 
         # Refresh the modlog embed
         entries = bot.db["modlog"][guild_id][user_id]
-        embed = await mlu.build_modlog_embed(bot, ctx, self.view.user)
+        embed, total_pages = await mlu.build_modlog_embed(bot, ctx, self.view.user)
         new_view = PaginatedModLogView(
-            self.view.parent_view, entries)
+            self.view.parent_view, entries, total_pages)
         new_view.message = interaction.message
         await interaction.message.edit(embed=embed, view=new_view)
 
@@ -549,3 +550,11 @@ async def context_user_manage(interaction: discord.Interaction, target_user: dis
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(UserManage(bot))
+    # context_command = app_commands.ContextMenu(
+    #     name="Manage User",
+    #     callback=context_user_manage,
+    #     guild_ids=[243838819743432704]
+    # )
+    # bot.tree.add_command(context_command)
+
+    # await bot.tree.sync(guild=discord.Object(id=243838819743432704))
