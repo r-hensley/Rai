@@ -12,20 +12,35 @@ from cogs.utils.BotUtils import bot_utils as utils
 
 
 class ModView(discord.ui.View):
-    def __init__(self, parent_cog: "cm", manage_cog: "UserManage", ctx_or_interaction: Union[commands.Context, discord.Interaction], id_arg: str):
+    def __init__(self, parent_cog: "cm.ChannelMods", manage_cog: "UserManage", ctx_or_interaction: Union[commands.Context, discord.Interaction], id_arg: str):
         super().__init__(timeout=30)
-        self.manage_cog = manage_cog
         self.cog: commands.Cog = parent_cog
+        self.manage_cog = manage_cog
         self.ctx = ctx_or_interaction
+        self.id_arg = id_arg
+        # Initialize author_id and bot from the context or interaction
         self.author_id = mlu.get_author_id(ctx_or_interaction)
         self.bot = mlu.get_bot(ctx_or_interaction)
-        self.member, self.user, self.user_id = None, None, None
-        self.id_arg = id_arg
         self.message: Optional[discord.Message] = None
+        self.user_profile: Optional[mlu.UserProfile] = None
 
     async def init(self):
-        self.member, self.user, self.user_id = await mlu.resolve_user(
-            self.ctx, self.id_arg, self.cog.bot)
+        # Use UserProfile instead of direct resolution
+        self.user_profile = await mlu.UserProfile.create(self.bot, self.ctx, self.id_arg)
+        if not self.user_profile:
+            raise ValueError("Could not resolve user")
+
+    @property
+    def member(self):
+        return self.user_profile.member if self.user_profile else None
+    
+    @property
+    def user(self):
+        return self.user_profile.user if self.user_profile else None
+    
+    @property
+    def user_id(self):
+        return self.user_profile.user_id if self.user_profile else None
 
     async def on_timeout(self):
         if self.message:
@@ -42,16 +57,15 @@ class ModView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True)
 
-        # Resolve the user and their log
-        entries = await mlu.get_modlog_entries(self.ctx.guild.id, self.user_id, self.cog.bot)
-
-        embed, total_pages = await mlu.build_modlog_embed(self.cog.bot, self.ctx, self.user)
+        # Use UserProfile to get modlog entries
+        entries = await self.user_profile.get_modlog_entries()
+        embed, total_pages = await self.user_profile.build_modlog_embed()
 
         # Pass entries and user to the view
         view = PaginatedModLogView(
             self, entries=entries, page=total_pages)
-        view.message = interaction.message
         await interaction.edit_original_response(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
     @discord.ui.button(label="Mute", style=discord.ButtonStyle.secondary)
     async def mute_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
@@ -66,8 +80,8 @@ class ModView(discord.ui.View):
         fake_message.author = interaction.user
         fake_message.content = f"{self.ctx.prefix}mute {self.user_id}"
 
-        ctx = await self.cog.bot.get_context(fake_message)
-        await self.cog.bot.invoke(ctx)
+        ctx = await self.bot.get_context(fake_message)
+        await self.bot.invoke(ctx)
 
     # @discord.ui.button(label="Ban", style=discord.ButtonStyle.red)
     # async def ban_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -96,22 +110,22 @@ class ModView(discord.ui.View):
         fake_message.content = f"{self.ctx.prefix}warn {self.user_id}"
 
         ctx = await self.cog.bot.get_context(fake_message)
-        await self.cog.bot.invoke(ctx)
+        await self.bot.invoke(ctx)
 
 
 class PaginatedModLogView(discord.ui.View):
-    def __init__(self, parent_view: "ModView", entries: list[dict], page: int = 0):
+    def __init__(self, parent_view: "ModView", entries: list[mlu.ModLogEntry], page: int = 0):
         super().__init__(timeout=60)
         self.parent_view = parent_view
-        self.ctx = parent_view.ctx
-        self.bot = mlu.get_bot(parent_view.ctx)
-        self.user = parent_view.user
-        self.member = parent_view.member
-        self.user_id = parent_view.user_id
-        self.author_id = parent_view.author_id
-        self.manage_cog = parent_view.manage_cog
         self.entries = entries
         self.page = page
+        # Initialize context and bot from the parent view
+        self.ctx = parent_view.ctx
+        self.bot = parent_view.bot
+        self.user_profile = parent_view.user_profile
+        self.author_id = parent_view.author_id
+        self.manage_cog = parent_view.manage_cog
+
         self.max_per_page = 5
         self.selector = None
         self.message: Optional[discord.Message] = None
@@ -130,9 +144,9 @@ class PaginatedModLogView(discord.ui.View):
 
         options = [
             discord.SelectOption(
-                label=f"{i+1} [{entry.get('type', 'Unknown')}] {entry.get('reason', '')[:80]}",
+                label=f"{i+1} [{entry.type}] {entry.reason[:80]}",
                 value=str(i),
-                description=entry.get('date', '')
+                description=f"<t:{entry.date}:f>"
             )
             for i, entry in enumerate(page_entries, start=start)
         ]
@@ -162,11 +176,11 @@ class PaginatedModLogView(discord.ui.View):
             return
 
         await interaction.response.defer()
-        embed = await mlu.build_user_summary_embed(self.manage_cog.bot, self.ctx, self.member, self.user)
+        embed = await self.user_profile.build_summary_embed()
 
         # Recreate the original ModView
         mod_cog = self.bot.get_cog("ChannelMods")
-        view = ModView(mod_cog, self.manage_cog, self.ctx, self.user_id)
+        view = ModView(mod_cog, self.manage_cog, self.ctx, self.user_profile.user_id)
         await view.init()
         view.message = interaction.message
         await interaction.edit_original_response(embed=embed, view=view)
@@ -186,7 +200,7 @@ class PaginatedModLogView(discord.ui.View):
             return
         self.page = 0
         self.update_children()
-        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await self.user_profile.build_modlog_embed(self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="< Previous", style=discord.ButtonStyle.secondary, custom_id="prev", row=0)
@@ -196,7 +210,7 @@ class PaginatedModLogView(discord.ui.View):
             return
         self.page -= 1
         self.update_children()
-        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await self.user_profile.build_modlog_embed(self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Next >", style=discord.ButtonStyle.secondary, custom_id="next", row=0)
@@ -207,7 +221,7 @@ class PaginatedModLogView(discord.ui.View):
 
         self.page += 1
         self.update_children()
-        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await self.user_profile.build_modlog_embed(self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Last >>", style=discord.ButtonStyle.secondary, custom_id="last", row=0)
@@ -218,7 +232,7 @@ class PaginatedModLogView(discord.ui.View):
 
         self.page = self.total_pages-1
         self.update_children()
-        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user, self.page)
+        embed, _ = await self.user_profile.build_modlog_embed(self.page)
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:  # pylint: disable=W0221
@@ -233,25 +247,25 @@ class LogEntrySelector(discord.ui.Select):
         super().__init__(placeholder="Select a log entry",
                          min_values=1, max_values=1, options=options)
         self.parent_view = view
-        self.user = view.user
 
     async def callback(self, interaction: discord.Interaction):
         index = int(self.values[0])
         entry = self.parent_view.entries[index]
 
-        embed = mlu.build_log_entry_embed(entry, self.user, index)
+        embed = entry.build_embed(self.parent_view.user_profile.user, index=index)
         await interaction.response.edit_message(embed=embed, view=DetailedEntryView(self.parent_view, entry, index))
 
 
 class DetailedEntryView(discord.ui.View):
-    def __init__(self, paginated_view: PaginatedModLogView, entry: dict, index: int):
+    def __init__(self, paginated_view: PaginatedModLogView, entry: mlu.ModLogEntry, index: int):
         super().__init__(timeout=180)
         self.parent_view = paginated_view
-        self.ctx = paginated_view.ctx
         self.entry = entry
         self.index = index
-        self.user = paginated_view.user
-        self.user_id = paginated_view.user_id
+
+        self.ctx = paginated_view.ctx
+        self.bot = paginated_view.bot
+        self.user_profile = paginated_view.user_profile
         self.author_id = paginated_view.author_id
         self.manage_cog = paginated_view.manage_cog
 
@@ -261,30 +275,41 @@ class DetailedEntryView(discord.ui.View):
 
     @discord.ui.button(label="🗑 Delete", style=discord.ButtonStyle.red)
     async def delete_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
-        guild_id = str(self.ctx.guild.id)
-        del self.ctx.bot.db["modlog"][guild_id][self.user_id][self.index]
-        mlu.save_db(self.ctx.bot)
-        await interaction.response.send_message("✅ Entry deleted.", ephemeral=True)
-        embed, total_pages = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
-        await interaction.message.edit(embed=embed, view=PaginatedModLogView(self.parent_view.parent_view, self.parent_view.entries, total_pages))
+        success = await self.user_profile.delete_modlog_entry(self.index)
+        if success:
+            mlu.save_db(self.bot)
+            await interaction.response.send_message("✅ Entry deleted.", ephemeral=True)
+            
+            # Refresh entries and rebuild view
+            entries = await self.user_profile.get_modlog_entries(force_refresh=True)
+            embed, total_pages = await self.user_profile.build_modlog_embed()
+            new_view = PaginatedModLogView(self.parent_view.parent_view, entries, total_pages)
+            new_view.message = self.parent_view.message
+            
+            # Edit the original message that the view is attached to
+            if self.parent_view.message:
+                await self.parent_view.message.edit(embed=embed, view=new_view)
+        else:
+            await interaction.response.send_message("⚠️ Could not delete entry.", ephemeral=True)
+
 
     @discord.ui.button(label="← Back to Log", style=discord.ButtonStyle.secondary, row=1)
     async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
-        embed, _ = await mlu.build_modlog_embed(self.ctx.bot, self.ctx, self.user)
+        embed, _ = await self.user_profile.build_modlog_embed()
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
 
 class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
-    def __init__(self, view: discord.ui.View, entry_index: int, entry_data: dict):
+    def __init__(self, view: PaginatedModLogView, entry_index: int, entry: mlu.ModLogEntry):
         super().__init__()
         self.view = view
         self.entry_index = entry_index
-        self.entry_data = entry_data
+        self.entry = entry
 
         # Pre-fill fields with current data
         self.reason = discord.ui.TextInput(
             label="Reason",
-            default=entry_data.get("reason", ""),
+            default=entry.reason,
             required=True,
             style=discord.TextStyle.paragraph,
             max_length=1024
@@ -292,7 +317,7 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
 
         self.duration = discord.ui.TextInput(
             label="Duration (optional, e.g. 1d2h)",
-            default=entry_data.get("length") or "",
+            default=entry.length or "",
             required=False,
             max_length=32
         )
@@ -301,33 +326,29 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
         self.add_item(self.duration)
 
     async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
-        ctx = self.view.ctx
-        user_id = str(self.view.user_id)
-        guild_id = str(ctx.guild.id)
-        bot = self.view.manage_cog.bot
-
-        # Update the entry in the bot's DB
-        try:
-            db_entries = bot.db["modlog"][guild_id][user_id]
-            entry = db_entries[self.entry_index]
-
-            entry["reason"] = self.reason.value
-            entry["length"] = self.duration.value if self.duration.value else None
-            entry["date_edited"] = int(datetime.now(timezone.utc).timestamp())
+        success = await self.view.user_profile.update_modlog_entry(
+            self.entry_index,
+            reason=self.reason.value,
+            length=self.duration.value if self.duration.value else None
+        )
+        
+        if success:
+            mlu.save_db(self.view.bot)
             await interaction.response.defer()
-            user = await bot.fetch_user(int(user_id))
-            entries = bot.db["modlog"][guild_id][user_id]
-            mlu.save_db(bot)
-
-            embed, _ = await mlu.build_modlog_embed(bot, ctx, user)
-            new_view = PaginatedModLogView(
-                self.view.parent_view, entries)
-            new_view.message = interaction.message
-            await interaction.message.edit(embed=embed, view=new_view)
+            
+            # Refresh entries and rebuild view
+            entries = await self.view.user_profile.get_modlog_entries(force_refresh=True)
+            embed, total_pages = await self.view.user_profile.build_modlog_embed()
+            new_view = PaginatedModLogView(self.view.parent_view.parent_view, entries, total_pages)
+            new_view.message = self.view.parent_view.message
+            
+            # Edit the original message that the view is attached to
+            if self.view.parent_view.message:
+                await self.view.parent_view.message.edit(embed=embed, view=new_view)
             await interaction.followup.send("✅ Entry edited!", ephemeral=True)
-        except (IndexError, KeyError):
-            await interaction.response.send_message("⚠️ Could not update log entry — it may have been deleted.", ephemeral=True)
-            return
+        else:
+            await interaction.response.send_message("⚠️ Could not update log entry.", ephemeral=True)
+
 
 
 # class BanView(discord.ui.View):
@@ -411,8 +432,8 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
     def __init__(self, view: PaginatedModLogView, entry_type):
         super().__init__()
         self.view = view
-
         self.entry_type = entry_type
+
         self.reason = discord.ui.TextInput(
             label="Reason",
             placeholder="Reason for the entry...",
@@ -420,61 +441,42 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
             style=discord.TextStyle.paragraph,
             max_length=1024
         )
-        self.duration = discord.ui.TextInput(
-            label="Duration (optional, e.g. 1d2h)",
-            required=False,
-            max_length=32
-        )
-
         self.add_item(self.reason)
-        self.add_item(self.duration)
 
     async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
         await interaction.response.defer(ephemeral=True)
 
-        # Insert into modlog DB
-        ctx = self.view.ctx
-        user_id = self.view.user_id
-        guild_id = str(ctx.guild.id)
-        bot = self.view.manage_cog.bot
+        # Create new ModLogEntry
+        entry = mlu.ModLogEntry(
+            entry_type=self.entry_type,
+            reason=self.reason.value,
+            author=interaction.user.display_name,
+            author_id=str(interaction.user.id),
+            length=self.duration.value if self.duration.value else ""
+        )
 
-        # Ensure modlog DB is set up
-        if guild_id not in bot.db["modlog"]:
-            bot.db["modlog"][guild_id] = {}
-
-        if user_id not in bot.db["modlog"][guild_id]:
-            bot.db["modlog"][guild_id][user_id] = []
-
-        new_entry = {
-            "type": self.entry_type,
-            "reason": self.reason.value,
-            "length": self.duration.value if self.duration.value else None,
-            "jump_url": None,
-            "silent": False,
-            "date": int(datetime.now(timezone.utc).timestamp()),
-            "author_id": str(interaction.user.id),
-            "author": str(interaction.user)
-        }
-
-        bot.db["modlog"][guild_id][user_id].append(new_entry)
-        mlu.save_db(bot)
+        # Use UserProfile to add entry
+        await self.view.user_profile.add_modlog_entry(entry)
+        mlu.save_db(self.view.bot)
 
         # Send to log channel (optional)
         log_channel_id = 1364314775789502666  # Replace with your real channel
-        log_channel = ctx.guild.get_channel(log_channel_id)
+        log_channel = self.view.ctx.guild.get_channel(log_channel_id)
         if log_channel:
-            embed = mlu.build_log_message_embed(new_entry, user=self.view.user)
+            embed = entry.build_message_embed()
             await log_channel.send(embed=embed)
 
-        await interaction.followup.send("✅ Entry added!", ephemeral=True)
 
-        # Refresh the modlog embed
-        entries = bot.db["modlog"][guild_id][user_id]
-        embed, total_pages = await mlu.build_modlog_embed(bot, ctx, self.view.user)
-        new_view = PaginatedModLogView(
-            self.view.parent_view, entries, total_pages)
-        new_view.message = interaction.message
-        await interaction.message.edit(embed=embed, view=new_view)
+        # Refresh entries and rebuild view
+        entries = await self.view.user_profile.get_modlog_entries(force_refresh=True)
+        embed, total_pages = await self.view.user_profile.build_modlog_embed()
+        new_view = PaginatedModLogView(self.view.parent_view, entries, total_pages)
+        new_view.message = self.view.message
+        
+        # Edit the original message that the view is attached to
+        if self.view.message:
+            await self.view.message.edit(embed=embed, view=new_view)
+        await interaction.followup.send("✅ Entry added!", ephemeral=True)
 
 
 class UserManage(commands.Cog):
@@ -509,7 +511,17 @@ class UserManage(commands.Cog):
         user,
         ephemeral=False
     ):
-        embed = await mlu.build_user_summary_embed(self.bot, interaction, member, user)
+        user_profile = await mlu.UserProfile.create(self.bot, interaction, str(user.id))
+        if not user_profile:
+            emb = utils.red_embed("")
+            emb.set_author(name="COULD NOT FIND USER")
+            if isinstance(interaction, Interaction):
+                await interaction.response.send_message(embed=emb, ephemeral=True)
+            else:
+                await utils.safe_send(interaction, embed=emb)
+            return
+
+        embed = await user_profile.build_summary_embed()
         mod_cog = self.bot.get_cog("ChannelMods")
         view = ModView(mod_cog, self, interaction, str(user.id))
         await view.init()
@@ -523,14 +535,14 @@ class UserManage(commands.Cog):
 
     @commands.group(aliases=['manage', 'um'], invoke_without_command=True)
     async def user_manage(self, ctx: commands.Context, *, id_arg: str):
-        member, user, user_id = await mlu.resolve_user(ctx, id_arg, self.bot)
-        if not user:
+        user_profile = await mlu.UserProfile.create(self.bot, ctx, id_arg)
+        if not user_profile:
             emb = utils.red_embed("")
             emb.set_author(name="COULD NOT FIND USER")
             await utils.safe_send(ctx, embed=emb)
             return
 
-        await self.launch_user_manage_view(ctx, member, user)
+        await self.launch_user_manage_view(ctx, user_profile.member, user_profile.user)
 
 
 @app_commands.context_menu(name="Manage User")
