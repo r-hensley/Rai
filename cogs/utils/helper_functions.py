@@ -353,7 +353,19 @@ def add_to_modlog(ctx: Optional[commands.Context],
                   modlog_type: str,
                   reason: str,
                   silent: bool,
-                  length: Union[str, timedelta] = None):  # length str is something like "24h", "3d 2h", etc
+                  length: Union[str, timedelta] = None,  # length str is something like "24h", "3d 2h", etc
+                  datetime_in: datetime = None):
+    """
+    - ctx: a context object, or can be 'None'
+    if ctx is None, then user should be a list of [member, guild]
+    else, user is a discord.Member or discord.User object.
+    - user: a discord.Member or discord.User object, or a list of [member, guild] if ctx is None
+    user can also be a user ID (int)
+    - reason: the reason for the modlog entry
+    - silent: whether the event was silent (didn't ping the user)
+    - length: for temporary mutes and bans, the length of the mute or ban.
+    - date: if specified, will set the date that the modlog entry was created
+    """
     if ctx:
         if ctx.message:
             jump_url = ctx.message.jump_url
@@ -370,12 +382,23 @@ def add_to_modlog(ctx: Optional[commands.Context],
         else:
             return  # this should only happen from on_member_ban events from logger module
 
+    if isinstance(user, int):
+        # passed an ID instead of user/member object
+        user_id: int = user
+    else:
+        user_id = user.id
+
     if isinstance(length, timedelta):
         length = format_interval(length, show_seconds=False, show_minutes=True)
+        
+    if not datetime_in:
+        date = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
+    else:
+        date = datetime_in.strftime("%Y/%m/%d %H:%M UTC")
 
-    config.setdefault(str(user.id), []).append({'type': modlog_type,
+    config.setdefault(str(user_id), []).append({'type': modlog_type,
                                                 'reason': reason,
-                                                'date': discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC"),
+                                                'date': date,
                                                 'silent': silent,
                                                 'length': length,
                                                 'jump_url': jump_url})
