@@ -1757,54 +1757,20 @@ class ChannelMods(commands.Cog):
         else:
             guild = self.bot.get_guild(int(guild))
             target: discord.Member = guild.get_member(int(target_in))
-        config = self.bot.db['mutes'].get(str(guild.id))
-        if not config:
-            await utils.safe_send(ctx, "I could not find any information about mutes in your guild.")
-            return
-        role = guild.get_role(config['role'])
-        if not role:
-            await utils.safe_send(ctx, f"I could not find the mute role "
-                                  f"(guild_id: {guild.id}, role_id: {config['role']}). "
-                                  f"Maybe it has been deleted?")
-            # delete the role from the database
-            del self.bot.db['mutes'][str(guild.id)]
-            return
 
-        voice_role = None
-        if str(ctx.guild.id) in self.bot.db['voice_mutes']:
-            voice_role = guild.get_role(
-                self.bot.db['voice_mutes'][str(ctx.guild.id)]['role'])
-
-        failed = False
-        if target:
-            target_id = target.id
-            try:
-                await target.remove_roles(role)
-                failed = False
-            except discord.HTTPException:
-                pass
-
-            if voice_role:
-                try:
-                    await target.remove_roles(voice_role)
-                except discord.HTTPException:
-                    pass
-
-        else:
-            if ctx.author == ctx.bot.user:
-                target_id = target_in
-            else:
-                return
-
-        if str(target_id) in config['timed_mutes']:
-            del config['timed_mutes'][str(target_id)]
-
+        failed = True
         if target:
             if target.is_timed_out():
                 try:
                     await target.edit(timed_out_until=None)
                 except (discord.Forbidden, discord.HTTPException):
-                    await utils.safe_send(ctx, "I failed to remove the timeout from the user.")
+                    await utils.safe_send(ctx, "I failed to remove the "
+                                               "timeout from the user.")
+                else:
+                    failed = False
+                    # add to modlog
+                    hf.add_to_modlog(ctx, target, 'Unmute', '',
+                                     False, None)
 
         if ctx.author != ctx.bot.user:
             emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
