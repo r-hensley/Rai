@@ -75,13 +75,19 @@ class ModView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True)
 
-        # Build a fake message that simulates the command call
-        fake_message = copy.copy(interaction.message)
-        fake_message.author = interaction.user
-        fake_message.content = f"{self.ctx.prefix}mute {self.user_id}"
+        # # Build a fake message that simulates the command call
+        # fake_message = copy.copy(interaction.message)
+        # fake_message.author = interaction.user
+        # fake_message.content = f"{self.ctx.prefix}mute {self.user_id}"
 
-        ctx = await self.bot.get_context(fake_message)
-        await self.bot.invoke(ctx)
+        # ctx = await self.bot.get_context(fake_message)
+        # await self.bot.invoke(ctx)
+        embed = utils.green_embed("")
+        if not embed.description:
+            embed.description = "This will mute the user"
+        view = MuteConfirmationView(self)
+        await interaction.edit_original_response(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
     # @discord.ui.button(label="Ban", style=discord.ButtonStyle.red)
     # async def ban_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -351,6 +357,44 @@ class EditModlogEntryModal(discord.ui.Modal, title="Edit Modlog Entry"):
 
 
 
+class MuteConfirmationView(discord.ui.View):
+    def __init__(self, parent_view: "ModView"):
+        super().__init__(timeout=60)
+        self.ctx = parent_view.ctx
+        self.user_id = parent_view.id_arg
+        self.author_id = parent_view.author_id
+        self.manage_cog = parent_view.manage_cog
+        self.bot = parent_view.bot
+
+    @discord.ui.button(label="Add Reason/Duration", style=discord.ButtonStyle.primary)
+    async def add_reason(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
+            return
+        await interaction.response.send_modal(AddModlogEntryModal(self, "Mute"))
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.success)
+    async def confirm_mute(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+
+        # Build a fake message that simulates the command call
+        fake_message = copy.copy(interaction.message)
+        fake_message.author = interaction.user
+        fake_message.content = f"{self.ctx.prefix}mute {self.user_id}"
+
+        ctx = await self.bot.get_context(fake_message)
+        await self.bot.invoke(ctx)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
+    async def cancel_mute(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+
 # class BanView(discord.ui.View):
 #     def __init__(self, parent_view: "ModView"):
 #         super().__init__()
@@ -442,6 +486,14 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
             max_length=1024
         )
         self.add_item(self.reason)
+        if entry_type.lower() in ["mute", "ban"]:
+            self.duration = discord.ui.TextInput(
+                label="Duration (optional, e.g. 1d2h)",
+                placeholder="Leave blank for permanent",
+                required=False,
+                max_length=32
+            )
+            self.add_item(self.duration)
 
     async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
         await interaction.response.defer(ephemeral=True)
