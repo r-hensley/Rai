@@ -151,7 +151,7 @@ class Logger(commands.Cog):
 
     @commands.group(invoke_without_command=True, name='voice')
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
-    async def voice(self, ctx):
+    async def voice_log(self, ctx):
         """Logs edited messages"""
         result = await self.module_logging(ctx, self.bot.db['voice'])
         if result == 1:
@@ -166,7 +166,7 @@ class Logger(commands.Cog):
             await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;voice_logging set`.  '
                                     'Then, enable/disable logging by typing `;voice_logging`.')
 
-    @voice.command(name='set')
+    @voice_log.command(name='set')
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def voice_set(self, ctx):
         result = await self.module_set(ctx, self.bot.db['voice'])

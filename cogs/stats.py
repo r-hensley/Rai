@@ -694,7 +694,7 @@ class Stats(commands.Cog):
 
     @commands.group(invoke_without_command=True)
     @hf.is_admin()
-    async def stats(self, ctx):
+    async def stats_log(self, ctx):
         """Enable/disable keeping of statistics for users (`;u`)"""
         guild = str(ctx.guild.id)
         if guild in self.bot.stats:
@@ -709,7 +709,7 @@ class Stats(commands.Cog):
                                      }
         await utils.safe_send(ctx, f"Logging of stats is now set to {self.bot.stats[guild]['enable']}.")
 
-    @stats.command()
+    @stats_log.command()
     @hf.is_admin()
     async def hide(self, ctx, flag=None):
         """Hides the current channel from being shown in user stat pages.  Type `;stats hide view/list` to view a
