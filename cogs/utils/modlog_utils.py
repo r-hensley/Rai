@@ -1,7 +1,7 @@
 # pylint: disable=C0301,C0116,c0114
 import os
 from typing import Optional, Tuple, Union, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import shutil
 import json
 import discord
@@ -1021,3 +1021,125 @@ def build_log_message_embed(entry: dict, user: discord.User) -> discord.Embed:
             text=f"{embed.footer.text} | Edited: {entry['date_edited']}")
 
     return embed
+
+async def timeout(ctx, target_id: int, time_arg: str, reason: str, silent: bool, time_obj: datetime, time_string: str, length: tuple):
+    target = ctx.guild.get_member(target_id)
+
+            # Stop function if user not found
+    if not target:
+        try:
+            await utils.safe_send(ctx,
+                                      "I could not find the user.  For warns and mutes, please use either an ID "
+                                      "or a mention to the user (this is to prevent mistaking people).")
+        except discord.HTTPException:  # Possible if Rai is sending a message to itself for automatic mutes
+            pass
+    
+    try:
+            await target.timeout(time_obj, reason=reason)
+    except discord.Forbidden:
+            await utils.safe_send(ctx, f"I failed to timeout {str(target)} ({target.id}). "
+                                  f"Please check my permissions "
+                                  f"(I can't timeout people higher than me on the rolelist)")
+            return
+    except discord.HTTPException:
+            await utils.safe_send(ctx,
+                                  f"There was some kind of HTTP error that prevented me from timing out {target.id}"
+                                  " user. Please try again.")
+            return
+    description = f"You have been muted on {ctx.guild.name}"
+    emb = utils.red_embed("")
+    emb.title = description
+    emb.color = discord.Color(int('ff8800', 16))  # embed
+    if time_arg:
+            timestamp = int(time_obj.timestamp())
+            emb.add_field(name="Length",
+                          value=f"{time_arg} (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R> )",
+                          inline=False)
+    else:
+        timestamp = 0
+        emb.add_field(name="Length", value="Indefinite", inline=False)
+    if reason:
+        if len(reason) <= 1024:
+            emb.add_field(name="Reason", value=reason)
+        elif 1024 < len(reason) <= 2048:
+            emb.add_field(name="Reason", value=reason[:1024])
+            emb.add_field(name="Reason (cont.)", value=reason[1024:])
+        else:
+            await utils.safe_send(ctx, "Your reason for the mute was too long. Please use less than 2048 "
+                                           "characters.")
+            return
+        # Add default prompt to go to modbot for questions about the warning
+        modbot = ctx.guild.get_member(713245294657273856)
+        if modbot:
+            emb.add_field(name="Questions about this mute?",
+                          value=f"Please send a message to {modbot.mention}.",
+                          inline=False)
+            content = f"Questions → {modbot.mention}"
+        else:
+            content = ""
+        if not silent:
+            try:
+                await utils.safe_send(target, content, embed=emb)
+            except discord.Forbidden:
+                await utils.safe_send(ctx, "This user has DMs disabled so I couldn't send the notification. I'll "
+                                           "keep them muted but they won't receive the notification for it.")
+        # Prepare confirmation message to be sent to ctx channel of mute command
+        notif_text = f"**{str(target)}** ({target.id}) has been **muted** from text and voice chats."
+        if time_string:
+            interval_str = hf.format_interval(
+                timedelta(days=length[0], hours=length[1], minutes=length[2]))
+            notif_text = f"{notif_text[:-1]} for {interval_str} (until <t:{int(time_obj.timestamp())}:f>)."
+        if reason:
+            notif_text += f"\nReason: {reason}"
+        # Make embed
+        emb = utils.red_embed('')
+        emb.title = "Mute"
+        emb.add_field(name="User", value=f"{str(target)} ({target.id})",
+                      inline=False)
+        if time_string:
+            emb.title = "Temporary " + emb.title
+            if length[2]:
+                dhm_str = f"{length[0]}d{length[1]}h{length[2]}m"
+            else:
+                dhm_str = f"{length[0]}d{length[1]}h"
+            emb.add_field(name="Mute duration",
+                          value=f"For {dhm_str} (unmute on <t:{int(timestamp)}:f> - <t:{int(timestamp)}:R>)",
+                          inline=False)
+        else:
+            emb.title = "Permanent " + emb.title
+        if reason:
+            reason_field = reason
+        else:
+            reason_field = "(No given reason)"
+        if len(reason_field) <= 1024:
+            emb.add_field(name="Reason", value=reason_field,
+                          inline=False)
+        else:
+            emb.add_field(name="Reason", value=reason_field[:1021] + "...",
+                          inline=False)
+            emb.add_field(name="Reason (cont.)", value="..." + reason_field[1021:],
+                          inline=False)
+        if ctx.message:
+            emb.add_field(name="Jump URL", value=ctx.message.jump_url,
+                          inline=False)
+        emb.set_footer(
+            text=f"Muted by {ctx.author.name} ({ctx.author.id})")
+        if silent:
+            emb.title += " (The user was not notified of this)"
+        if ctx.author == ctx.guild.me:
+            additonal_text = str(target.id)
+        else:
+            additonal_text = ""
+        if ctx.author != self.bot.user and "Nitro" not in reason:
+            await utils.safe_send(ctx, additonal_text, embed=emb)
+        # Add mute info to modlog
+        modlog_config = hf.add_to_modlog(
+            ctx, target, 'Mute', reason, silent, time_arg)
+        # Add info about mute to modlog channel
+        modlog_channel = self.bot.get_channel(modlog_config['channel'])
+        try:
+            if modlog_channel:
+                if modlog_channel != ctx.channel:
+                    await utils.safe_send(modlog_channel, target.id, embed=emb)
+        except AttributeError:
+            await utils.safe_send(ctx, embed=emb)    
