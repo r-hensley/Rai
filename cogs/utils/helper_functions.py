@@ -1040,15 +1040,21 @@ async def hf_sync(remove=False):
     )
     # Try to sync
     try:
-        await here.bot.tree.sync(guild=SP_SERV_GUILD)
-    except discord.Forbidden:
-        print("Failed to sync commands to SP_SERV_GUILD")
+        synced = await here.bot.tree.sync(guild=SP_SERV_GUILD)
+        print(f"Successfully synced {len(synced)} commands to SP_SERV_GUILD")
+    except discord.Forbidden as e:
+        print(f"Failed to sync commands to SP_SERV_GUILD (Forbidden): {e}")
+    except Exception as e:
+        print(f"Failed to sync commands to SP_SERV_GUILD: {e}")
 
     # Jp server
     try:
-        await here.bot.tree.sync(guild=JP_SERV_GUILD)
-    except discord.Forbidden:
-        print("Failed to sync commands to JP_SERV_GUILD")
+        synced = await here.bot.tree.sync(guild=JP_SERV_GUILD)
+        print(f"Successfully synced {len(synced)} commands to JP_SERV_GUILD")
+    except discord.Forbidden as e:
+        print(f"Failed to sync commands to JP_SERV_GUILD (Forbidden): {e}")
+    except Exception as e:
+        print(f"Failed to sync commands to JP_SERV_GUILD: {e}")
 
     # Ry serv
     for command in []:
