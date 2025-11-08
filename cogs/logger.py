@@ -184,8 +184,6 @@ class Logger(commands.Cog):
                                     after: discord.VoiceState):
         guild = str(member.guild.id)
         
-        t_start = time.perf_counter()
-        t_start = hf.line_profile(t_start, "on_voice_state_update")
         if guild in self.bot.db['voice']:
             guild_config: dict = self.bot.db['voice'][guild]
             if not guild_config['enable'] or not guild_config['channel']:
@@ -291,7 +289,6 @@ class Logger(commands.Cog):
         emb.set_footer(text=footer_text,
                        icon_url=member.display_avatar.replace(static_format="png").url)
         
-        t_start = hf.line_profile(t_start, "on_voice_state_update: embed construction", offset=0.5)
 
         if after.channel:
             users_in_voice = ""
@@ -329,22 +326,19 @@ class Logger(commands.Cog):
             else:
                 emb.add_field(name=name_text, value=users_in_voice)
                 
-        t_start = hf.line_profile(t_start, "on_voice_state_update: user list")
-
         """Voice logging"""
         if guild_config:
             try:
                 await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
-                t_start = hf.line_profile(t_start, "on_voice_state_update: send to guild channel")
             except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
                 await hf.sleep("voice_state_update", 3, add=True)
                 try:
                     await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
                 except discord.DiscordServerError:
                     pass
+            except discord.Forbidden:
+                pass
         
-        t_start = hf.line_profile(t_start, "on_voice_state_update: voice logging")
-
         """ Super voice watch"""
         if config:
             b = before.channel
@@ -367,8 +361,6 @@ class Logger(commands.Cog):
                         except discord.Forbidden:
                             pass
         
-        t_start = hf.line_profile(t_start, "on_voice_state_update: super voice watch")
-
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
         """For use with voice_logging if someone creates a private voice channel"""
@@ -1120,7 +1112,10 @@ class Logger(commands.Cog):
                         replace('$NAME$', member.name). \
                         replace('$USERMENTION$', member.mention). \
                         replace('$SERVER$', member.guild.name)
-                    await utils.safe_send(_welcome_channel, message)
+                    try:
+                        await utils.safe_send(_welcome_channel, message)
+                    except discord.Forbidden:
+                        return
             return _welcome_channel
 
         welcome_channel = await welcome_message()

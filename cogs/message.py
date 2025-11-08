@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 
 import discord
 import openai
+import requests
 from discord.ext import commands
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
@@ -40,7 +41,8 @@ RYRY_RAI_BOT_ID = 270366726737231884
 on_message_functions = []
 
 
-def should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, self, msg):
+def should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, main_rai_copy_only,
+                        self, msg):
     """
     Determines if the task should execute based on message properties.
     """
@@ -52,19 +54,27 @@ def should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, 
         return False
     if msg.type not in (allow_message_types or []) + [discord.MessageType.default, discord.MessageType.reply]:
         return False
+    
+    # add your ID here if you want to test the functions unique to Rai
+    # most functions that are blocked through this are meant to only be used on the Rai main bot
+    # if used on a fork, they'll probably throw errors
+    if main_rai_copy_only and self.bot.user.id not in [270366726737231884]:
+        return False
     return True
 
 
 def on_message_function(allow_dms: bool = False,
                         allow_bots: bool = False,
                         allow_self: bool = False,
-                        allow_message_types: Optional[list[discord.MessageType]] = None) -> callable:
+                        allow_message_types: Optional[list[discord.MessageType]] = None,
+                        main_rai_copy_only: bool = False) -> callable:
     def decorator(func: callable):
         # wrapper just to turn function into an asyncio task coroutine
         @wraps(func)  # Ensures the function retains its original name and docstring
         # needs to be async to work with asyncio.gather()
         async def wrapper(*args, **kwargs):
-            if not should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, *args):
+            if not should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types,
+                                       main_rai_copy_only, *args):
                 return lambda *a, **kw: None  # No-op lambda for skipped tasks
 
             # time_task() is a wrapper that returns an uncalled async function definition
@@ -79,6 +89,7 @@ def on_message_function(allow_dms: bool = False,
             'allow_dms': allow_dms,
             'allow_bots': allow_bots,
             'allow_self': allow_self,
+            'main_rai_copy_only': main_rai_copy_only
         })
 
         return wrapper
@@ -214,24 +225,6 @@ class Message(commands.Cog):
                 pass
         return detected_lang, hardcore
 
-    @on_message_function()
-    async def test_long_function(self, msg: hf.RaiMessage):
-        # only work on messages from bot owner
-        if msg.author.id != self.bot.owner_id:
-            return
-        if msg.channel.id != 1330798440052949024:
-            return
-        time.sleep(5)
-
-    @on_message_function()
-    async def test_async_wait(self, msg: hf.RaiMessage):
-        # only work on messages from bot owner
-        if msg.author.id != self.bot.owner_id:
-            return
-        if msg.channel.id != 1331494671620509699:
-            return
-        await asyncio.sleep(5)
-
     @on_message_function(allow_bots=True)
     async def log_bot_messages(self, msg: hf.RaiMessage):
         if not getattr(self.bot, "bot_message_queue", None):
@@ -314,7 +307,7 @@ class Message(commands.Cog):
         for msg_split in post_content_split:
             await thread.send(msg_split)
 
-    @on_message_function(allow_bots=True)
+    @on_message_function(allow_bots=True, main_rai_copy_only=True)
     async def replace_tatsumaki_posts(self, msg: hf.RaiMessage):
         if msg.content in ['t!serverinfo', 't!server', 't!sinfo', '.serverinfo', '.sinfo']:
             if msg.guild.id in [JP_SERVER_ID, SP_SERVER_ID, RY_SERVER_ID]:
@@ -324,7 +317,7 @@ class Message(commands.Cog):
                 # noinspection PyTypeChecker
                 await msg.ctx.invoke(serverinfo)
 
-    @on_message_function(allow_bots=True)
+    @on_message_function(allow_bots=True, main_rai_copy_only=True)
     async def post_modlog_in_reports(self, msg: hf.RaiMessage):
         mini_id = str(msg.id)[-3:]
         t1 = time.perf_counter()
@@ -506,7 +499,7 @@ class Message(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             pass
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def wordsnake_channel(self, msg: hf.RaiMessage):
         if msg.channel.id != 1089515759593603173:
             return
@@ -624,7 +617,7 @@ class Message(commands.Cog):
 
     # """Ping me if someone says my name"""
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def mention_ping(self, msg: hf.RaiMessage):
         cont = str(msg.content).casefold()
 
@@ -675,7 +668,7 @@ class Message(commands.Cog):
                 f'\n{msg.content}'
                 f'\n{msg.jump_url}'[:2000])
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def ori_mention_ping(self, msg: hf.RaiMessage):
         cont = str(msg.content).casefold()
         ori_id = 581324505331400733
@@ -745,7 +738,7 @@ class Message(commands.Cog):
 
     # """check for mutual servers of banned users"""
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def check_guilds(self, msg: hf.RaiMessage):
         if msg.guild.id == MODCHAT_SERVER_ID:
             async def check_user(content):
@@ -813,7 +806,7 @@ class Message(commands.Cog):
 
     #             return
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def mods_ping(self, msg: hf.RaiMessage):
         """
         This function triggers whenever someone pings the configured staff role in the guild.
@@ -1327,37 +1320,6 @@ class Message(commands.Cog):
                     await hf.long_deleted_msg_notification(msg)
 
     @on_message_function()
-    async def no_filter_hc(self, msg: hf.RaiMessage):
-        if msg.channel.id == 193966083886153729:
-            jpRole = msg.guild.get_role(196765998706196480)
-            enRole = msg.guild.get_role(197100137665921024)
-            if jpRole in msg.author.roles and enRole in msg.author.roles:
-                return
-            ratio = utils.jpenratio(msg.content.casefold())
-            nf = "<#193966083886153729>"
-            if ratio is None:
-                return
-            if jpRole in msg.author.roles:
-                if ratio < .55:
-                    try:
-                        await msg.delete()
-                        await msg.author.send(f"I've deleted your message from {nf}. In that channel, Japanese "
-                                              "people must speak English only. Here is the message I deleted:")
-
-                        await msg.author.send(f"```{msg.content[:1993]}```")
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
-            else:
-                if ratio > .45:
-                    try:
-                        await msg.delete()
-                        await msg.author.send(f"I've deleted your message from {nf}. In that channel, you must "
-                                              "speak Japanese only. Here is the message I deleted:")
-                        await msg.author.send(f"```{msg.content[:1993]}```")
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
-
-    @on_message_function()
     async def spanish_server_language_switch(self, msg: hf.RaiMessage):
         if not msg.detected_lang:
             return
@@ -1411,7 +1373,7 @@ class Message(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 return
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def spanish_server_staff_ping_info_request(self, msg: hf.RaiMessage):
         """This module will watch for users who ping Spanish server staff role (642782671109488641) and
         if they didn't include any text with their ping explaining the issue, it will ask them to do so in
@@ -1436,7 +1398,8 @@ class Message(commands.Cog):
                             "Staff para que los moderadores que lleguen al canal puedan entender más rápidamente "
                             "lo que está pasando.")
 
-    @on_message_function(allow_message_types=[discord.MessageType.auto_moderation_action])
+    @on_message_function(allow_message_types=[discord.MessageType.auto_moderation_action],
+                         main_rai_copy_only=True)
     async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
         """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
         if msg.guild.id != SP_SERVER_ID:
@@ -1603,7 +1566,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
 
         await msg.channel.purge(limit=50, check=purge_check)
 
-    @on_message_function()
+    @on_message_function(main_rai_copy_only=True)
     async def sp_serv_other_language_detection(self, msg: hf.RaiMessage):
         """Detect if a message in Spanish server is in another language"""
         log_channel = self.bot.get_channel(1335631538716545054)
@@ -1795,177 +1758,177 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
 
         return f"_send {msg.channel.id} ℹ️\n- {english}\n- {spanish}"
 
-    @on_message_function()
-    async def chatgpt_new_user_moderation(self, msg: hf.RaiMessage):
-        """This function will moderate new users in the chatgpt channel"""
-        # https://platform.openai.com/docs/guides/moderation
-        CHATGPT_LOG_ID = 1351956893119283270  # ID for channel for logs
-        if msg.guild.id != SP_SERVER_ID:
-            return
-        if not self.bot.message_queue:
-            return  # if the message queue is completely empty
-        if not self.bot.openai:
-            return
-
-        # if the user has sent more than 10 messages in the last month, don't moderate them
-        messages_in_last_month = hf.count_messages(msg.author.id, msg.guild)
-        if messages_in_last_month > 10:
-            return
-
-        # get the list of messages the bot has seen
-        cached_messages = self.bot.message_queue.find_by_author(msg.author.id)
-        if not cached_messages:
-            # the queue should at least have the current message
-            await asyncio.sleep(0.1)
-            cached_messages: list[hf.MiniMessage] = self.bot.message_queue.find_by_author(
-                msg.author.id)
-            if not cached_messages:
-                return
-
-        messages = []
-        message_contents = ""
-        attachment_url = ""
-        for message in cached_messages:
-            if message.content:
-                message_contents += f"[{message.created_at}]: {message.content}\n"
-            for attachment in message.attachments:
-                attachment_url = attachment['url']
-        messages.append({"type": "text", "text": message_contents})
-        if attachment_url:
-            messages.append(
-                {"type": "image_url", "image_url": {"url": attachment_url}})
-        try:
-            moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
-        except openai.BadRequestError as e:
-            # send to chatgpt logs channel
-            await hf.segment_send(1351956893119283270, messages)
-            moderation_result = None
-            ignore_strings = ['invalid_image_format', 'image_url_unavailable', 'file_too_large', 'Failed to download']
-            for i_string in ignore_strings:
-                if i_string in str(e):
-                    for m in messages:
-                        if m['type'] == 'image_url':
-                            messages.remove(m)
-                            moderation_result = await self.bot.openai.moderations.create(
-                                model="omni-moderation-latest", input=messages
-                            )
-            if not moderation_result:
-                raise
-        except Exception as e:
-            await hf.segment_send(CHATGPT_LOG_ID, f"ERROR: `{e}`\n{messages}")
-            raise
-        # example response:
-        # {
-        #   "id": "modr-0d9740456c391e43c445bf0f010940c7",
-        #   "model": "omni-moderation-latest",
-        #   "results": [
-        #     {
-        #       "flagged": true,
-        #       "categories": {
-        #         "harassment": true,
-        #         "harassment/threatening": true,
-        #         "sexual": false,
-        #         "hate": false,
-        #         "hate/threatening": false,
-        #         "illicit": false,
-        #         "illicit/violent": false,
-        #         "self-harm/intent": false,
-        #         "self-harm/instructions": false,
-        #         "self-harm": false,
-        #         "sexual/minors": false,
-        #         "violence": true,
-        #         "violence/graphic": true
-        #       },
-        #       "category_scores": {
-        #         "harassment": 0.8189693396524255,
-        #         "harassment/threatening": 0.804985420696006,
-        #         "sexual": 1.573112165348997e-6,
-        #         "hate": 0.007562942636942845,
-        #         "hate/threatening": 0.004208854591835476,
-        #         "illicit": 0.030535955153511665,
-        #         "illicit/violent": 0.008925306722380033,
-        #         "self-harm/intent": 0.00023023930975076432,
-        #         "self-harm/instructions": 0.0002293869201073356,
-        #         "self-harm": 0.012598046106750154,
-        #         "sexual/minors": 2.212566909570261e-8,
-        #         "violence": 0.9999992735124786,
-        #         "violence/graphic": 0.843064871157054
-        #       },
-        #       "category_applied_input_types": {
-        #         "harassment": [
-        #           "text"
-        #         ],
-        #         "harassment/threatening": [
-        #           "text"
-        #         ],
-        #         "sexual": [
-        #           "text",
-        #           "image"
-        #         ],
-        #         "hate": [
-        #           "text"
-        #         ],
-        #         "hate/threatening": [
-        #           "text"
-        #         ],
-        #         "illicit": [
-        #           "text"
-        #         ],
-        #         "illicit/violent": [
-        #           "text"
-        #         ],
-        #         "self-harm/intent": [
-        #           "text",
-        #           "image"
-        #         ],
-        #         "self-harm/instructions": [
-        #           "text",
-        #           "image"
-        #         ],
-        #         "self-harm": [
-        #           "text",
-        #           "image"
-        #         ],
-        #         "sexual/minors": [
-        #           "text"
-        #         ],
-        #         "violence": [
-        #           "text",
-        #           "image"
-        #         ],
-        #         "violence/graphic": [
-        #           "text",
-        #           "image"
-        #         ]
-        #       }
-        #     }
-        #   ]
-        # }
-        result = moderation_result.results[0]
-        if not result.flagged:
-            return
-        await hf.segment_send(CHATGPT_LOG_ID, moderation_result)
-
-        # get flagged categories, when iterating, "category" is tuple of (str, bool) example: ('harassment', False)
-        # categories['harassment'] for example returns TypeError: 'Categories' object is not subscriptable
-        # need to do getattr(categories, 'harassment')
-        flagged_categories = [category[0]
-                              for category in result.categories if category[1]]
-
-        s = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
-        s += "Flagged categories:\n"
-        s += "Category scores:\n"
-        over_80 = False
-        for category, score in result.category_scores:
-            if category in flagged_categories:
-                s += f"- {category}: {score}\n"
-                if score > 0.8:
-                    over_80 = True
-        s += f"Message content:\n>>> {message_contents}\n"
-
-        if over_80:
-            watch_log_channel = self.bot.get_channel(704323978596188180)
-            await utils.safe_send(watch_log_channel, s)
+    # @on_message_function()
+    # async def chatgpt_new_user_moderation(self, msg: hf.RaiMessage):
+    #     """This function will moderate new users in the chatgpt channel"""
+    #     # https://platform.openai.com/docs/guides/moderation
+    #     CHATGPT_LOG_ID = 1351956893119283270  # ID for channel for logs
+    #     if msg.guild.id != SP_SERVER_ID:
+    #         return
+    #     if not self.bot.message_queue:
+    #         return  # if the message queue is completely empty
+    #     if not self.bot.openai:
+    #         return
+    #
+    #     # if the user has sent more than 10 messages in the last month, don't moderate them
+    #     messages_in_last_month = hf.count_messages(msg.author.id, msg.guild)
+    #     if messages_in_last_month > 10:
+    #         return
+    #
+    #     # get the list of messages the bot has seen
+    #     cached_messages = self.bot.message_queue.find_by_author(msg.author.id)
+    #     if not cached_messages:
+    #         # the queue should at least have the current message
+    #         await asyncio.sleep(0.1)
+    #         cached_messages: list[hf.MiniMessage] = self.bot.message_queue.find_by_author(
+    #             msg.author.id)
+    #         if not cached_messages:
+    #             return
+    #
+    #     messages = []
+    #     message_contents = ""
+    #     attachment_url = ""
+    #     for message in cached_messages:
+    #         if message.content:
+    #             message_contents += f"[{message.created_at}]: {message.content}\n"
+    #         for attachment in message.attachments:
+    #             attachment_url = attachment['url']
+    #     messages.append({"type": "text", "text": message_contents})
+    #     if attachment_url:
+    #         messages.append(
+    #             {"type": "image_url", "image_url": {"url": attachment_url}})
+    #     try:
+    #         moderation_result = await self.bot.openai.moderations.create(model="omni-moderation-latest", input=messages)
+    #     except openai.BadRequestError as e:
+    #         # send to chatgpt logs channel
+    #         await hf.segment_send(1351956893119283270, messages)
+    #         moderation_result = None
+    #         ignore_strings = ['invalid_image_format', 'image_url_unavailable', 'file_too_large', 'Failed to download']
+    #         for i_string in ignore_strings:
+    #             if i_string in str(e):
+    #                 for m in messages:
+    #                     if m['type'] == 'image_url':
+    #                         messages.remove(m)
+    #                         moderation_result = await self.bot.openai.moderations.create(
+    #                             model="omni-moderation-latest", input=messages
+    #                         )
+    #         if not moderation_result:
+    #             raise
+    #     except Exception as e:
+    #         await hf.segment_send(CHATGPT_LOG_ID, f"ERROR: `{e}`\n{messages}")
+    #         raise
+    #     # example response:
+    #     # {
+    #     #   "id": "modr-0d9740456c391e43c445bf0f010940c7",
+    #     #   "model": "omni-moderation-latest",
+    #     #   "results": [
+    #     #     {
+    #     #       "flagged": true,
+    #     #       "categories": {
+    #     #         "harassment": true,
+    #     #         "harassment/threatening": true,
+    #     #         "sexual": false,
+    #     #         "hate": false,
+    #     #         "hate/threatening": false,
+    #     #         "illicit": false,
+    #     #         "illicit/violent": false,
+    #     #         "self-harm/intent": false,
+    #     #         "self-harm/instructions": false,
+    #     #         "self-harm": false,
+    #     #         "sexual/minors": false,
+    #     #         "violence": true,
+    #     #         "violence/graphic": true
+    #     #       },
+    #     #       "category_scores": {
+    #     #         "harassment": 0.8189693396524255,
+    #     #         "harassment/threatening": 0.804985420696006,
+    #     #         "sexual": 1.573112165348997e-6,
+    #     #         "hate": 0.007562942636942845,
+    #     #         "hate/threatening": 0.004208854591835476,
+    #     #         "illicit": 0.030535955153511665,
+    #     #         "illicit/violent": 0.008925306722380033,
+    #     #         "self-harm/intent": 0.00023023930975076432,
+    #     #         "self-harm/instructions": 0.0002293869201073356,
+    #     #         "self-harm": 0.012598046106750154,
+    #     #         "sexual/minors": 2.212566909570261e-8,
+    #     #         "violence": 0.9999992735124786,
+    #     #         "violence/graphic": 0.843064871157054
+    #     #       },
+    #     #       "category_applied_input_types": {
+    #     #         "harassment": [
+    #     #           "text"
+    #     #         ],
+    #     #         "harassment/threatening": [
+    #     #           "text"
+    #     #         ],
+    #     #         "sexual": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ],
+    #     #         "hate": [
+    #     #           "text"
+    #     #         ],
+    #     #         "hate/threatening": [
+    #     #           "text"
+    #     #         ],
+    #     #         "illicit": [
+    #     #           "text"
+    #     #         ],
+    #     #         "illicit/violent": [
+    #     #           "text"
+    #     #         ],
+    #     #         "self-harm/intent": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ],
+    #     #         "self-harm/instructions": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ],
+    #     #         "self-harm": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ],
+    #     #         "sexual/minors": [
+    #     #           "text"
+    #     #         ],
+    #     #         "violence": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ],
+    #     #         "violence/graphic": [
+    #     #           "text",
+    #     #           "image"
+    #     #         ]
+    #     #       }
+    #     #     }
+    #     #   ]
+    #     # }
+    #     result = moderation_result.results[0]
+    #     if not result.flagged:
+    #         return
+    #     await hf.segment_send(CHATGPT_LOG_ID, moderation_result)
+    #
+    #     # get flagged categories, when iterating, "category" is tuple of (str, bool) example: ('harassment', False)
+    #     # categories['harassment'] for example returns TypeError: 'Categories' object is not subscriptable
+    #     # need to do getattr(categories, 'harassment')
+    #     flagged_categories = [category[0]
+    #                           for category in result.categories if category[1]]
+    #
+    #     s = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
+    #     s += "Flagged categories:\n"
+    #     s += "Category scores:\n"
+    #     over_80 = False
+    #     for category, score in result.category_scores:
+    #         if category in flagged_categories:
+    #             s += f"- {category}: {score}\n"
+    #             if score > 0.8:
+    #                 over_80 = True
+    #     s += f"Message content:\n>>> {message_contents}\n"
+    #
+    #     if over_80:
+    #         watch_log_channel = self.bot.get_channel(704323978596188180)
+    #         await utils.safe_send(watch_log_channel, s)
 
     @on_message_function()
     async def translate_other_lang_channel(self, msg: hf.RaiMessage):
@@ -1992,8 +1955,11 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             source='auto', target='en').translate(content))
         trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(
             source='auto', target='es').translate(content))
-        translated = await trans_task
-        translated_2 = await trans_task_2
+        try:
+            translated = await trans_task
+            translated_2 = await trans_task_2
+        except requests.ConnectionError:
+            return
         if not translated or not translated_2:
             return
         eng_dist = LDist(re.sub(r'\W', '', translated),

@@ -112,13 +112,18 @@ class Interactions(commands.Cog):
 
     async def sync_main(self):
         """Main code for syncing app commands"""
+        
+        # THE BELOW LINE WILL DISABLE ALL SLASH COMMANDS ON FORKED COPIES OF RAI
+        # If you wish to test a forked command, please set this variable to True
+        # This exists to prevent duplicate slash commands populating user clients
+        
         allow_slash_commands_in_forks = False
         current_line_no = inspect.currentframe().f_lineno
         if self.bot.user.id != RAI_MAIN_FORK_ID and not allow_slash_commands_in_forks:
-            print("Not syncing commands, not the main fork")
+            print("Not syncing slash commands, not the main fork")
             current_file_path = os.path.realpath(__file__)
             print(f"Please set the variable to True at {current_file_path}:{current_line_no-1} "
-                  f"to sync commands on a forked bot")
+                  f"to sync slash commands on a forked bot")
             self.bot.tree.clear_commands(guild=None)
             self.bot.tree.clear_commands(guild=RY_GUILD)
             self.bot.tree.clear_commands(guild=SP_GUILD)
