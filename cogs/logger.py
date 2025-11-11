@@ -419,7 +419,11 @@ class Logger(commands.Cog):
         await utils.safe_send(ctx, f'Successfully set Levenshtein Distance limit to {distance_limit}.')
 
     @staticmethod
-    async def log_edit_event(before: discord.Message, after, levenshtein_distance: int, channel: discord.abc.Messageable):
+    async def log_edit_event(before: discord.Message,
+                             after: discord.Message,
+                             levenshtein_distance: int,
+                             channel: discord.abc.Messageable):
+        """Logs an edited message event to the specified channel."""
         author = before.author
         time_dif = round((discord.utils.utcnow() - before.created_at).total_seconds(), 1)
         time_dif_str = hf.format_interval(time_dif, show_seconds=True, include_spaces=True)
@@ -472,7 +476,10 @@ class Logger(commands.Cog):
             if iteration == 20:
                 raise ValueError("Infinite loop")  # infinite loop
             emb.remove_field(0)
-        await utils.safe_send(channel, embed=emb)
+        try:
+            await utils.safe_send(channel, embed=emb)
+        except discord.Forbidden:
+            return
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
