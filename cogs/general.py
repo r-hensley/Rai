@@ -1135,6 +1135,11 @@ class General(commands.Cog):
                                    "<#247135634265735168>")
             return
 
+        if ctx.channel.id != 415356500676968448 and ctx.guild.id == CL_SERVER_ID:
+            await utils.safe_reply(ctx, "Please use the selfmute command in the bot spam channel: "
+                                   "<#415356500676968448>")
+            return
+
         if time:
             try:
                 if self.bot.db['selfmute'][str(ctx.guild.id)][str(ctx.author.id)]['enable']:
