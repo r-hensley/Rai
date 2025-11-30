@@ -1748,6 +1748,9 @@ class Logger(commands.Cog):
 
         # ######### Timeouts #############
         async def check_timeouts():
+            if before.id == ABELIAN_ID:
+                print(before.timed_out_until, after.timed_out_until, before.guild.name, after.guild.name)
+                
             if not (self.bot.db['modlog'].get(str(before.guild.id), None)):
                 return  # guild has not setup modlog
 
@@ -1768,47 +1771,53 @@ class Logger(commands.Cog):
             if not guild.me.guild_permissions.view_audit_log:
                 return
             
+            # check audit log to find who timed out the user
             while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
                 async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                     action=discord.AuditLogAction.member_update,
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
-                    if entry.target == before:
-                        author = entry.user
-                        if author == guild.me:
-                            # A timeout by Rai, probably in the mute command.
-                            # Let that command handle the modlog
-                            continue
-                        if not after.is_timed_out() and before.is_timed_out():
-                            # user was UNMUTED by admin, ignore this log
-                            continue
-                        if after.timed_out_until:
-                            time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
-                        else:
-                            time_left = 0
-                        reason = entry.reason
-
-                        if reason:
-                            if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
-                                continue
-
-                        if 0 < time_left < 70:  # 60 SEC
-                            timeout_length_str = "1m"
-                        elif 250 < time_left < 350:  # 5 MIN = 300 SEC
-                            timeout_length_str = "5m"
-                        elif 550 < time_left < 650:  # 10 MIN = 600 SEC
-                            timeout_length_str = "10m"
-                        elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
-                            timeout_length_str = "1h"
-                        elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
-                            timeout_length_str = "1d"
-                        elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
-                            timeout_length_str = "7d"
-                        else:
-                            timeout_length_str = "Unknown"
+                    entry: discord.AuditLogEntry
+                    if entry.target != before:
+                        # make sure this log entry is about the same user
+                        continue
+                    
+                    if entry.before.timed_out_until or (not entry.after.timed_out_until):
+                        # 1. user was already muted before: ignore this log
+                        # 2. user is not muted: user was probably UNMUTED by admin, ignore
+                        continue
                         
-                        # we need two breaks, one for (while), one for (for entry)
-                        # this breaks the for entry in guild.audit_logs() if it finds the entry
-                        break
+                    if entry.user == guild.me:
+                        # A timeout by Rai, probably in the mute command.
+                        # Let that command handle the modlog
+                        continue
+                    
+                    author = entry.user
+
+                    time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
+                    reason = entry.reason
+
+                    if reason:
+                        if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
+                            continue
+
+                    if 0 < time_left < 70:  # 60 SEC
+                        timeout_length_str = "1m"
+                    elif 250 < time_left < 350:  # 5 MIN = 300 SEC
+                        timeout_length_str = "5m"
+                    elif 550 < time_left < 650:  # 10 MIN = 600 SEC
+                        timeout_length_str = "10m"
+                    elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
+                        timeout_length_str = "1h"
+                    elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
+                        timeout_length_str = "1d"
+                    elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
+                        timeout_length_str = "7d"
+                    else:
+                        timeout_length_str = hf.format_interval(time_left)
+                    
+                    # we need two breaks, one for (while), one for (for entry)
+                    # this breaks the for entry in guild.audit_logs() if it finds the entry
+                    break
                 if time_left:
                     # second "break" statement
                     # this breaks the while loop if it found an entry
@@ -1898,7 +1907,7 @@ class Logger(commands.Cog):
                         await utils.safe_send(event_helpers_channel, req_msg)
 
         await check_timeouts()
-
+    
     # ############### reaction removals #####################
 
     @commands.group(invoke_without_command=True, name='reactions')
