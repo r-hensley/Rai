@@ -1889,8 +1889,14 @@ def line_profile(t_in, description: str = "", t_threshold: float = 1, offset: fl
     """
     t_now = time.perf_counter()
     diff = t_now - t_in - offset
+    
+    try:
+        latency = f" (latency: {here.bot.live_latency:.4f}s)"
+    except AttributeError:
+        latency = ""
+        
     if diff > t_threshold:
-        print(f"{description + ': ' if description else ''} {diff:.3f}s (latency: {here.bot.live_latency:.4f}s)")
+        print(f"{description + ': ' if description else ''} {diff:.3f}s {latency}")
     return t_now
 
 
