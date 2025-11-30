@@ -58,7 +58,8 @@ def should_execute_task(allow_dms, allow_bots, allow_self, allow_message_types, 
 def on_message_function(allow_dms: bool = False,
                         allow_bots: bool = False,
                         allow_self: bool = False,
-                        allow_message_types: Optional[list[discord.MessageType]] = None) -> callable:
+                        allow_message_types: Optional[list[discord.MessageType]] = None,
+                        time_threshold: float = 5.) -> callable:
     def decorator(func: callable):
         # wrapper just to turn function into an asyncio task coroutine
         @wraps(func)  # Ensures the function retains its original name and docstring
@@ -69,7 +70,7 @@ def on_message_function(allow_dms: bool = False,
 
             # time_task() is a wrapper that returns an uncalled async function definition
             # this is what asyncio_task needs, you're supposed to give it a function to call later
-            task = utils.asyncio_task(time_task(func, *args, diff_threshold=5),
+            task = utils.asyncio_task(time_task(func, *args, time_threshold=time_threshold),
                                       task_name=f"on_message.{func.__name__}")
             return task
 
@@ -93,14 +94,14 @@ def log_time(t_in, description: str):
     return new_time
 
 
-def time_task(func, *args, diff_threshold=0.5):
+def time_task(func, *args, time_threshold: float = 0.5):
     @wraps(func)
     async def time_task_internal():
         t1 = time.perf_counter()
         result = await func(*args)
         t2 = time.perf_counter()
         diff = t2 - t1
-        if diff > diff_threshold:
+        if diff > time_threshold:
             print(
                 f"on_message function {func.__name__} took {diff:.2f} seconds to run.")
         return result
@@ -149,7 +150,7 @@ class Message(commands.Cog):
 
         try:
             lang_check_task = utils.asyncio_task(
-                time_task(self.lang_check, rai_message, diff_threshold=5))
+                time_task(self.lang_check, rai_message, time_threshold=5))
             rai_message.detected_lang, rai_message.hardcore = await lang_check_task
             # will add slight delay as we wait for this
 
@@ -1509,7 +1510,7 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             await incidents_channel.send(f"Failed to ban {msg.author} for spam message: `{e}`")
             await incidents_channel.send(f";ban {msg.author.id} Hacked account: {content[:150]}...")
 
-    @on_message_function()
+    @on_message_function(time_threshold=10.5)
     async def antispam_check(self, msg: hf.RaiMessage):
         """"""
         if str(msg.guild.id) in self.bot.db['antispam']:
