@@ -5,7 +5,7 @@ import string
 import time
 import traceback
 import urllib
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from functools import wraps
 from typing import Optional
 from urllib.error import HTTPError
@@ -2013,6 +2013,84 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             await other_language_log_channel.send(s)
         except discord.Forbidden:
             pass
+        
+    async def _get_selfmute_expiry_for_member(
+        self,
+        member: discord.Member,
+    ) -> Optional[datetime]:
+        """Return the datetime when this member's self-mute/timeout expires, or None."""
+        guild_id = str(member.guild.id)
+        user_id = str(member.id)
+
+        # 1) Check Rai's selfmute DB
+        try:
+            guild_cfg = self.bot.db['selfmute'][guild_id]
+            user_cfg = guild_cfg.get(user_id)
+            if user_cfg:
+                unmute_time = user_cfg.get('time')
+                if isinstance(unmute_time, int):
+                    # stored as unix timestamp
+                    return datetime.fromtimestamp(
+                        unmute_time, tz=timezone.utc
+                    )
+                else:
+                    # stored as string timestamp (older format)
+                        return datetime.strptime(
+                            unmute_time, "%Y/%m/%d %H:%M UTC"
+                        ).replace(tzinfo=timezone.utc)
+        except KeyError:
+            # guild or selfmute entry missing
+            pass
+        except Exception:
+            # be defensive, don't crash on bad data
+            pass
+
+        return None
+
+    @on_message_function()
+    async def selfmute_mention_notifier(self, msg: hf.RaiMessage):
+        """
+        If someone mentions a self-muted user, notify in-channel that the user is self-muted
+        and when their self-mute/timeout expires.
+        """
+        # Only in guilds
+        if not msg.guild or msg.author.bot:
+            return
+        
+        # Only in certain guilds
+        if msg.guild.id not in [JP_SERVER_ID, SP_SERVER_ID, CH_SERVER_ID]:
+            return
+
+        # Collect unique mentioned members
+        mentioned_members: set[discord.Member] = set(msg.mentions)
+        if not mentioned_members:
+            return
+
+        now = discord.utils.utcnow()
+
+        for mentioned in mentioned_members:
+            expiry = await self._get_selfmute_expiry_for_member(mentioned)
+            if not expiry:
+                continue  # not self-muted / no timeout
+
+            # If somehow expiry is in the past, skip
+            if expiry <= now:
+                continue
+
+            # Format as Discord timestamp so it shows both absolute and relative time
+            ts = int(expiry.timestamp())
+            # Example: "expires at <t:...> (<t:...:R>)"
+            text = (
+                f"{mentioned.mention} is currently self-muted and may not respond. "
+                f"Their self-mute expires at <t:{ts}> (<t:{ts}:R>)."
+            )
+
+            try:
+                await utils.safe_reply(msg, text, mention_author=False,
+                                      allowed_mentions=discord.AllowedMentions.none())
+            except (discord.Forbidden, discord.HTTPException):
+                # If we can't speak in channel, just fail silently
+                pass
 
 
 async def setup(bot):
