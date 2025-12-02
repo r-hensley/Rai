@@ -1102,10 +1102,10 @@ class General(commands.Cog):
         if not failed:
             return True
 
-    @commands.command(aliases=['selfmute', 'sm'])
+    @commands.command(aliases=['sm'])
     @commands.bot_has_permissions(send_messages=True)
     @commands.guild_only()
-    async def self_mute(self, ctx: commands.Context, time: Optional[str] = None):
+    async def selfmute(self, ctx: commands.Context, time: Optional[str] = None):
         """Irreversible mutes yourself for a certain amount of time. Use like `;selfmute <amount of time>`.
 
         Examples:
@@ -1187,7 +1187,7 @@ class General(commands.Cog):
         msg = ctx.message
         try:
             msg = await self.bot.wait_for('message',
-                                          timeout=15,
+                                          timeout=45,
                                           check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
 
             if msg.content.casefold() == 'yes':  # confirm
@@ -1200,10 +1200,11 @@ class General(commands.Cog):
 
                 try:
                     await ctx.author.timeout(delta_obj, reason="RAI_SELFMUTE")
+                    # log even if using a Discord timeout
+                    config[str(ctx.author.id)] = {'enable': False, 'time': timestamp}
                 except (discord.Forbidden, discord.HTTPException):
                     # someone who Rai couldn't timeout
-                    config[str(ctx.author.id)] = {
-                        'enable': True, 'time': timestamp}
+                    config[str(ctx.author.id)] = {'enable': True, 'time': timestamp}
 
                 await conf.reply(f"Muted {ctx.author.display_name} for {delta_str}. This is irreversible.\n"
                                  f"Unmute time: <t:{timestamp}> (<t:{timestamp}:R>)")
