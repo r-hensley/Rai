@@ -729,9 +729,9 @@ class Submod(commands.Cog):
         
         # If silent, remove -s from reason if it's there
         if silent := "-s" in reason:
-            reason = reason.replace(
-                ' -s', '').replace('-s ', '').replace('-s', '')
-        
+            reason = re.sub(r'(?:^|\s)(-s)(?:\s|$)', ' ', reason)
+            reason = re.sub(r' +', ' ', reason).strip()
+
         if not user_ids:
             await utils.safe_reply(ctx, "I could not find any users to warn in your command.")
             return
