@@ -564,6 +564,14 @@ class General(commands.Cog):
     async def blacklist_reason(self, ctx, entry_message_id, *, reason):
         """Add a reason to a blacklist entry: `;gbl reason <message_id> <reason>`"""
         blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+        
+        # convert entry_message_id to int, including case if it's a message link
+        entry_message_id_match = re.search(r'\d{17,22}$', entry_message_id)
+        if not entry_message_id:
+            await utils.safe_send(ctx, "Please input a valid message ID or link to the message you want to edit.")
+            return
+        entry_message_id = entry_message_id_match.group()
+        
         try:
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
         except discord.NotFound:
@@ -581,12 +589,22 @@ class General(commands.Cog):
     async def blacklist_remove(self, ctx, entry_message_id):
         """Removes a voting entry from the blacklist channel."""
         blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+        
+        # convert entry_message_id to int, including case if it's a message link
+        entry_message_id_match = re.search(r'\d{17,22}$', entry_message_id)
+        if not entry_message_id:
+            await utils.safe_send(ctx, "Please input a valid message ID or link to the message you want to edit.")
+            return
+        entry_message_id = entry_message_id_match.group()
+        
         try:
             entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
         except discord.NotFound:
             await utils.safe_send(ctx,
-                                  "Message not found.  If you inputted the ID of a user, please input the message ID of "
-                                  "the entry in the blacklist instead.")
+                                  f"Message not found corresponding to ID "
+                                  f"{entry_message_id}. If you inputted the ID of a user, "
+                                  "please input the message ID of the entry in the "
+                                  "blacklist instead.")
             return
         emb = entry_message.embeds[0]
         target_id = emb.title.split(' ')[0]
@@ -658,12 +676,12 @@ class General(commands.Cog):
         list_of_ids = []
         reason = "None"
         for arg_index, arg in enumerate(args):
-            potential_id = re.search(r'\d{17,22}', arg)
+            potential_id = re.search(r'\d{17,22}$', arg)
             if potential_id:
                 # using regex, add to list_of_ids just the ID digits (ignore characters around it)
                 list_of_ids.append(potential_id.group())
             else:
-                reason = ' '.join(arg)
+                reason = ' '.join(args)
                 break
         channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
         config = self.bot.db['global_blacklist']
@@ -742,7 +760,8 @@ class General(commands.Cog):
                 emb.set_field_at(
                     0, name=emb.fields[0].name, value=emb.fields[0].value + f', {ctx.author.name}')
                 await message.edit(embed=emb)
-
+                
+                
     @global_blacklist.command(name='list')
     @blacklist_check()
     async def blacklist_list(self, ctx):
@@ -1083,10 +1102,10 @@ class General(commands.Cog):
         if not failed:
             return True
 
-    @commands.command(aliases=['selfmute', 'sm'])
+    @commands.command(aliases=['sm'])
     @commands.bot_has_permissions(send_messages=True)
     @commands.guild_only()
-    async def self_mute(self, ctx: commands.Context, time: Optional[str] = None):
+    async def selfmute(self, ctx: commands.Context, time: Optional[str] = None):
         """Irreversible mutes yourself for a certain amount of time. Use like `;selfmute <amount of time>`.
 
         Examples:
@@ -1114,6 +1133,11 @@ class General(commands.Cog):
         if ctx.channel.id != 247135634265735168 and ctx.guild.id == SP_SERVER_ID:
             await utils.safe_reply(ctx, "Please use the selfmute command in the bot channel: "
                                    "<#247135634265735168>")
+            return
+
+        if ctx.channel.id != 415356500676968448 and ctx.guild.id == CL_SERVER_ID:
+            await utils.safe_reply(ctx, "Please use the selfmute command in the bot spam channel: "
+                                   "<#415356500676968448>")
             return
 
         if time:
@@ -1163,7 +1187,7 @@ class General(commands.Cog):
         msg = ctx.message
         try:
             msg = await self.bot.wait_for('message',
-                                          timeout=15,
+                                          timeout=45,
                                           check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
 
             if msg.content.casefold() == 'yes':  # confirm
@@ -1176,10 +1200,11 @@ class General(commands.Cog):
 
                 try:
                     await ctx.author.timeout(delta_obj, reason="RAI_SELFMUTE")
+                    # log even if using a Discord timeout
+                    config[str(ctx.author.id)] = {'enable': False, 'time': timestamp}
                 except (discord.Forbidden, discord.HTTPException):
                     # someone who Rai couldn't timeout
-                    config[str(ctx.author.id)] = {
-                        'enable': True, 'time': timestamp}
+                    config[str(ctx.author.id)] = {'enable': True, 'time': timestamp}
 
                 await conf.reply(f"Muted {ctx.author.display_name} for {delta_str}. This is irreversible.\n"
                                  f"Unmute time: <t:{timestamp}> (<t:{timestamp}:R>)")

@@ -217,9 +217,17 @@ class Logger(commands.Cog):
         # join, leave, switching channels
         ###################################
 
+        # Precompute channel URLs for convenience
+        before_url = f"https://rai/channel-id-is-C{before.channel.id}" if before.channel else None
+        after_url = f"https://rai/channel-id-is-C{after.channel.id}" if after.channel else None
+
         # joins voice ➡️ 3B88C3
         if not before.channel and after.channel:
-            description = f"➡️ **{str(member)}** has `joined` **#{after.channel.name}**."
+            if after_url:
+                description = (f"➡️ **{str(member)}** has `joined` "
+                               f"[**{after.channel.name}**]({after_url}).")
+            else:
+                description = f"➡️ **{str(member)}** has `joined` **{after.channel.name}**."
             color = 0x3B88C3
             footer_text = "Voice Join"
             if after.channel.guild.id == 243838819743432704:
@@ -230,7 +238,11 @@ class Logger(commands.Cog):
 
         # leave voice  DD2E44
         elif before.channel and not after.channel:
-            description = f"❌ **{str(member)}** has `left` **#{before.channel.name}**."
+            if before_url:
+                description = (f"❌ **{str(member)}** has `left` "
+                               f"[**{before.channel.name}**]({before_url}).")
+            else:
+                description = f"❌ **{str(member)}** has `left` **{before.channel.name}**."
             color = 0xDD2E44
             footer_text = "Voice Leave"
             if before.channel.guild.id == 243838819743432704:
@@ -241,8 +253,13 @@ class Logger(commands.Cog):
 
         # switch channel 🔄️ 3B88C3
         elif before.channel and after.channel and before.channel != after.channel:
-            description = f"🔄 **{str(member)}** has `switched` from " \
-                          f"**#{before.channel.name}** to **#{after.channel.name}**."
+            if before_url and after_url:
+                description = (f"🔄 **{str(member)}** has `switched` from "
+                               f"[**{before.channel.name}**]({before_url}) to "
+                               f"[**{after.channel.name}**]({after_url}).")
+            else:
+                description = (f"🔄 **{str(member)}** has `switched` from "
+                               f"**{before.channel.name}** to **{after.channel.name}**.")
             color = 0x3B88C3
             footer_text = "Voice Switch"
             if after.channel.guild.id == 243838819743432704:
@@ -260,25 +277,29 @@ class Logger(commands.Cog):
 
         # start self_stream 📳 F4900C
         elif not before.self_stream and after.self_stream:
-            description = f"📳 **{str(member)}** has went LIVE and started streaming."
+            description = (f"📳 **{str(member)}** has went LIVE and started streaming "
+                           f"in [{after.channel.name}]({after_url}).")
             color = 0xF4900C
             footer_text = "Stream Start"
 
         # stop self_stream 🔇 CCD6DD
         elif before.self_stream and not after.self_stream:
-            description = f"🔇 **{str(member)}** has stopped streaming."
+            description = (f"🔇 **{str(member)}** has stopped streaming in "
+                           f"[{after.channel.name}]({after_url}).")
             color = 0xCCD6DD
             footer_text = "Stream Stop"
 
         # start self_video 📳 F4900C
         elif not before.self_video and after.self_video:
-            description = f"**{str(member)}** has turned on their camera."
+            description = (f"📳 **{str(member)}** has turned on their camera "
+                           f"in [{after.channel.name}]({after_url}). ")
             color = 0xF4900C
             footer_text = "Video Start"
 
         # stop self_video 🔇 CCD6DD
         elif before.self_video and not after.self_video:
-            description = f"🔇 **{str(member)}** has turned off their camera."
+            description = (f"🔇 **{str(member)}** has turned off their camera"
+                           f" in [{after.channel.name}]({after_url}). ")
             color = 0xCCD6DD
             footer_text = "Video Stop"
 
@@ -380,7 +401,7 @@ class Logger(commands.Cog):
         else:
             return
 
-        description = f"⤴ **#{channel.name}** has been created."
+        description = f"⤴ **{channel.name}** has been created."
         color = 0x00FFFF  # slightly lighter blue than the "joined" blue
         footer_text = f"{channel.id} - Channel Creation"
 
@@ -1440,8 +1461,7 @@ class Logger(commands.Cog):
         if result == 1:
             await utils.safe_send(ctx, f'Set the leave logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await utils.safe_send(ctx,
-                               f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled leave logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;leave_logging`.')
 
     @staticmethod
@@ -1556,8 +1576,7 @@ class Logger(commands.Cog):
         elif result == 2:
             await utils.safe_send(ctx, 'Enabled nickname logging for this server')
         elif result == 3:
-            await utils.safe_send(ctx,
-                               'You have not yet set a channel for nickname logging yet. Run `;nickname_logging set`')
+            await utils.safe_send(ctx, 'You have not yet set a channel for nickname logging yet. Run `;nickname_logging set`')
         elif result == 4:
             await utils.safe_send(ctx, 'Before doing this, set a channel for logging with `;nickname_logging set`.  '
                                     'Then, enable/disable logging by typing `;nickname_logging`.')
@@ -1569,8 +1588,7 @@ class Logger(commands.Cog):
         if result == 1:
             await utils.safe_send(ctx, f'Set the nickname logging channel as `{ctx.channel.name}`')
         elif result == 2:
-            await utils.safe_send(ctx,
-                               f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
+            await utils.safe_send(ctx, f'Enabled nickname logging and set the channel to `{ctx.channel.name}`.  Enable/disable'
                                f' logging by typing `;nickname_logging`.')
 
     @staticmethod
@@ -1730,6 +1748,9 @@ class Logger(commands.Cog):
 
         # ######### Timeouts #############
         async def check_timeouts():
+            if before.id == ABELIAN_ID:
+                print(before.timed_out_until, after.timed_out_until, before.guild.name, after.guild.name)
+                
             if not (self.bot.db['modlog'].get(str(before.guild.id), None)):
                 return  # guild has not setup modlog
 
@@ -1750,47 +1771,53 @@ class Logger(commands.Cog):
             if not guild.me.guild_permissions.view_audit_log:
                 return
             
+            # check audit log to find who timed out the user
             while attempts < 3:  # in case there's discord lag and something doesn't make it into the audit log
                 async for entry in guild.audit_logs(limit=None, oldest_first=False,
                                                     action=discord.AuditLogAction.member_update,
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
-                    if entry.target == before:
-                        author = entry.user
-                        if author == guild.me:
-                            # A timeout by Rai, probably in the mute command.
-                            # Let that command handle the modlog
-                            continue
-                        if not after.is_timed_out() and before.is_timed_out():
-                            # user was UNMUTED by admin, ignore this log
-                            continue
-                        if after.timed_out_until:
-                            time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
-                        else:
-                            time_left = 0
-                        reason = entry.reason
-
-                        if reason:
-                            if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
-                                continue
-
-                        if 0 < time_left < 70:  # 60 SEC
-                            timeout_length_str = "1m"
-                        elif 250 < time_left < 350:  # 5 MIN = 300 SEC
-                            timeout_length_str = "5m"
-                        elif 550 < time_left < 650:  # 10 MIN = 600 SEC
-                            timeout_length_str = "10m"
-                        elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
-                            timeout_length_str = "1h"
-                        elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
-                            timeout_length_str = "1d"
-                        elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
-                            timeout_length_str = "7d"
-                        else:
-                            timeout_length_str = "Unknown"
+                    entry: discord.AuditLogEntry
+                    if entry.target != before:
+                        # make sure this log entry is about the same user
+                        continue
+                    
+                    if entry.before.timed_out_until or (not entry.after.timed_out_until):
+                        # 1. user was already muted before: ignore this log
+                        # 2. user is not muted: user was probably UNMUTED by admin, ignore
+                        continue
                         
-                        # we need two breaks, one for (while), one for (for entry)
-                        # this breaks the for entry in guild.audit_logs() if it finds the entry
-                        break
+                    if entry.user == guild.me:
+                        # A timeout by Rai, probably in the mute command.
+                        # Let that command handle the modlog
+                        continue
+                    
+                    author = entry.user
+
+                    time_left = (after.timed_out_until - discord.utils.utcnow()).total_seconds()
+                    reason = entry.reason
+
+                    if reason:
+                        if "SELFMUTE" in reason and len(reason.split()) == 1:  # for RAI_SELFMUTE or CIRI_SELFMUTE":
+                            continue
+
+                    if 0 < time_left < 70:  # 60 SEC
+                        timeout_length_str = "1m"
+                    elif 250 < time_left < 350:  # 5 MIN = 300 SEC
+                        timeout_length_str = "5m"
+                    elif 550 < time_left < 650:  # 10 MIN = 600 SEC
+                        timeout_length_str = "10m"
+                    elif 3550 < time_left < 3650:  # 1 HOUR = 3600 SEC
+                        timeout_length_str = "1h"
+                    elif 86350 < time_left < 86450:  # 1 DAY = 86400 SEC
+                        timeout_length_str = "1d"
+                    elif 604750 < time_left < 604850:  # 1 WEEK = 604,800 SEC
+                        timeout_length_str = "7d"
+                    else:
+                        timeout_length_str = hf.format_interval(time_left)
+                    
+                    # we need two breaks, one for (while), one for (for entry)
+                    # this breaks the for entry in guild.audit_logs() if it finds the entry
+                    break
                 if time_left:
                     # second "break" statement
                     # this breaks the while loop if it found an entry
@@ -1880,7 +1907,7 @@ class Logger(commands.Cog):
                         await utils.safe_send(event_helpers_channel, req_msg)
 
         await check_timeouts()
-
+    
     # ############### reaction removals #####################
 
     @commands.group(invoke_without_command=True, name='reactions')
@@ -2280,12 +2307,10 @@ class Logger(commands.Cog):
         elif result == 2:
             await utils.safe_send(ctx, 'Enabled kick logging for this server')
         elif result == 3:
-            await utils.safe_send(ctx,
-                                  'You have not yet set a channel for kick logging yet. '
+            await utils.safe_send(ctx, 'You have not yet set a channel for kick logging yet. '
                                   'Run `;kick_logging set`')
         elif result == 4:
-            await utils.safe_send(ctx,
-                                  'Before doing this, set a channel for logging with '
+            await utils.safe_send(ctx, 'Before doing this, set a channel for logging with '
                                   '`;kick_logging set`.  '
                                     'Then, enable/disable logging by typing `;kick_logging`.')
 
@@ -2565,3 +2590,4 @@ class Logger(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Logger(bot))
+
