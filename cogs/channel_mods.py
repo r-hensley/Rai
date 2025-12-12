@@ -1625,8 +1625,9 @@ class ChannelMods(commands.Cog):
             if '-s' in reason or '-n' in reason:
                 if ctx.guild.id == JP_SERV:
                     await utils.safe_send(ctx, "Maybe you meant to use Ciri?")
-                reason = reason.replace(
-                    ' -s', '').replace('-s ', '').replace('-s', '')
+                # use regex to remove -s when in own word boundary
+                reason = re.sub(r'(?:^|\s)(-[sn])(?:\s|$)', ' ', reason)
+                reason = re.sub(r' +', ' ', reason).strip()
                 silent = True
 
         for target_id in target_ids:

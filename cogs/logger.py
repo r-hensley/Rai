@@ -2030,13 +2030,15 @@ class Logger(commands.Cog):
         if not reason:
             reason = '(none given)'
         if reason.startswith('⁣') or '-s' in reason:  # skip crossposting if enabled
-            reason = (reason.replace('⁣', '')
-                      .replace('-s ', '')
-                      .replace(' -s', ''))
+            reason = reason.replace('⁣', '')
+            reason = re.sub(r'(?:^|\s)(-s)(?:\s|$)', ' ', reason)
             emb.description = '⁣'
-        if reason.startswith('⠀') or '-c' in reason:  # specially crosspost if disabled
-            reason = reason.replace('⠀', '').replace('-c', '')
-            emb.description = '⠀'
+        special_invis_char = "⠀"
+        if reason.startswith(special_invis_char) or '-c' in reason:  # specially crosspost if disabled
+            reason = reason.replace(special_invis_char, '')
+            reason = re.sub(r'(?:^|\s)(-c)(?:\s|$)', ' ', reason)
+            emb.description = special_invis_char
+        reason = re.sub(r' +', ' ', reason).strip()
         if reason.startswith('*by* '):
             emb.description += f'❌ **{str(member)}** was `banned` ({member.id})\n\n' \
                                f'{reason}'
@@ -2176,8 +2178,9 @@ class Logger(commands.Cog):
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 # ⁣ is a flag to *skip* crossposting
                 # "⠀" is flag to specially *enable* crossposting for one ban
+                special_invis_char = "⠀"
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
-                        (ban_emb.description.startswith('⠀')):
+                        (ban_emb.description.startswith(special_invis_char)):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
                     crosspost_msg = await bans_channel.send(member.mention, embed=crosspost_emb)
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'].get(guild, 0))
