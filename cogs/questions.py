@@ -1329,15 +1329,6 @@ class Questions(commands.Cog):
             url = f"https://massif.la/ja/search?q={quote(search_term)}"
             s += f"[Massif]({url}): {num_of_massif_results}\n"
 
-            # Yourei
-            yourei_result = await self.get_yourei_results(ctx, search_term)
-            if yourei_result:
-                num_yourei_results = getattr(yourei_result.find(id="num-examples"), "text", "0")
-            else:
-                num_yourei_results = "Unavailable"
-            url = f"https://yourei.jp/{quote(search_term)}"
-            s += f"[Yourei]({url}): {num_yourei_results}\n"
-
             s += "\n"  # Split different search terms
 
         await utils.safe_send(ctx, embed=discord.Embed(title="Search comparison results", description=s, color=0x0C8DF0))
@@ -1765,84 +1756,6 @@ class Questions(commands.Cog):
             text = result['highlighted_html']
             text = text.replace("</em><em>", "").replace("<em>", "**__").replace("</em>", "__**")
             index_text = f"[`[ {index} ]`]({result['sample_source']['url']}) "
-            emb.description += index_text + text + '\n'
-            index += 1
-
-        await utils.safe_send(ctx, embed=emb)
-
-    async def get_yourei_results(self, ctx, search_term) -> Optional[BeautifulSoup]:
-        url_quoted_search_term = quote(search_term)
-        url = f"https://yourei.jp/{url_quoted_search_term}"
-
-        text = await utils.aiohttp_get_text(ctx, url)
-        if not text:
-            return
-
-        soup = BeautifulSoup(text, 'html.parser')
-
-        return soup
-
-    @commands.command()
-    async def yourei(self, ctx, *, search_term):
-        """Searches the [yourei.jp](https://yourei.jp) database for example sentences.
-
-        Note that yourei only supports searching of words it specifically has in its dictionary
-        rather than for general phrases. Therefore, zero results for a phrase usually means
-        it's not in its dictionary rather than it's not common Japanese.
-
-        For example, searching 「寿司を食べる」 returns zero results even though the
-        phrase probably appears many times in literature."""
-        url_quoted_search_term = quote(search_term)
-        url = f"https://yourei.jp/{url_quoted_search_term}"
-
-        soup = await self.get_yourei_results(ctx, search_term)
-        if not soup:
-            return  # sending error information to user should have been handled in above function
-
-        try:
-            results = soup.find_all("li", "sentence")  # list of sentence tag objects (get text using result.text)
-        except IndexError:
-            await utils.safe_send(ctx, "It's possible the HTML structure of the yourei.jp site has changed. I received "
-                                    "a response with data from the site but the list of sentences were not where I "
-                                    f"expected. Try checking the site yourself: {url}")
-            return
-
-        num_examples = soup.find(id="num-examples")
-        if num_examples:
-            num_examples = num_examples.text  # a string like "13,381", need to remove the comma
-        else:
-            num_examples = '0'
-        num_examples = int(num_examples.replace(',', ''))  # an int 13381
-
-        if not num_examples:
-            await utils.safe_send(ctx, embed=utils.red_embed("Your search returned no results. Note, this probably means "
-                                                       "your word or phrase wasn't in yourei's (limited) database "
-                                                       "rather than it never appearing in literature. The database "
-                                                       "focuses mainly on single words or very short phrases."))
-            return
-
-        # results now should be a list of sentence tags, bs4.element.Tag
-
-        emb = discord.Embed(title="Yourei.jp search results", url=url)
-        emb.description = f"__First {min(7, num_examples)} of {num_examples} 例文__" \
-                          f"\n(see full results by clicking the above link)\n\n"
-        emb.colour = 0x0099CC
-
-        index = 1
-        for result in results[:8]:
-            text = (result.find(class_="the-sentence") or result).text  # either the main sentence or just full result
-            text = (text.split() or [''])[0]  # remove \n characters
-            text = text.replace(search_term, f"**__{search_term}__**").replace("__****__", "")
-            if not text:
-                continue
-            source_link_class = result.find(class_="sentence-source-title")
-            if hasattr(source_link_class, 'a'):
-                source_link = source_link_class.a.attrs['href']
-                source_title = source_link_class.text
-                index_text = f"[`[ {index} ] {source_title}`]({source_link})\n"
-            else:
-                index_text = f"`[ {index} ]`\n"
-
             emb.description += index_text + text + '\n'
             index += 1
 
