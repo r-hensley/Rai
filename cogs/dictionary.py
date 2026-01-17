@@ -9,7 +9,6 @@ import discord
 from bs4 import BeautifulSoup
 from discord.ext import commands
 
-
 from cogs.utils.BotUtils import bot_utils as utils
 
 # Silence asyncio warnings
@@ -198,7 +197,6 @@ class Dictionary(commands.Cog):
         webpage = resp.read()
         soup = BeautifulSoup(webpage, "html5lib")
         articles = soup.find_all('article', class_="o-main__article")
-
         self.check_info_availability(articles)
 
         # in headers: <meta name="rights" content="Real Academia Española © Todos los derechos reservados">
@@ -210,7 +208,6 @@ class Dictionary(commands.Cog):
     def check_info_availability(self, articles):
         # Reset availability status from previous calls
         self.reset_availability()
-
         for article in articles:
             # Check definition/etymology availability
             definition_section = article.find("ol", class_="c-definitions")
@@ -219,8 +216,10 @@ class Dictionary(commands.Cog):
             if definition_section:
                 definition = definition_section.find(
                     "li", class_=self.definition_classes)
-            self.is_rae_def_available = bool(definition or intro_section)
 
+            if (definition or intro_section):
+                self.is_rae_def_available = True
+                
             # Check expression availability
             expression = article.find("h3", class_=self.expression_classes)
             if expression:
@@ -260,7 +259,7 @@ class Dictionary(commands.Cog):
 
         related_words = []
         embeds = []
-
+        # print('\nSECOND IS_RAE_DEF_AVAILABLE' + str(self.is_rae_def_available)) # Returns false
         if not main_articles:
             self.caller_function = "check_article_availability"
 
@@ -441,6 +440,7 @@ class Dictionary(commands.Cog):
         self.caller_function = "get_rae_def_results"
 
         articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
+        # print('\nTHIRD IS_RAE_DEF_AVAILABLE' + str(self.is_rae_def_available)) # Returns false
         if not articles:
             return
 
