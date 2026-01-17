@@ -70,7 +70,7 @@ class PaginationView(discord.ui.View):
         self.prev_button.disabled = self.current_page == 0
         self.next_button.disabled = self.current_page == len(self.embeds) - 1
 
-    @discord.ui.button(label="◄", style=discord.ButtonStyle.gray)
+    @discord.ui.button(label="◄", style=discord.ButtonStyle.blurple)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page > 0:
             self.current_page -= 1
@@ -81,13 +81,13 @@ class PaginationView(discord.ui.View):
         await interaction.message.delete()
         self.stop()
 
-    @discord.ui.button(label="►", style=discord.ButtonStyle.gray)
+    @discord.ui.button(label="►", style=discord.ButtonStyle.blurple)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page < len(self.embeds) - 1:
             self.current_page += 1
             await self.update_embed(interaction)
 
-    @discord.ui.button(label="1/1", style=discord.ButtonStyle.blurple, disabled=True)
+    @discord.ui.button(label="1/1", style=discord.ButtonStyle.gray, disabled=True)
     async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
@@ -426,7 +426,6 @@ class Dictionary(commands.Cog):
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
-
         -------
         Buscar definiciones de palabras del Diccionario de la Real Academia Española.
         - Ejemplo de uso: `;rae libro`.
@@ -532,7 +531,6 @@ class Dictionary(commands.Cog):
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
-
         -------
         Buscar expresiones de palabras del Diccionario de la Real Academia Española.
         - Ejemplo de uso: `;raeexp libro`.
@@ -619,7 +617,6 @@ class Dictionary(commands.Cog):
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
-
         -------
         Buscar sinónimos de palabras del Diccionario de la Real Academia Española.
         - Ejemplo de uso: `;raesin llamar`.
@@ -668,7 +665,6 @@ class Dictionary(commands.Cog):
 
         This is a command developed by `@jobcuenca`. For inquiries, suggestions, and problem reports,
         you can contact him through the provided Discord account.
-
         -------
         Buscar antónimos de palabras del Diccionario de la Real Academia Española.
         - Ejemplo de uso: `;raeant hacer`.
