@@ -76,9 +76,11 @@ class MerriamWebster(commands.Cog):
         self.bot = bot
         self.collegiate_key = os.getenv('ENG_DICT_API_KEY')
         self.thesaurus_key = os.getenv('ENG_THES_API_KEY')
-        self.footer_text = "Merriam-Webster Dictionary | Command by @jobcuenca\nFEATURE IN EARLY DEVELOPMENT. Ping the developer for suggestions or issues."
+        self.footer_text = ("Merriam-Webster Dictionary | Command by @jobcuenca\n"
+                            "FEATURE IN EARLY DEVELOPMENT. Ping the developer for "
+                            "suggestions or issues.")
 
-    async def fetch_definitions(self, word, dict_type):
+    async def fetch_definitions(self, word, dict_type) -> list[discord.Embed]:
         # 1. Determine which key and reference to use
         if dict_type == "the":
             full_dict_type = "thesaurus"
@@ -114,8 +116,8 @@ class MerriamWebster(commands.Cog):
                             
                             embed = discord.Embed(
                                 title="No definitions found", 
-                                description=f"No definitions found for **{word}** in the {full_dict_type} dictionary.\n\n**Did you mean:**\n{description}",
-                                color=discord.Color.red()
+                                description=f"No definitions found for **{word}** in the {full_dict_type}.\n\n**Did you mean:**\n{description}",
+                                color=discord.Color.orange()
                             )
                             embed.set_footer(text=self.footer_text)
                             embeds.append(embed) 
@@ -226,7 +228,8 @@ class MerriamWebster(commands.Cog):
         
         if not embeds:
             title = "No definitions found"
-            description = f"No definitions found for **{word}** in the {full_dict_type} dictionary.\nPlease check the spelling or try another word."
+            description = (f"No definitions found for **{word}** in the {full_dict_type}. "
+                           f"Please check the spelling or try another word.")
             
             embed = discord.Embed(
                             title=title, 
