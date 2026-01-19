@@ -323,8 +323,9 @@ class General(commands.Cog):
             await utils.safe_send(ctx, f"Created forced hardcore mode config; "
                                   f"added {ctx.channel.name} to list of channels for forced hardcore mode")
 
-    @hardcore.command()
-    async def ignore(self, ctx):
+    @hardcore.command(name="ignore")
+    @hf.is_admin()
+    async def hardcore_ignore(self, ctx):
         """Ignores a channel for hardcore mode."""
         if str(ctx.guild.id) in self.bot.db['hardcore']:
             config = self.bot.db['hardcore'][str(ctx.guild.id)]
