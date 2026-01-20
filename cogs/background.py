@@ -349,25 +349,28 @@ class Background(commands.Cog):
         oriana = fireside_channel_stage.guild.get_member(581324505331400733)
         if not oriana:
             return
-
+        
         # check if fireside channel has active event
         try:
             _stage_instance = await fireside_channel_stage.fetch_instance()
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return
-
+        
         # check if oriana is in the channel
         if oriana not in fireside_channel_stage.members:
             return
-
+        
         msg = ("Hey everyone! 🔥 Fireside is a space to share your anonymous confessions—let’s keep it wholesome and "
                "kind! 💛 No rudeness, and try to keep things appropriate so we can keep this going. You can find the "
                "confession link in the pinned messages 📌. Enjoy!\n\n"
                "¡Hola a todos! 🔥 Fireside es un espacio para compartir sus confesiones anónimas—mantengámoslo sin "
                "toxicidad y siendo amables! 💛 Nada de groserías y tratemos de que todo sea apropiado para que esto "
                "siga. El enlace para confesar está en los mensajes fijados 📌. ¡Disfruten!")
-
-        await utils.safe_send(fireside_channel_text, msg)
+        
+        try:
+            await utils.safe_send(fireside_channel_text, msg)
+        except discord.Forbidden:
+            pass
 
 
 async def setup(bot):
