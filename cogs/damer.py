@@ -14,6 +14,9 @@ from cogs.utils.BotUtils import bot_utils as utils
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 
+FORCED_TAB = u'\u3164\u3164'
+
+
 class ExcepciónDNE(Exception):
     pass
 
@@ -48,29 +51,31 @@ class Acepción:
         return False
 
     def __str__(self):
-        return f'{self.índice_primario}\t{self.índice_secundario} {self.texto_entrada}'
+        if self.índice_primario:
+            return f'{self.índice_primario}\n{FORCED_TAB}{self.índice_secundario} {self.texto_entrada}'
+        return f'{FORCED_TAB}{self.índice_secundario} {self.texto_entrada}'
 
 
 class Expresión:
-    def __init__(self, índice='', texto_entrada='', subsignificados=[]):
+    def __init__(self, índice='', texto_entrada='', subsignificados=[], marcador=''):
         self.índice = índice or ''
         self.texto_entrada = (texto_entrada or '').strip()
         self.subsignificados = subsignificados or []  # lista de tuple(índice, texto)
+        self.marcador = marcador or ''
 
     def __eq__(self, otro):
         if isinstance(otro, Acepción):
-            return self.texto_entrada == otro.texto_entrada and self.índice == otro.índice and self.subsignificados == otro.subsignificados
+            return self.texto_entrada == otro.texto_entrada and self.índice == otro.índice and self.subsignificados == otro.subsignificados \
+                and self.marcador == otro.marcador
         return False
 
     def __str__(self):
-        if self.índice and not self.texto_entrada and not self.subsignificados:
-            return f'{self.índice}'
-        elif self.subsignificados:
-            texto_subsignificados = '\n\t\t'.join([f'{s[0]} {s[1]}' for s in self.subsignificados])
-            return f'\t{self.índice} {self.texto_entrada}\n\t\t{texto_subsignificados}'
-        elif self.texto_entrada and not self.subsignificados:
-            return f'\t{self.índice} {self.texto_entrada}'
-        return ''
+        str_marcador = f'{self.marcador}\n' if self.marcador else ''
+        if self.subsignificados:
+            texto_subsignificados = f'\n{FORCED_TAB}{FORCED_TAB}'.join([f'{s[0]} {s[1]}' for s in self.subsignificados])
+            return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}\n{FORCED_TAB}{FORCED_TAB}{texto_subsignificados}'
+        else:
+            return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}'
 
 
 class Entrada:
@@ -187,6 +192,7 @@ class Buscador:
         modo_expresiones = False
         expr_pendiente = None
         expr_subsignificados = []
+        expr_marcador = ''
         for fila_elem in elem_entrada.iterfind('.//tr'):
             índices = Buscador.extraer_índices(fila_elem)
 
@@ -194,45 +200,66 @@ class Buscador:
             if not modo_expresiones and índices[0] and not Buscador.RE_NÚMEROS_ROMANOS.match(índices[0]):
                 modo_expresiones = True
 
+            if modo_expresiones and índices[0] and not (índices[1] or índices[2]):
+                # Marcador de expresiones
+                expr_marcador = índices[0]
+
             # Extrae el texto de la entrada
             fragmentos = []
             for celda_elem in fila_elem.iterchildren(tag='td'):
-                if celda_elem.get('class') in ('da7', 'da2'):
-                    # Nos saltamos las celdas de índices y encabezados
+                if celda_elem.get('class') == 'da2':
+                    # Deja de procesar el encabezado
+                    break
+                elif celda_elem.get('class') == 'da7':
+                    # Nos saltamos las celdas de índices
                     continue
 
                 # A veces las clasificaciones (adj., m., f., etc.) salen en el texto del elemento 'td'
                 if celda_elem.text:
-                    fragmentos.append(html.unescape(celda_elem.text))
+                    stripped = celda_elem.text.strip()
+                    if stripped:
+                        fragmentos.append(html.unescape(stripped))
 
-                # Recoge todo el texto de los elementos 'span', teniendo en cuenta si están en itálica, negrita, etc.
-                for span_elem in celda_elem.iterfind('.//span'):
-                    tag_progenitor = span_elem.getparent().tag
-                    fragmento_original = html.unescape(span_elem.text)
-                    if tag_progenitor == 'i':
+                # Recoge todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
+                for text_elem in celda_elem.iterchildren():
+                    elem_tag = text_elem.tag
+                    if elem_tag not in ('a', 'span', 'i'):
+                        continue
+                    if text_elem.text:
+                        fragmento_original = html.unescape(text_elem.text)
+                        if text_elem.get('class') == 'da3':
+                            # Ponlo en negrita
+                            fragmentos.append(f'**{fragmento_original}**')
+                        elif elem_tag == 'a' and text_elem.get('href'):
+                            fragmentos.append(f'[{fragmento_original}](https://www.asale.org/damer/{text_elem.get("href")})')
+                        else:
+                            fragmentos.append(fragmento_original)
+                    elif elem_tag == 'i':
+                        fragmento_original = html.unescape(text_elem.findtext('.//span'))
+
                         # Ponlo en itálica
                         fragmentos.append(f'_{fragmento_original}_')
-                    elif span_elem.get('class') == 'da3':
-                        # Ponlo en negrita
-                        fragmentos.append(f'**{fragmento_original}**')
-                    else:
-                        fragmentos.append(fragmento_original)
-            texto_entero = ''.join(fragmentos).strip()
+
+                    if text_elem.tail:
+                        fragmentos.append(html.unescape(text_elem.tail))
+
+            texto_entero = ''.join(fragmentos)
             if modo_expresiones:
                 if índices[1]:
                     # Nueva expresión - agrega la anterior a la lista si existe
                     if expr_pendiente is not None:
                         expr_pendiente.subsignificados = expr_subsignificados
                         expresiones.append(expr_pendiente)
-                    expr_pendiente = Expresión(índices[1], texto_entrada=texto_entero)
+                    expr_pendiente = Expresión(índices[1], texto_entrada=texto_entero, marcador=expr_marcador)
                     expr_subsignificados = []
+                    expr_marcador = ''
                 elif índices[2]:
                     # Significado para la expresión pendiente
                     expr_subsignificados.append((índices[2], texto_entero))
                 elif índices[0] == '▶':
                     expresiones.append(Expresión(índices[0], texto_entrada=texto_entero))
                     expr_pendiente = None
-            else:
+            elif texto_entero:
                 acep = Acepción(índice_primario=índices[0], índice_secundario=índices[1], texto_entrada=texto_entero)
                 acepciones.append(acep)
 
@@ -462,15 +489,17 @@ class DamerDictionary(commands.Cog):
                 description=str(e_dne),
                 color=0xFF5733
             )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
         except Exception as e:
             embedded_error = discord.Embed(
-                title="Excepción lanzada",
+                title="Chuta, algo salió mal.",
                 description=str(e),
                 color=0xFF5733
             )
+            embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
@@ -481,9 +510,13 @@ class DamerDictionary(commands.Cog):
                 description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
                 color=0xFF5733
             )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
+
+        damer_def_available = any([e.acepciones for e in entradas])
+        damer_exp_available = any([e.expresiones for e in entradas])
 
         for entrada in entradas:
             # Split an entry into multiple pages/embeds if the number of acepciones exceeds 10
@@ -491,23 +524,17 @@ class DamerDictionary(commands.Cog):
                       for i in range(0, len(entrada.acepciones), self.ENTRIES_PER_EMBED)]
 
             for i, chunk in enumerate(chunks):
-                description = '\n'.join(str(chunk))
-
-                # Include the entry header only on the first page
-                if i == 0:
-                    description = f'**{entrada.encabezado}**\n{description}'
-
+                description = '\n'.join(str(acep) for acep in chunk)
                 embed = discord.Embed(
                     title=entrada.encabezado,
                     url=f'https://www.asale.org/damer/{formatted_word}',
                     description=description,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(
-                    text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
                 embeds.append(embed)
 
-        await self.send_embeds(ctx, embeds, formatted_word)
+        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
 
     @commands.command(aliases=['damerexp'])
     async def get_damer_exp_results(self, ctx, *, word: str):
@@ -539,15 +566,17 @@ class DamerDictionary(commands.Cog):
                 description=str(e_dne),
                 color=0xFF5733
             )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
         except Exception as e:
             embedded_error = discord.Embed(
-                title="Excepción lanzada",
+                title="Chuta, algo salió mal.",
                 description=str(e),
                 color=0xFF5733
             )
+            embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
@@ -558,11 +587,15 @@ class DamerDictionary(commands.Cog):
                 description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
                 color=0xFF5733
             )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embedded_error)
             await self.send_embeds(ctx, embeds, formatted_word)
             return
 
-        if not any([e.expresiones for e in entradas]):
+        damer_def_available = any([e.acepciones for e in entradas])
+        damer_exp_available = any([e.expresiones for e in entradas])
+
+        if not damer_exp_available:
             embed = discord.Embed(
                 title="entrada.encabezado",
                 url=f'https://www.asale.org/damer/{formatted_word}',
@@ -571,7 +604,7 @@ class DamerDictionary(commands.Cog):
             )
             embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embed)
-            await self.send_embeds(ctx, embeds, formatted_word)
+            await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available)
             return
 
         for entrada in entradas:
@@ -580,26 +613,20 @@ class DamerDictionary(commands.Cog):
 
             # Split an entry into multiple pages/embeds if the number of expresiones exceeds 10
             chunks = [entrada.expresiones[i:i + self.ENTRIES_PER_EMBED]
-                      for i in range(0, len(entrada.acepciones), self.ENTRIES_PER_EMBED)]
+                      for i in range(0, len(entrada.expresiones), self.ENTRIES_PER_EMBED)]
 
             for i, chunk in enumerate(chunks):
-                description = '\n'.join(str(chunk))
-
-                # Include the entry header only on the first page
-                if i == 0:
-                    description = f'**{entrada.encabezado}**\n{description}'
-
+                description = '\n'.join(str(expr) for expr in chunk)
                 embed = discord.Embed(
                     title=entrada.encabezado,
                     url=f'https://www.asale.org/damer/{formatted_word}',
                     description=description,
                     color=discord.Color.blue()
                 )
-                embed.set_footer(
-                    text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
                 embeds.append(embed)
 
-        await self.send_embeds(ctx, embeds, formatted_word)
+        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
 
 
 async def setup(bot):
