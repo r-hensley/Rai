@@ -136,7 +136,7 @@ class Buscador:
                     texto = f'_{texto}_'
 
             aproximación = Aproximación(
-                html.unescape(texto),
+                html.unescape(texto or ''),
                 html.unescape((aprox_elem.tail or '').strip()),
                 html.unescape(aprox_elem.attrib.get('href', '')),
             )
@@ -175,7 +175,7 @@ class Buscador:
                 if sup_elem is not None:
                     texto_sup = html.unescape(sup_elem.text or '').strip()
                     if texto_sup:
-                        texto_sup = Buscador.MAPA_ÍNDICES.get(texto_sup, texto_sup)
+                        texto_sup = ''.join([Buscador.MAPA_ÍNDICES.get(c, c) for c in texto_sup])
                     tail_sup = html.unescape(sup_elem.tail or '').strip()
                     índ_secundario = índ_secundario + texto_sup + tail_sup
             elif cant_cel_vacías_inic == 3:
@@ -183,6 +183,37 @@ class Buscador:
             else:
                 raise Exception('Formato inválido de índices')
         return (índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip())
+
+    @staticmethod
+    def extraer_y_combinar_textos(elem: HtmlElement) -> str:
+        fragmentos = []
+        for text_elem in elem.iterchildren():
+            elem_tag = text_elem.tag
+            if elem_tag not in ('a', 'span', 'i'):
+                continue
+
+            if text_elem.text:
+                fragmento_original = html.unescape(text_elem.text)
+                if text_elem.get('class') == 'da3':
+                    # Ponlo en negrita
+                    fragmentos.append(f'**{fragmento_original}**')
+                elif elem_tag == 'a' and text_elem.get('href'):
+                    fragmentos.append(f'[{fragmento_original}](https://www.asale.org/damer/{text_elem.get("href")})')
+                else:
+                    fragmentos.append(fragmento_original)
+            elif elem_tag == 'i':
+                # Ponlo en itálica
+                en_itálica = Buscador.extraer_y_combinar_textos(text_elem)
+                if en_itálica:
+                    if en_itálica.endswith(' '):
+                        fragmentos.append(f'_{en_itálica.rstrip()}_ ')
+                    else:
+                        fragmentos.append(f'_{en_itálica}_')
+
+            if text_elem.tail:
+                fragmentos.append(html.unescape(text_elem.tail))
+
+        return ''.join(fragmentos)
 
     # Devuelve dos listas - la primera contiene acepciones y la segunda contiene expresiones
     @staticmethod
@@ -216,34 +247,14 @@ class Buscador:
 
                 # A veces las clasificaciones (adj., m., f., etc.) salen en el texto del elemento 'td'
                 if celda_elem.text:
-                    stripped = celda_elem.text.strip()
-                    if stripped:
-                        fragmentos.append(html.unescape(stripped))
+                    # No queremos puro whitespace
+                    if celda_elem.text.strip():
+                        fragmentos.append(html.unescape(celda_elem.text))
 
                 # Recoge todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
-                for text_elem in celda_elem.iterchildren():
-                    elem_tag = text_elem.tag
-                    if elem_tag not in ('a', 'span', 'i'):
-                        continue
-                    if text_elem.text:
-                        fragmento_original = html.unescape(text_elem.text)
-                        if text_elem.get('class') == 'da3':
-                            # Ponlo en negrita
-                            fragmentos.append(f'**{fragmento_original}**')
-                        elif elem_tag == 'a' and text_elem.get('href'):
-                            fragmentos.append(f'[{fragmento_original}](https://www.asale.org/damer/{text_elem.get("href")})')
-                        else:
-                            fragmentos.append(fragmento_original)
-                    elif elem_tag == 'i':
-                        fragmento_original = html.unescape(text_elem.findtext('.//span'))
+                fragmentos.append(Buscador.extraer_y_combinar_textos(celda_elem))
 
-                        # Ponlo en itálica
-                        fragmentos.append(f'_{fragmento_original}_')
-
-                    if text_elem.tail:
-                        fragmentos.append(html.unescape(text_elem.tail))
-
-            texto_entero = ''.join(fragmentos)
+            texto_entero = ''.join(fragmentos).replace('__', '')
             if modo_expresiones:
                 if índices[1]:
                     # Nueva expresión - agrega la anterior a la lista si existe
@@ -436,6 +447,8 @@ class DamerDictionary(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.caller_function = None
+        self.log = logging.getLogger('damer')
+        self.log.setLevel(logging.ERROR)
 
     async def send_embeds(self, ctx, embeds, formatted_word, damer_def_available=False, damer_exp_available=False):
         if not embeds:
@@ -459,6 +472,81 @@ class DamerDictionary(commands.Cog):
         message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
         view.message = message
 
+    async def _generate_and_send_embeds(self, ctx, caller_function: str, word: str, entradas=[]):
+        self.caller_function = caller_function
+
+        embeds = []
+        formatted_word = word.strip().lower()
+        try:
+            if not entradas:
+                entradas = await Buscador.búsqueda_damer(formatted_word)
+        except ExcepciónDNE as e_dne:
+            embedded_error = discord.Embed(
+                title="Palabra sin entradas disponibles",
+                description=str(e_dne),
+                color=0xFF5733
+            )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+            await self.send_embeds(ctx, [embedded_error], formatted_word)
+            return
+        except Exception as e:
+            self.logger.exception(f'El comando falló con la palabra {word}.')
+            embedded_error = discord.Embed(
+                title="Chuta, algo salió mal.",
+                description=str(e),
+                color=0xFF5733
+            )
+            embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
+            await self.send_embeds(ctx, [embedded_error], formatted_word)
+            return
+
+        if not entradas:
+            embedded_error = discord.Embed(
+                title="Palabra sin definiciones disponibles",
+                description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+            await self.send_embeds(ctx, [embedded_error], formatted_word)
+            return
+
+        damer_def_available = any([e.acepciones for e in entradas])
+        damer_exp_available = any([e.expresiones for e in entradas])
+
+        # Handle case where only expressions are available and user requested definitions
+        if caller_function == 'get_damer_def_results' and damer_exp_available and not damer_def_available:
+            return await self._generate_and_send_embeds(ctx, 'get_damer_exp_results', word, entradas)
+        elif caller_function == 'get_damer_exp_results' and not damer_exp_available:
+            embed = discord.Embed(
+                title="Palabra sin expresiones disponibles",
+                description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+            embeds.append(embed)
+            await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available)
+            return
+
+        for entrada in entradas:
+            # Split an entry into multiple pages/embeds if the number of items exceeds 10
+            to_iterate = entrada.expresiones if caller_function == 'get_damer_exp_results' else entrada.acepciones
+            if to_iterate:
+                chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
+                          for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
+
+                for i, chunk in enumerate(chunks):
+                    description = '\n'.join(str(acep) for acep in chunk)
+                    embed = discord.Embed(
+                        title=entrada.encabezado,
+                        url=f'https://www.asale.org/damer/{formatted_word}',
+                        description=description,
+                        color=discord.Color.blue()
+                    )
+                    embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                    embeds.append(embed)
+
+        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
+
     @commands.command(aliases=['damer'])
     async def get_damer_def_results(self, ctx, *, word: str):
         """
@@ -474,67 +562,7 @@ class DamerDictionary(commands.Cog):
         Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
         puedes contactarte con él a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR,
-                            format="%(asctime)s - %(levelname)s - %(message)s")
-
-        self.caller_function = "get_damer_def_results"
-
-        embeds = []
-        formatted_word = word.strip().lower()
-        try:
-            entradas = await Buscador.búsqueda_damer(formatted_word)
-        except ExcepciónDNE as e_dne:
-            embedded_error = discord.Embed(
-                title="Palabra sin entradas disponibles",
-                description=str(e_dne),
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-        except Exception as e:
-            embedded_error = discord.Embed(
-                title="Chuta, algo salió mal.",
-                description=str(e),
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-
-        if not entradas:
-            embedded_error = discord.Embed(
-                title="Palabra sin definiciones disponibles",
-                description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-
-        damer_def_available = any([e.acepciones for e in entradas])
-        damer_exp_available = any([e.expresiones for e in entradas])
-
-        for entrada in entradas:
-            # Split an entry into multiple pages/embeds if the number of acepciones exceeds 10
-            chunks = [entrada.acepciones[i:i + self.ENTRIES_PER_EMBED]
-                      for i in range(0, len(entrada.acepciones), self.ENTRIES_PER_EMBED)]
-
-            for i, chunk in enumerate(chunks):
-                description = '\n'.join(str(acep) for acep in chunk)
-                embed = discord.Embed(
-                    title=entrada.encabezado,
-                    url=f'https://www.asale.org/damer/{formatted_word}',
-                    description=description,
-                    color=discord.Color.blue()
-                )
-                embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-                embeds.append(embed)
-
-        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
+        await self._generate_and_send_embeds(ctx, 'get_damer_def_results', word)
 
     @commands.command(aliases=['damerexp'])
     async def get_damer_exp_results(self, ctx, *, word: str):
@@ -551,82 +579,7 @@ class DamerDictionary(commands.Cog):
         Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
         puedes contactarte con él a través de la cuenta de Discord proporcionada.
         """
-        logging.basicConfig(level=logging.ERROR,
-                            format="%(asctime)s - %(levelname)s - %(message)s")
-
-        self.caller_function = "get_damer_exp_results"
-
-        embeds = []
-        formatted_word = word.strip().lower()
-        try:
-            entradas = await Buscador.búsqueda_damer(formatted_word)
-        except ExcepciónDNE as e_dne:
-            embedded_error = discord.Embed(
-                title="Palabra sin entradas disponibles",
-                description=str(e_dne),
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-        except Exception as e:
-            embedded_error = discord.Embed(
-                title="Chuta, algo salió mal.",
-                description=str(e),
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-
-        if not entradas:
-            embedded_error = discord.Embed(
-                title="Palabra sin entradas disponibles",
-                description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
-                color=0xFF5733
-            )
-            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            embeds.append(embedded_error)
-            await self.send_embeds(ctx, embeds, formatted_word)
-            return
-
-        damer_def_available = any([e.acepciones for e in entradas])
-        damer_exp_available = any([e.expresiones for e in entradas])
-
-        if not damer_exp_available:
-            embed = discord.Embed(
-                title="entrada.encabezado",
-                url=f'https://www.asale.org/damer/{formatted_word}',
-                description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            embeds.append(embed)
-            await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available)
-            return
-
-        for entrada in entradas:
-            if not entrada.expresiones:
-                continue
-
-            # Split an entry into multiple pages/embeds if the number of expresiones exceeds 10
-            chunks = [entrada.expresiones[i:i + self.ENTRIES_PER_EMBED]
-                      for i in range(0, len(entrada.expresiones), self.ENTRIES_PER_EMBED)]
-
-            for i, chunk in enumerate(chunks):
-                description = '\n'.join(str(expr) for expr in chunk)
-                embed = discord.Embed(
-                    title=entrada.encabezado,
-                    url=f'https://www.asale.org/damer/{formatted_word}',
-                    description=description,
-                    color=discord.Color.blue()
-                )
-                embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-                embeds.append(embed)
-
-        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
+        await self._generate_and_send_embeds(ctx, 'get_damer_exp_results', word)
 
 
 async def setup(bot):
