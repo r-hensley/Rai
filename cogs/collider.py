@@ -7,7 +7,7 @@ import os
 import random
 import tempfile
 from time import perf_counter
-from typing import Any
+from typing import Any, Optional, Callable
 
 import numpy as np
 import pythia8mc as p8
@@ -26,228 +26,6 @@ def _pdg_name(pythia, pid: int) -> str:
         return str(pythia.particleData.name(pid))
     except Exception:
         return str(pid)
-    
-def status_stage(status: int) -> str:
-    a = abs(int(status))
-    i = a // 10
-    j = a % 10
-
-    if 11 <= a <= 19:
-        return "BEAM"
-    if a == 21:
-        return "HARD-IN"
-    if a in [23, 24]:
-        return "HARD-OUT"
-    if 21 <= a <= 29:
-        return "HARD"
-    if a in [31, 34]:
-        return "MPI-IN"
-    if a in [33]:
-        return "MPI-OUT"
-    if 31 <= a <= 39:
-        return "MPI"
-    if a in [41, 42, 45, 46]:
-        return "ISR-IN"
-    if a in [43, 44]:
-        return "ISR-OUT"
-    if 41 <= a <= 49:
-        return "ISR"
-    if a in [53, 54]:
-        return "FSR-IN"
-    if a == 51:
-        return "FSR-OUT"
-    if 51 <= a <= 59:
-        return "FSR"
-    if 61 == a:
-        return "REMN-IN"
-    if 62 == a:
-        return "REMN-OUT-COPY"
-    if 63 == a:
-        return "REMN-OUT"
-    if 64 <= a <= 69:
-        return "REMN"
-    if 71 <= a <= 79:
-        return "HADPREP"
-    if 81 <= a <= 89:
-        return "HAD"
-    if 91 <= a <= 99:
-        return "DECAY"
-    if i >= 20:
-        return "USER"
-    return "OTHER"
-
-    
-def desc(p, *, show_moms=True, show_kids=True, show_kin=True, show_vtx=True, show_col=False) -> str:
-    idx = p.index()
-    pid = p.id()
-    st  = p.status()
-    stage = status_stage(st)
-
-    parts = [f"idx={idx:4d} id={pid:6d} {p.nameWithStatus():<22} st={st:4d} [{stage}]"]
-
-    # Mothers/daughters
-    if show_moms:
-        moms = list(p.motherList())
-        if moms:
-            parts.append(f"moms={moms}")
-        else:
-            parts.append("moms=[]")
-
-    if show_kids:
-        kids = list(p.daughterList())
-        if kids:
-            # compact: show list if short, else show range + count
-            if len(kids) <= 10:
-                parts.append(f"kids={kids}")
-            else:
-                parts.append(f"kids=[{kids[0]}..{kids[-1]}] n={len(kids)}")
-        else:
-            parts.append("kids=[]")
-
-    # Kinematics
-    if show_kin:
-        px, py, pz, e = p.px(), p.py(), p.pz(), p.e()
-        pt = math.hypot(px, py)
-        pabs = math.sqrt(px*px + py*py + pz*pz)
-        eta = p.eta() if hasattr(p, "eta") else float("nan")
-        parts.append(f"pT={pt:7.2f} p={pabs:7.2f} eta={eta:6.2f} E={e:7.2f}")
-
-    # Vertex (production)
-    if show_vtx:
-        # in Pythia event record, xProd/yProd/zProd are usually in mm
-        parts.append(f"vtx(mm)=({p.xProd():7.2f},{p.yProd():7.2f},{p.zProd():7.2f})")
-
-    # Color tags
-    if show_col:
-        parts.append(f"col=({p.col()},{p.acol()})")
-
-    return "  ".join(parts)
-
-
-def marker(p) -> str:
-    st = abs(int(p.status()))
-    if st == 23:
-        return " <HARD-OUT>"
-    if st == 33:
-        return " <MPI-OUT>"
-    if st == 63:
-        return " <REMNANT>"
-    if 81 <= st <= 89:
-        return " <HADRON>"
-    if 91 <= st <= 99:
-        return " <DECAY>"
-    return ""
-
-def print_tree(
-    evt,
-    root_idx: int,
-    *,
-    max_depth: int = 6,
-    max_nodes: int = 400,
-    show_moms: bool = True,
-    show_kids: bool = True,
-    show_kin: bool = True,
-    show_vtx: bool = True,
-    show_col: bool = False,
-    # filter: if provided, only print nodes where predicate(p) is True,
-    # but still traverse through all children so you don't break the tree.
-    only_if=None,
-):
-    seen = set()
-    stack = [(root_idx, 0)]
-    n = 0
-    while stack and n < max_nodes:
-        idx, d = stack.pop()
-        if idx in seen:
-            continue
-        seen.add(idx)
-        p = evt[idx]
-
-        # print line?
-        if (only_if is None) or only_if(p):
-            print("  " * d + desc(
-                p,
-                show_moms=show_moms,
-                show_kids=show_kids,
-                show_kin=show_kin,
-                show_vtx=show_vtx,
-                show_col=show_col,
-            ) + marker(p))
-            n += 1
-
-        if d >= max_depth:
-            continue
-
-        kids = list(p.daughterList())
-        # small indices first in DFS output
-        for k in reversed(kids):
-            stack.append((k, d + 1))
-            
-            
-def pid_to_short(pid: int) -> str:
-    return {
-        21: "g",
-        1: "d", -1: "dbar",
-        2: "u", -2: "ubar",
-        3: "s", -3: "sbar",
-        4: "c", -4: "cbar",
-        5: "b", -5: "bbar",
-        6: "t", -6: "tbar",
-        22: "γ",
-        11: "e-", -11: "e+",
-        13: "μ-", -13: "μ+",
-        12: "νe", -12: "νebar",
-        14: "νμ", -14: "νμbar",
-        16: "ντ", -16: "ντbar",
-    }.get(pid, str(pid))
-
-def summarize_event(pythia: p8.Pythia) -> str:
-    info = pythia.infoPython()
-
-    # 1) Hardest process headline from Pythia itself
-    hard_name = info.name()          # often "g g -> g g" etc
-    pthat = info.pTHat()
-
-    # 2) Summarize MPI scatters by looking at MPI outgoing legs
-    evt = pythia.event
-    mpi_out = [p for p in evt if abs(int(p.status())) == 33]
-
-    # Group MPI outgoing particles by their mothers (the incoming pair)
-    scatters = {}
-    for p in mpi_out:
-        moms = tuple(sorted(list(p.motherList())))
-        if len(moms) != 2:
-            continue
-        scatters.setdefault(moms, []).append(p.index())
-
-    mpi_lines = []
-    for moms, outs in scatters.items():
-        a, b = moms
-        pa, pb = evt[a], evt[b]
-        # incoming types
-        in_a = pid_to_short(int(pa.id()))
-        in_b = pid_to_short(int(pb.id()))
-        # outgoing types (take first two if present)
-        out_pids = [pid_to_short(int(evt[i].id())) for i in outs[:2]]
-        if len(out_pids) == 2:
-            mpi_lines.append(f"{in_a} {in_b} → {out_pids[0]} {out_pids[1]}")
-        else:
-            mpi_lines.append(f"{in_a} {in_b} → ...")
-
-    n_mpi = info.nMPI()
-    n_isr = info.nISR()
-    n_fsr = info.nFSRinProc()
-
-    # Compose
-    s = f"Hard: {hard_name} (pTHat={pthat:.1f} GeV)"
-    if mpi_lines:
-        # Note: info.nMPI() counts interactions; your mpi_lines counts distinct mother-pairs seen.
-        s += f"\nMPI: {len(mpi_lines)} scatter(s): " + "; ".join(mpi_lines)
-    else:
-        s += f"\nMPI: none found in record"
-    s += f"\nActivity: nMPI={n_mpi}, nISR={n_isr}, nFSR={n_fsr}"
-    return s
-
 
 
 NAME_TO_PID = {
@@ -271,7 +49,11 @@ NAME_TO_PID = {
     
     # alternative names
     "e": 11,
+    "ep": -11,
+    "em": 11,
     "mu": 13,
+    "mup": -13,
+    "mum": 13,
     "photon": 22,
     "nu": 12,
     "neutrino": 12,
@@ -279,12 +61,12 @@ NAME_TO_PID = {
 
 PID_LABEL = {
     # charged basic hadrons
-    211:  "π+",
+    211: "π+",
     -211: "π−",
-    321:  "K+",
+    321: "K+",
     -321: "K−",
     2212: "p",
-    -2212:"p̄",
+    -2212: "p̄",
     
     # netural hadrons
     111: "π0",
@@ -294,26 +76,337 @@ PID_LABEL = {
     -2112: "n̄",
     
     # charged leptons
-    11:   "e−",
-    -11:  "e+",
-    13:   "μ−",
-    -13:  "μ+",
+    11: "e−",
+    -11: "e+",
+    13: "μ−",
+    -13: "μ+",
     
     # photon
-    22:   "γ",
+    22: "γ",
     
     # neutrinos
-    12:   "νe",
-    -12:  "ν̄e",
-    14:   "νμ",
-    -14:  "ν̄μ",
-    16:   "ντ",
-    -16:  "ν̄τ",
+    12: "νe",
+    -12: "ν̄e",
+    14: "νμ",
+    -14: "ν̄μ",
+    16: "ντ",
+    -16: "ν̄τ",
 }
 
 POSITIVE_PARTICLES = (211, 321, 2212, -13, -11)
 NEGATIVE_PARTICLES = (-211, -321, -2212, 11, 13)
 NEUTRAL_PARTICLES = (111, 130, 310, 2112, -2112, 22, 12, -12, 14, -14, 16, -16)
+
+
+def energy_to_string(e_gev: float) -> str:
+    if e_gev >= 1_000_000:
+        return f"{e_gev / 1_000_000:.1f} PeV"
+    elif e_gev >= 1_000:
+        return f"{e_gev / 1_000:.1f} TeV"
+    elif e_gev < 1e-6:
+        return f"{e_gev * 1_000_000_000:.1f} eV"
+    elif e_gev < 1e-3:
+        return f"{e_gev * 1_000_000:.1f} keV"
+    elif e_gev < 1:
+        return f"{e_gev * 1_000:.1f} MeV"
+    else:
+        return f"{e_gev:.1f} GeV"
+
+
+def status_stage(status: int) -> str:
+    a = abs(int(status))
+
+    if 11 <= a <= 19:
+        return "BEAM"
+    if 21 <= a <= 29:
+        return "HARD"
+    if 31 <= a <= 39:
+        return "MPI"
+    if 41 <= a <= 49:
+        return "ISR"
+    if 51 <= a <= 59:
+        return "FSR"
+    if 61 <= a <= 69:
+        return "REMN"
+    if 71 <= a <= 79:
+        return "HADPREP"
+    if 81 <= a <= 89:
+        return "HAD"
+    if 91 <= a <= 99:
+        return "DECAY"
+    if a // 10 >= 20:
+        return "USER"
+    return "OTHER"
+
+
+def status_tag(p) -> str:
+    """
+    More specific label like:
+      HARD-IN / HARD-OUT
+      MPI-IN  / MPI-OUT
+      ISR-IN  / ISR-OUT
+      FSR-IN  / FSR-OUT
+      REMN-IN / REMN-OUT / REMN-OUT-COPY
+      HADPREP / HAD / DECAY
+    Uses status code ranges + sign convention (negative = not remaining / intermediate copy).
+    """
+    st = int(p.status())
+    a = abs(st)
+
+    # helper: in/out only makes sense for some blocks; use sign as a heuristic
+    # (negative: intermediate/incoming/copy, positive: remaining/final in that block)
+    def inout(neg_label: str, pos_label: str) -> str:
+        return neg_label if st < 0 else pos_label
+
+    # Hard process
+    if a == 21:
+        return inout("HARD-IN", "HARD-IN")
+    if a == 23:
+        return inout("HARD-OUT", "HARD-OUT")
+
+    # MPI
+    if a == 31:
+        return inout("MPI-IN", "MPI-IN")
+    if a == 33:
+        return inout("MPI-OUT", "MPI-OUT")
+
+    # ISR / FSR (Pythia uses several codes; we keep it simple)
+    if 41 <= a <= 42:
+        return inout("ISR-IN", "ISR-IN")
+    if 43 <= a <= 49:
+        return inout("ISR-OUT", "ISR-OUT")
+
+    if 51 <= a <= 52:
+        return inout("FSR", "FSR")
+    if 53 <= a <= 59:
+        return inout("FSR", "FSR")
+
+    # Remnants and copies
+    if a == 61:
+        return inout("REMN-IN", "REMN-IN")
+    if a == 62:
+        return inout("REMN-OUT-COPY", "REMN-OUT-COPY")
+    if a == 63:
+        return inout("REMN-OUT", "REMN-OUT")
+
+    # Hadronization / decays
+    if 71 <= a <= 79:
+        return "HADPREP"
+    if 81 <= a <= 89:
+        return "HAD"
+    if 91 <= a <= 99:
+        return "DECAY"
+
+    return status_stage(st)
+
+    
+def desc(
+    p,
+    *,
+    show_moms: bool = True,
+    show_kids: bool = True,
+    show_kin: bool = True,
+    show_vtx: bool = True,
+    show_col: bool = False,
+    show_tag: bool = True,
+) -> str:
+    idx = int(p.index())
+    pid = int(p.id())
+    st  = int(p.status())
+    stage = status_stage(st)
+    tag = status_tag(p) if show_tag else stage
+
+    parts = [f"idx={idx:4d} id={pid:6d} {p.nameWithStatus():<22} st={st:4d} [{stage}:{tag}]"]
+
+    if show_moms:
+        moms = list(p.motherList())
+        parts.append(f"moms={moms}" if moms else "moms=[]")
+
+    if show_kids:
+        kids = list(p.daughterList())
+        if not kids:
+            parts.append("kids=[]")
+        elif len(kids) <= 10:
+            parts.append(f"kids={kids}")
+        else:
+            parts.append(f"kids=[{kids[0]}..{kids[-1]}] n={len(kids)}")
+
+    if show_kin:
+        px, py, pz, e = float(p.px()), float(p.py()), float(p.pz()), float(p.e())
+        pt = math.hypot(px, py)
+        pabs = math.sqrt(px * px + py * py + pz * pz)
+        eta = float(p.eta()) if hasattr(p, "eta") else float("nan")
+        parts.append(f"pT={pt:7.2f} p={pabs:7.2f} eta={eta:6.2f} E={e:7.2f}")
+
+    if show_vtx:
+        parts.append(f"vtx(mm)=({p.xProd():7.2f},{p.yProd():7.2f},{p.zProd():7.2f})")
+
+    if show_col:
+        parts.append(f"col=({p.col()},{p.acol()})")
+
+    return "  ".join(parts)
+
+
+def marker(p) -> str:
+    a = abs(int(p.status()))
+    if a == 23:
+        return " <HARD-OUT>"
+    if a == 33:
+        return " <MPI-OUT>"
+    if a == 63:
+        return " <REMNANT>"
+    if 81 <= a <= 89:
+        return " <HADRON>"
+    if 91 <= a <= 99:
+        return " <DECAY>"
+    return ""
+
+
+def print_tree(
+    evt,
+    root_idx: int,
+    *,
+    max_depth: int = 6,
+    max_nodes: int = 400,
+    show_moms: bool = True,
+    show_kids: bool = True,
+    show_kin: bool = True,
+    show_vtx: bool = True,
+    show_col: bool = False,
+    show_tag: bool = True,
+    only_if: Optional[Callable] = None,
+    # New: optionally prevent expansion below some node classes
+    stop_expand_if: Optional[Callable] = None,
+):
+    """
+    DFS print from root_idx.
+
+    only_if(p): if provided, only prints matching nodes (still traverses children).
+    stop_expand_if(p): if provided, stops traversing children when predicate is True.
+      Useful when you hide HAD/DECAY and don't want to explode under HADPREP/REMN-OUT-COPY.
+    """
+    seen = set()
+    stack = [(root_idx, 0)]
+    n = 0
+
+    while stack and n < max_nodes:
+        idx, d = stack.pop()
+        if idx in seen:
+            continue
+        seen.add(idx)
+
+        p = evt[idx]
+
+        if (only_if is None) or only_if(p):
+            print("  " * d + desc(
+                p,
+                show_moms=show_moms,
+                show_kids=show_kids,
+                show_kin=show_kin,
+                show_vtx=show_vtx,
+                show_col=show_col,
+                show_tag=show_tag,
+            ) + marker(p))
+            n += 1
+
+        if d >= max_depth:
+            continue
+
+        if stop_expand_if is not None and stop_expand_if(p):
+            continue
+
+        kids = list(p.daughterList())
+        for k in reversed(kids):
+            stack.append((k, d + 1))
+
+
+def pid_to_short(pid: int) -> str:
+    return {
+        21: "g",
+        1: "d",  -1: "dbar",
+        2: "u",  -2: "ubar",
+        3: "s",  -3: "sbar",
+        4: "c",  -4: "cbar",
+        5: "b",  -5: "bbar",
+        6: "t",  -6: "tbar",
+        22: "γ",
+        11: "e-", -11: "e+",
+        13: "μ-", -13: "μ+",
+        12: "νe", -12: "νebar",
+        14: "νμ", -14: "νμbar",
+        16: "ντ", -16: "ντbar",
+    }.get(pid, str(pid))
+
+
+def is_lepton_beam(pid: int) -> bool:
+    return abs(pid) in (11, 13, 15, 12, 14, 16)  # e/mu/tau and neutrinos
+
+
+def summarize_event(pythia) -> str:
+    info = pythia.infoPython()
+    evt = pythia.event
+
+    # Hard participants (more informative than info.name() for e-p)
+    hard_in  = [p for p in evt if abs(int(p.status())) == 21]
+    hard_out = [p for p in evt if abs(int(p.status())) == 23]
+
+    hard_name = info.name()
+    pthat = info.pTHat()
+
+    if len(hard_in) >= 2 and len(hard_out) >= 2:
+        hard_str = (
+            f"{pid_to_short(int(hard_in[0].id()))} {pid_to_short(int(hard_in[1].id()))} "
+            f"→ {pid_to_short(int(hard_out[0].id()))} {pid_to_short(int(hard_out[1].id()))}"
+        )
+        hard_line = f"Hard: {hard_str} ({hard_name}) (pTHat={pthat:.1f} GeV)"
+    else:
+        hard_line = f"Hard: {hard_name} (pTHat={pthat:.1f} GeV)"
+
+    # Beam IDs tell us whether MPI is meaningful
+    beamA = int(evt[1].id()) if evt.size() > 2 else 0
+    beamB = int(evt[2].id()) if evt.size() > 2 else 0
+    lepton_hadron = is_lepton_beam(beamA) or is_lepton_beam(beamB)
+
+    # MPI summary (keep for pp/pbarp/pi-p, etc; deemphasize for e-p)
+    mpi_out = [p for p in evt if abs(int(p.status())) == 33]
+    scatters = {}
+    for p in mpi_out:
+        moms = tuple(sorted(list(p.motherList())))
+        if len(moms) != 2:
+            continue
+        scatters.setdefault(moms, []).append(p.index())
+
+    mpi_lines = []
+    for moms, outs in scatters.items():
+        a, b = moms
+        pa, pb = evt[a], evt[b]
+        in_a = pid_to_short(int(pa.id()))
+        in_b = pid_to_short(int(pb.id()))
+        out_pids = [pid_to_short(int(evt[i].id())) for i in outs[:2]]
+        if len(out_pids) == 2:
+            mpi_lines.append(f"{in_a} {in_b} → {out_pids[0]} {out_pids[1]}")
+        else:
+            mpi_lines.append(f"{in_a} {in_b} → ...")
+
+    if lepton_hadron:
+        # Don’t claim “none”; MPI bookkeeping differs here.
+        mpi_line = "MPI: n/a (lepton–hadron)"
+    else:
+        mpi_line = ("MPI: " + "; ".join(mpi_lines)) if mpi_lines else "MPI: none found"
+
+    n_mpi = info.nMPI()
+    n_isr = info.nISR()
+    n_fsr = info.nFSRinProc()
+
+    # return (hard_line +
+    #         "\n" + mpi_line +
+    #         f"\nActivity: nMPI={n_mpi}, nISR={n_isr}, nFSR={n_fsr}")
+    return (f"{hard_line}\n"
+            f"{mpi_line}\n"
+            f"Activity: nMPI={n_mpi}, nISR={n_isr}, nFSR={n_fsr}\n")
+
+
+
 
 
 def color_for_pid(id: int) -> str:
@@ -459,7 +552,7 @@ def _ray_points_from_momentum(
 
 
 def run_events(
-    n_events: int = 10_000,
+    n_events: int = 1,
     ecm_gev: float = 13_000.0,
     p1: str = "2212",
     p2: str = "2212",
@@ -467,6 +560,7 @@ def run_events(
     pthat_min_gev: float = 30.0,
     seed: int = 0,
     keep_neutrinos: bool = True,
+    higgs_mode = False,
 ) -> dict[str, Any]:
     if process is None:
         process = ["HardQCD:all = on"]
@@ -496,8 +590,12 @@ def run_events(
     
     for process_line in process:
         pythia.readString(process_line)
-  
-    pythia.readString(f"PhaseSpace:pTHatMin = {pthat_min_gev}")
+    
+    # turn on for hadron-hadron collisions
+    pythia.readString("PartonLevel:MPI = on")
+    if not is_lepton_beam(int(p1)) and not is_lepton_beam(int(p2)):
+        print(f"Setting pTHatMin to {pthat_min_gev} GeV for hadron-hadron collision")
+        pythia.readString(f"PhaseSpace:pTHatMin = {pthat_min_gev}")
     
     pythia.readString("Random:setSeed = on")
     if not seed:
@@ -519,6 +617,20 @@ def run_events(
     # Allow longer-lived hadrons to decay with displaced vertices (units: mm)
     pythia.readString("ParticleDecays:limitTau0 = on")
     pythia.readString("ParticleDecays:tau0Max = 1e6")
+    
+    if higgs_mode:
+        pythia.readString("Beams:idA = -11")  # e+
+        pythia.readString("Beams:idB = 11")  # e-
+        pythia.readString("Beams:eCM = 240.")  # GeV
+        
+        # turn off generic stuff
+        pythia.readString("HardQCD:all = off")
+        pythia.readString("PromptPhoton:all = off")
+        pythia.readString("WeakBosonExchange:all = off")
+        pythia.readString("WeakSingleBoson:all = off")
+        
+        # turn on only e+e- -> HZ
+        pythia.readString("HiggsSM:ffbar2HZ = on")
     
     if not pythia.init():
         raise RuntimeError("pythia.init() failed")
@@ -545,29 +657,30 @@ def run_events(
             continue
         
         info = pythia.infoPython()
-        # print(
-        #     f"Process: {info.name()}  code={info.code()}  pTHat={info.pTHat():.2f}  "
-        #     f"nMPI={info.nMPI()} nISR={info.nISR()} nFSR={info.nFSRinProc()}")
-        # print_tree(pythia.event, 1, max_depth=25, show_kin=False, show_vtx=False,
-        #            only_if=lambda p: p.status() not in [83, 84, -83, -84, 91, -91])
-        # print_tree(pythia.event, 2, max_depth=25, show_kin=False, show_vtx=False,
-        #            only_if=lambda p: p.status() not in [83, 84, -83, -84, 91, -91])
+        print(
+            f"Process: {info.name()}  code={info.code()}  pTHat={info.pTHat():.2f}  "
+            f"nMPI={info.nMPI()} nISR={info.nISR()} nFSR={info.nFSRinProc()}")
+        print_tree(pythia.event, 1, max_depth=25, show_kin=False, show_vtx=False,
+                   only_if=lambda p: p.status() not in [83, 84, -83, -84, 91, -91])
+        print_tree(pythia.event, 2, max_depth=25, show_kin=False, show_vtx=False,
+                   only_if=lambda p: p.status() not in [83, 84, -83, -84, 91, -91])
         
         event_desc = summarize_event(pythia)
-        # print(event_desc)
+        print(event_desc)
         
         # Build one event (charged tracks only, like your current display expects)
         particles = []
         for p in pythia.event:
             debug_prints = False
             
-            if p.status() < 0:
+            if not p.isFinal():
                 if debug_prints:
                     print(f"Skipping particle with status {p.status()}, id {p.id()}, "
                           f"name {PID_LABEL.get(p.id(), str(p.id()))}")
                 continue
             
-            q = int(p.charge())
+            q = p.charge()
+            print(f" Particle id {p.id()} with name {PID_LABEL.get(p.id(), str(p.id()))} has charge {q}")
             # if q == 0:
             #     continue
             
@@ -580,7 +693,7 @@ def run_events(
             if debug_prints:
                 print(f" Keeping particle status {p.status()}, id {p.id()}, "
                       f"name {PID_LABEL.get(p.id(), str(p.id()))}, ")
-                
+            
             particles.append(
                 {
                     "id": int(p.id()),
@@ -633,6 +746,7 @@ def unit(vx, vy):
 def render_event_3d_spin(
     event: dict[str, Any],
     *,
+    seed: int = 0,
     B_T: float = 3.8,
     R_det_m: float = 1.2,
     Z_det_m: float = 3.0,
@@ -649,7 +763,7 @@ def render_event_3d_spin(
     figsize: tuple[int, int] = (5, 5),
     p1: str = "2212",
     p2: str = "2212",
-    energy_tev: float = 13.0,
+    energy_gev: float = 13000.0,
 ) -> io.BytesIO:
     particles = event["particles"]
 
@@ -664,7 +778,7 @@ def render_event_3d_spin(
     p2_name = PID_LABEL.get(int(p2), p2)
     fig.text(
         0.98, 0.98,
-        f"{p1_name}-{p2_name} Collision at {energy_tev:.1f} TeV (B={B_T} T)",
+        f"{p1_name} / {p2_name} Collision at {energy_to_string(energy_gev)} (B={B_T} T)",
         ha="right", va="top",
         fontsize=10,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", pad=2),
@@ -674,6 +788,16 @@ def render_event_3d_spin(
     
     # Force the 3D axes to fill the canvas
     ax.set_position((0.0, 0.0, 1.0, 1.0))
+    
+    # add seed text to bottom right of figure
+    fig.text(
+        0.98, 0.02,
+        f"Seed: {seed}",
+        ha="right", va="bottom",
+        fontsize=8,
+        bbox=dict(facecolor="white", alpha=0.6, edgecolor="none", pad=2),
+    )
+    
     
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -852,20 +976,23 @@ def render_event_3d_spin(
 
 
 if __name__ == "__main__":
-    p1 = "2212"
-    p2 = "2212"
-    e_tev = 13.0
+    p1 = "ep"
+    p2 = "em"
+    p1 = str(NAME_TO_PID.get(p1.lower(), p1))
+    p2 = str(NAME_TO_PID.get(p2.lower(), p2))
+    e_gev = 240
     run_events(
         n_events=1,
-        ecm_gev=e_tev * 1000.0,
+        ecm_gev=e_gev,
         p1=p1, p2=p2,
         process=["HardQCD:all = on",
                  "WeakSingleBoson:all = on",
                  "PromptPhoton:all = on",
                  "WeakBosonExchange:all = on",
+                 "HiggsSM:all = on",
                  ],
-        pthat_min_gev=30.0,
-        seed=795170135,
+        pthat_min_gev=3.0,
+        seed=0,
     )
 
 else:
@@ -877,40 +1004,69 @@ else:
         def __init__(self, bot: commands.Bot):
             self.bot = bot
     
-        @commands.command()
+        @commands.command(aliases=['collide', 'collision'])
         @commands.cooldown(rate=1, per=15.0, type=commands.BucketType.user)
         async def collider(self, ctx: commands.Context, p1: str = "p", p2: str = "p",
-                           e_tev: float = 13.0):
+                           e_gev: str | float = 13_000.0, seed: int = 0):
             """
             Simulate and render a collider event between two particles.
-            Usage: `;collider [p1] [p2] [e_tev]`
-            Example: `;collider p p 13.0`
+            Usage: `;collider [p1] [p2] [e_gev] [seed]`
+            Example: `;collider p p 13000.0`
+            
+            [e_gev] can be set to "z" or "higgs" to auto-set to those masses.
+            Example: `;collider e+ e- z` to set to Z-resonance
+            
+            Type `;collider higgs_mode` to simulate Higgsstrahlung (e⁺e⁻ → HZ) at 240 GeV.
     
             Can collide: p, pbar, pi+, pi-, K+, K-, e+, e-, mu+, mu-,
             gamma, nu_e, nu_ebar, nu_mu, nu_mubar, nu_tau, nu_taubar
             """
-            m = await ctx.send(f"Simulating {p1}-{p2} collision at {e_tev:.1f} TeV...\n"
-                               f"-# Processing may take up to a minute. Please wait...")
-            p1 = str(NAME_TO_PID.get(p1.lower(), p1))
-            p2 = str(NAME_TO_PID.get(p2.lower(), p2))
-            sim_task = utils.asyncio_task(run_events,
-                n_events=1,
-                ecm_gev=e_tev * 1000.0,
-                p1=p1, p2=p2,
-                process=["HardQCD:all = on",
-                         "WeakSingleBoson:all = on",
-                         "PromptPhoton:all = on",
-                         "WeakBosonExchange:all = on",
-                         ],
-                pthat_min_gev=30.0,
-                seed=0,
-            )
-            sim = await sim_task
+            if p1 == "higgs_mode":
+                p1 = str(NAME_TO_PID.get("e+"))
+                p2 = str(NAME_TO_PID.get("e-"))
+                e_gev = 240
+                m = await ctx.send(f"Simulating Higgsstrahlung (e⁺e⁻ → HZ) at {energy_to_string(e_gev)}.\n"
+                                   f"-# Processing may take up to a minute. Please wait...")
+                sim_task = utils.asyncio_task(run_events,
+                                              higgs_mode=True,
+                                              )
+                sim = await sim_task
+            else:
+                try:
+                    e_gev = float(e_gev)
+                except ValueError:
+                    if str(e_gev).lower() == "z":
+                        e_gev = 91.1876
+                    elif str(e_gev).lower() == "higgs":
+                        e_gev = 240
+                    else:
+                        await ctx.send(f"Invalid energy value: {e_gev}. Please provide a number in GeV, "
+                                       f"or 'z'/'higgs' for those resonance masses.")
+                        return
+                m = await ctx.send(f"Simulating {p1}-{p2} collision at {energy_to_string(e_gev)}.\n"
+                                   f"-# Processing may take up to a minute. Please wait...")
+                p1 = str(NAME_TO_PID.get(p1.lower(), p1))
+                p2 = str(NAME_TO_PID.get(p2.lower(), p2))
+                sim_task = utils.asyncio_task(run_events,
+                    n_events=1,
+                    ecm_gev=e_gev,
+                    p1=p1, p2=p2,
+                    process=["HardQCD:all = on",
+                             "WeakSingleBoson:all = on",
+                             "PromptPhoton:all = on",
+                             "WeakBosonExchange:all = on",
+                             "HiggsSM:all = on",
+                             ],
+                    pthat_min_gev=30.0,
+                    seed=seed,
+                )
+                sim = await sim_task
     
             event0 = sim["events"][0]
+            seed = sim["meta"].get("seed", -1)
             filetype = 'mp4'
             
-            low_res = True
+            low_res = False
             if low_res:
                 fps = 8
                 spin_seconds = 8
@@ -926,8 +1082,9 @@ else:
                 
             buf_task = utils.asyncio_task(render_event_3d_spin,
                                               event0,
+                                              seed=seed,
                                               p1=p1, p2=p2,
-                                              energy_tev=13.0,
+                                              energy_gev=e_gev,
                                               B_T=7,
                                               R_det_m=1.2,
                                               Z_det_m=3.0,
