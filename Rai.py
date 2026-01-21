@@ -130,7 +130,7 @@ class Rai(Bot):
         initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
-                              'cogs.dictionary', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.cnserver']
+                              'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.cnserver']
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:

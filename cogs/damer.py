@@ -1,0 +1,606 @@
+import aiohttp
+import html
+import logging
+import re
+from lxml.html import HtmlElement, fromstring as from_html_string
+
+import discord
+from discord.ext import commands
+
+from cogs.utils.BotUtils import bot_utils as utils
+
+
+# Silence asyncio warnings
+logging.getLogger("asyncio").setLevel(logging.ERROR)
+
+
+class ExcepciónDNE(Exception):
+    pass
+
+
+class Aproximación:
+    def __init__(self, término: str, normalizado: str, href: str):
+        self.término = término or ''
+        self.normalizado = normalizado or ''
+        self.href = href or ''
+
+    def __eq__(self, otro):
+        if isinstance(otro, Aproximación):
+            return self.término == otro.término and self.normalizado == otro.normalizado and self.href == otro.href
+        return False
+
+    def __str__(self):
+        if self.href:
+            return f'[{self.término}](https://www.asale.org/damer{self.href}) {self.normalizado}'
+        else:
+            return f'{self.término} ({self.normalizado})'
+
+
+class Acepción:
+    def __init__(self, índice_primario='', índice_secundario='', texto_entrada=''):
+        self.texto_entrada = (texto_entrada or '').strip()
+        self.índice_primario = índice_primario or ''
+        self.índice_secundario = índice_secundario or ''
+
+    def __eq__(self, otro):
+        if isinstance(otro, Acepción):
+            return self.texto_entrada == otro.texto_entrada and self.índice_primario == otro.índice_primario and self.índice_secundario == otro.índice_secundario
+        return False
+
+    def __str__(self):
+        return f'{self.índice_primario}\t{self.índice_secundario} {self.texto_entrada}'
+
+
+class Expresión:
+    def __init__(self, índice='', texto_entrada='', subsignificados=[]):
+        self.índice = índice or ''
+        self.texto_entrada = (texto_entrada or '').strip()
+        self.subsignificados = subsignificados or []  # lista de tuple(índice, texto)
+
+    def __eq__(self, otro):
+        if isinstance(otro, Acepción):
+            return self.texto_entrada == otro.texto_entrada and self.índice == otro.índice and self.subsignificados == otro.subsignificados
+        return False
+
+    def __str__(self):
+        if self.índice and not self.texto_entrada and not self.subsignificados:
+            return f'{self.índice}'
+        elif self.subsignificados:
+            texto_subsignificados = '\n\t\t'.join([f'{s[0]} {s[1]}' for s in self.subsignificados])
+            return f'\t{self.índice} {self.texto_entrada}\n\t\t{texto_subsignificados}'
+        elif self.texto_entrada and not self.subsignificados:
+            return f'\t{self.índice} {self.texto_entrada}'
+        return ''
+
+
+class Entrada:
+    def __init__(self, encabezado: str, acepciones: list[Acepción], expresiones: list[Acepción]):
+        self.encabezado = encabezado or ''
+        self.acepciones = acepciones or []
+        self.expresiones = expresiones or []
+
+    def __eq__(self, otro):
+        if isinstance(otro, Entrada):
+            return self.encabezado == otro.encabezado and self.acepciones == otro.acepciones and self.expresiones == otro.expresiones
+        return False
+
+    def __str__(self):
+        texto_acepciones = 'Acepciones:\n' + '\n'.join([str(a) for a in self.acepciones]) if self.acepciones else ''
+        texto_expresiones = 'Expresiones:\n' + '\n'.join([str(e) for e in self.expresiones]) if self.expresiones else ''
+        return f'{self.encabezado}\n{texto_acepciones}\n\n{texto_expresiones}\n'
+
+
+class Buscador:
+    MAPA_ÍNDICES = {
+        '0': u'\u2070',
+        '1': u'\u00B9',
+        '2': u'\u00B2',
+        '3': u'\u00B3',
+        '4': u'\u2074',
+        '5': u'\u2075',
+        '6': u'\u2076',
+        '7': u'\u2077',
+        '8': u'\u2078',
+        '9': u'\u2079',
+    }
+    RE_NÚMEROS_ROMANOS = re.compile(r'^[IVXLCDM]+\.?$')
+    USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0'
+    TEXTO_COPYRIGHT = 'Diccionario de americanismos © 2010 | Asociación de Academias de la Lengua Española © Todos los derechos reservados'
+
+    # Devuelve True si no hay resultados
+    @staticmethod
+    def verificar_dne(término: str, resultados_elem: HtmlElement) -> bool:
+        if resultados_elem.text and resultados_elem.text.startswith('Aviso:'):
+            for resultados_span in resultados_elem.iterchildren(tag='span'):
+                if resultados_span.text and resultados_span.text.startswith('La palabra '):
+                    for resultados_b in resultados_span.iterchildren(tag='b'):
+                        if resultados_b.text == término:
+                            return resultados_b.tail and resultados_b.tail.endswith('no está en el Diccionario.')
+        return False
+
+    # Devuelve una lista de aproximaciones
+    @staticmethod
+    def recoger_aproximaciones(término: str, resultados_elem: HtmlElement) -> list[Aproximación]:
+        aproximaciones = []
+        for aprox_elem in resultados_elem.iterfind('.//a[@data-acc="LISTA APROX"]'):
+            texto = aprox_elem.text or ''
+            if not texto:
+                # Puede estar en itálica
+                texto = aprox_elem.findtext('i') or ''
+                if texto:
+                    texto = f'_{texto}_'
+
+            aproximación = Aproximación(
+                html.unescape(texto),
+                html.unescape((aprox_elem.tail or '').strip()),
+                html.unescape(aprox_elem.attrib.get('href', '')),
+            )
+            aproximaciones.append(aproximación)
+        return aproximaciones
+
+    @staticmethod
+    def extraer_índices(fila_elem: HtmlElement) -> tuple[str, str, str]:
+        # La cantidad de celdas vacías determina el formato de los índices
+        cant_cel_vacías_inic = 0
+        for celda_elem in fila_elem.iterchildren(tag='td'):
+            if celda_elem.keys():
+                break
+            cant_cel_vacías_inic = cant_cel_vacías_inic + 1
+
+        # Extrae los índices
+        índ_primario = ''
+        índ_secundario = ''
+        índ_terciario = ''
+        índ_elems = fila_elem.findall('.//td[@class="da7"]')
+        if len(índ_elems) == 2:
+            if cant_cel_vacías_inic == 1:
+                índ_primario = (índ_elems[0].findtext('span') or '').strip()
+                índ_secundario = (índ_elems[1].findtext('span') or '').strip()
+            else:
+                raise Exception('Formato inválido de índices')
+        elif len(índ_elems) == 1:
+            if cant_cel_vacías_inic == 1:
+                índ_primario = (índ_elems[0].findtext('span') or '').strip()
+            elif cant_cel_vacías_inic == 2:
+                secundario_elem = índ_elems[0].find('span')
+                índ_secundario = html.unescape(secundario_elem.text or '').strip()
+
+                # Algunos índices tipo 'a.', 'b.', etc. llevan superíndices
+                sup_elem = secundario_elem.find('sup')
+                if sup_elem is not None:
+                    texto_sup = html.unescape(sup_elem.text or '').strip()
+                    if texto_sup:
+                        texto_sup = Buscador.MAPA_ÍNDICES.get(texto_sup, texto_sup)
+                    tail_sup = html.unescape(sup_elem.tail or '').strip()
+                    índ_secundario = índ_secundario + texto_sup + tail_sup
+            elif cant_cel_vacías_inic == 3:
+                índ_terciario = (índ_elems[0].findtext('span') or '').strip()
+            else:
+                raise Exception('Formato inválido de índices')
+        return (índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip())
+
+    # Devuelve dos listas - la primera contiene acepciones y la segunda contiene expresiones
+    @staticmethod
+    def extraer_acepciones_expresiones(elem_entrada: HtmlElement) -> tuple[list[Acepción], list[Expresión]]:
+        acepciones = []
+        expresiones = []
+        modo_expresiones = False
+        expr_pendiente = None
+        expr_subsignificados = []
+        for fila_elem in elem_entrada.iterfind('.//tr'):
+            índices = Buscador.extraer_índices(fila_elem)
+
+            # Las acepciones van primero, luego las expresiones
+            if not modo_expresiones and índices[0] and not Buscador.RE_NÚMEROS_ROMANOS.match(índices[0]):
+                modo_expresiones = True
+
+            # Extrae el texto de la entrada
+            fragmentos = []
+            for celda_elem in fila_elem.iterchildren(tag='td'):
+                if celda_elem.get('class') in ('da7', 'da2'):
+                    # Nos saltamos las celdas de índices y encabezados
+                    continue
+
+                # A veces las clasificaciones (adj., m., f., etc.) salen en el texto del elemento 'td'
+                if celda_elem.text:
+                    fragmentos.append(html.unescape(celda_elem.text))
+
+                # Recoge todo el texto de los elementos 'span', teniendo en cuenta si están en itálica, negrita, etc.
+                for span_elem in celda_elem.iterfind('.//span'):
+                    tag_progenitor = span_elem.getparent().tag
+                    fragmento_original = html.unescape(span_elem.text)
+                    if tag_progenitor == 'i':
+                        # Ponlo en itálica
+                        fragmentos.append(f'_{fragmento_original}_')
+                    elif span_elem.get('class') == 'da3':
+                        # Ponlo en negrita
+                        fragmentos.append(f'**{fragmento_original}**')
+                    else:
+                        fragmentos.append(fragmento_original)
+            texto_entero = ''.join(fragmentos).strip()
+            if modo_expresiones:
+                if índices[1]:
+                    # Nueva expresión - agrega la anterior a la lista si existe
+                    if expr_pendiente is not None:
+                        expr_pendiente.subsignificados = expr_subsignificados
+                        expresiones.append(expr_pendiente)
+                    expr_pendiente = Expresión(índices[1], texto_entrada=texto_entero)
+                    expr_subsignificados = []
+                elif índices[2]:
+                    # Significado para la expresión pendiente
+                    expr_subsignificados.append((índices[2], texto_entero))
+                elif índices[0] == '▶':
+                    expresiones.append(Expresión(índices[0], texto_entrada=texto_entero))
+                    expr_pendiente = None
+            else:
+                acep = Acepción(índice_primario=índices[0], índice_secundario=índices[1], texto_entrada=texto_entero)
+                acepciones.append(acep)
+
+        if expr_pendiente is not None:
+            expr_pendiente.subsignificados = expr_subsignificados
+            expresiones.append(expr_pendiente)
+        return acepciones, expresiones
+
+    # Extrae los resultados y devuelve las Entradas correspondientes
+    # Lanza una ExcepciónDNE si no hay resultados.
+    @staticmethod
+    def parsear_resultados(término: str, raw_html: str) -> list[Entrada]:
+        doc = from_html_string(raw_html)
+        resultados = doc.xpath('//div[@class="bloque-txt" and @id="resultados"]')
+        if not resultados:
+            raise Exception('No se pudo analizar el documento: no se encontró ningún elemento con resultados.')
+        resultados_el = resultados[0]
+
+        # Verifica existencia de resultados
+        if Buscador.verificar_dne(término, resultados_el):
+            mensaje = f'Aviso: La palabra **{término}** no está en el Diccionario.'
+            aproximaciones = Buscador.recoger_aproximaciones(término, resultados_el)
+            if aproximaciones:
+                mensaje += ' Las entradas que se muestran a continuación podrían estar relacionadas:\n'
+            ret_str_parts = [mensaje]
+            for aprox in aproximaciones:
+                ret_str_parts.append(str(aprox))
+            raise ExcepciónDNE('\n'.join(ret_str_parts))
+        else:
+            entradas = []
+            for elem_entrada in resultados_el.iterfind('entry'):
+                acepciones = []
+                expresiones = []
+                encabezado = ''
+
+                # Extrae las acepciones relevantes
+                if término in html.unescape(elem_entrada.attrib.get('key', '')).split('|'):
+                    # Extrae el encabezado
+                    encabezado = elem_entrada.findtext('.//span[@class="da8"]')
+                    if not encabezado:
+                        raise Exception('No se encontró ningún elemento de encabezado.')
+                    encabezado = html.unescape(encabezado)
+                    acepciones, expresiones = Buscador.extraer_acepciones_expresiones(elem_entrada)
+                    if not (acepciones or expresiones):
+                        raise Exception('No se extrajo ninguna acepción/expresión.')
+                    entradas.append(Entrada(encabezado, acepciones, expresiones))
+            return entradas
+
+    @staticmethod
+    async def búsqueda_damer(término: str) -> tuple[list[Acepción], list[Acepción]]:
+        url_búsqueda = f'https://www.asale.org/damer/{término}'
+        async with aiohttp.ClientSession(headers={'User-Agent': Buscador.USER_AGENT}) as sesión:
+            async with sesión.get(url_búsqueda) as resp:
+                if resp.status != 200:
+                    raise Exception(f'Búsqueda fallida para el término: {término}.')
+                raw_html = await resp.text()
+        return Buscador.parsear_resultados(término, raw_html)
+
+
+class PaginationView(discord.ui.View):
+    def __init__(self, embeds, author, caller_function, damer_def_available, damer_exp_available, bot, ctx):
+        super().__init__(timeout=60)
+        self.bot = bot
+        self.embeds = embeds
+        self.author = author
+        self.current_page = 0
+        self.message = None
+        self.word = None
+        self.caller_function = caller_function
+        self.damer_def_available = damer_def_available
+        self.damer_exp_available = damer_exp_available
+        self.ctx = ctx
+
+        # Set initial buttons
+        self.update_buttons()
+
+    def update_buttons(self):
+        button_mapping = {
+            "get_damer_def_results": (self.damer_def_button, self.damer_def_available),
+            "get_damer_exp_results": (self.damer_exp_button, self.damer_exp_available),
+        }
+
+        # Clear existing buttons
+        self.clear_items()
+
+        # Add navigation buttons
+        self.add_item(self.prev_button)
+        self.add_item(self.page_indicator)
+        self.add_item(self.next_button)
+        self.add_item(self.close_button)
+
+        # Add function buttons
+        caller_button = button_mapping.get(self.caller_function)[0]
+
+        for button, button_availability in button_mapping.values():
+            button.row = 1
+            button.disabled = not button_availability
+            self.add_item(button)
+
+            # If caller button, disable it and change colour to grey
+            if button == caller_button:
+                caller_button.disabled = True
+                caller_button.style = discord.ButtonStyle.gray
+
+        # Update button states
+        self.prev_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page == len(self.embeds) - 1
+
+    @discord.ui.button(label="◄", style=discord.ButtonStyle.blurple)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await self.update_embed(interaction)
+
+    @discord.ui.button(label="✖", style=discord.ButtonStyle.red)
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="►", style=discord.ButtonStyle.blurple)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.embeds) - 1:
+            self.current_page += 1
+            await self.update_embed(interaction)
+
+    @discord.ui.button(label="1/1", style=discord.ButtonStyle.gray, disabled=True)
+    async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass
+
+    @discord.ui.button(label="Def", style=discord.ButtonStyle.green)
+    async def damer_def_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_damer_def_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
+    @discord.ui.button(label="Exp", style=discord.ButtonStyle.green)
+    async def damer_exp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = self.bot.get_command('get_damer_exp_results')
+        if command:
+            await self.ctx.invoke(command, word=self.word)
+        await interaction.message.delete()
+        self.stop()
+
+    async def update_embed(self, interaction):
+        # Update page indicator
+        self.page_indicator.label = f"{self.current_page + 1}/{len(self.embeds)}"
+
+        embed = self.embeds[self.current_page].copy()
+
+        # Update buttons state
+        self.update_buttons()
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Only allow the original author to interact
+        return interaction.user.id == self.author.id
+
+    async def on_timeout(self) -> None:
+        if self.message:
+            try:
+                # Remove all buttons after timeout
+                await self.message.edit(view=None)
+            except discord.NotFound:
+                pass
+        self.stop()
+
+
+class DamerDictionary(commands.Cog):
+    ENTRIES_PER_EMBED = 10
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.caller_function = None
+
+    async def send_embeds(self, ctx, embeds, formatted_word, damer_def_available=False, damer_exp_available=False):
+        if not embeds:
+            return
+
+        view = PaginationView(embeds, ctx.author, self.caller_function, damer_def_available, damer_exp_available,
+                              self.bot, ctx)
+        view.word = formatted_word
+
+        # Prepare initial embed
+        initial_embed = embeds[0].copy()
+
+        # Update page indicator label
+        view.page_indicator.label = f"1/{len(embeds)}"
+
+        # Disable navigation buttons for single page embeds
+        if len(embeds) == 1:
+            view.prev_button.disabled = True
+            view.next_button.disabled = True
+
+        message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
+        view.message = message
+
+    @commands.command(aliases=['damer'])
+    async def get_damer_def_results(self, ctx, *, word: str):
+        """
+        Look up definitions of a word from the Diccionario de Americanismos from the ASALE.
+        - Example usage: `;damer ñurdo`.
+
+        This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
+        you can contact him through the provided Discord account.
+        -------
+        Buscar definiciones de palabras del Diccionario de Americanismos de la ASALE.
+        - Ejemplo de uso: `;rae ñurdo`.
+
+        Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
+        puedes contactarte con él a través de la cuenta de Discord proporcionada.
+        """
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
+
+        self.caller_function = "get_damer_def_results"
+
+        embeds = []
+        formatted_word = word.strip().lower()
+        try:
+            entradas = await Buscador.búsqueda_damer(formatted_word)
+        except ExcepciónDNE as e_dne:
+            embedded_error = discord.Embed(
+                title="Palabra sin entradas disponibles",
+                description=str(e_dne),
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+        except Exception as e:
+            embedded_error = discord.Embed(
+                title="Excepción lanzada",
+                description=str(e),
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+
+        if not entradas:
+            embedded_error = discord.Embed(
+                title="Palabra sin definiciones disponibles",
+                description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+
+        for entrada in entradas:
+            # Split an entry into multiple pages/embeds if the number of acepciones exceeds 10
+            chunks = [entrada.acepciones[i:i + self.ENTRIES_PER_EMBED]
+                      for i in range(0, len(entrada.acepciones), self.ENTRIES_PER_EMBED)]
+
+            for i, chunk in enumerate(chunks):
+                description = '\n'.join(str(chunk))
+
+                # Include the entry header only on the first page
+                if i == 0:
+                    description = f'**{entrada.encabezado}**\n{description}'
+
+                embed = discord.Embed(
+                    title=entrada.encabezado,
+                    url=f'https://www.asale.org/damer/{formatted_word}',
+                    description=description,
+                    color=discord.Color.blue()
+                )
+                embed.set_footer(
+                    text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                embeds.append(embed)
+
+        await self.send_embeds(ctx, embeds, formatted_word)
+
+    @commands.command(aliases=['damerexp'])
+    async def get_damer_exp_results(self, ctx, *, word: str):
+        """
+        Look up expressions of a word from the Diccionario de Americanismos from the ASALE.
+        - Example usage: `;damerexp pronto`.
+
+        This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
+        you can contact him through the provided Discord account.
+        -------
+        Buscar expresiones de palabras del Diccionario de Americanismos de la ASALE.
+        - Ejemplo de uso: `;damerexp pronto`.
+
+        Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
+        puedes contactarte con él a través de la cuenta de Discord proporcionada.
+        """
+        logging.basicConfig(level=logging.ERROR,
+                            format="%(asctime)s - %(levelname)s - %(message)s")
+
+        self.caller_function = "get_damer_exp_results"
+
+        embeds = []
+        formatted_word = word.strip().lower()
+        try:
+            entradas = await Buscador.búsqueda_damer(formatted_word)
+        except ExcepciónDNE as e_dne:
+            embedded_error = discord.Embed(
+                title="Palabra sin entradas disponibles",
+                description=str(e_dne),
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+        except Exception as e:
+            embedded_error = discord.Embed(
+                title="Excepción lanzada",
+                description=str(e),
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+
+        if not entradas:
+            embedded_error = discord.Embed(
+                title="Palabra sin entradas disponibles",
+                description=f'La palabra `{word}` no tiene entradas disponibles en el diccionario.',
+                color=0xFF5733
+            )
+            embeds.append(embedded_error)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+
+        if not any([e.expresiones for e in entradas]):
+            embed = discord.Embed(
+                title="entrada.encabezado",
+                url=f'https://www.asale.org/damer/{formatted_word}',
+                description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+            embeds.append(embed)
+            await self.send_embeds(ctx, embeds, formatted_word)
+            return
+
+        for entrada in entradas:
+            if not entrada.expresiones:
+                continue
+
+            # Split an entry into multiple pages/embeds if the number of expresiones exceeds 10
+            chunks = [entrada.expresiones[i:i + self.ENTRIES_PER_EMBED]
+                      for i in range(0, len(entrada.acepciones), self.ENTRIES_PER_EMBED)]
+
+            for i, chunk in enumerate(chunks):
+                description = '\n'.join(str(chunk))
+
+                # Include the entry header only on the first page
+                if i == 0:
+                    description = f'**{entrada.encabezado}**\n{description}'
+
+                embed = discord.Embed(
+                    title=entrada.encabezado,
+                    url=f'https://www.asale.org/damer/{formatted_word}',
+                    description=description,
+                    color=discord.Color.blue()
+                )
+                embed.set_footer(
+                    text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                embeds.append(embed)
+
+        await self.send_embeds(ctx, embeds, formatted_word)
+
+
+async def setup(bot):
+    await bot.add_cog(DamerDictionary(bot))
