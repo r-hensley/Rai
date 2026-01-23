@@ -1,7 +1,11 @@
+from typing import Any, Coroutine, Optional, Callable
+
 import aiohttp
 import html
 import logging
 import re
+
+from discord import Enum
 from lxml.html import HtmlElement, fromstring as from_html_string
 
 import discord
@@ -29,7 +33,9 @@ class Aproximación:
 
     def __eq__(self, otro):
         if isinstance(otro, Aproximación):
-            return self.término == otro.término and self.normalizado == otro.normalizado and self.href == otro.href
+            return (self.término == otro.término and
+                    self.normalizado == otro.normalizado and
+                    self.href == otro.href)
         return False
 
     def __str__(self):
@@ -47,7 +53,9 @@ class Acepción:
 
     def __eq__(self, otro):
         if isinstance(otro, Acepción):
-            return self.texto_entrada == otro.texto_entrada and self.índice_primario == otro.índice_primario and self.índice_secundario == otro.índice_secundario
+            return (self.texto_entrada == otro.texto_entrada
+                    and self.índice_primario == otro.índice_primario
+                    and self.índice_secundario == otro.índice_secundario)
         return False
 
     def __str__(self):
@@ -57,16 +65,24 @@ class Acepción:
 
 
 class Expresión:
-    def __init__(self, índice='', texto_entrada='', subsignificados=[], marcador=''):
+    def __init__(self,
+                 índice='',
+                 texto_entrada='',
+                 subsignificados: Optional[list[tuple[str, str]]] = None,
+                 marcador=''):
+        if subsignificados is None:
+            subsignificados = []
         self.índice = índice or ''
         self.texto_entrada = (texto_entrada or '').strip()
         self.subsignificados = subsignificados or []  # lista de tuple(índice, texto)
         self.marcador = marcador or ''
 
     def __eq__(self, otro):
-        if isinstance(otro, Acepción):
-            return self.texto_entrada == otro.texto_entrada and self.índice == otro.índice and self.subsignificados == otro.subsignificados \
-                and self.marcador == otro.marcador
+        if isinstance(otro, Expresión):
+            return (self.índice == otro.índice
+                    and self.texto_entrada == otro.texto_entrada
+                    and self.subsignificados == otro.subsignificados
+                    and self.marcador == otro.marcador)
         return False
 
     def __str__(self):
@@ -79,14 +95,16 @@ class Expresión:
 
 
 class Entrada:
-    def __init__(self, encabezado: str, acepciones: list[Acepción], expresiones: list[Acepción]):
+    def __init__(self, encabezado: str, acepciones: list[Acepción], expresiones: list[Expresión]):
         self.encabezado = encabezado or ''
         self.acepciones = acepciones or []
         self.expresiones = expresiones or []
 
     def __eq__(self, otro):
         if isinstance(otro, Entrada):
-            return self.encabezado == otro.encabezado and self.acepciones == otro.acepciones and self.expresiones == otro.expresiones
+            return (self.encabezado == otro.encabezado
+                    and self.acepciones == otro.acepciones
+                    and self.expresiones == otro.expresiones)
         return False
 
     def __str__(self):
@@ -125,7 +143,8 @@ class Buscador:
 
     # Devuelve una lista de aproximaciones
     @staticmethod
-    def recoger_aproximaciones(término: str, resultados_elem: HtmlElement) -> list[Aproximación]:
+    def recoger_aproximaciones(_término: str,
+                               resultados_elem: HtmlElement) -> list[Aproximación]:
         aproximaciones = []
         for aprox_elem in resultados_elem.iterfind('.//a[@data-acc="LISTA APROX"]'):
             texto = aprox_elem.text or ''
@@ -182,7 +201,7 @@ class Buscador:
                 índ_terciario = (índ_elems[0].findtext('span') or '').strip()
             else:
                 raise Exception('Formato inválido de índices')
-        return (índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip())
+        return índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip()
 
     @staticmethod
     def extraer_y_combinar_textos(elem: HtmlElement) -> str:
@@ -218,11 +237,11 @@ class Buscador:
     # Devuelve dos listas - la primera contiene acepciones y la segunda contiene expresiones
     @staticmethod
     def extraer_acepciones_expresiones(elem_entrada: HtmlElement) -> tuple[list[Acepción], list[Expresión]]:
-        acepciones = []
-        expresiones = []
+        acepciones: list[Acepción] = []
+        expresiones: list[Expresión] = []
         modo_expresiones = False
-        expr_pendiente = None
-        expr_subsignificados = []
+        expr_pendiente: Optional[Expresión] = None
+        expr_subsignificados: list[tuple[str, str]] = []
         expr_marcador = ''
         for fila_elem in elem_entrada.iterfind('.//tr'):
             índices = Buscador.extraer_índices(fila_elem)
@@ -254,7 +273,7 @@ class Buscador:
                 # Recoge todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
                 fragmentos.append(Buscador.extraer_y_combinar_textos(celda_elem))
 
-            texto_entero = ''.join(fragmentos).replace('__', '')
+            texto_entero: str = ''.join(fragmentos).replace('__', '')
             if modo_expresiones:
                 if índices[1]:
                     # Nueva expresión - agrega la anterior a la lista si existe
@@ -302,10 +321,6 @@ class Buscador:
         else:
             entradas = []
             for elem_entrada in resultados_el.iterfind('entry'):
-                acepciones = []
-                expresiones = []
-                encabezado = ''
-
                 # Extrae las acepciones relevantes
                 if término in html.unescape(elem_entrada.attrib.get('key', '')).split('|'):
                     # Extrae el encabezado
@@ -320,7 +335,7 @@ class Buscador:
             return entradas
 
     @staticmethod
-    async def búsqueda_damer(término: str) -> tuple[list[Acepción], list[Acepción]]:
+    async def búsqueda_damer(término: str) -> list[Entrada]:
         url_búsqueda = f'https://www.asale.org/damer/{término}'
         async with aiohttp.ClientSession(headers={'User-Agent': Buscador.USER_AGENT}) as sesión:
             async with sesión.get(url_búsqueda) as resp:
@@ -333,7 +348,8 @@ class Buscador:
 class PaginationView(discord.ui.View):
     def __init__(self, embeds, author, caller_function, damer_def_available, damer_exp_available, bot, ctx):
         super().__init__(timeout=60)
-        self.bot = bot
+        self.ctx = ctx
+        self.bot: commands.Bot = self.ctx.bot
         self.embeds = embeds
         self.author = author
         self.current_page = 0
@@ -342,7 +358,8 @@ class PaginationView(discord.ui.View):
         self.caller_function = caller_function
         self.damer_def_available = damer_def_available
         self.damer_exp_available = damer_exp_available
-        self.ctx = ctx
+        
+        self.message: Optional[discord.Message] = None  # set in DamerDictionary.send_embeds
 
         # Set initial buttons
         self.update_buttons()
@@ -380,40 +397,43 @@ class PaginationView(discord.ui.View):
         self.next_button.disabled = self.current_page == len(self.embeds) - 1
 
     @discord.ui.button(label="◄", style=discord.ButtonStyle.blurple)
-    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if self.current_page > 0:
             self.current_page -= 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="✖", style=discord.ButtonStyle.red)
-    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.message.delete()
+    async def close_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.message:
+            await interaction.message.delete()
         self.stop()
 
     @discord.ui.button(label="►", style=discord.ButtonStyle.blurple)
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if self.current_page < len(self.embeds) - 1:
             self.current_page += 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="1/1", style=discord.ButtonStyle.gray, disabled=True)
-    async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def page_indicator(self, _interaction: discord.Interaction, _button: discord.ui.Button):
         pass
 
     @discord.ui.button(label="Def", style=discord.ButtonStyle.green)
-    async def damer_def_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def damer_def_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
         command = self.bot.get_command('get_damer_def_results')
         if command:
-            await self.ctx.invoke(command, word=self.word)
-        await interaction.message.delete()
+            await self.ctx.invoke(command, word=self.word)  # pyright: ignore[reportArgumentType]
+        if interaction.message:
+            await interaction.message.delete()
         self.stop()
 
     @discord.ui.button(label="Exp", style=discord.ButtonStyle.green)
-    async def damer_exp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def damer_exp_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
         command = self.bot.get_command('get_damer_exp_results')
         if command:
-            await self.ctx.invoke(command, word=self.word)
-        await interaction.message.delete()
+            await self.ctx.invoke(command, word=self.word)  # pyright: ignore[reportArgumentType]
+        if interaction.message:
+            await interaction.message.delete()
         self.stop()
 
     async def update_embed(self, interaction):
@@ -477,6 +497,9 @@ class DamerDictionary(commands.Cog):
 
         embeds = []
         formatted_word = word.strip().lower()
+        
+        
+        # get entries and handle exceptions
         try:
             if not entradas:
                 entradas = await Buscador.búsqueda_damer(formatted_word)
@@ -490,7 +513,7 @@ class DamerDictionary(commands.Cog):
             await self.send_embeds(ctx, [embedded_error], formatted_word)
             return
         except Exception as e:
-            self.logger.exception(f'El comando falló con la palabra {word}.')
+            self.log.exception(f'El comando falló con la palabra {word}.')
             embedded_error = discord.Embed(
                 title="Chuta, algo salió mal.",
                 description=str(e),
@@ -534,7 +557,7 @@ class DamerDictionary(commands.Cog):
                 chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
                           for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
 
-                for i, chunk in enumerate(chunks):
+                for _, chunk in enumerate(chunks):
                     description = '\n'.join(str(acep) for acep in chunk)
                     embed = discord.Embed(
                         title=entrada.encabezado,
