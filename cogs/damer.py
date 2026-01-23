@@ -18,6 +18,11 @@ from cogs.utils.BotUtils import bot_utils as utils
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 
+class DamerMode(Enum):
+    DEF = "def"
+    EXP = "exp"
+
+
 FORCED_TAB = u'\u3164\u3164'
 
 
@@ -346,16 +351,21 @@ class Buscador:
 
 
 class PaginationView(discord.ui.View):
-    def __init__(self, embeds, author, caller_function, damer_def_available, damer_exp_available, bot, ctx):
+    def __init__(self,
+                 ctx: commands.Context,
+                 embeds: list[discord.Embed],
+                 author: discord.User | discord.Member,
+                 caller_mode: DamerMode | None,
+                 damer_def_available: bool,
+                 damer_exp_available: bool):
         super().__init__(timeout=60)
         self.ctx = ctx
         self.bot: commands.Bot = self.ctx.bot
         self.embeds = embeds
         self.author = author
         self.current_page = 0
-        self.message = None
-        self.word = None
-        self.caller_function = caller_function
+        self.word: str | None = None
+        self.caller_mode = caller_mode
         self.damer_def_available = damer_def_available
         self.damer_exp_available = damer_exp_available
         
@@ -366,8 +376,8 @@ class PaginationView(discord.ui.View):
 
     def update_buttons(self):
         button_mapping = {
-            "get_damer_def_results": (self.damer_def_button, self.damer_def_available),
-            "get_damer_exp_results": (self.damer_exp_button, self.damer_exp_available),
+            DamerMode.DEF: (self.damer_def_button, self.damer_def_available),
+            DamerMode.EXP: (self.damer_exp_button, self.damer_exp_available),
         }
 
         # Clear existing buttons
@@ -380,7 +390,10 @@ class PaginationView(discord.ui.View):
         self.add_item(self.close_button)
 
         # Add function buttons
-        caller_button = button_mapping.get(self.caller_function)[0]
+        if self.caller_mode == DamerMode.DEF:
+            caller_button = self.damer_def_button
+        else:
+            caller_button = self.damer_exp_button
 
         for button, button_availability in button_mapping.values():
             button.row = 1
@@ -466,16 +479,27 @@ class DamerDictionary(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.caller_function = None
+        # self.caller_mode: Optional[DamerMode] = None
         self.log = logging.getLogger('damer')
         self.log.setLevel(logging.ERROR)
 
-    async def send_embeds(self, ctx, embeds, formatted_word, damer_def_available=False, damer_exp_available=False):
+    async def send_embeds(self,
+                          ctx: commands.Context,
+                          embeds: list[discord.Embed],
+                          formatted_word,
+                          caller_mode: DamerMode | None = None,
+                          damer_def_available=False,
+                          damer_exp_available=False):
         if not embeds:
             return
 
-        view = PaginationView(embeds, ctx.author, self.caller_function, damer_def_available, damer_exp_available,
-                              self.bot, ctx)
+        view = PaginationView(ctx,
+                              embeds,
+                              ctx.author,
+                              caller_mode,
+                              damer_def_available,
+                              damer_exp_available,
+                              )
         view.word = formatted_word
 
         # Prepare initial embed
@@ -492,9 +516,28 @@ class DamerDictionary(commands.Cog):
         message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
         view.message = message
 
-    async def _generate_and_send_embeds(self, ctx, caller_function: str, word: str, entradas=[]):
-        self.caller_function = caller_function
-
+    async def _generate_and_send_embeds(self,
+                                        ctx: commands.Context,
+                                        word: str,
+                                        entradas: list[Entrada] | None = None,
+                                        caller_mode: DamerMode | None = None):
+        if entradas is None:
+            entradas = []
+        
+        # if not given, extract the command that invoked this command from ctx
+        if not caller_mode:
+            if ctx.command == self.get_damer_def_results:
+                caller_mode = DamerMode.DEF
+            else:
+                caller_mode = DamerMode.EXP
+                
+        if caller_mode == DamerMode.DEF:
+            # caller_function = self.get_damer_def_results.callback
+            def_mode, exp_mode = True, False
+        else:
+            # caller_function = self.get_damer_exp_results.callback
+            def_mode, exp_mode = False, True
+                
         embeds = []
         formatted_word = word.strip().lower()
         
@@ -510,8 +553,9 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            await self.send_embeds(ctx, [embedded_error], formatted_word)
-            return
+            return await self.send_embeds(ctx, [embedded_error], formatted_word,
+                                          caller_mode=caller_mode)
+        
         except Exception as e:
             self.log.exception(f'El comando falló con la palabra {word}.')
             embedded_error = discord.Embed(
@@ -520,9 +564,10 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
-            await self.send_embeds(ctx, [embedded_error], formatted_word)
-            return
-
+            return await self.send_embeds(ctx, [embedded_error], formatted_word,
+                                          caller_mode=caller_mode)
+            
+        # handle no entries found
         if not entradas:
             embedded_error = discord.Embed(
                 title="Palabra sin definiciones disponibles",
@@ -530,16 +575,20 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            await self.send_embeds(ctx, [embedded_error], formatted_word)
-            return
-
+            return await self.send_embeds(ctx,
+                                          [embedded_error],
+                                          formatted_word,
+                                          caller_mode=caller_mode,)
+            
         damer_def_available = any([e.acepciones for e in entradas])
         damer_exp_available = any([e.expresiones for e in entradas])
 
         # Handle case where only expressions are available and user requested definitions
-        if caller_function == 'get_damer_def_results' and damer_exp_available and not damer_def_available:
-            return await self._generate_and_send_embeds(ctx, 'get_damer_exp_results', word, entradas)
-        elif caller_function == 'get_damer_exp_results' and not damer_exp_available:
+        if def_mode and not damer_def_available and damer_exp_available:
+            return await self._generate_and_send_embeds(ctx, word, entradas,
+                                                        caller_mode=DamerMode.EXP)
+        
+        elif exp_mode and not damer_exp_available:
             embed = discord.Embed(
                 title="Palabra sin expresiones disponibles",
                 description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
@@ -547,12 +596,13 @@ class DamerDictionary(commands.Cog):
             )
             embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             embeds.append(embed)
-            await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available)
-            return
+            return await self.send_embeds(ctx, embeds, formatted_word,
+                                          caller_mode=caller_mode,
+                                          damer_def_available=damer_def_available)
 
         for entrada in entradas:
             # Split an entry into multiple pages/embeds if the number of items exceeds 10
-            to_iterate = entrada.expresiones if caller_function == 'get_damer_exp_results' else entrada.acepciones
+            to_iterate = entrada.expresiones if caller_mode == DamerMode.EXP else entrada.acepciones
             if to_iterate:
                 chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
                           for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
@@ -568,7 +618,10 @@ class DamerDictionary(commands.Cog):
                     embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
                     embeds.append(embed)
 
-        await self.send_embeds(ctx, embeds, formatted_word, damer_def_available=damer_def_available, damer_exp_available=damer_exp_available)
+        return await self.send_embeds(ctx, embeds, formatted_word,
+                                        caller_mode=caller_mode,
+                                        damer_def_available=damer_def_available,
+                                        damer_exp_available=damer_exp_available)
 
     @commands.command(aliases=['damer'])
     async def get_damer_def_results(self, ctx, *, word: str):
@@ -585,7 +638,7 @@ class DamerDictionary(commands.Cog):
         Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
         puedes contactarte con él a través de la cuenta de Discord proporcionada.
         """
-        await self._generate_and_send_embeds(ctx, 'get_damer_def_results', word)
+        await self._generate_and_send_embeds(ctx, word, caller_mode=DamerMode.DEF)
 
     @commands.command(aliases=['damerexp'])
     async def get_damer_exp_results(self, ctx, *, word: str):
@@ -602,7 +655,7 @@ class DamerDictionary(commands.Cog):
         Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
         puedes contactarte con él a través de la cuenta de Discord proporcionada.
         """
-        await self._generate_and_send_embeds(ctx, 'get_damer_exp_results', word)
+        await self._generate_and_send_embeds(ctx, word, caller_mode=DamerMode.EXP)
 
 
 async def setup(bot):
