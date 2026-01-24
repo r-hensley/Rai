@@ -1,11 +1,12 @@
-from typing import Any, Coroutine, Optional, Callable
+from typing import Optional
+from urllib.parse import quote
 
 import aiohttp
 import html
 import logging
 import re
 
-from discord import Enum
+from enum import Enum
 from lxml.html import HtmlElement, fromstring as from_html_string
 
 import discord
@@ -341,7 +342,8 @@ class Buscador:
 
     @staticmethod
     async def búsqueda_damer(término: str) -> list[Entrada]:
-        url_búsqueda = f'https://www.asale.org/damer/{término}'
+        safe_term = quote(término, safe="")
+        url_búsqueda = f"https://www.asale.org/damer/{safe_term}"
         async with aiohttp.ClientSession(headers={'User-Agent': Buscador.USER_AGENT}) as sesión:
             async with sesión.get(url_búsqueda) as resp:
                 if resp.status != 200:
@@ -355,9 +357,10 @@ class PaginationView(discord.ui.View):
                  ctx: commands.Context,
                  embeds: list[discord.Embed],
                  author: discord.User | discord.Member,
-                 caller_mode: DamerMode | None,
+                 caller_mode: DamerMode,
                  damer_def_available: bool,
-                 damer_exp_available: bool):
+                 damer_exp_available: bool,
+                 gen_embeds_callback):
         super().__init__(timeout=60)
         self.ctx = ctx
         self.bot: commands.Bot = self.ctx.bot
@@ -368,6 +371,7 @@ class PaginationView(discord.ui.View):
         self.caller_mode = caller_mode
         self.damer_def_available = damer_def_available
         self.damer_exp_available = damer_exp_available
+        self.gen_embeds_callback = gen_embeds_callback
         
         self.message: Optional[discord.Message] = None  # set in DamerDictionary.send_embeds
 
@@ -433,18 +437,14 @@ class PaginationView(discord.ui.View):
 
     @discord.ui.button(label="Def", style=discord.ButtonStyle.green)
     async def damer_def_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        command = self.bot.get_command('get_damer_def_results')
-        if command:
-            await self.ctx.invoke(command, word=self.word)  # pyright: ignore[reportArgumentType]
+        await self.gen_embeds_callback(self.ctx, self.word, caller_mode=DamerMode.DEF)
         if interaction.message:
             await interaction.message.delete()
         self.stop()
 
     @discord.ui.button(label="Exp", style=discord.ButtonStyle.green)
     async def damer_exp_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        command = self.bot.get_command('get_damer_exp_results')
-        if command:
-            await self.ctx.invoke(command, word=self.word)  # pyright: ignore[reportArgumentType]
+        await self.gen_embeds_callback(self.ctx, self.word, caller_mode=DamerMode.EXP)
         if interaction.message:
             await interaction.message.delete()
         self.stop()
@@ -479,7 +479,6 @@ class DamerDictionary(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        # self.caller_mode: Optional[DamerMode] = None
         self.log = logging.getLogger('damer')
         self.log.setLevel(logging.ERROR)
 
@@ -487,7 +486,7 @@ class DamerDictionary(commands.Cog):
                           ctx: commands.Context,
                           embeds: list[discord.Embed],
                           formatted_word,
-                          caller_mode: DamerMode | None = None,
+                          caller_mode: DamerMode,
                           damer_def_available=False,
                           damer_exp_available=False):
         if not embeds:
@@ -499,6 +498,7 @@ class DamerDictionary(commands.Cog):
                               caller_mode,
                               damer_def_available,
                               damer_exp_available,
+                              gen_embeds_callback=self._generate_and_send_embeds
                               )
         view.word = formatted_word
 
@@ -519,28 +519,14 @@ class DamerDictionary(commands.Cog):
     async def _generate_and_send_embeds(self,
                                         ctx: commands.Context,
                                         word: str,
-                                        entradas: list[Entrada] | None = None,
-                                        caller_mode: DamerMode | None = None):
+                                        caller_mode: DamerMode,
+                                        entradas: list[Entrada] | None = None
+                                        ):
         if entradas is None:
             entradas = []
         
-        # if not given, extract the command that invoked this command from ctx
-        if not caller_mode:
-            if ctx.command == self.get_damer_def_results:
-                caller_mode = DamerMode.DEF
-            else:
-                caller_mode = DamerMode.EXP
-                
-        if caller_mode == DamerMode.DEF:
-            # caller_function = self.get_damer_def_results.callback
-            def_mode, exp_mode = True, False
-        else:
-            # caller_function = self.get_damer_exp_results.callback
-            def_mode, exp_mode = False, True
-                
         embeds = []
         formatted_word = word.strip().lower()
-        
         
         # get entries and handle exceptions
         try:
@@ -584,11 +570,11 @@ class DamerDictionary(commands.Cog):
         damer_exp_available = any([e.expresiones for e in entradas])
 
         # Handle case where only expressions are available and user requested definitions
-        if def_mode and not damer_def_available and damer_exp_available:
-            return await self._generate_and_send_embeds(ctx, word, entradas,
-                                                        caller_mode=DamerMode.EXP)
+        if caller_mode == DamerMode.DEF and not damer_def_available and damer_exp_available:
+            return await self._generate_and_send_embeds(ctx, word, caller_mode=DamerMode.EXP,
+                                                        entradas=entradas)
         
-        elif exp_mode and not damer_exp_available:
+        elif caller_mode == DamerMode.EXP and not damer_exp_available:
             embed = discord.Embed(
                 title="Palabra sin expresiones disponibles",
                 description=f'La palabra `{word}` no tiene expresiones disponibles en el diccionario.',
@@ -602,7 +588,9 @@ class DamerDictionary(commands.Cog):
 
         for entrada in entradas:
             # Split an entry into multiple pages/embeds if the number of items exceeds 10
-            to_iterate = entrada.expresiones if caller_mode == DamerMode.EXP else entrada.acepciones
+            to_iterate = entrada.expresiones \
+                if caller_mode == DamerMode.EXP \
+                else entrada.acepciones
             if to_iterate:
                 chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
                           for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
