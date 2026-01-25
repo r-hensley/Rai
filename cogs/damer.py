@@ -132,7 +132,7 @@ class Buscador:
         '8': u'\u2078',
         '9': u'\u2079',
     }
-    RE_NÚMEROS_ROMANOS = re.compile(r'^[IVXLCDM]+\.?$')
+    RE_NÚMEROS_ROMANOS = re.compile(r'^[IVXLCDM]+\.')
     USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0'
     TEXTO_COPYRIGHT = 'Diccionario de americanismos © 2010 | Asociación de Academias de la Lengua Española © Todos los derechos reservados'
 
@@ -169,7 +169,7 @@ class Buscador:
         return aproximaciones
 
     @staticmethod
-    def extraer_índices(fila_elem: HtmlElement) -> tuple[str, str, str]:
+    def extraer_índices(fila_elem: HtmlElement) -> list[str]:
         # La cantidad de celdas vacías determina el formato de los índices
         cant_cel_vacías_inic = 0
         for celda_elem in fila_elem.iterchildren(tag='td'):
@@ -207,10 +207,10 @@ class Buscador:
                 índ_terciario = (índ_elems[0].findtext('span') or '').strip()
             else:
                 raise Exception('Formato inválido de índices')
-        return índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip()
+        return [índ_primario.strip(), índ_secundario.strip(), índ_terciario.strip()]
 
     @staticmethod
-    def extraer_y_combinar_textos(elem: HtmlElement) -> str:
+    def extraer_y_combinar_textos(elem: HtmlElement, negrita=True) -> str:
         fragmentos = []
         for text_elem in elem.iterchildren():
             elem_tag = text_elem.tag
@@ -219,7 +219,7 @@ class Buscador:
 
             if text_elem.text:
                 fragmento_original = html.unescape(text_elem.text)
-                if text_elem.get('class') == 'da3':
+                if text_elem.get('class') == 'da3' and negrita:
                     # Ponlo en negrita
                     fragmentos.append(f'**{fragmento_original}**')
                 elif elem_tag == 'a' and text_elem.get('href'):
@@ -249,8 +249,31 @@ class Buscador:
         expr_pendiente: Optional[Expresión] = None
         expr_subsignificados: list[tuple[str, str]] = []
         expr_marcador = ''
+        índice_con_etim = ''  # índice primario con etimología
         for fila_elem in elem_entrada.iterfind('.//tr'):
+            # Averigua si esta fila es para el encabezado o para la etimología
+            es_encabezado = False
+            es_etimología = False
+            for celda_elem in fila_elem.iterchildren(tag='td'):
+                if celda_elem.get('class') == 'da2':
+                    if es_encabezado or es_etimología:
+                        break
+                    for span_elem in celda_elem.iterchildren(tag='span'):
+                        span_class = span_elem.get('class')
+                        if span_class == 'da8':
+                            es_encabezado = True
+                            break
+                        elif span_class in ('da3', 'da1'):
+                            índice_con_etim += Buscador.extraer_y_combinar_textos(celda_elem, negrita=False)
+                            es_etimología = True
+                            break
+            if es_encabezado or es_etimología:
+                continue
+
             índices = Buscador.extraer_índices(fila_elem)
+            if índice_con_etim and not índices[0]:
+                índices[0] = índice_con_etim
+                índice_con_etim = ''
 
             # Las acepciones van primero, luego las expresiones
             if not modo_expresiones and índices[0] and not Buscador.RE_NÚMEROS_ROMANOS.match(índices[0]):
@@ -263,10 +286,7 @@ class Buscador:
             # Extrae el texto de la entrada
             fragmentos = []
             for celda_elem in fila_elem.iterchildren(tag='td'):
-                if celda_elem.get('class') == 'da2':
-                    # Deja de procesar el encabezado
-                    break
-                elif celda_elem.get('class') == 'da7':
+                if celda_elem.get('class') == 'da7':
                     # Nos saltamos las celdas de índices
                     continue
 
