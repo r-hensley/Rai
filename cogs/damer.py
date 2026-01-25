@@ -333,7 +333,7 @@ class Buscador:
                     encabezado = elem_entrada.findtext('.//span[@class="da8"]')
                     if not encabezado:
                         raise Exception('No se encontró ningún elemento de encabezado.')
-                    encabezado = html.unescape(encabezado)
+                    encabezado = html.unescape(encabezado).rstrip('.')
                     acepciones, expresiones = Buscador.extraer_acepciones_expresiones(elem_entrada)
                     if not (acepciones or expresiones):
                         raise Exception('No se extrajo ninguna acepción/expresión.')
@@ -372,7 +372,7 @@ class PaginationView(discord.ui.View):
         self.damer_def_available = damer_def_available
         self.damer_exp_available = damer_exp_available
         self.gen_embeds_callback = gen_embeds_callback
-        
+
         self.message: Optional[discord.Message] = None  # set in DamerDictionary.send_embeds
 
         # Set initial buttons
@@ -498,8 +498,7 @@ class DamerDictionary(commands.Cog):
                               caller_mode,
                               damer_def_available,
                               damer_exp_available,
-                              gen_embeds_callback=self._generate_and_send_embeds
-                              )
+                              gen_embeds_callback=self._generate_and_send_embeds)
         view.word = formatted_word
 
         # Prepare initial embed
@@ -520,14 +519,10 @@ class DamerDictionary(commands.Cog):
                                         ctx: commands.Context,
                                         word: str,
                                         caller_mode: DamerMode,
-                                        entradas: list[Entrada] | None = None
-                                        ):
-        if entradas is None:
-            entradas = []
-        
+                                        entradas: list[Entrada] | None = None):
         embeds = []
         formatted_word = word.strip().lower()
-        
+
         # get entries and handle exceptions
         try:
             if not entradas:
@@ -541,7 +536,7 @@ class DamerDictionary(commands.Cog):
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             return await self.send_embeds(ctx, [embedded_error], formatted_word,
                                           caller_mode=caller_mode)
-        
+
         except Exception as e:
             self.log.exception(f'El comando falló con la palabra {word}.')
             embedded_error = discord.Embed(
@@ -552,7 +547,7 @@ class DamerDictionary(commands.Cog):
             embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
             return await self.send_embeds(ctx, [embedded_error], formatted_word,
                                           caller_mode=caller_mode)
-            
+
         # handle no entries found
         if not entradas:
             embedded_error = discord.Embed(
@@ -565,7 +560,7 @@ class DamerDictionary(commands.Cog):
                                           [embedded_error],
                                           formatted_word,
                                           caller_mode=caller_mode,)
-            
+
         damer_def_available = any([e.acepciones for e in entradas])
         damer_exp_available = any([e.expresiones for e in entradas])
 
@@ -573,7 +568,6 @@ class DamerDictionary(commands.Cog):
         if caller_mode == DamerMode.DEF and not damer_def_available and damer_exp_available:
             return await self._generate_and_send_embeds(ctx, word, caller_mode=DamerMode.EXP,
                                                         entradas=entradas)
-        
         elif caller_mode == DamerMode.EXP and not damer_exp_available:
             embed = discord.Embed(
                 title="Palabra sin expresiones disponibles",
@@ -595,7 +589,7 @@ class DamerDictionary(commands.Cog):
                 chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
                           for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
 
-                for _, chunk in enumerate(chunks):
+                for chunk in chunks:
                     description = '\n'.join(str(acep) for acep in chunk)
                     embed = discord.Embed(
                         title=entrada.encabezado,
@@ -607,9 +601,9 @@ class DamerDictionary(commands.Cog):
                     embeds.append(embed)
 
         return await self.send_embeds(ctx, embeds, formatted_word,
-                                        caller_mode=caller_mode,
-                                        damer_def_available=damer_def_available,
-                                        damer_exp_available=damer_exp_available)
+                                      caller_mode=caller_mode,
+                                      damer_def_available=damer_def_available,
+                                      damer_exp_available=damer_exp_available)
 
     @commands.command(aliases=['damer'])
     async def get_damer_def_results(self, ctx, *, word: str):
