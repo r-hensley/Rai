@@ -313,6 +313,10 @@ class Buscador:
                     # Significado para la expresión pendiente
                     expr_subsignificados.append((índices[2], texto_entero))
                 elif índices[0] == '▶':
+                    # Fin de lista de expresiones con definiciones - agrega la anterior a la lista si existe
+                    if expr_pendiente is not None:
+                        expr_pendiente.subsignificados = expr_subsignificados
+                        expresiones.append(expr_pendiente)
                     expresiones.append(Expresión(índices[0], texto_entrada=texto_entero))
                     expr_pendiente = None
             elif texto_entero:
