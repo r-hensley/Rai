@@ -1212,6 +1212,10 @@ async def get_message_from_id_or_link(interaction: discord.Interaction,
 
 
 class RaiMessage(discord.Message):
+    guild: discord.Guild  # make required attribute
+    user: discord.User
+    member: discord.Member
+    
     # noinspection PyMissingConstructor
     def __init__(self, discord_message: discord.Message):
         # Wrap the original discord.Message
