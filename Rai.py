@@ -12,6 +12,11 @@ import discord
 from discord.ext.commands import Bot
 from discord.ext import commands
 
+# check Python version
+current_ver = sys.version_info
+if current_ver.major != 3 and current_ver.minor < 11:
+    raise Exception("Invalid version number, please use at least Python 3.11.")
+
 # check to make sure this submodule is initialized
 try:
     from cogs.utils.BotUtils import bot_utils as utils
@@ -56,23 +61,28 @@ if not os.getenv("TRACEBACK_LOGGING_CHANNEL") or not os.getenv("BOT_TEST_CHANNEL
                                "in your bot folder.")
 
 # Change these two values to channel IDs in your testing server if you are forking the bot
-TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
-BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL"))
+TRACEBACK_LOGGING_CHANNEL = int(os.getenv("TRACEBACK_LOGGING_CHANNEL", "0"))
+BOT_TEST_CHANNEL = int(os.getenv("BOT_TEST_CHANNEL", "0"))
 
 t_start = datetime.now()
 
 max_messages = 10000
 
 
+
+
+
 def prefix(bot: commands.Bot, msg: discord.Message) -> str:
+    if not bot.user:
+        raise Exception("Something is weird...")
     if bot.user.name == "Rai":
         default = ';'
     else:
         default = 'r;'
     if msg.guild:
-        if 'prefix' not in bot.db:
-            bot.db['prefix'] = {}
-        return bot.db['prefix'].get(str(msg.guild.id), default)
+        if 'prefix' not in bot.db:  # pyright: ignore[reportAttributeAccessIssue]
+            bot.db['prefix'] = {}  # pyright: ignore[reportAttributeAccessIssue]
+        return bot.db['prefix'].get(str(msg.guild.id), default)  # pyright: ignore[reportAttributeAccessIssue]
     else:
         return default
 
