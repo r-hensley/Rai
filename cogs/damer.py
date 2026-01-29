@@ -22,6 +22,7 @@ logging.getLogger("asyncio").setLevel(logging.ERROR)
 class DamerMode(Enum):
     DEF = "def"
     EXP = "exp"
+    SPFC = "specific phrase"
 
 
 FORCED_TAB = u'\u3164\u3164'
@@ -98,6 +99,13 @@ class Expresión:
             return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}\n{FORCED_TAB}{FORCED_TAB}{texto_subsignificados}'
         else:
             return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}'
+
+    def imprimir_sin_índices(self):
+        if self.subsignificados:
+            texto_subsignificados = f'\n{FORCED_TAB}'.join([f'{s[0]} {s[1]}' for s in self.subsignificados])
+            return f'{self.texto_entrada}\n{FORCED_TAB}{texto_subsignificados}'
+        else:
+            return self.texto_entrada
 
 
 class Entrada:
@@ -440,8 +448,10 @@ class PaginationView(discord.ui.View):
         # Add function buttons
         if self.caller_mode == DamerMode.DEF:
             caller_button = self.damer_def_button
-        else:
+        elif self.caller_mode == DamerMode.EXP:
             caller_button = self.damer_exp_button
+        else:
+            caller_button = None
 
         for button, button_availability in button_mapping.values():
             button.row = 1 if len(self.embeds) < 10 else 2
@@ -449,7 +459,7 @@ class PaginationView(discord.ui.View):
             self.add_item(button)
 
             # If caller button, disable it and change colour to grey
-            if button == caller_button:
+            if caller_button and button == caller_button:
                 caller_button.disabled = True
                 caller_button.style = discord.ButtonStyle.gray
 
@@ -557,7 +567,7 @@ class DamerDictionary(commands.Cog):
     async def send_embeds(self,
                           ctx: commands.Context,
                           embeds: list[discord.Embed],
-                          formatted_word,
+                          lookup_word,
                           caller_mode: DamerMode,
                           damer_def_available=False,
                           damer_exp_available=False,
@@ -573,7 +583,7 @@ class DamerDictionary(commands.Cog):
                               damer_exp_available,
                               gen_embeds_callback=self._generate_and_send_embeds,
                               start_index=start_index)
-        view.word = formatted_word
+        view.word = lookup_word
 
         # Prepare initial embed
         initial_embed = embeds[start_index].copy()
@@ -593,53 +603,55 @@ class DamerDictionary(commands.Cog):
         message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
         view.message = message
 
-    def _get_embeds_and_start_index(self,
-                                    entradas: list[Entrada],
-                                    caller_mode: DamerMode,
-                                    formatted_word: str,
-                                    lookup_parts: list[str]) -> tuple[list[discord.Embed], int]:
+    def _get_embeds(self,
+                    entradas: list[Entrada],
+                    caller_mode: DamerMode,
+                    lookup_word: str,
+                    target_phrase: str = '') -> tuple[list[discord.Embed], int]:
         embeds = []
-        start_index = 0
-        potential_index_with_phrase = 0
         found_specific_phrase = False
-        target_phrase = ''
-        phrase_lookup = len(lookup_parts) > 1
         for entrada in entradas:
-            if phrase_lookup:
-                if entrada.encabezado.endswith('(se)') and formatted_word.endswith('se'):
-                    lookup_parts[0] = '~se'
-                else:
-                    lookup_parts[0] = '~'
-                target_phrase = ' '.join(lookup_parts)
-
             # Split an entry into multiple pages/embeds if the number of items exceeds 10
             to_iterate = entrada.expresiones \
-                if caller_mode == DamerMode.EXP \
+                if caller_mode == DamerMode.EXP or caller_mode == DamerMode.SPFC \
                 else entrada.acepciones
             if to_iterate:
                 chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
                           for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
 
                 for chunk in chunks:
-                    description = '\n'.join(str(acep) for acep in chunk)
-                    embed = discord.Embed(
-                        title=entrada.encabezado,
-                        url=f'https://www.asale.org/damer/{formatted_word}',
-                        description=description,
-                        color=discord.Color.blue()
-                    )
-                    embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-                    embeds.append(embed)
-
-                    if phrase_lookup and not found_specific_phrase:
+                    if caller_mode != DamerMode.SPFC:
+                        description = '\n'.join(str(acep) for acep in chunk)
+                        embed = discord.Embed(
+                            title=entrada.encabezado,
+                            url=f'https://www.asale.org/damer/{lookup_word}',
+                            description=description,
+                            color=discord.Color.blue()
+                        )
+                        embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                        embeds.append(embed)
+                    elif target_phrase and not found_specific_phrase:
                         for expr in chunk:
-                            normalized_text = expr.texto_entrada.replace('**', '').strip()
+                            normalized_text = expr.texto_entrada.replace('**', '').replace('_', '').strip()
                             if normalized_text.startswith(target_phrase):
                                 found_specific_phrase = True
-                                start_index = potential_index_with_phrase
-                                break
-                        potential_index_with_phrase += 1
-        return embeds, start_index
+                                specific_phrase_embed = discord.Embed(
+                                    title=entrada.encabezado,
+                                    url=f'https://www.asale.org/damer/{lookup_word}',
+                                    description=expr.imprimir_sin_índices(),
+                                    color=discord.Color.blue()
+                                )
+                                specific_phrase_embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                                return [specific_phrase_embed]
+        if caller_mode == DamerMode.SPFC and not found_specific_phrase:
+            embedded_error = discord.Embed(
+                title="No se pudo encontrar la expresión solicitada.",
+                description=f'La expresión solicitada no aparece en las entradas de {lookup_word}',
+                color=0xFF5733
+            )
+            embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+            return [embedded_error]
+        return embeds
 
     async def _generate_and_send_embeds(self,
                                         ctx: commands.Context,
@@ -647,16 +659,18 @@ class DamerDictionary(commands.Cog):
                                         caller_mode: DamerMode,
                                         entradas: list[Entrada] | None = None):
         lookup_parts = lookup_term.split()
-        formatted_word = lookup_parts[0]
+        lookup_word = lookup_parts[0]
+        target_phrase = ''
 
-        # Check if we're looking up a phrase
+        # Check if we're looking up a specific phrase
         if len(lookup_parts) > 1:
-            caller_mode = DamerMode.EXP
+            caller_mode = DamerMode.SPFC
+            lookup_word, target_phrase = self._generate_target_word_and_phrase(lookup_parts)
 
         # get entries and handle exceptions
         try:
             if not entradas:
-                entradas = await Buscador.búsqueda_damer(formatted_word)
+                entradas = await Buscador.búsqueda_damer(lookup_word)
         except ExcepciónDNE as e_dne:
             embedded_error = discord.Embed(
                 title="Palabra sin entradas disponibles",
@@ -664,7 +678,7 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            return await self.send_embeds(ctx, [embedded_error], formatted_word,
+            return await self.send_embeds(ctx, [embedded_error], lookup_word,
                                           caller_mode=caller_mode)
 
         except Exception as e:
@@ -675,20 +689,20 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
-            return await self.send_embeds(ctx, [embedded_error], formatted_word,
+            return await self.send_embeds(ctx, [embedded_error], lookup_word,
                                           caller_mode=caller_mode)
 
         # handle no entries found
         if not entradas:
             embedded_error = discord.Embed(
                 title="Palabra sin definiciones disponibles",
-                description=f'La palabra `{formatted_word}` no tiene entradas disponibles en el diccionario.',
+                description=f'La palabra `{lookup_word}` no tiene entradas disponibles en el diccionario.',
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
             return await self.send_embeds(ctx,
                                           [embedded_error],
-                                          formatted_word,
+                                          lookup_word,
                                           caller_mode=caller_mode,)
 
         damer_def_available = any([e.acepciones for e in entradas])
@@ -696,25 +710,24 @@ class DamerDictionary(commands.Cog):
 
         # Handle case where only expressions are available and user requested definitions
         if caller_mode == DamerMode.DEF and not damer_def_available and damer_exp_available:
-            return await self._generate_and_send_embeds(ctx, formatted_word, caller_mode=DamerMode.EXP,
+            return await self._generate_and_send_embeds(ctx, lookup_word, caller_mode=DamerMode.EXP,
                                                         entradas=entradas)
         elif caller_mode == DamerMode.EXP and not damer_exp_available:
             embed = discord.Embed(
                 title="Palabra sin expresiones disponibles",
-                description=f'La palabra `{formatted_word}` no tiene expresiones disponibles en el diccionario.',
+                description=f'La palabra `{lookup_word}` no tiene expresiones disponibles en el diccionario.',
                 color=discord.Color.blue()
             )
             embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            return await self.send_embeds(ctx, [embed], formatted_word,
+            return await self.send_embeds(ctx, [embed], lookup_word,
                                           caller_mode=caller_mode,
                                           damer_def_available=damer_def_available)
 
-        embeds, start_index = self._get_embeds_and_start_index(entradas, caller_mode, formatted_word, lookup_parts)
-        return await self.send_embeds(ctx, embeds, formatted_word,
+        embeds = self._get_embeds(entradas, caller_mode, lookup_word, target_phrase)
+        return await self.send_embeds(ctx, embeds, lookup_word,
                                       caller_mode=caller_mode,
                                       damer_def_available=damer_def_available,
-                                      damer_exp_available=damer_exp_available,
-                                      start_index=start_index)
+                                      damer_exp_available=damer_exp_available)
 
     @commands.command(aliases=['damer'])
     async def get_damer_def_results(self, ctx, *, lookup_term: str):
@@ -750,8 +763,77 @@ class DamerDictionary(commands.Cog):
         """
         await self._generate_and_send_embeds(ctx, self._sanitize_input(lookup_term), caller_mode=DamerMode.EXP)
 
-    def _sanitize_input(self, input: str) -> str:
-        return re.sub(r'[^.,a-záéíóúüñ\-?!¿¡ ]', '', input.strip().lower())
+    @classmethod
+    def _sanitize_input(cls, input: str) -> str:
+        return re.sub(r'[^.,a-záéíóúüñ\-?!¿¡ ()]', '', input.strip().lower())
+
+    @classmethod
+    def _generate_target_word_and_phrase(cls, lookup_parts: list[str]) -> tuple[str, str]:
+        '''
+        Given the list of words to look up, returns the search term and the target expression
+        to look for, if applicable.
+        '''
+
+        # Handle single word lookup
+        if len(lookup_parts) == 1:
+            # Handle edge cases like 'dársela'
+            matches = re.match(r'^(.*[áéí]r)sel[aeo]s?$', lookup_parts[0])
+            if matches and matches.groups():
+                key_word = matches.groups()[0]
+                if key_word.endswith('ár'):
+                    key_word = re.sub(r'ár$', 'ar', key_word)
+                elif key_word.endswith('ér'):
+                    key_word = re.sub(r'ér$', 'er', key_word)
+                elif key_word.endswith('ír'):
+                    key_word = re.sub(r'ír$', 'ir', key_word)
+                # Entries like 'dársela' don't replace the infinitive with ~
+                return key_word, lookup_parts[0]
+            return lookup_parts[0], ''
+
+        # Skip non-key words
+        non_key_words = {'no', 'que', 'ya', 'de', 'a', 'con', 'como', 'por', 'para', 'del', 'lo', 'la', 'los', 'las', 'el', 'como', 'al', 'todo'}
+        key_index = -1
+        for i, part in enumerate(lookup_parts):
+            if part not in non_key_words:
+                key_index = i
+                break
+        if key_index < 0:
+            return '', ''
+
+        print(f'Key index: {key_index}')
+
+        base_part = lookup_parts[key_index]
+        modified_parts = list(lookup_parts)
+
+        # Handle direct object after infinitive (e.g. pasarlo, hacerles)
+        matches = re.match(r'^(.*[aei]r)(l[aeo]s?)$', base_part)
+        if matches and len(matches.groups()) == 2:
+            key_word = matches.groups()[0]
+            modified_parts[key_index] = f'~{matches.groups()[1]}'
+            return key_word, ' '.join(modified_parts)
+
+        # Handle pronominal (no object) (e.g. hacerse)
+        matches = re.match(r'^(.*[aei]r)se$', base_part)
+        if matches and matches.groups():
+            key_word = matches.groups()[0]
+            modified_parts[key_index] = '~se'
+            return key_word, ' '.join(modified_parts)
+
+        # Handle pronominal with object (e.g. pasárselo)
+        matches = re.match(r'^(.*[áéí]r)sel[aeo]s?$', base_part)
+        if matches and matches.groups():
+            key_word = matches.groups()[0]
+            if key_word.endswith('ár'):
+                key_word = re.sub(r'ár$', 'ar', key_word)
+            elif key_word.endswith('ér'):
+                key_word = re.sub(r'ér$', 'er', key_word)
+            elif key_word.endswith('ír'):
+                key_word = re.sub(r'ír$', 'ir', key_word)
+            # Entries like 'dársele vuelta el paraguas' don't replace the infinitive with ~
+            return key_word, ' '.join(lookup_parts)
+
+        modified_parts[key_index] = '~'
+        return base_part, ' '.join(modified_parts)
 
 
 async def setup(bot):
