@@ -36,6 +36,7 @@ kiwisolver>=1.4.4
 langdetect-py
 Levenshtein
 lingua-language-detector
+lxml
 matplotlib
 multidict
 nltk

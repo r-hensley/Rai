@@ -76,9 +76,11 @@ class MerriamWebster(commands.Cog):
         self.bot = bot
         self.collegiate_key = os.getenv('ENG_DICT_API_KEY')
         self.thesaurus_key = os.getenv('ENG_THES_API_KEY')
-        self.footer_text = "Merriam-Webster Dictionary | Command by @jobcuenca\nFEATURE IN EARLY DEVELOPMENT. Ping the developer for suggestions or issues."
+        self.footer_text = ("Merriam-Webster Dictionary | Command by @jobcuenca\n"
+                            "FEATURE IN EARLY DEVELOPMENT. Ping the developer for "
+                            "suggestions or issues.")
 
-    async def fetch_definitions(self, word, dict_type):
+    async def fetch_definitions(self, word, dict_type) -> list[discord.Embed]:
         # 1. Determine which key and reference to use
         if dict_type == "the":
             full_dict_type = "thesaurus"
@@ -96,71 +98,75 @@ class MerriamWebster(commands.Cog):
         safe_word = urllib.parse.quote(word)
         url = f"https://www.dictionaryapi.com/api/v3/references/{ref}/json/{safe_word}?key={key}"
         
+        embeds = []
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    embeds = []
 
                     if not data:
                         return []
+                else:
+                    return []
 
-                    # API returns empty list or list of strings (suggestions) if word not found
-                    if isinstance(data[0], str):
-                        for i in range(0, len(data), 10):
-                            # Slice a chunk of 10 suggestions
-                            chunk = data[i : i + 10]
-                            description = "\n".join([f"* {suggestion}" for suggestion in chunk])
-                            
-                            embed = discord.Embed(
-                                title="No definitions found", 
-                                description=f"No definitions found for **{word}** in the {full_dict_type} dictionary.\n\n**Did you mean:**\n{description}",
-                                color=discord.Color.red()
-                            )
-                            embed.set_footer(text=self.footer_text)
-                            embeds.append(embed) 
-                        
-                        return embeds
+        # API returns empty list or list of strings (suggestions) if word not found
+        if isinstance(data[0], str):
+            for i in range(0, len(data), 10):
+                # Slice a chunk of 10 suggestions
+                chunk = data[i : i + 10]
+                description = "\n".join([f"* {suggestion}" for suggestion in chunk])
+                
+                embed = discord.Embed(
+                    title="No definitions found",
+                    description=f"No definitions found for **{word}** in the {full_dict_type}.\n\n**Did you mean:**\n{description}",
+                    color=discord.Color.orange()
+                )
+                embed.set_footer(text=self.footer_text)
+                embeds.append(embed)
+            
+            return embeds
+        
+        synonyms_text = ""
+        antonyms_text = ""
+        thesaurus_footnote = ""
+        for i in range(0, len(data), 4):
+            chunk = data[i : i + 4]
+            description = ""
+            for entry in chunk:
+                meta = entry.get('meta', {})
+                headword = meta.get('id', word).split(':')[0]
+                
+                shortdefs = entry.get('shortdef', [])
+                defs_text = "\n".join([f"* {defn}" for defn in shortdefs]) if shortdefs \
+                    else "No short definition found."
+                
+                # If thesaurus, get synonyms and antonyms
+                if dict_type == "the":
+                    thesaurus_footnote = "Note: Only the top 10 synonyms and antonyms are shown."
+                    syn_lists = meta.get('syns', [])
+                    ant_lists = meta.get('ants', [])
+                    if syn_lists and len(syn_lists) > 0:
+                        # Get top 5 from the first list
+                        top_syns = syn_lists[0][:10]
+                        synonyms_text = f"\n**Synonyms:** {', '.join(top_syns)}"
+                    if ant_lists and len(ant_lists) > 0:
+                        # Get top 5 from the first list
+                        top_ants = ant_lists[0][:10]
+                        antonyms_text = f"\n**Antonyms:** {', '.join(top_ants)}"
 
-                    for i in range(0, len(data), 4):
-                        chunk = data[i : i + 4]
-                        description = ""
-                        for entry in chunk:
-                            meta = entry.get('meta', {})
-                            headword = meta.get('id', word).split(':')[0]
-                            
-                            shortdefs = entry.get('shortdef', [])
-                            defs_text = "\n".join([f"* {defn}" for defn in shortdefs]) if shortdefs else "No short definition found."
-                            
-                            # If thesaurus, get synonyms and antonyms
-                            synonyms_text = ""
-                            antonyms_text = ""
-                            thesaurus_footnote = ""
-                            if dict_type == "the":
-                                thesaurus_footnote = "Note: Only the top 10 synonyms and antonyms are shown."
-                                syn_lists = meta.get('syns', [])
-                                ant_lists = meta.get('ants', [])
-                                if syn_lists and len(syn_lists) > 0:
-                                    # Get top 5 from the first list
-                                    top_syns = syn_lists[0][:10] 
-                                    synonyms_text = f"\n**Synonyms:** {', '.join(top_syns)}"
-                                if ant_lists and len(ant_lists) > 0:
-                                    # Get top 5 from the first list
-                                    top_ants = ant_lists[0][:10] 
-                                    antonyms_text = f"\n**Antonyms:** {', '.join(top_ants)}"
-
-                            description += f"### {headword.capitalize()} ({entry.get('fl', 'unknown')}):\n{defs_text}{synonyms_text}{antonyms_text}\n"
-                        
-                        embed = discord.Embed(
-                            title=f"{word.capitalize()}",
-                            url=f"https://www.merriam-webster.com/{full_dict_type}/{safe_word}",
-                            description=description.strip(),
-                            color=discord.Color.blue()
-                        )
-                        embed.set_footer(text=f"{self.footer_text}\n{thesaurus_footnote}" if thesaurus_footnote else self.footer_text)
-                        embeds.append(embed)
-                    return embeds
-        return []
+                description += (f"### {headword.capitalize()} ({entry.get('fl', 'unknown')}):"
+                                f"\n{defs_text}{synonyms_text}{antonyms_text}\n")
+            
+            embed = discord.Embed(
+                title=f"{word.capitalize()}",
+                url=f"https://www.merriam-webster.com/{full_dict_type}/{safe_word}",
+                description=description.strip(),
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f"{self.footer_text}\n{thesaurus_footnote}"
+                                if thesaurus_footnote else self.footer_text)
+            embeds.append(embed)
+        return embeds
 
     @commands.command(aliases=["web", "webster"])
     async def webster_dictionary(self, ctx, arg1: str, *, arg2: str = None):
@@ -226,7 +232,8 @@ class MerriamWebster(commands.Cog):
         
         if not embeds:
             title = "No definitions found"
-            description = f"No definitions found for **{word}** in the {full_dict_type} dictionary.\nPlease check the spelling or try another word."
+            description = (f"No definitions found for **{word}** in the {full_dict_type}. "
+                           f"Please check the spelling or try another word.")
             
             embed = discord.Embed(
                             title=title, 
