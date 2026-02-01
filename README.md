@@ -31,6 +31,7 @@ List of commands for Rai bot.
   - [Super_watch lists: an anti-raid tool](#super_watch-lists-an-anti-raid-tool)
   - [Word filters for new users](#word-filter-for-new-users)
   - [Antispam for message spam](#antispam)
+  - [Antispam for image spam](#antispam-for-images)
   - [Stats](#stats)
   - [Self-assignable roles](#self-assignable-roles)
   - [Chinese server only commands](#chinese-server-only)
@@ -139,6 +140,17 @@ Type `;wordfilter` to bring up a menu that will configure settings for punishmen
 
 #### Antispam
 Setup antispam to [mute/kick/ban] users who spam the same message [x] times in [y] seconds. For example, mute users who send the same message 10 times in 10 seconds. Type just `;antispam` to enter the configuration menu. 
+
+#### Antispam for Images
+Monitor image messages across multiple channels to detect and prevent spam, especially from compromised or hacked accounts. This module tracks how many images users send within a set timeframe, automatically timing them out and logging alerts with evidence.
+| Parameter   | Description                                    | Default |
+| ----------- | ---------------------------------------------- | ------- |
+| `channel`   | Channel where image spam alerts will be sent   | —       |
+| `limit`     | Number of images required to trigger detection | `2`     |
+| `timeframe` | Time window (in seconds) to detect image spam  | `10`    |
+| `timeout`   | Duration of the mute (in minutes)              | `60`    |
+
+Type `/spam_enable` to enable the image spam module, or `/spam_disable` to turn it off.
 
 #### Invite link/amazingsexdating spam auto-banning
 This command module has been deleted since the release of Discord's automod module. This is the [list of filter terms](https://mystb.in/DramaticallySharedSecretariat) I currently use for my servers from recent bot spammers.
