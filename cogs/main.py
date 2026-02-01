@@ -260,7 +260,8 @@ class Main(commands.Cog):
         print("command error", ctx, error)
         if isinstance(error, commands.BadArgument):
             # parsing or conversion failure is encountered on an argument to pass into a command.
-            await ctx.send("Failed to find the object you tried to look up.  Please try again")
+            await ctx.send(f"Bad argument: {str(error)}\n"
+                           f"Try running `;help {ctx.command.qualified_name}` for more info.")
             return
 
         elif isinstance(error, commands.MaxConcurrencyReached):
