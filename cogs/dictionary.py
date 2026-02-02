@@ -464,7 +464,7 @@ class Dictionary(commands.Cog):
 
             intro_texts = [text.get_text().strip()
                            for text in article.find_all(class_="n2 c-text-intro")]
-            intro_texts_with_newlines = [text + "\n" for text in intro_texts]
+            intro_texts_with_newlines = ["-# " + text + "\n" for text in intro_texts]
             intro_texts_combined = ''.join(intro_texts_with_newlines)
 
             definitions = []
@@ -500,7 +500,7 @@ class Dictionary(commands.Cog):
                     # Include the intro texts only on the first page
                     if i == 0:
                         description = f'{intro_texts_combined + description}'
-
+                    
                     embed = discord.Embed(
                         title=title,
                         url=url,
@@ -562,54 +562,53 @@ class Dictionary(commands.Cog):
         for article in articles:
             article = self.format_article(article)
 
-            title = article.find(
-                "h1", class_="c-page-header__title").text.strip()
+            title = article.find("h1", class_="c-page-header__title").text.strip()
             expressions = {}
 
-            # Find all h3 tags containing expressions
             h3_tags = article.find_all("h3", class_=self.expression_classes)
 
-            # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
                 expression = h3.text.strip()
-                
                 next_tag = h3.find_next_sibling()
                 
-                intro = None
+                intro_text = None
                 definition = None
 
                 if next_tag:
                     if next_tag.name == "div" and "c-text-intro" in next_tag.get("class", []):
-                        intro = next_tag
-                        definition = intro.find_next_sibling("ol")
+                        intro_text = next_tag.text.strip() 
+                        definition = next_tag.find_next_sibling("ol")
                     elif next_tag.name == "ol":
                         definition = next_tag
                     else:
                         pass
                     
-                    if intro:
-                        key = expression + " (" + intro.text.strip() + ")"
-                    else:
-                        key = expression
-
+                    defs_list = []
                     if definition:
-                        definitions = [li.text.strip() for li in definition.find_all("li", class_="m")]
-                        expressions[key] = definitions
-                    else:
-                        expressions[key] = []
+                        defs_list = [li.text.strip() for li in definition.find_all("li", class_="m")]
+                    
+                    expressions[expression] = (intro_text, defs_list)
 
-            # Split an article into multiple pages/embeds if the number of entries exceeds 10
+            # Chunking
             chunk_size = 6
             chunks = [list(expressions.items())[i:i + chunk_size]
-                      for i in range(0, len(expressions), chunk_size)]
-
+                    for i in range(0, len(expressions), chunk_size)]
+            
             for chunk in chunks:
                 description = ""
-                for expression, definitions in chunk:
-                    description += f"**{expression}**\n"
+                
+                for expression, (current_intro, definitions) in chunk:
+                    
+                    if current_intro:
+                        description += f"**{expression}**\n-# {current_intro}\n"
+                    else:
+                        description += f"**{expression}**\n"
+                    
                     if definitions:
                         for definition in definitions:
                             description += f"{definition}\n"
+                    
+                    description = description + "\n"
 
                 embed = discord.Embed(
                     title=title,
