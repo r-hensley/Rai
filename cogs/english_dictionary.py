@@ -76,9 +76,7 @@ class MerriamWebster(commands.Cog):
         self.bot = bot
         self.collegiate_key = os.getenv('ENG_DICT_API_KEY')
         self.thesaurus_key = os.getenv('ENG_THES_API_KEY')
-        self.footer_text = ("Merriam-Webster Dictionary | Command by @jobcuenca\n"
-                            "FEATURE IN EARLY DEVELOPMENT. Ping the developer for "
-                            "suggestions or issues.")
+        self.footer_text = ("Merriam-Webster Dictionary | Command by @jobcuenca")
 
     async def fetch_definitions(self, word, dict_type) -> list[discord.Embed]:
         # 1. Determine which key and reference to use

@@ -418,7 +418,7 @@ class Dictionary(commands.Cog):
 
         return article
 
-    @commands.command(aliases=['rae'])
+    @commands.command(aliases=['rae', 'dle'])
     async def get_rae_def_results(self, ctx, *, word: str):
         """
         Look up definitions of a word from the Real Academia Española dictionary.
@@ -463,7 +463,7 @@ class Dictionary(commands.Cog):
                 "h1", class_="c-page-header__title").text.strip()
 
             intro_texts = [text.get_text().strip()
-                           for text in article.find_all(class_="c-text-intro")]
+                           for text in article.find_all(class_="n2 c-text-intro")]
             intro_texts_with_newlines = [text + "\n" for text in intro_texts]
             intro_texts_combined = ''.join(intro_texts_with_newlines)
 
@@ -523,7 +523,7 @@ class Dictionary(commands.Cog):
 
         await self.send_embeds(ctx, embeds, formatted_word)
 
-    @commands.command(aliases=['raeexp'])
+    @commands.command(aliases=['raeexp', 'dleexp'])
     async def get_rae_exp_results(self, ctx, *, word: str):
         """
         Look up expressions of a word from the Real Academia Española dictionary.
@@ -572,17 +572,31 @@ class Dictionary(commands.Cog):
             # Iterate through each h3 tag to get definitions
             for h3 in h3_tags:
                 expression = h3.text.strip()
-                definition = h3.find_next_sibling("ol")
+                
+                next_tag = h3.find_next_sibling()
+                
+                intro = None
+                definition = None
 
-                # If there is an expression but not a definition
-                if not definition:
-                    expression = " ".join(expression.split())
-                    expressions[expression] = []
+                if next_tag:
+                    if next_tag.name == "div" and "c-text-intro" in next_tag.get("class", []):
+                        intro = next_tag
+                        definition = intro.find_next_sibling("ol")
+                    elif next_tag.name == "ol":
+                        definition = next_tag
+                    else:
+                        pass
+                    
+                    if intro:
+                        key = expression + " (" + intro.text.strip() + ")"
+                    else:
+                        key = expression
 
-                if definition:
-                    definitions = [li.text.strip()
-                                   for li in definition.find_all("li", class_="m")]
-                    expressions[expression] = definitions
+                    if definition:
+                        definitions = [li.text.strip() for li in definition.find_all("li", class_="m")]
+                        expressions[key] = definitions
+                    else:
+                        expressions[key] = []
 
             # Split an article into multiple pages/embeds if the number of entries exceeds 10
             chunk_size = 6
@@ -609,7 +623,7 @@ class Dictionary(commands.Cog):
 
         await self.send_embeds(ctx, embeds, formatted_word)
 
-    @commands.command(aliases=['raesin'])
+    @commands.command(aliases=['raesin', 'dlesin'])
     async def get_rae_syn_results(self, ctx, *, word: str):
         """
         Look up synonyms of a word from the Real Academia Española dictionary.
@@ -657,7 +671,7 @@ class Dictionary(commands.Cog):
 
         await self.send_embeds(ctx, embeds, formatted_word)
 
-    @commands.command(aliases=['raeant'])
+    @commands.command(aliases=['raeant', 'dleant'])
     async def get_rae_ant_results(self, ctx, *, word: str):
         """
         Look up antonyms of a word from the Real Academia Española dictionary.
