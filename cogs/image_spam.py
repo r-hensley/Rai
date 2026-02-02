@@ -151,6 +151,8 @@ class ImageSpam(commands.Cog):
             final.paste(img, (0, y))
             y += img.height
 
+        # consider:
+        # with BytesIO() as buffer:
         buffer = BytesIO()
         final.save(buffer, format="PNG")
         buffer.seek(0)
@@ -269,7 +271,7 @@ class ImageSpam(commands.Cog):
         for _, ch, _, _ in self.image_spam[key]:
             channels_used[ch] = channels_used.get(ch, 0) + 1
 
-        if len(self.image_spam[key]) <= config["limit"] or len(channels_used) <= 1:
+        if len(self.image_spam[key]) < config["limit"] or len(channels_used) <= 1:
             return
 
         if key not in self.active_alerts:
