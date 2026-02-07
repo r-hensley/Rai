@@ -354,7 +354,7 @@ class Dictionary(commands.Cog):
             embed = discord.Embed(
                 # title=title,
                 # url=url,
-                description=f'# [{title}]({url})\n**{word_type}**: \n{description}',
+                description=f'## [{title}]({url})\n**{word_type}**: \n{description}',
                 color=discord.Color.blue()
             )
             embed.set_footer(
@@ -522,7 +522,7 @@ class Dictionary(commands.Cog):
                     embed = discord.Embed(
                         # title=title,
                         # url=url,
-                        description=f'# [{title}]({url})\n{description}',
+                        description=f'## [{title}]({url})\n{description}',
                         color=discord.Color.blue()
                     )
                     embed.set_footer(
@@ -532,7 +532,7 @@ class Dictionary(commands.Cog):
                 embed = discord.Embed(
                     # title=title,
                     # url=url,
-                    description=f'# [{title}]({url})\n{intro_texts_combined}',
+                    description=f'## [{title}]({url})\n{intro_texts_combined}',
                     color=discord.Color.blue()
                 )
                 embed.set_footer(
@@ -631,7 +631,7 @@ class Dictionary(commands.Cog):
                 embed = discord.Embed(
                     # title=title,
                     # url=url,
-                    description=f'# [{title}]({url})\n{description}',
+                    description=f'## [{title}]({url})\n{description}',
                     color=discord.Color.blue()
                 )
                 embed.set_footer(
