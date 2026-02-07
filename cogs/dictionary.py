@@ -342,9 +342,9 @@ class Dictionary(commands.Cog):
         for chunk in chunks:
             description = "\n".join(chunk)
             embed = discord.Embed(
-                title=title,
-                url=url,
-                description=f'**{word_type}**: \n{description}',
+                # title=title,
+                # url=url,
+                description=f'# [{title}]({url})\n**{word_type}**: \n{description}',
                 color=discord.Color.blue()
             )
             embed.set_footer(
@@ -376,9 +376,6 @@ class Dictionary(commands.Cog):
         return article
 
     def to_bold(self, article):
-        # bold_tags = article.find_all(lambda tag:
-        #                                  (tag.name == ["b", "strong"]) or (tag.name == "a" and "a" in tag.get("class", []))
-        # )
         bold_tags = article.find_all(["b", "strong"])
         if bold_tags:
             for bold_tag in bold_tags:
@@ -439,7 +436,6 @@ class Dictionary(commands.Cog):
         self.caller_function = "get_rae_def_results"
 
         articles, url, copyright_text, formatted_word = await self.check_article_availability(ctx, word)
-        # print('\nTHIRD IS_RAE_DEF_AVAILABLE' + str(self.is_rae_def_available)) # Returns false
         if not articles:
             return
 
@@ -459,11 +455,21 @@ class Dictionary(commands.Cog):
             # Format words according to their HTML tag or class
             article = self.format_article(article)
 
-            title = article.find(
-                "h1", class_="c-page-header__title").text.strip()
+            header = article.find("h1", class_="c-page-header__title")
+            inner_header = article.find("header", class_="c-section__title")
+            title = header.text.strip() if header else "No Title Found"
 
-            intro_texts = [text.get_text().strip()
-                           for text in article.find_all(class_="n2 c-text-intro")]
+            intro_texts = []
+            current_element = inner_header if inner_header else None
+            # Iterate through next siblings
+            if current_element:
+                for sibling in current_element.find_next_siblings():
+                    if "c-definitions" in sibling.get("class", []):
+                        break
+                    if "c-text-intro" in sibling.get("class", []):
+                        intro_texts.append(sibling.get_text().strip())
+               
+
             intro_texts_with_newlines = ["-# " + text + "\n" for text in intro_texts]
             intro_texts_combined = ''.join(intro_texts_with_newlines)
 
@@ -502,9 +508,9 @@ class Dictionary(commands.Cog):
                         description = f'{intro_texts_combined + description}'
                     
                     embed = discord.Embed(
-                        title=title,
-                        url=url,
-                        description=description,
+                        # title=title,
+                        # url=url,
+                        description=f'# [{title}]({url})\n{description}',
                         color=discord.Color.blue()
                     )
                     embed.set_footer(
@@ -512,9 +518,9 @@ class Dictionary(commands.Cog):
                     embeds.append(embed)
             elif intro_texts_combined:
                 embed = discord.Embed(
-                    title=title,
-                    url=url,
-                    description=intro_texts_combined,
+                    # title=title,
+                    # url=url,
+                    description=f'# [{title}]({url})\n{intro_texts_combined}',
                     color=discord.Color.blue()
                 )
                 embed.set_footer(
@@ -570,9 +576,9 @@ class Dictionary(commands.Cog):
             for h3 in h3_tags:
                 expression = h3.text.strip()
                 next_tag = h3.find_next_sibling()
-                
                 intro_text = None
                 definition = None
+                print(expression)
 
                 if next_tag:
                     if next_tag.name == "div" and "c-text-intro" in next_tag.get("class", []):
@@ -583,11 +589,11 @@ class Dictionary(commands.Cog):
                     else:
                         pass
                     
-                    defs_list = []
-                    if definition:
-                        defs_list = [li.text.strip() for li in definition.find_all("li", class_="m")]
-                    
-                    expressions[expression] = (intro_text, defs_list)
+                defs_list = []
+                if definition:
+                    defs_list = [li.text.strip() for li in definition.find_all("li", class_="m")]
+                
+                expressions[expression] = (intro_text, defs_list)
 
             # Chunking
             chunk_size = 6
@@ -611,9 +617,9 @@ class Dictionary(commands.Cog):
                     description = description + "\n"
 
                 embed = discord.Embed(
-                    title=title,
-                    url=url,
-                    description=description,
+                    # title=title,
+                    # url=url,
+                    description=f'# [{title}]({url})\n{description}',
                     color=discord.Color.blue()
                 )
                 embed.set_footer(
