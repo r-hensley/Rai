@@ -213,6 +213,16 @@ class Dictionary(commands.Cog):
             definition_section = article.find("ol", class_="c-definitions")
             intro_section = article.find(class_="c-text-intro")
             definition = None
+
+            # Leave out intros that are part of expressions
+            if intro_section:
+                prev_el = intro_section.find_previous_sibling()
+                while prev_el and not prev_el.name:
+                    prev_el = prev_el.find_previous_sibling()
+                
+                if prev_el and prev_el.name == "h3":
+                    intro_section = None
+                    
             if definition_section:
                 definition = definition_section.find(
                     "li", class_=self.definition_classes)
@@ -259,7 +269,7 @@ class Dictionary(commands.Cog):
 
         related_words = []
         embeds = []
-        # print('\nSECOND IS_RAE_DEF_AVAILABLE' + str(self.is_rae_def_available)) # Returns false
+
         if not main_articles:
             self.caller_function = "check_article_availability"
 
@@ -465,6 +475,8 @@ class Dictionary(commands.Cog):
             if current_element:
                 for sibling in current_element.find_next_siblings():
                     if "c-definitions" in sibling.get("class", []):
+                        break
+                    if sibling.find_previous_sibling().name == "h3":
                         break
                     if "c-text-intro" in sibling.get("class", []):
                         intro_texts.append(sibling.get_text().strip())
