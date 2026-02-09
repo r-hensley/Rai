@@ -201,3 +201,37 @@ class TestDamer:
         )
         assert entrada.expresiones[0] == want_expr
         assert entrada.busca_expresión('~ ojé') == want_expr
+
+    def test_many_expressions(self, fetch_parsed_html):
+        entradas = Buscador.parsear_resultados('ir', fetch_parsed_html('ir.html'))
+        assert len(entradas) == 1
+        entrada = entradas[0]
+        assert len(entrada.expresiones) == 282
+        phrase = DamerDictionary._generate_target_word_and_phrase('írsele los humos a la cabeza'.split())[1]
+        assert entrada.busca_expresión(phrase).texto_entrada_raw == 'írsele los humos a la cabeza. RD, PR, Ch. írsele los humos.'
+        phrase = DamerDictionary._generate_target_word_and_phrase('no irse chancho con mazorca'.split())[1]
+        assert entrada.busca_expresión(phrase).texto_entrada_raw == 'no ~se chancho con mazorca. loc. verb. Ho, ES. Darse cuenta una persona de todo lo que sucede. pop.'
+        phrase = DamerDictionary._generate_target_word_and_phrase('no ir a ningún Pereira'.split())[1]
+        want_expr = Expresión(
+            índice='a. ǁ',
+            texto_entrada='**no **~** a ningún Pereira.** fr. prov. _Co:O._ Indica que si algo se hace de forma perezosa y desinteresada no se logrará.',
+            texto_entrada_raw='no ~ a ningún Pereira. fr. prov. Co:O. Indica que si algo se hace de forma perezosa y desinteresada no se logrará.',
+            subsignificados=[],
+            marcador='◪'
+        )
+        assert entrada.busca_expresión(phrase) == want_expr
+        assert entrada.busca_expresión('no ~ a ningún pereira') == want_expr
+        assert entrada.busca_expresión('NO ~ A NINGÚN PEREIRA') == want_expr
+        want_expr = Expresión(
+            índice='k. ǁ',
+            texto_entrada='~** a los bifes.**',
+            texto_entrada_raw='~ a los bifes.',
+            subsignificados=[
+                ('i.', 'loc. verb. _Ar_, _Ur._ Enfrentarse con decisión a una situación o dificultad. pop.'),
+                ('ii.', '_Ur._ Agredir físicamente a _alguien_. pop + cult → espon.'),
+                ('iii.', '_Ur._ _En una relación amorosa_, buscar un acercamiento físico. pop + cult → espon.')
+            ],
+            marcador=''
+        )
+        assert entrada.busca_expresión('~ a los bifes') == want_expr
+        assert entrada.expresiones[15] == want_expr

@@ -25,7 +25,7 @@ class DamerMode(Enum):
     SPFC = "specific phrase"
 
 
-FORCED_TAB = u'\u3164\u3164'
+FORCED_TAB = u'\u200B\u2003\u2003'
 
 
 class ExcepciónDNE(Exception):
@@ -85,7 +85,7 @@ class Expresión:
         self.índice = índice or ''
         self.texto_entrada = (texto_entrada or '').strip()
         self.texto_entrada_raw = (texto_entrada_raw or '').strip()
-        self.expresión = self.texto_entrada_raw.split('.')[0]
+        self.expresión = self.texto_entrada_raw.split('.')[0].lower()
         self.subsignificados = subsignificados or []  # lista de tuple(índice, texto)
         self.marcador = marcador or ''
 
@@ -104,6 +104,8 @@ class Expresión:
         if self.subsignificados:
             texto_subsignificados = f'\n{FORCED_TAB}{FORCED_TAB}'.join([f'{s[0]} {s[1]}' for s in self.subsignificados])
             return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}\n{FORCED_TAB}{FORCED_TAB}{texto_subsignificados}'
+        elif self.índice == '▶':
+            return f'{self.índice} {self.texto_entrada}'
         else:
             return f'{str_marcador}{FORCED_TAB}{self.índice} {self.texto_entrada}'
 
@@ -138,9 +140,8 @@ class Entrada:
 
     def busca_expresión(self, expresión: str) -> Expresión:
         if expresión:
-            for expr in self.expresiones:
-                if expr.expresión == expresión:
-                    return expr
+            para_buscar = expresión.lower()
+            return next((expr for expr in self.expresiones if expr.expresión == para_buscar), None)
         return None
 
 
@@ -251,7 +252,17 @@ class Buscador:
             if elem_tag not in ('a', 'span', 'i'):
                 continue
 
-            if elem_tag == 'i':
+            if text_elem.text:
+                fragmento_original = html.unescape(text_elem.text)
+                if text_elem.get('class') == 'da3' and negrita:
+                    # Ponlo en negrita
+                    fragmentos.append(f'**{fragmento_original}**')
+                elif elem_tag == 'a' and text_elem.get('href'):
+                    fragmentos.append(f'[{fragmento_original}](https://www.asale.org/damer/{text_elem.get("href")})')
+                else:
+                    fragmentos.append(fragmento_original)
+                fragmentos_raw.append(fragmento_original)
+            elif elem_tag == 'i':
                 # Ponlo en itálica
                 en_itálica, en_itálica_raw = Buscador.extraer_y_combinar_textos(text_elem, filtro_clases=filtro_clases)
                 if en_itálica:
@@ -260,18 +271,6 @@ class Buscador:
                     else:
                         fragmentos.append(f'_{en_itálica}_')
                     fragmentos_raw.append(en_itálica_raw)
-            else:
-                fragmento = text_elem.text or ''
-                if fragmento:
-                    fragmento = html.unescape(fragmento)
-                    if text_elem.get('class') == 'da3' and negrita:
-                        # Ponlo en negrita
-                        fragmentos.append(f'**{fragmento}**')
-                    elif elem_tag == 'a' and text_elem.get('href'):
-                        fragmentos.append(f'[{fragmento}](https://www.asale.org/damer/{text_elem.get("href")})')
-                    else:
-                        fragmentos.append(fragmento)
-                    fragmentos_raw.append(fragmento)
 
             fragmento_tail = text_elem.tail or ''
             if fragmento_tail:
@@ -303,7 +302,7 @@ class Buscador:
             fragmentos.append(texto_fila)
             fragmentos_raw.append(texto_fila_raw)
 
-        return ''.join(fragmentos).replace('.__', '. ').replace('__', ''), ''.join(fragmentos_raw)
+        return ''.join(fragmentos).replace('__', ''), ''.join(fragmentos_raw)
 
     # Devuelve dos listas - la primera contiene acepciones y la segunda contiene expresiones
     @staticmethod
@@ -679,7 +678,7 @@ class DamerDictionary(commands.Cog):
                     for i, chunk in enumerate(chunks):
                         description = '\n'.join(str(acep) for acep in chunk)
                         if entrada.etimología and i == 0:
-                            description = f'_{entrada.etimología}_\n\n{description}'
+                            description = f'{entrada.etimología}\n\n{description}'
 
                         embed = discord.Embed(
                             title=entrada.encabezado,
