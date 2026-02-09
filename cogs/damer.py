@@ -53,14 +53,16 @@ class Aproximación:
 
 
 class Acepción:
-    def __init__(self, índice_primario='', índice_secundario='', texto_entrada=''):
+    def __init__(self, índice_primario='', índice_secundario='', texto_entrada='', texto_entrada_raw=''):
         self.texto_entrada = (texto_entrada or '').strip()
         self.índice_primario = índice_primario or ''
         self.índice_secundario = índice_secundario or ''
+        self.texto_entrada_raw = (texto_entrada_raw or '').strip()
 
     def __eq__(self, otro):
         if isinstance(otro, Acepción):
             return (self.texto_entrada == otro.texto_entrada
+                    and self.texto_entrada_raw == otro.texto_entrada_raw
                     and self.índice_primario == otro.índice_primario
                     and self.índice_secundario == otro.índice_secundario)
         return False
@@ -75,19 +77,24 @@ class Expresión:
     def __init__(self,
                  índice='',
                  texto_entrada='',
+                 texto_entrada_raw='',
                  subsignificados: Optional[list[tuple[str, str]]] = None,
                  marcador=''):
         if subsignificados is None:
             subsignificados = []
         self.índice = índice or ''
         self.texto_entrada = (texto_entrada or '').strip()
+        self.texto_entrada_raw = (texto_entrada_raw or '').strip()
+        self.expresión = self.texto_entrada_raw.split('.')[0]
         self.subsignificados = subsignificados or []  # lista de tuple(índice, texto)
         self.marcador = marcador or ''
 
     def __eq__(self, otro):
         if isinstance(otro, Expresión):
             return (self.índice == otro.índice
+                    and self.expresión == otro.expresión
                     and self.texto_entrada == otro.texto_entrada
+                    and self.texto_entrada_raw == otro.texto_entrada_raw
                     and self.subsignificados == otro.subsignificados
                     and self.marcador == otro.marcador)
         return False
@@ -109,14 +116,16 @@ class Expresión:
 
 
 class Entrada:
-    def __init__(self, encabezado: str, acepciones: list[Acepción], expresiones: list[Expresión]):
+    def __init__(self, encabezado: str, etimología: str = '', acepciones: list[Acepción] = None, expresiones: list[Expresión] = None):
         self.encabezado = encabezado or ''
+        self.etimología = etimología or ''
         self.acepciones = acepciones or []
         self.expresiones = expresiones or []
 
     def __eq__(self, otro):
         if isinstance(otro, Entrada):
             return (self.encabezado == otro.encabezado
+                    and self.etimología == otro.etimología
                     and self.acepciones == otro.acepciones
                     and self.expresiones == otro.expresiones)
         return False
@@ -124,7 +133,15 @@ class Entrada:
     def __str__(self):
         texto_acepciones = 'Acepciones:\n' + '\n'.join([str(a) for a in self.acepciones]) if self.acepciones else ''
         texto_expresiones = 'Expresiones:\n' + '\n'.join([str(e) for e in self.expresiones]) if self.expresiones else ''
-        return f'{self.encabezado}\n{texto_acepciones}\n\n{texto_expresiones}\n'
+        texto_etimología = f' {self.etimología}' if self.etimología else ''
+        return f'{self.encabezado}{texto_etimología}\n{texto_acepciones}\n\n{texto_expresiones}\n'
+
+    def busca_expresión(self, expresión: str) -> Expresión:
+        if expresión:
+            for expr in self.expresiones:
+                if expr.expresión == expresión:
+                    return expr
+        return None
 
 
 class Buscador:
@@ -221,39 +238,53 @@ class Buscador:
         return [índ_primario, índ_secundario.strip(), índ_terciario.strip()]
 
     @staticmethod
-    def extraer_y_combinar_textos(elem: HtmlElement, negrita=True) -> str:
+    def extraer_y_combinar_textos(elem: HtmlElement,
+                                  negrita=True,
+                                  filtro_clases: set[str] = None) -> tuple[str, str]:
         fragmentos = []
+        fragmentos_raw = []
         for text_elem in elem.iterchildren():
+            clase_elem = text_elem.get('class')
+            if filtro_clases and clase_elem and clase_elem not in filtro_clases:
+                continue
             elem_tag = text_elem.tag
             if elem_tag not in ('a', 'span', 'i'):
                 continue
 
-            if text_elem.text:
-                fragmento_original = html.unescape(text_elem.text)
-                if text_elem.get('class') == 'da3' and negrita:
-                    # Ponlo en negrita
-                    fragmentos.append(f'**{fragmento_original}**')
-                elif elem_tag == 'a' and text_elem.get('href'):
-                    fragmentos.append(f'[{fragmento_original}](https://www.asale.org/damer/{text_elem.get("href")})')
-                else:
-                    fragmentos.append(fragmento_original)
-            elif elem_tag == 'i':
+            if elem_tag == 'i':
                 # Ponlo en itálica
-                en_itálica = Buscador.extraer_y_combinar_textos(text_elem)
+                en_itálica, en_itálica_raw = Buscador.extraer_y_combinar_textos(text_elem, filtro_clases=filtro_clases)
                 if en_itálica:
                     if en_itálica.endswith(' '):
                         fragmentos.append(f'_{en_itálica.rstrip()}_ ')
                     else:
                         fragmentos.append(f'_{en_itálica}_')
+                    fragmentos_raw.append(en_itálica_raw)
+            else:
+                fragmento = text_elem.text or ''
+                if fragmento:
+                    fragmento = html.unescape(fragmento)
+                    if text_elem.get('class') == 'da3' and negrita:
+                        # Ponlo en negrita
+                        fragmentos.append(f'**{fragmento}**')
+                    elif elem_tag == 'a' and text_elem.get('href'):
+                        fragmentos.append(f'[{fragmento}](https://www.asale.org/damer/{text_elem.get("href")})')
+                    else:
+                        fragmentos.append(fragmento)
+                    fragmentos_raw.append(fragmento)
 
-            if text_elem.tail:
-                fragmentos.append(html.unescape(text_elem.tail))
+            fragmento_tail = text_elem.tail or ''
+            if fragmento_tail:
+                fragmento_tail = html.unescape(fragmento_tail)
+                fragmentos.append(fragmento_tail)
+                fragmentos_raw.append(fragmento_tail)
 
-        return ''.join(fragmentos)
+        return ''.join(fragmentos), ''.join(fragmentos_raw)
 
     @staticmethod
-    def extraer_texto_de_fila(fila_elem: HtmlElement) -> str:
+    def extraer_texto_de_fila(fila_elem: HtmlElement) -> tuple[str, str]:
         fragmentos = []
+        fragmentos_raw = []
         for celda_elem in fila_elem.iterchildren(tag='td'):
             if celda_elem.get('class') == 'da7':
                 # Nos saltamos las celdas de índices
@@ -263,12 +294,16 @@ class Buscador:
             if celda_elem.text:
                 # No queremos puro whitespace
                 if celda_elem.text.strip():
-                    fragmentos.append(html.unescape(celda_elem.text))
+                    texto_celda = html.unescape(celda_elem.text)
+                    fragmentos.append(texto_celda)
+                    fragmentos_raw.append(texto_celda)
 
             # Recoge todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
-            fragmentos.append(Buscador.extraer_y_combinar_textos(celda_elem))
+            texto_fila, texto_fila_raw = Buscador.extraer_y_combinar_textos(celda_elem)
+            fragmentos.append(texto_fila)
+            fragmentos_raw.append(texto_fila_raw)
 
-        return ''.join(fragmentos).replace('__', '')
+        return ''.join(fragmentos).replace('.__', '. ').replace('__', ''), ''.join(fragmentos_raw)
 
     # Devuelve dos listas - la primera contiene acepciones y la segunda contiene expresiones
     @staticmethod
@@ -288,13 +323,13 @@ class Buscador:
                 if celda_elem.get('class') == 'da2':
                     if es_encabezado or es_etimología:
                         break
-                    for span_elem in celda_elem.iterchildren(tag='span'):
+                    for span_elem in celda_elem.iterdescendants(tag='span'):
                         span_class = span_elem.get('class')
                         if span_class == 'da8':
                             es_encabezado = True
                             break
                         elif span_class in ('da3', 'da1'):
-                            índice_con_etim += Buscador.extraer_y_combinar_textos(celda_elem, negrita=False)
+                            índice_con_etim += Buscador.extraer_y_combinar_textos(celda_elem, negrita=False)[0]
                             es_etimología = True
                             break
             if es_encabezado or es_etimología:
@@ -313,14 +348,14 @@ class Buscador:
                 expr_marcador = índices[0]
 
             # Extrae el texto de la entrada
-            texto_entero: str = Buscador.extraer_texto_de_fila(fila_elem)
+            texto_entero, texto_entero_raw = Buscador.extraer_texto_de_fila(fila_elem)
             if modo_expresiones:
                 if índices[1]:
                     # Nueva expresión - agrega la anterior a la lista si existe
                     if expr_pendiente is not None:
                         expr_pendiente.subsignificados = expr_subsignificados
                         expresiones.append(expr_pendiente)
-                    expr_pendiente = Expresión(índices[1], texto_entrada=texto_entero, marcador=expr_marcador)
+                    expr_pendiente = Expresión(índices[1], texto_entrada=texto_entero, texto_entrada_raw=texto_entero_raw, marcador=expr_marcador)
                     expr_subsignificados = []
                     expr_marcador = ''
                 elif índices[2]:
@@ -331,10 +366,10 @@ class Buscador:
                     if expr_pendiente is not None:
                         expr_pendiente.subsignificados = expr_subsignificados
                         expresiones.append(expr_pendiente)
-                    expresiones.append(Expresión(índices[0], texto_entrada=texto_entero))
+                    expresiones.append(Expresión(índices[0], texto_entrada=texto_entero, texto_entrada_raw=texto_entero_raw))
                     expr_pendiente = None
             elif texto_entero:
-                acep = Acepción(índice_primario=índices[0], índice_secundario=índices[1], texto_entrada=texto_entero)
+                acep = Acepción(índice_primario=índices[0], índice_secundario=índices[1], texto_entrada=texto_entero, texto_entrada_raw=texto_entero_raw)
                 acepciones.append(acep)
 
         if expr_pendiente is not None:
@@ -367,16 +402,29 @@ class Buscador:
             for elem_entrada in resultados_el.iterfind('entry'):
                 # Extrae las acepciones relevantes
                 if término in html.unescape(elem_entrada.attrib.get('key', '')).split('|'):
-                    # Extrae el encabezado
-                    encabezado = elem_entrada.findtext('.//span[@class="da8"]')
+                    # Extrae el encabezado (y la etimología primaria si existe)
+                    encabezado, etimología_primaria = Buscador.extraer_encabezado_etimología(elem_entrada)
                     if not encabezado:
                         raise Exception('No se encontró ningún elemento de encabezado.')
-                    encabezado = html.unescape(encabezado).rstrip('.')
                     acepciones, expresiones = Buscador.extraer_acepciones_expresiones(elem_entrada)
                     if not (acepciones or expresiones):
                         raise Exception('No se extrajo ninguna acepción/expresión.')
-                    entradas.append(Entrada(encabezado, acepciones, expresiones))
+                    entradas.append(Entrada(encabezado, etimología_primaria, acepciones, expresiones))
             return entradas
+
+    @staticmethod
+    def extraer_encabezado_etimología(elem_entrada: HtmlElement) -> tuple[str, str]:
+        # La primera fila de la tabla contiene el encabezado y la etimología primaria
+        elem_tabla = elem_entrada.find('table')
+        if elem_tabla is None:
+            return '', ''
+        elem_encabezado = elem_tabla.find('.//td[@class="da2"]')
+        if elem_encabezado is None:
+            return '', ''
+
+        texto_encabezado, _ = Buscador.extraer_y_combinar_textos(elem_encabezado, filtro_clases={'da8'})
+        etimología, _ = Buscador.extraer_y_combinar_textos(elem_encabezado, filtro_clases={'da1'})
+        return (texto_encabezado.strip(), etimología.strip())
 
     @staticmethod
     async def búsqueda_damer(término: str) -> list[Entrada]:
@@ -607,21 +655,32 @@ class DamerDictionary(commands.Cog):
                     entradas: list[Entrada],
                     caller_mode: DamerMode,
                     lookup_word: str,
-                    target_phrase: str = '') -> tuple[list[discord.Embed], int]:
+                    target_phrase: str = '') -> list[discord.Embed]:
         embeds = []
-        found_specific_phrase = False
         for entrada in entradas:
-            # Split an entry into multiple pages/embeds if the number of items exceeds 10
-            to_iterate = entrada.expresiones \
-                if caller_mode == DamerMode.EXP or caller_mode == DamerMode.SPFC \
-                else entrada.acepciones
-            if to_iterate:
-                chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
-                          for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
+            if caller_mode == DamerMode.SPFC:
+                expr = entrada.busca_expresión(target_phrase)
+                if expr:
+                    specific_phrase_embed = discord.Embed(
+                        title=entrada.encabezado,
+                        url=f'https://www.asale.org/damer/{lookup_word}',
+                        description=expr.imprimir_sin_índices(),
+                        color=discord.Color.blue()
+                    )
+                    specific_phrase_embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                    return [specific_phrase_embed]
+            else:
+                # Split an entry into multiple pages/embeds if the number of items exceeds 10
+                to_iterate = entrada.expresiones if caller_mode == DamerMode.EXP else entrada.acepciones
+                if to_iterate:
+                    chunks = [to_iterate[i:i + self.ENTRIES_PER_EMBED]
+                              for i in range(0, len(to_iterate), self.ENTRIES_PER_EMBED)]
 
-                for chunk in chunks:
-                    if caller_mode != DamerMode.SPFC:
+                    for i, chunk in enumerate(chunks):
                         description = '\n'.join(str(acep) for acep in chunk)
+                        if entrada.etimología and i == 0:
+                            description = f'_{entrada.etimología}_\n\n{description}'
+
                         embed = discord.Embed(
                             title=entrada.encabezado,
                             url=f'https://www.asale.org/damer/{lookup_word}',
@@ -630,20 +689,8 @@ class DamerDictionary(commands.Cog):
                         )
                         embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
                         embeds.append(embed)
-                    elif target_phrase and not found_specific_phrase:
-                        for expr in chunk:
-                            normalized_text = expr.texto_entrada.replace('**', '').replace('_', '').strip()
-                            if normalized_text.startswith(target_phrase):
-                                found_specific_phrase = True
-                                specific_phrase_embed = discord.Embed(
-                                    title=entrada.encabezado,
-                                    url=f'https://www.asale.org/damer/{lookup_word}',
-                                    description=expr.imprimir_sin_índices(),
-                                    color=discord.Color.blue()
-                                )
-                                specific_phrase_embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-                                return [specific_phrase_embed]
-        if caller_mode == DamerMode.SPFC and not found_specific_phrase:
+
+        if caller_mode == DamerMode.SPFC:
             embedded_error = discord.Embed(
                 title="No se pudo encontrar la expresión solicitada.",
                 description=f'La expresión solicitada no aparece en las entradas de {lookup_word}',
@@ -799,8 +846,6 @@ class DamerDictionary(commands.Cog):
                 break
         if key_index < 0:
             return '', ''
-
-        print(f'Key index: {key_index}')
 
         base_part = lookup_parts[key_index]
         modified_parts = list(lookup_parts)
