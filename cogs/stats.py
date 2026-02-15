@@ -321,13 +321,12 @@ class Stats(commands.Cog):
         if sorted_langs:
             value = ''
             counter = 0
-            total = 0
-            for lang_tuple in sorted_langs:
-                total += lang_tuple[1]
             for lang_tuple in sorted_langs:
                 if lang_tuple[0] not in self.lang_codes_dict:
                     continue
-                percentage = round((lang_tuple[1] / total) * 100, 1)
+                percentage = hf.get_language_percentage(user_id, ctx.guild, lang_tuple[0])
+                if percentage is None:
+                    continue
                 if (counter in [0, 1] and percentage > 2.5) or (percentage > 5):
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
                 if counter == 5:
