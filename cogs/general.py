@@ -23,7 +23,7 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BLACKLIST_CHANNEL_ID = 533863928263082014
 MODCHAT_SERVER_ID = 257984339025985546
 JP_SERVER_ID = 189571157446492161
-SP_SERVER_ID = 731403448502845501  # TESTING: was 243838819743432704
+SP_SERVER_ID = 243838819743432704
 CH_SERVER_ID = 266695661670367232
 CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
@@ -316,7 +316,7 @@ class General(commands.Cog):
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
-    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID, CL_SERVER_ID, 731403448502845501] if ctx.guild else False)
+    @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID, CL_SERVER_ID] if ctx.guild else False)
     async def hardcore(self, ctx: commands.Context, threshold: Optional[int] = None):
         """Adds/removes the hardcore role from you.
 
@@ -326,8 +326,8 @@ class General(commands.Cog):
         role = ctx.guild.get_role(
             self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
         if ctx.guild.id == SP_SERVER_ID:
-            learning_eng = ctx.guild.get_role(1472535759259963594)  # TESTING: was 247021017740869632
-            learning_sp = ctx.guild.get_role(1472535805191917649)  # TESTING: was 297415063302832128
+            learning_eng = ctx.guild.get_role(247021017740869632)
+            learning_sp = ctx.guild.get_role(297415063302832128)
             if learning_eng not in ctx.author.roles and learning_sp not in ctx.author.roles:
                 await utils.safe_send(ctx, "You need to have a learning role to use this command.")
                 return
@@ -345,8 +345,8 @@ class General(commands.Cog):
                 return
 
             # Determine target language from learning role
-            learning_eng = ctx.guild.get_role(1472535759259963594)  # TESTING: was 247021017740869632
-            learning_sp = ctx.guild.get_role(1472535805191917649)  # TESTING: was 297415063302832128
+            learning_eng = ctx.guild.get_role(247021017740869632)
+            learning_sp = ctx.guild.get_role(297415063302832128)
             if learning_sp in ctx.author.roles:
                 target_lang = 'es'
             elif learning_eng in ctx.author.roles:
