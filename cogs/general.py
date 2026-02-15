@@ -367,19 +367,20 @@ class General(commands.Cog):
                 return
 
             # Check if user already meets the threshold
+            lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
             current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang)
             already_past = current_pct is not None and current_pct >= threshold
 
             if already_past:
                 message = (
-                    f"You already have **{current_pct}%** in **{target_lang}** "
+                    f"You already have **{current_pct}%** in **{lang_name}** "
                     f"(threshold: {threshold}%), so hardcore would have no lock-in effect. "
                     f"Enable anyway?"
                 )
             else:
                 message = (
                     f"You are about to enable hardcore mode locked to **{threshold}%** "
-                    f"in **{target_lang}**. You will **not** be able to remove it until "
+                    f"in **{lang_name}**. You will **not** be able to remove it until "
                     f"you reach that percentage. Mods cannot help you remove it either. "
                     f"Are you sure?"
                 )
@@ -403,7 +404,7 @@ class General(commands.Cog):
             await utils.safe_send(
                 ctx,
                 f"Hardcore enabled! You must reach **{threshold}%** in "
-                f"**{target_lang}** before you can remove it."
+                f"**{lang_name}** before you can remove it."
             )
             return
 
@@ -418,6 +419,7 @@ class General(commands.Cog):
                 if user_hc and 'threshold' in user_hc:
                     # User has a stored threshold — check if they meet it
                     target_lang = user_hc['target_lang']
+                    lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
                     required = user_hc['threshold']
                     current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang)
                     if current_pct is None:
@@ -427,7 +429,7 @@ class General(commands.Cog):
                         await utils.safe_send(
                             ctx,
                             f"You can't remove hardcore yet. You need **{required}%** in "
-                            f"**{target_lang}** but you're currently at **{current_pct}%**."
+                            f"**{lang_name}** but you're currently at **{current_pct}%**."
                         )
                         return
                     else:
@@ -436,7 +438,7 @@ class General(commands.Cog):
                         await utils.safe_send(
                             ctx,
                             f"Congrats on reaching your goal of **{required}%**! "
-                            f"Your current level is **{current_pct}%** in **{target_lang}**. "
+                            f"Your current level is **{current_pct}%** in **{lang_name}**. "
                             f"I've removed hardcore from you."
                         )
                         del self.bot.db['hardcore'][guild_id]['users'][user_id]
