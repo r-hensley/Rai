@@ -268,6 +268,18 @@ def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: st
         return total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count
 
 
+def get_language_percentage(member_id: int, guild: discord.Guild, language: str) -> Optional[float]:
+    """Returns the percentage (0-100) of a user's messages detected as `language` over the last 30 days.
+    Returns None if no language data exists."""
+    lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
+    if not lang_count:
+        return None
+    total = sum(lang_count.values())
+    if total == 0:
+        return None
+    return round((lang_count.get(language, 0) / total) * 100, 1)
+
+
 def count_activity(member_id: int, guild: discord.Guild) -> int:
     """Returns an integer value for activity in a server in the last month"""
     activity_score = 0
