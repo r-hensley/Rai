@@ -377,16 +377,18 @@ class Logger(commands.Cog):
                     except discord.Forbidden:
                         pass
 
+                DISABLED = True
                 five_hours_in_seconds = 60 * 60 * 30
-                if (discord.utils.utcnow() - member.created_at).total_seconds() < five_hours_in_seconds:
-                    emb.description += "\n(Newly created account joining voice):"
-                    emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
-                    emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
-                    if hf.calculate_voice_time(member.id, member.guild.id) < 60 * 60:  # 60 mins
-                        try:
-                            await utils.safe_send(channel, member.id, embed=emb)
-                        except discord.Forbidden:
-                            pass
+                if not DISABLED:
+                    if (discord.utils.utcnow() - member.created_at).total_seconds() < five_hours_in_seconds:
+                        emb.description += "\n(Newly created account joining voice):"
+                        emb.description += f"\nCreation date: <t:{int(member.created_at.timestamp())}>"
+                        emb.description += f"\nJoin date: <t:{int(member.joined_at.timestamp())}>"
+                        if hf.calculate_voice_time(member.id, member.guild.id) < 60 * 60:  # 60 mins
+                            try:
+                                await utils.safe_send(channel, member.id, embed=emb)
+                            except discord.Forbidden:
+                                pass
         
         t_start = hf.line_profile(t_start, "on_voice_state_update: super voice watch")
 
@@ -2590,4 +2592,3 @@ class Logger(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Logger(bot))
-
