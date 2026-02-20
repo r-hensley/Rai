@@ -90,6 +90,16 @@ class HardcoreConfirmView(discord.ui.View):
         self.threshold = threshold
         self.target_lang = target_lang
         self.confirmed = False
+        self.message: Optional[discord.Message] = None
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(content="Confirmation timed out.", view=self)
+            except discord.HTTPException:
+                pass
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user == self.author:
@@ -344,15 +354,11 @@ class General(commands.Cog):
                 await utils.safe_send(ctx, "Please provide a threshold between 1 and 100.")
                 return
 
-            # Determine target language from learning role
-            learning_eng = ctx.guild.get_role(247021017740869632)
-            learning_sp = ctx.guild.get_role(297415063302832128)
+            # Determine target language from learning role (roles already fetched above)
             if learning_sp in ctx.author.roles:
                 target_lang = 'es'
-            elif learning_eng in ctx.author.roles:
-                target_lang = 'en'
             else:
-                target_lang = 'es'  # fallback
+                target_lang = 'en'
 
             # Block lowering an existing threshold
             guild_id = str(ctx.guild.id)
@@ -386,7 +392,7 @@ class General(commands.Cog):
                 )
 
             view = HardcoreConfirmView(ctx.author, threshold, target_lang)
-            await utils.safe_send(ctx, message, view=view)
+            view.message = await utils.safe_send(ctx, message, view=view)
             await view.wait()
 
             if not view.confirmed:
@@ -441,7 +447,7 @@ class General(commands.Cog):
                             f"Your current level is **{current_pct}%** in **{lang_name}**. "
                             f"I've removed hardcore from you."
                         )
-                        del self.bot.db['hardcore'][guild_id]['users'][user_id]
+                        self.bot.db['hardcore'][guild_id].get('users', {}).pop(user_id, None)
                         return
 
             await ctx.author.remove_roles(role)
@@ -474,6 +480,30 @@ class General(commands.Cog):
             self.bot.db['forcehardcore'] = [ctx.channel.id]
             await utils.safe_send(ctx, f"Created forced hardcore mode config; "
                                   f"added {ctx.channel.name} to list of channels for forced hardcore mode")
+
+    @hardcore.command(name="remove")
+    @commands.guild_only()
+    @hf.is_admin()
+    async def hardcore_remove(self, ctx: commands.Context, member: discord.Member):
+        """Admin override to forcibly remove hardcore from a user and clear any threshold lock."""
+        role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
+        if role not in member.roles:
+            await utils.safe_send(ctx, f"{member.mention} doesn't have the hardcore role.")
+            return
+
+        await member.remove_roles(role)
+
+        guild_id = str(ctx.guild.id)
+        user_id = str(member.id)
+        self.bot.db['hardcore'].get(guild_id, {}).get('users', {}).pop(user_id, None)
+
+        await utils.safe_send(ctx, f"Removed hardcore from {member.mention} and cleared any threshold lock.")
+        try:
+            await member.send(
+                f"A moderator in **{ctx.guild.name}** has removed your hardcore role and cleared your threshold lock."
+            )
+        except discord.Forbidden:
+            pass
 
     @hardcore.command(name="ignore")
     @hf.is_admin()
