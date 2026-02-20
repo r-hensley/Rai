@@ -321,13 +321,13 @@ class Stats(commands.Cog):
         if sorted_langs:
             value = ''
             counter = 0
-            total = 0
-            for lang_tuple in sorted_langs:
-                total += lang_tuple[1]
+            lang_total = sum(lang_count.values())
             for lang_tuple in sorted_langs:
                 if lang_tuple[0] not in self.lang_codes_dict:
                     continue
-                percentage = round((lang_tuple[1] / total) * 100, 1)
+                if lang_total == 0:
+                    continue
+                percentage = round((lang_tuple[1] / lang_total) * 100, 1)
                 if (counter in [0, 1] and percentage > 2.5) or (percentage > 5):
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
                 if counter == 5:
