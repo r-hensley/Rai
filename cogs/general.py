@@ -327,136 +327,185 @@ class General(commands.Cog):
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
     @commands.check(lambda ctx: ctx.guild.id in [SP_SERVER_ID, CH_SERVER_ID, CL_SERVER_ID] if ctx.guild else False)
-    async def hardcore(self, ctx: commands.Context, threshold: Optional[int] = None):
+    async def hardcore(self, ctx: commands.Context, threshold: int = 0):
         """Adds/removes the hardcore role from you.
 
         On the Spanish server, you can optionally specify a percentage threshold (e.g. `;hc 50`)
         to lock yourself in until you reach that percentage of messages in your target language.
         Once locked in, you cannot remove hardcore until you meet the threshold."""
-        role = ctx.guild.get_role(
-            self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
         if ctx.guild.id == SP_SERVER_ID:
-            learning_eng = ctx.guild.get_role(247021017740869632)
-            learning_sp = ctx.guild.get_role(297415063302832128)
-            if learning_eng not in ctx.author.roles and learning_sp not in ctx.author.roles:
-                await utils.safe_send(ctx, "You need to have a learning role to use this command.")
-                return
-            elif learning_eng in ctx.author.roles and learning_sp in ctx.author.roles:
-                await utils.safe_send(ctx, "You have both learning roles. "
-                                           "Please remove one before using this command.")
-                return
+            await self.hardcore_spanish_serv(ctx, threshold)
+        else:
+            await self.hardcore_other_serv(ctx)
 
-        # If user provides a threshold on the Spanish server, handle setting the lock
-        # regardless of whether they already have the role or not
-        if ctx.guild.id == SP_SERVER_ID and threshold is not None:
+    async def hardcore_spanish_serv(self, ctx: commands.Context, new_threshold: int = 0):
+        hardcore_role = ctx.guild.get_role(526089127611990046)  # below 50%
+        super_hardcore_role = ctx.guild.get_role(1475913986561278024)  # 50 - 90%
+        ultra_hardcore_role = ctx.guild.get_role(1475914271610110014)  # above 90%
+        learning_eng = ctx.guild.get_role(247021017740869632)
+        learning_sp = ctx.guild.get_role(297415063302832128)
+
+        if learning_eng not in ctx.author.roles and learning_sp not in ctx.author.roles:
+            await utils.safe_send(ctx, "You need to have a learning role to use this command.")
+            return
+        elif learning_eng in ctx.author.roles and learning_sp in ctx.author.roles:
+            await utils.safe_send(ctx, "You have both learning roles. "
+                                       "Please remove one before using this command.")
+            return
+
+        # Determine target language from learning role (roles already fetched above)
+        if learning_sp in ctx.author.roles:
+            target_lang = 'es'
+        else:
+            target_lang = 'en'
+        lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
+
+        # check if user currently has hardcore
+        hc_config: dict = self.bot.db['hardcore'].setdefault(str(SP_SERVER_ID), {})
+        users_config: dict = hc_config.setdefault('users', {})
+        current_user_config: dict = users_config.get(str(ctx.author.id), {})
+
+        all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role]
+        currently_has_hardcore = False
+        current_role = None
+        for r in all_roles:
+            if r in ctx.author.roles:
+                currently_has_hardcore = True
+                current_role = r
+                break
+
+        # current user threshold
+        current_threshold = current_user_config.get('threshold', 0)
+
+        # user is trying to set a threshold, check if it's a valid value
+        if new_threshold:
             # Validate threshold
-            if not (1 <= threshold <= 100):
+            if not (0 < new_threshold <= 100):
                 await utils.safe_send(ctx, "Please provide a threshold between 1 and 100.")
                 return
 
-            # Determine target language from learning role (roles already fetched above)
-            if learning_sp in ctx.author.roles:
-                target_lang = 'es'
-            else:
-                target_lang = 'en'
-
             # Block lowering an existing threshold
-            guild_id = str(ctx.guild.id)
-            user_id = str(ctx.author.id)
-            existing = self.bot.db['hardcore'].get(guild_id, {}).get('users', {}).get(user_id)
-            if existing and 'threshold' in existing and threshold <= existing['threshold']:
+            if new_threshold <= current_threshold:
                 await utils.safe_send(
                     ctx,
-                    f"You're already locked at **{existing['threshold']}%**. "
+                    f"You're already locked at **{current_threshold}%**. "
                     f"You can only raise your threshold, not lower it."
                 )
                 return
 
             # Check if user already meets the threshold
-            lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
-            current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang)
-            already_past = current_pct is not None and current_pct >= threshold
+            current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang) or 0
+            already_past = (current_pct) >= new_threshold
 
             if already_past:
                 message = (
                     f"You already have **{current_pct}%** in **{lang_name}** "
-                    f"(threshold: {threshold}%), so hardcore would have no lock-in effect. "
+                    f"(requested threshold: {new_threshold}%), so hardcore would have no lock-in effect. "
                     f"Enable anyway?"
                 )
             else:
                 message = (
-                    f"You are about to enable hardcore mode locked to **{threshold}%** "
+                    f"You are about to enable hardcore mode locked to **{new_threshold}%** "
                     f"in **{lang_name}**. You will **not** be able to remove it until "
                     f"you reach that percentage. Mods cannot help you remove it either. "
                     f"Are you sure?"
                 )
+                if new_threshold == 100:
+                    message += ("\n-# Note: A 100% threshold is effectively impossible, "
+                                "so this will be a permanent lock.")
 
-            view = HardcoreConfirmView(ctx.author, threshold, target_lang)
+            view = HardcoreConfirmView(ctx.author, new_threshold, target_lang)
             view.message = await utils.safe_send(ctx, message, view=view)
             await view.wait()
 
             if not view.confirmed:
                 return
 
-            # Add the role (if not already present) and store the threshold
-            if role not in ctx.author.roles:
-                await ctx.author.add_roles(role)
-            hc_config = self.bot.db['hardcore'].setdefault(str(ctx.guild.id), {})
-            users = hc_config.setdefault('users', {})
-            users[str(ctx.author.id)] = {
-                'threshold': threshold,
+        # Threshold is a valid integer value
+        if new_threshold < 50:
+            role = hardcore_role  # give this role also when no threshold is set
+        elif 50 <= new_threshold < 90:
+            role = super_hardcore_role
+        else:
+            role = ultra_hardcore_role
+
+        # User has hardcore mode with no threshold set: simply remove the role
+        if currently_has_hardcore and not current_threshold and not new_threshold:
+            users_config.pop(str(ctx.author.id), None)
+            for r in all_roles:
+                if r in ctx.author.roles:
+                    await ctx.author.remove_roles(r)
+            try:
+                await utils.safe_send(ctx, "I've removed hardcore from you.")
+            except discord.Forbidden:
+                pass
+            return
+
+        # User with threshold is removing their own hardcore (check if they reached their goal)
+        elif currently_has_hardcore and current_threshold and not new_threshold:
+            target_lang = current_user_config['target_lang']
+            lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
+            current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang) or 0
+
+            if current_pct < current_threshold:
+                await utils.safe_send(
+                    ctx,
+                    f"You can't remove hardcore yet. You need **{current_threshold}%** in "
+                    f"**{lang_name}** but you're currently at **{current_pct}%**."
+                )
+            else:
+                # Met the threshold — allow removal and clean up
+                await ctx.author.remove_roles(current_role)
+                await utils.safe_send(
+                    ctx,
+                    f"Congrats on reaching your goal of **{current_threshold}%**! "
+                    f"Your current level is **{current_pct}%** in **{lang_name}**. "
+                    f"I've removed hardcore from you."
+                )
+                users_config.pop(str(ctx.author.id), None)
+            return
+
+        # User is trying to raise their current threshold / set a new threshold
+        elif new_threshold:
+            users_config[str(ctx.author.id)] = {
+                'threshold': new_threshold,
                 'target_lang': target_lang
             }
+
+            if role != current_role:
+                if current_role:
+                    await ctx.author.remove_roles(current_role)
+                await ctx.author.add_roles(role)
+
             await utils.safe_send(
                 ctx,
-                f"Hardcore enabled! You must reach **{threshold}%** in "
-                f"**{lang_name}** before you can remove it."
+                f"Hardcore enabled! You must reach **{new_threshold}%** in "
+                f"**{lang_name}** before you can remove it. During this time, you can only speak in {lang_name}."
             )
             return
 
+        # User is just adding simple hardcore (no threshold): add the role simply
+        else:
+            await ctx.author.add_roles(role)
+            await utils.safe_send(
+                ctx,
+                f"I've added hardcore to you. You can now only speak in {lang_name}. Type `;hc` again to "
+                f"remove this. You can also set a percentage goal for yourself by typing something like `;hc 30`."
+            )
+            return
+
+    async def hardcore_other_serv(self, ctx: commands.Context):
+        role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
+
         if role in ctx.author.roles:
-            # User wants to REMOVE hardcore (no threshold given)
-            if ctx.guild.id == SP_SERVER_ID:
-                guild_id = str(ctx.guild.id)
-                user_id = str(ctx.author.id)
-                hc_config = self.bot.db['hardcore'].get(guild_id, {})
-                user_hc = hc_config.get('users', {}).get(user_id)
-
-                if user_hc and 'threshold' in user_hc:
-                    # User has a stored threshold — check if they meet it
-                    target_lang = user_hc['target_lang']
-                    lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
-                    required = user_hc['threshold']
-                    current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang)
-                    if current_pct is None:
-                        current_pct = 0.0
-
-                    if current_pct < required:
-                        await utils.safe_send(
-                            ctx,
-                            f"You can't remove hardcore yet. You need **{required}%** in "
-                            f"**{lang_name}** but you're currently at **{current_pct}%**."
-                        )
-                        return
-                    else:
-                        # Met the threshold — allow removal and clean up
-                        await ctx.author.remove_roles(role)
-                        await utils.safe_send(
-                            ctx,
-                            f"Congrats on reaching your goal of **{required}%**! "
-                            f"Your current level is **{current_pct}%** in **{lang_name}**. "
-                            f"I've removed hardcore from you."
-                        )
-                        self.bot.db['hardcore'][guild_id].get('users', {}).pop(user_id, None)
-                        return
-
+            # User wants to REMOVE hardcore
             await ctx.author.remove_roles(role)
             try:
                 await utils.safe_send(ctx, "I've removed hardcore from you.")
             except discord.Forbidden:
                 pass
         else:
-            # Non-Spanish server or no threshold given — free toggle on
+            # User wants to add hardcore role
             await ctx.author.add_roles(role)
             await utils.safe_send(
                 ctx,
