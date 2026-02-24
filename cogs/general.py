@@ -491,6 +491,11 @@ class General(commands.Cog):
             await utils.safe_send(ctx, f"{member.mention} doesn't have the hardcore role.")
             return
 
+        if ctx.author == member:
+            await utils.safe_send(ctx, "You cannot use this command on yourself, silly. "
+                                       "Get someone else to do it for you.")
+            return
+
         await member.remove_roles(role)
 
         guild_id = str(ctx.guild.id)
