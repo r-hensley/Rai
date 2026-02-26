@@ -185,7 +185,7 @@ class Message(commands.Cog):
         check_lang = False
 
         if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
-            if stripped_msg[0] not in '=;>' and len(stripped_msg) > 3:
+            if stripped_msg[0] not in '=;>' and len(stripped_msg) > 15:
                 if isinstance(msg.channel, discord.Thread):
                     channel_id = msg.channel.parent.id  # pyright: ignore[reportOptionalMemberAccess]
                 elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
@@ -195,11 +195,15 @@ class Message(commands.Cog):
                 if str(SP_SERVER_ID) not in self.bot.db['hardcore']:
                     return None, False
                 if channel_id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
-                    hardcore_role = msg.guild.get_role(
-                        self.bot.db['hardcore'][str(SP_SERVER_ID)]['role'])
-                    if hardcore_role in msg.author.roles:
-                        check_lang = True
-                        hardcore = True
+                    hardcore_role = msg.guild.get_role(526089127611990046)
+                    super_hardcore_role = msg.guild.get_role(1475913986561278024)
+                    ultra_hardcore_role = msg.guild.get_role(1475914271610110014)
+                    all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role]
+                    for r in all_roles:
+                        if r in msg.author.roles:
+                            check_lang = True
+                            hardcore = True
+                            break
 
         if str(msg.guild.id) in self.bot.stats:
             if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
