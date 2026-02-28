@@ -561,22 +561,31 @@ class General(commands.Cog):
 
     @hardcore.command(name="ignore")
     @hf.is_admin()
-    async def hardcore_ignore(self, ctx):
+    async def hardcore_ignore(self, ctx, channel = None):
         """Ignores a channel for hardcore mode."""
         if str(ctx.guild.id) in self.bot.db['hardcore']:
             config = self.bot.db['hardcore'][str(ctx.guild.id)]
+            config.setdefault('ignore', [])
         else:
             return
-        try:
-            if ctx.channel.id not in config['ignore']:
-                config['ignore'].append(ctx.channel.id)
-                await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
-            else:
-                config['ignore'].remove(ctx.channel.id)
-                await utils.safe_send(ctx, f"Removed {ctx.channel.name} from list of ignored channels for hardcore mode")
-        except KeyError:
-            config['ignore'] = [ctx.channel.id]
-            await utils.safe_send(ctx, f"Added {ctx.channel.name} to list of ignored channels for hardcore mode")
+
+        # get channel ID if specified
+        if channel:
+            channel_id = int(re.match(r'<?#?(\d+)>?', channel).group(1))
+        else:
+            channel_id = ctx.channel.id
+        channel = self.bot.get_channel(channel_id)
+
+        if not channel:
+            await utils.safe_reply(ctx, "I couldn't find the channel you specified.")
+            return
+
+        if channel_id not in config['ignore']:
+            config['ignore'].append(channel_id)
+            await utils.safe_reply(ctx, f"Added {channel.name} to list of ignored channels for hardcore mode")
+        else:
+            config['ignore'].remove(channel_id)
+            await utils.safe_reply(ctx, f"Removed {channel.name} from list of ignored channels for hardcore mode")
 
     @hardcore.command(name="list")
     @hf.is_admin()
@@ -594,6 +603,13 @@ class General(commands.Cog):
                     await utils.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
         except KeyError:
             return
+
+        # sort list alphabetically
+        # channels = sorted(channels, key=lambda c: utils.rem_emoji_url(c.name.casefold()))
+
+        # sort list by channel position
+        channels = sorted(channels, key=lambda c: getattr(c, 'position', getattr(c.parent, 'position', 999)))
+
         if channels:
             string = "__List of channels excepted from hardcore__:\n#" + \
                 '\n#'.join([c.name for c in channels])
