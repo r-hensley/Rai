@@ -153,11 +153,6 @@ class Rai(Bot):
                 traceback.print_exc()
                 raise
 
-        if os.path.exists(f"{dir_path}/cogs/rl/rl.py"):
-            await self.load_extension('cogs.rl.rl')
-        else:
-            print("Rai RL not found, skipping loading of Rai RL cog.")
-
         await create_database_tables()
 
 

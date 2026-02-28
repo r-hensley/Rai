@@ -388,8 +388,6 @@ class Owner(commands.Cog):
         for cog in cogs.split():
             if cog == 'database':
                 importlib.reload(sys.modules['cogs.database'])
-            if cog == 'rl':
-                cog = 'rl.rl'
             if cog in ['hf', 'helper_function']:
                 try:
                     importlib.reload(
