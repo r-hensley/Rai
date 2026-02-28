@@ -1680,6 +1680,11 @@ class General(commands.Cog):
                                                   202995638860906496,  # ryan
                                                   698304824667537458,  # jelemeno
                                                   371093267410059264,  # rize
+                                                  765266836434190348,  # alex
+                                                  581324505331400733,  # oriana
+                                                  523226304640974859,  # yoshi
+                                                  1086125464835342386, # resu
+                                                  280105220514512896,  # vidis
                                                   ]
                     and ctx.guild.id == SP_SERVER_ID if ctx.guild else False)
     async def admin(self, ctx):
