@@ -250,6 +250,9 @@ class Main(commands.Cog):
     @tasks.loop(hours=24)
     async def database_backups(self):
         date = datetime.today().strftime("%Y%m%d-%H.%M")
+        # make sure dir exists
+        if not os.path.exists(f"{dir_path}/database_backups"):
+            os.makedirs(f"{dir_path}/database_backups")
         with open(f"{dir_path}/database_backups/database_{date}.json", "w") as write_file:
             json.dump(self.bot.db, write_file)
         with open(f"{dir_path}/database_backups/stats_{date}.json", "w") as write_file:
