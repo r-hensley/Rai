@@ -571,7 +571,8 @@ class General(commands.Cog):
 
         # get channel ID if specified
         if channel:
-            channel_id = int(re.match(r'<?#?(\d+)>?', channel).group(1))
+            channel_id_match = re.match(r'<?#?(\d+)>?', channel)
+            channel_id = int(channel_id_match.group(1)) if channel_id_match else None
         else:
             channel_id = ctx.channel.id
         channel = self.bot.get_channel(channel_id)
