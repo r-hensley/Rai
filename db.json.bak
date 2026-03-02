@@ -1,0 +1,544 @@
+{
+  "ultraHardcore": {},
+  "hardcore": {},
+  "welcome_message": {},
+  "roles": {},
+  "ID": {},
+  "mod_channel": {
+    "243838819743432704": 1364314775789502666
+  },
+  "mod_role": {},
+  "deletes": {},
+  "nicknames": {},
+  "edits": {},
+  "leaves": {},
+  "reactions": {},
+  "captcha": {},
+  "bans": {},
+  "kicks": {},
+  "welcomes": {},
+  "auto_bans": {},
+  "global_blacklist": {},
+  "super_voicewatch": {},
+  "report": {},
+  "super_watch": {},
+  "prefix": {},
+  "questions": {},
+  "mutes": {},
+  "submod_role": {},
+  "colors": {},
+  "submod_channel": {},
+  "SAR": {},
+  "channel_mod": {},
+  "channel_mods": {},
+  "modlog": {
+    "243838819743432704": {
+      "channel": null,
+      "322735822044528641": [
+        {
+          "type": "Silent Log",
+          "reason": "I'm editing this log entry directly in the json file",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/24 19:20 UTC",
+          "date_edited": "2025/06/25 21:21 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "This log was sent from a phone",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/24 19:59 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "Teehee UwU",
+          "length": "1s",
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 02:06 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "Test blah blah - [Evidence](https://discord.com/channels/243838819743432704/1364314775789502666/1387254547512164352)",
+          "length": "1s",
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 02:15 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "adding new entry",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 21:13 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "adding one more entry",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 21:14 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "yes, i'm adding one more entry",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 21:18 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "this is the good one",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/25 21:19 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "i'm adding a log",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 02:40 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "this log is just for padding",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 02:40 UTC"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "added one more log",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 18:42 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "checking log message",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:00 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Silent Log",
+          "reason": "checking log message",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:03 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "3rd time's the charm",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:06 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "sadge 4th try",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:07 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "checking message",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:10 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "followup",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:10 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "log message",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:12 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "checking date",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:16 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "properly formatted date",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": "2025/06/26 19:18 UTC",
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "checking date format",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": 1750967230,
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "testing save",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": 1750990052,
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Log",
+          "reason": "testing back up",
+          "length": null,
+          "jump_url": null,
+          "silent": false,
+          "date": 1750990104,
+          "author_id": "322735822044528641",
+          "author": ".apolo"
+        },
+        {
+          "type": "Warning",
+          "reason": " testing log func",
+          "date": "2025/06/27 12:52 UTC",
+          "silent": true,
+          "length": null,
+          "jump_url": "https://discord.com/channels/243838819743432704/1364314775789502666/1388139902989893723"
+        },
+        {
+          "type": "Log",
+          "reason": "i propose to ban for 69420days",
+          "length": "69420months",
+          "jump_url": null,
+          "silent": false,
+          "date": 1751054793,
+          "author_id": "780138846535942164",
+          "author": "almosteggfriedrice"
+        },
+        {
+          "type": "Log",
+          "reason": "This is a test message",
+          "date": 1751056515,
+          "silent": false,
+          "author": ".apolo",
+          "author_id": "322735822044528641",
+          "length": "1",
+          "date_edited": "2025-11-07 18:42:10 UTC"
+        },
+        {
+          "type": "Log",
+          "reason": "test number one quintillion",
+          "date": 1772045695,
+          "silent": false,
+          "author": "\ud800\udf30\ud800\udf38\ud800\udf30\ud800\udf3b\ud800\udf30\ud800\udf46\ud800\udf3f\ud800\udf3d\ud800\udf43",
+          "author_id": "322735822044528641"
+        }
+      ],
+      "1239579996457140266": [
+        {
+          "type": "Timeout",
+          "reason": "Promoci\u00f3n de servidor sin permiso de los mods y troleo en chat.",
+          "date": "2025/06/24 21:34 UTC",
+          "silent": false,
+          "length": "1d",
+          "jump_url": null
+        }
+      ],
+      "1383243953276452905": [
+        {
+          "type": "Timeout",
+          "reason": "Previously warned to not spam the <#399713966781235200> channel. User ignored warning.",
+          "date": "2025/06/26 18:19 UTC",
+          "silent": false,
+          "length": "1d",
+          "jump_url": null
+        }
+      ],
+      "378533951259541505": [],
+      "202995638860906496": [],
+      "1310969437612150868": [
+        {
+          "type": "Timeout",
+          "reason": "Job scammer.",
+          "date": "2025/06/27 21:13 UTC",
+          "silent": false,
+          "length": "7d",
+          "jump_url": null
+        }
+      ],
+      "259791528568946689": [
+        {
+          "type": "Timeout",
+          "reason": "Reported for trolling in voice chats. Please don't do it again. Will escalate to stricter sanctions if a similar report is made in the future.",
+          "date": "2025/06/27 22:27 UTC",
+          "silent": false,
+          "length": "1d",
+          "jump_url": null
+        }
+      ],
+      "909276285614825482": [
+        {
+          "type": "Timeout",
+          "reason": "RAI_SELFMUTE",
+          "date": "2025/07/29 00:39 UTC",
+          "silent": false,
+          "length": null,
+          "jump_url": null
+        }
+      ],
+      "689897671753728061": [
+        {
+          "type": "Timeout",
+          "reason": "using the n word, insulting alah in front of muslim people. ",
+          "date": "2025/07/29 17:52 UTC",
+          "silent": false,
+          "length": "1h",
+          "jump_url": null
+        }
+      ],
+      "530355961550995456": [
+        {
+          "type": "Timeout",
+          "reason": "using the n word, insulting alah in front of muslim people. ",
+          "date": "2025/07/29 17:52 UTC",
+          "silent": false,
+          "length": "1h",
+          "jump_url": null
+        }
+      ],
+      "1068885078597451776": [
+        {
+          "type": "Timeout",
+          "reason": "continues to spam the <#399713966781235200> channel. Previously warned to stop spamming it.",
+          "date": "2025/11/08 17:24 UTC",
+          "silent": false,
+          "length": "Unknown",
+          "jump_url": null
+        }
+      ],
+      "535286598649249792": [
+        {
+          "type": "Timeout",
+          "reason": "RAI_SELFMUTE",
+          "date": "2025/11/09 01:30 UTC",
+          "silent": false,
+          "length": null,
+          "jump_url": null
+        }
+      ],
+      "731968787594870815": [
+        {
+          "type": "Timeout",
+          "reason": "Alt account. Please open an appeal ticket. ",
+          "date": "2025/11/09 03:03 UTC",
+          "silent": false,
+          "length": "7d",
+          "jump_url": null
+        }
+      ],
+      "1397356648921829417": [
+        {
+          "type": "Timeout",
+          "reason": "previously warned to follow channel guidelines. User ignored warning.",
+          "date": "2025/11/10 02:07 UTC",
+          "silent": false,
+          "length": "1h",
+          "jump_url": null
+        }
+      ]
+    }
+  },
+  "dbtest": {},
+  "modsonly": {},
+  "voice_mutes": {},
+  "selfmute": {},
+  "voicemod": {},
+  "staff_ping": {},
+  "voice": {},
+  "new_user_watch": {},
+  "reactionroles": {},
+  "pmbot": {},
+  "joins": {},
+  "timed_voice_role": {},
+  "banlog": {},
+  "bansub": {},
+  "forcehardcore": [],
+  "wordfilter": {},
+  "ignored_servers": [],
+  "antispam": {},
+  "risk": {},
+  "guildstats": {
+    "243838819743432704": {
+      "messages": {
+        "20250423": 685,
+        "20250424": 1043,
+        "20250425": 200,
+        "20250426": 854,
+        "20250428": 34,
+        "20250429": 11632,
+        "20250623": 4500,
+        "20250624": 22306,
+        "20250625": 25568,
+        "20250626": 14076,
+        "20250627": 18966,
+        "20250629": 304,
+        "20250726": 994,
+        "20250728": 3362,
+        "20250729": 25530,
+        "20251022": 7794,
+        "20251107": 12472,
+        "20251108": 18104,
+        "20251109": 27494,
+        "20251110": 5302,
+        "20260124": 2046,
+        "20260131": 7,
+        "20260202": 6,
+        "20260209": 3295,
+        "20260225": 342
+      },
+      "commands": {
+        "20250423": 10,
+        "20250424": 4,
+        "20250425": 8,
+        "20250426": 2,
+        "20250429": 3,
+        "20250623": 25,
+        "20250624": 113,
+        "20250625": 41,
+        "20250626": 113,
+        "20250627": 31,
+        "20250629": 4,
+        "20250726": 5,
+        "20250728": 6,
+        "20250729": 1,
+        "20251022": 37,
+        "20251107": 1,
+        "20260131": 2,
+        "20260209": 4,
+        "20260225": 14
+      }
+    },
+    "785936812026757190": {
+      "messages": {
+        "20251108": 2
+      },
+      "commands": {}
+    }
+  },
+  "bannedservers": [],
+  "spvoice": [],
+  "spam_links": [],
+  "voice_lock": {},
+  "helper_role": {},
+  "helper_channel": {},
+  "channels": {},
+  "rai_tracebacks": [],
+  "wordsnake": {
+    "nostril": 1,
+    "llama": 2,
+    "ajustes": 2,
+    "estetoscopio": 2,
+    "ombligo": 2,
+    "ocurrir": 2,
+    "riesgo": 2,
+    "oir": 2,
+    "rosado": 2,
+    "otra": 2,
+    "amor": 2,
+    "rodilla": 2,
+    "abogado": 2,
+    "o": 4,
+    "sin": 2,
+    "nuestra": 2,
+    "eres": 2,
+    "enamorarse": 2,
+    "regresar": 2,
+    "retroceder": 2,
+    "rascar": 4,
+    "restringir": 2,
+    "recoger": 2,
+    "reply": 2,
+    "ya lo veo \u200d\ufe0flo siento": 2,
+    "ordenar": 2,
+    "elegante": 1,
+    "empacar": 2,
+    "recibia": 2,
+    "attention": 2,
+    "nadie": 2,
+    "esternon": 2,
+    "nocturno": 2,
+    "ello": 2,
+    "ojos": 2,
+    "sombreros": 2,
+    "sunny": 2,
+    "yema": 3,
+    "abuela": 2,
+    "assonance": 2,
+    "exotica": 2,
+    "amarillo": 2,
+    "orange": 2,
+    "espada": 2,
+    "ageing": 2,
+    "ganas": 2,
+    "soap": 2,
+    "albondigas": 2,
+    "salvage": 2,
+    "tiny": 2,
+    "y": 2,
+    "arbol": 2,
+    "lobo": 2,
+    "orgulloso": 2,
+    "oranje": 2,
+    "ejemplo": 2,
+    "oreja": 2
+  }
+}

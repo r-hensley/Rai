@@ -10,28 +10,28 @@ import cogs.channel_mods as cm
 from cogs.utils import modlog_utils as mlu
 from cogs.utils.BotUtils import bot_utils as utils
 
-async def _interaction_check(author_id, interaction: discord.Interaction) -> bool:  # pylint: disable=W0221
+async def _interaction_check(author_id, interaction: Interaction) -> bool:  # pylint: disable=W0221
         if interaction.user.id != author_id:
             await interaction.response.send_message("🚫 Only the original author can use this.", ephemeral=True)
             return False
         return True
 
 class ModView(discord.ui.View):
-    def __init__(self, parent_cog: "cm.ChannelMods", manage_cog: "UserManage", ctx_or_interaction: Union[commands.Context, discord.Interaction], id_arg: str):
+    def __init__(self, parent_cog: "cm.ChannelMods", manage_cog: "UserManage", ctx_or_interaction: Union[commands.Context, Interaction], id_arg: str):
         super().__init__(timeout=30)
         self.cog: commands.Cog = parent_cog
         self.manage_cog = manage_cog
-        self.ctx = ctx_or_interaction
-        self.id_arg = id_arg
         # Initialize author_id and bot from the context or interaction
         self.author_id = mlu.get_author_id(ctx_or_interaction)
-        self.bot = mlu.get_bot(ctx_or_interaction)
+        self.ctx = manage_cog.user_profile.ctx
+        self.id_arg = manage_cog.user_profile.user_id
+        self.user_profile: Optional[mlu.UserProfile] = manage_cog.user_profile
+        self.bot = manage_cog.user_profile.bot
         self.message: Optional[discord.Message] = None
-        self.user_profile: Optional[mlu.UserProfile] = None
 
     async def init(self):
-        # Use UserProfile instead of direct resolution
-        self.user_profile = await mlu.UserProfile.create(self.bot, self.ctx, self.id_arg)
+        # # Use UserProfile instead of direct resolution
+        # self.user_profile = await mlu.UserProfile.create(self.bot, self.ctx, self.id_arg)
         if not self.user_profile:
             raise ValueError("Could not resolve user")
 
@@ -55,7 +55,7 @@ class ModView(discord.ui.View):
                 pass
 
     @discord.ui.button(label="Open log", style=discord.ButtonStyle.primary)
-    async def modlog_button(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+    async def modlog_button(self, interaction: Interaction, button: discord.ui.Button):  # pylint: disable=W0613
         await _interaction_check(self.author_id, interaction)
         await interaction.response.defer(ephemeral=True)
 
@@ -117,7 +117,7 @@ class ModView(discord.ui.View):
 
 class PaginatedModLogView(discord.ui.View):
     def __init__(self, parent_view: "ModView", entries: list[mlu.ModLogEntry], page: int = 0):
-        super().__init__(timeout=60)
+        super().__init__(timeout=180)
         self.parent_view = parent_view
         self.entries = entries
         self.page = page
@@ -232,6 +232,7 @@ class LogEntrySelector(discord.ui.Select):
         self.parent_view = view
 
     async def callback(self, interaction: discord.Interaction):
+        await _interaction_check(self.parent_view.author_id, interaction)
         index = int(self.values[0])
         entry = self.parent_view.entries[index]
 
@@ -254,10 +255,12 @@ class DetailedEntryView(discord.ui.View):
 
     @discord.ui.button(label="✏ Edit", style=discord.ButtonStyle.blurple)
     async def edit_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+        await _interaction_check(self.author_id, interaction)
         await interaction.response.send_modal(EditModlogEntryModal(self, self.index, self.entry))
 
     @discord.ui.button(label="🗑 Delete", style=discord.ButtonStyle.red)
     async def delete_entry(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
+        await _interaction_check(self.author_id, interaction)
         success = await self.user_profile.delete_modlog_entry(self.index)
         if success:
             mlu.save_db(self.bot)
@@ -278,7 +281,8 @@ class DetailedEntryView(discord.ui.View):
 
     @discord.ui.button(label="← Back to Log", style=discord.ButtonStyle.secondary, row=1)
     async def back_to_log(self, interaction: discord.Interaction, button: discord.ui.Button):  # pylint: disable=W0613
-        embed, _ = await self.user_profile.build_modlog_embed()
+        await _interaction_check(self.author_id, interaction)
+        embed, _ = await self.user_profile.build_modlog_embed(self.parent_view.page)
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
 
@@ -444,10 +448,11 @@ class BanConfirmationView(discord.ui.View):
 
 
 class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
-    def __init__(self, view: PaginatedModLogView, entry_type):
+    def __init__(self, view: PaginatedModLogView, entry_type:str):
         super().__init__()
         self.view = view
         self.entry_type = entry_type
+        self.duration = None
 
         self.reason = discord.ui.TextInput(
             label="Reason",
@@ -465,6 +470,12 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
                 max_length=32
             )
             self.add_item(self.duration)
+        # self.radio_test=discord.ui.RadioGroup(
+        #     required=False
+        # )
+        # self.radio_test.add_option(label="Test", value="test")
+        # self.radio_test.add_option(label="Test2", value="test2")
+        # self.add_item(discord.ui.Label(text="Pick one", component=self.radio_test))
 
     async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=W0221
         await interaction.response.defer(ephemeral=True)
@@ -473,9 +484,9 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
         entry = mlu.ModLogEntry(
             entry_type=self.entry_type,
             reason=self.reason.value,
-            author=interaction.user.display_name,
+            author=interaction.user,
             author_id=str(interaction.user.id),
-            length=self.duration.value if self.duration.value else ""
+            length=self.duration.value if self.duration else ""
         )
 
         # Use UserProfile to add entry
@@ -486,7 +497,7 @@ class AddModlogEntryModal(discord.ui.Modal, title="Add Modlog Entry"):
         log_channel_id = 1364314775789502666  # Replace with your real channel
         log_channel = self.view.ctx.guild.get_channel(log_channel_id)
         if log_channel:
-            embed = entry.build_message_embed()
+            embed = entry.build_message_embed(self.view.user_profile.user)
             await log_channel.send(embed=embed)
 
 
@@ -514,8 +525,8 @@ class UserManage(commands.Cog):
         user,
         ephemeral=False
     ):
-        user_profile = await mlu.UserProfile.create(self.bot, interaction, str(user.id))
-        if not user_profile:
+        self.user_profile = await mlu.UserProfile.create(self.bot, interaction, str(user.id))
+        if not self.user_profile:
             emb = utils.red_embed("")
             emb.set_author(name="COULD NOT FIND USER")
             if isinstance(interaction, Interaction):
@@ -524,7 +535,7 @@ class UserManage(commands.Cog):
                 await utils.safe_send(interaction, embed=emb)
             return
 
-        embed = await user_profile.build_summary_embed()
+        embed = await self.user_profile.build_summary_embed()
         mod_cog = self.bot.get_cog("ChannelMods")
         view = ModView(mod_cog, self, interaction, str(user.id))
         await view.init()
@@ -546,7 +557,7 @@ class UserManage(commands.Cog):
 @app_commands.context_menu(name="Manage User")
 @app_commands.guilds(243838819743432704)
 @app_commands.default_permissions()
-async def context_user_manage(interaction: discord.Interaction, target_user: discord.User):
+async def context_user_manage(interaction: Interaction, target_user: discord.User):
     cog: UserManage = interaction.client.get_cog("UserManage")
     if cog is None:
         await interaction.response.send_message("UserManage cog is not loaded.", ephemeral=True)
