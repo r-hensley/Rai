@@ -6,10 +6,10 @@ import html
 import logging
 import re
 
-from enum import Enum
 from lxml.html import HtmlElement, fromstring as from_html_string
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from cogs.utils.BotUtils import bot_utils as utils
@@ -19,13 +19,13 @@ from cogs.utils.BotUtils import bot_utils as utils
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 
-class DamerMode(Enum):
-    DEF = "def"
-    EXP = "exp"
-    SPFC = "specific phrase"
+class DamerMode:
+    DEF = 1
+    EXP = 2
 
 
 FORCED_TAB = u'\u200B\u2003\u2003'
+SP_SERV_ID = 1463570152011599944  # Spanish server: 243838819743432704
 
 
 class ExcepciónDNE(Exception):
@@ -439,40 +439,40 @@ class Buscador:
 
 class PaginationView(discord.ui.View):
     def __init__(self,
-                 ctx: commands.Context,
-                 embeds: list[discord.Embed],
+                 interaction: discord.Interaction,
                  author: discord.User | discord.Member,
-                 caller_mode: DamerMode,
-                 damer_def_available: bool,
-                 damer_exp_available: bool,
-                 gen_embeds_callback,
-                 start_index: int = 0):
+                 lookup_word: str,
+                 caller_mode: int):
         super().__init__(timeout=60)
-        self.ctx = ctx
-        self.bot: commands.Bot = self.ctx.bot
-        self.embeds = embeds
+        self.interaction = interaction
         self.author = author
-        self.word: str | None = None
+        self.word = lookup_word if lookup_word else ''
         self.caller_mode = caller_mode
-        self.damer_def_available = damer_def_available
-        self.damer_exp_available = damer_exp_available
-        self.gen_embeds_callback = gen_embeds_callback
-        self.current_page = start_index
-        if self.current_page < 0:
-            self.current_page = 0
-        elif self.current_page >= len(embeds):
-            self.current_page = len(embeds) - 1
+        self.damer_def_available = False
+        self.damer_exp_available = False
+        self.current_page = 0
+        self.message: Optional[discord.Message] = None
+        self.def_embeds = None
+        self.exp_embeds = None
 
-        self.message: Optional[discord.Message] = None  # set in DamerDictionary.send_embeds
+    def apply_embeds(self, def_embeds: list[discord.Embed], exp_embeds: list[discord.Embed]):
+        self.def_embeds = def_embeds
+        self.exp_embeds = exp_embeds
+        self.damer_def_available = len(def_embeds) > 0
+        self.damer_exp_available = len(exp_embeds) > 0
 
-        # Set initial buttons
-        self.update_buttons()
+    def get_num_embeds(self):
+        if self.caller_mode == DamerMode.DEF:
+            return len(self.def_embeds)
+        else:
+            return len(self.exp_embeds)
 
-    def update_buttons(self):
+    def update_buttons(self, embeds):
         button_mapping = {
             DamerMode.DEF: (self.damer_def_button, self.damer_def_available),
             DamerMode.EXP: (self.damer_exp_button, self.damer_exp_available),
         }
+        embed_len = len(embeds)
 
         # Clear existing buttons
         self.clear_items()
@@ -481,8 +481,8 @@ class PaginationView(discord.ui.View):
         self.add_item(self.prev_button)
         self.add_item(self.page_indicator)
         self.add_item(self.next_button)
-        self.add_item(self.close_button)
-        if len(self.embeds) >= 10:
+
+        if embed_len >= 10:
             self.seek_start_button.row = 1
             self.prev_button_x5.row = 1
             self.next_button_x5.row = 1
@@ -500,9 +500,11 @@ class PaginationView(discord.ui.View):
         else:
             caller_button = None
 
+
         for button, button_availability in button_mapping.values():
-            button.row = 1 if len(self.embeds) < 10 else 2
+            button.row = 1 if embed_len < 10 else 2
             button.disabled = not button_availability
+            button.style = discord.ButtonStyle.gray if button.disabled else discord.ButtonStyle.green
             self.add_item(button)
 
             # If caller button, disable it and change colour to grey
@@ -512,16 +514,56 @@ class PaginationView(discord.ui.View):
 
         # Update button states
         self.prev_button.disabled = self.prev_button_x5.disabled = self.seek_start_button.disabled = self.current_page == 0
-        self.next_button.disabled = self.next_button_x5.disabled = self.seek_end_button.disabled = self.current_page == len(self.embeds) - 1
+        self.next_button.disabled = self.next_button_x5.disabled = self.seek_end_button.disabled = self.current_page == embed_len - 1
+
+        # Disable navigation buttons for single page embeds
+        if len(embeds) == 1:
+            self.prev_button.disabled = True
+            self.next_button.disabled = True
+            self.prev_button_x5.disabled = True
+            self.next_button_x5.disabled = True
+            self.seek_start_button.disabled = True
+            self.seek_end_button.disabled = True
+
+    async def send_embeds(self,
+                          embeds: list[discord.Embed],
+                          start_index: int = 0,
+                          edit_mode=False,
+                          ephemeral=True):
+        if not embeds:
+            return
+
+        # Prepare initial embed
+        initial_embed = embeds[start_index].copy()
+
+        # Update page indicator label
+        self.page_indicator.label = f'{start_index + 1}/{len(embeds)}'
+
+        self.update_buttons(embeds)
+
+        #if not ephemeral:
+        #    message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
+        #    view.message = message
+        #else:
+        if edit_mode:
+            resp = await self.interaction.response.edit_message(embed=initial_embed, view=self)
+        else:
+            resp = await self.interaction.response.send_message(embed=initial_embed, view=self, ephemeral=ephemeral)
 
     @discord.ui.button(label="◄", style=discord.ButtonStyle.blurple)
     async def prev_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if not await self.interaction_check(interaction):
+            return
+
         if self.current_page > 0:
             self.current_page -= 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="◄◄", style=discord.ButtonStyle.blurple)
     async def prev_button_x5(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if not await self.interaction_check(interaction):
+            return
+
         if self.current_page > 0:
             self.current_page -= 5
             if self.current_page < 0:
@@ -530,34 +572,43 @@ class PaginationView(discord.ui.View):
 
     @discord.ui.button(label="▮◄◄", style=discord.ButtonStyle.blurple)
     async def seek_start_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if not await self.interaction_check(interaction):
+            return
+
         if self.current_page > 0:
             self.current_page = 0
             await self.update_embed(interaction)
 
-    @discord.ui.button(label="✖", style=discord.ButtonStyle.red)
-    async def close_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        if interaction.message:
-            await interaction.message.delete()
-        self.stop()
-
     @discord.ui.button(label="►", style=discord.ButtonStyle.blurple)
     async def next_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        if self.current_page < len(self.embeds) - 1:
+        if not await self.interaction_check(interaction):
+            return
+
+        num_embeds = self.get_num_embeds()
+        if self.current_page < num_embeds - 1:
             self.current_page += 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="►►▮", style=discord.ButtonStyle.blurple)
     async def seek_end_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        if self.current_page < len(self.embeds) - 1:
-            self.current_page = len(self.embeds) - 1
+        if not await self.interaction_check(interaction):
+            return
+
+        num_embeds = self.get_num_embeds()
+        if self.current_page < num_embeds - 1:
+            self.current_page = num_embeds - 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="►►", style=discord.ButtonStyle.blurple)
     async def next_button_x5(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        if self.current_page < len(self.embeds) - 1:
+        if not await self.interaction_check(interaction):
+            return
+
+        num_embeds = self.get_num_embeds()
+        if self.current_page < num_embeds - 1:
             self.current_page += 5
-            if self.current_page >= len(self.embeds):
-                self.current_page = len(self.embeds) - 1
+            if self.current_page >= num_embeds:
+                self.current_page = num_embeds - 1
             await self.update_embed(interaction)
 
     @discord.ui.button(label="1/1", style=discord.ButtonStyle.gray, disabled=True)
@@ -566,32 +617,41 @@ class PaginationView(discord.ui.View):
 
     @discord.ui.button(label="Def", style=discord.ButtonStyle.green)
     async def damer_def_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await self.gen_embeds_callback(self.ctx, self.word, caller_mode=DamerMode.DEF)
-        if interaction.message:
-            await interaction.message.delete()
-        self.stop()
+        if not await self.interaction_check(interaction):
+            return
+
+        self.caller_mode = DamerMode.DEF
+        self.current_page = 0
+        await self.update_embed(interaction)
 
     @discord.ui.button(label="Exp", style=discord.ButtonStyle.green)
     async def damer_exp_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await self.gen_embeds_callback(self.ctx, self.word, caller_mode=DamerMode.EXP)
-        if interaction.message:
-            await interaction.message.delete()
-        self.stop()
+        if not await self.interaction_check(interaction):
+            return
+
+        self.caller_mode = DamerMode.EXP
+        self.current_page = 0
+        await self.update_embed(interaction)
 
     async def update_embed(self, interaction):
         # Update page indicator
-        self.page_indicator.label = f"{self.current_page + 1}/{len(self.embeds)}"
+        num_embeds = self.get_num_embeds()
+        self.page_indicator.label = f"{self.current_page + 1}/{num_embeds}"
 
-        embed = self.embeds[self.current_page].copy()
+        embeds_list = self.def_embeds if self.caller_mode == DamerMode.DEF else self.exp_embeds
+        embed = embeds_list[self.current_page].copy()
 
         # Update buttons state
-        self.update_buttons()
+        self.update_buttons(embeds_list)
 
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         # Only allow the original author to interact
-        return interaction.user.id == self.author.id
+        if interaction.user.id == self.author.id:
+            return True
+        await interaction.response.send_message('🚫 Solo el autor original puede interactuar con esto | Only the original author can use this.', ephemeral=True)
+        return False
 
     async def on_timeout(self) -> None:
         if self.message:
@@ -611,53 +671,15 @@ class DamerDictionary(commands.Cog):
         self.log = logging.getLogger('damer')
         self.log.setLevel(logging.ERROR)
 
-    async def send_embeds(self,
-                          ctx: commands.Context,
-                          embeds: list[discord.Embed],
-                          lookup_word,
-                          caller_mode: DamerMode,
-                          damer_def_available=False,
-                          damer_exp_available=False,
-                          start_index: int = 0):
-        if not embeds:
-            return
-
-        view = PaginationView(ctx,
-                              embeds,
-                              ctx.author,
-                              caller_mode,
-                              damer_def_available,
-                              damer_exp_available,
-                              gen_embeds_callback=self._generate_and_send_embeds,
-                              start_index=start_index)
-        view.word = lookup_word
-
-        # Prepare initial embed
-        initial_embed = embeds[start_index].copy()
-
-        # Update page indicator label
-        view.page_indicator.label = f'{start_index + 1}/{len(embeds)}'
-
-        # Disable navigation buttons for single page embeds
-        if len(embeds) == 1:
-            view.prev_button.disabled = True
-            view.next_button.disabled = True
-            view.prev_button_x5.disabled = True
-            view.next_button_x5.disabled = True
-            view.seek_start_button.disabled = True
-            view.seek_end_button.disabled = True
-
-        message = await utils.safe_reply(ctx, embed=initial_embed, view=view)
-        view.message = message
-
     def _get_embeds(self,
                     entradas: list[Entrada],
-                    caller_mode: DamerMode,
+                    caller_mode: int,
                     lookup_word: str,
-                    target_phrase: str = '') -> list[discord.Embed]:
+                    target_phrase: str = '',
+                    specific_lookup: bool = False) -> list[discord.Embed]:
         embeds = []
         for entrada in entradas:
-            if caller_mode == DamerMode.SPFC:
+            if specific_lookup:
                 expr = entrada.busca_expresión(target_phrase)
                 if expr:
                     specific_phrase_embed = discord.Embed(
@@ -689,7 +711,7 @@ class DamerDictionary(commands.Cog):
                         embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
                         embeds.append(embed)
 
-        if caller_mode == DamerMode.SPFC:
+        if specific_lookup:
             embedded_error = discord.Embed(
                 title="No se pudo encontrar la expresión solicitada.",
                 description=f'La expresión solicitada no aparece en las entradas de {lookup_word}',
@@ -700,23 +722,30 @@ class DamerDictionary(commands.Cog):
         return embeds
 
     async def _generate_and_send_embeds(self,
-                                        ctx: commands.Context,
+                                        interaction: discord.Interaction,
                                         lookup_term: str,
-                                        caller_mode: DamerMode,
-                                        entradas: list[Entrada] | None = None):
+                                        caller_mode: int):
         lookup_parts = lookup_term.split()
         lookup_word = lookup_parts[0]
         target_phrase = ''
+        specific_lookup = False
+        view_caller_mode = caller_mode
 
         # Check if we're looking up a specific phrase
         if len(lookup_parts) > 1:
-            caller_mode = DamerMode.SPFC
+            specific_lookup = True
+            view_caller_mode = DamerMode.EXP
             lookup_word, target_phrase = self._generate_target_word_and_phrase(lookup_parts)
+
+        ctx = await commands.Context.from_interaction(interaction)
+        view = PaginationView(interaction,
+                              ctx.author,
+                              lookup_word,
+                              view_caller_mode)
 
         # get entries and handle exceptions
         try:
-            if not entradas:
-                entradas = await Buscador.búsqueda_damer(lookup_word)
+            entradas = await Buscador.búsqueda_damer(lookup_word)
         except ExcepciónDNE as e_dne:
             embedded_error = discord.Embed(
                 title="Palabra sin entradas disponibles",
@@ -724,8 +753,7 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            return await self.send_embeds(ctx, [embedded_error], lookup_word,
-                                          caller_mode=caller_mode)
+            return await view.send_embeds([embedded_error])
 
         except Exception as e:
             self.log.exception(f'El comando falló con la búsqueda: {lookup_term}.')
@@ -735,8 +763,7 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text='Comando hecho por perkinql - avísenle')
-            return await self.send_embeds(ctx, [embedded_error], lookup_word,
-                                          caller_mode=caller_mode)
+            return await view.send_embeds([embedded_error])
 
         # handle no entries found
         if not entradas:
@@ -746,68 +773,37 @@ class DamerDictionary(commands.Cog):
                 color=0xFF5733
             )
             embedded_error.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            return await self.send_embeds(ctx,
-                                          [embedded_error],
-                                          lookup_word,
-                                          caller_mode=caller_mode,)
+            return await view.send_embeds([embedded_error])
 
         damer_def_available = any([e.acepciones for e in entradas])
         damer_exp_available = any([e.expresiones for e in entradas])
+        def_embeds = self._get_embeds(entradas, DamerMode.DEF, lookup_word, target_phrase) if damer_def_available else []
+        exp_embeds = self._get_embeds(entradas, DamerMode.EXP, lookup_word, target_phrase, specific_lookup=False) if damer_exp_available else []
+        if specific_lookup:
+            specific_phrase_embeds = self._get_embeds(entradas, DamerMode.EXP, lookup_word, target_phrase, specific_lookup=True)
+        view.apply_embeds(def_embeds, exp_embeds)
 
-        # Handle case where only expressions are available and user requested definitions
-        if caller_mode == DamerMode.DEF and not damer_def_available and damer_exp_available:
-            return await self._generate_and_send_embeds(ctx, lookup_word, caller_mode=DamerMode.EXP,
-                                                        entradas=entradas)
-        elif caller_mode == DamerMode.EXP and not damer_exp_available:
-            embed = discord.Embed(
-                title="Palabra sin expresiones disponibles",
-                description=f'La palabra `{lookup_word}` no tiene expresiones disponibles en el diccionario.',
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
-            return await self.send_embeds(ctx, [embed], lookup_word,
-                                          caller_mode=caller_mode,
-                                          damer_def_available=damer_def_available)
-
-        embeds = self._get_embeds(entradas, caller_mode, lookup_word, target_phrase)
-        return await self.send_embeds(ctx, embeds, lookup_word,
-                                      caller_mode=caller_mode,
-                                      damer_def_available=damer_def_available,
-                                      damer_exp_available=damer_exp_available)
-
-    @commands.command(aliases=['damer'])
-    async def get_damer_def_results(self, ctx, *, lookup_term: str):
-        """
-        Look up definitions of a word from the Diccionario de Americanismos from the ASALE.
-        - Example usage: `;damer ñurdo`.
-
-        This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
-        you can contact him through the provided Discord account.
-        -------
-        Buscar definiciones de palabras del Diccionario de Americanismos de la ASALE.
-        - Ejemplo de uso: `;rae ñurdo`.
-
-        Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
-        puedes contactarte con él a través de la cuenta de Discord proporcionada.
-        """
-        await self._generate_and_send_embeds(ctx, self._sanitize_input(lookup_term), caller_mode=DamerMode.DEF)
-
-    @commands.command(aliases=['damerexp'])
-    async def get_damer_exp_results(self, ctx, *, lookup_term: str):
-        """
-        Look up expressions of a word from the Diccionario de Americanismos from the ASALE.
-        - Example usage: `;damerexp pronto`.
-
-        This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
-        you can contact him through the provided Discord account.
-        -------
-        Buscar expresiones de palabras del Diccionario de Americanismos de la ASALE.
-        - Ejemplo de uso: `;damerexp pronto`.
-
-        Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
-        puedes contactarte con él a través de la cuenta de Discord proporcionada.
-        """
-        await self._generate_and_send_embeds(ctx, self._sanitize_input(lookup_term), caller_mode=DamerMode.EXP)
+        if view.caller_mode == DamerMode.DEF:
+            # Handle case where only expressions are available and user requested definitions
+            if not damer_def_available and damer_exp_available:
+                view.caller_mode = DamerMode.EXP
+                return await view.send_embeds(exp_embeds)
+            else:
+                await view.send_embeds(def_embeds)
+        else:
+            if not damer_exp_available:
+                embed = discord.Embed(
+                    title="Palabra sin expresiones disponibles",
+                    description=f'La palabra `{lookup_word}` no tiene expresiones disponibles en el diccionario.',
+                    color=discord.Color.blue()
+                )
+                embed.set_footer(text=f'{Buscador.TEXTO_COPYRIGHT} | Comando hecho por perkinql')
+                return await view.send_embeds([embed])
+            else:
+                if specific_lookup:
+                    await view.send_embeds(specific_phrase_embeds)
+                else:
+                    await view.send_embeds(exp_embeds)
 
     @classmethod
     def _sanitize_input(cls, input: str) -> str:
@@ -878,6 +874,53 @@ class DamerDictionary(commands.Cog):
 
         modified_parts[key_index] = '~'
         return base_part, ' '.join(modified_parts)
+
+
+@app_commands.guilds(SP_SERV_ID)
+@app_commands.command(name='damer', description='Buscar definiciones de palabras del Diccionario de Americanismos de la ASALE.')
+@app_commands.describe(término='El término que buscar')
+async def get_damer_def_results(interaction: discord.Interaction, término: str):
+    """
+    Look up definitions of a word from the Diccionario de Americanismos from the ASALE.
+    - Example usage: `;damer ñurdo`.
+
+    This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
+    you can contact him through the provided Discord account.
+    -------
+    Buscar definiciones de palabras del Diccionario de Americanismos de la ASALE.
+    - Ejemplo de uso: `;rae ñurdo`.
+
+    Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
+    puedes contactarte con él a través de la cuenta de Discord proporcionada.
+    """
+    cog: DamerDictionary = interaction.client.get_cog('DamerDictionary')
+    if cog is None:
+        await interaction.response.send_message("DamerDictionary cog is not loaded.", ephemeral=True)
+        return
+    await cog._generate_and_send_embeds(interaction, DamerDictionary._sanitize_input(término), caller_mode=DamerMode.DEF)
+
+@app_commands.guilds(SP_SERV_ID)
+@app_commands.command(name='damerexp', description='Buscar expresiones de palabras del Diccionario de Americanismos de la ASALE.')
+@app_commands.describe(término='El término que buscar')
+async def get_damer_exp_results(interaction: discord.Interaction, término: str):
+    """
+    Look up expressions of a word from the Diccionario de Americanismos from the ASALE.
+    - Example usage: `;damerexp pronto`.
+
+    This is a command developed by `@perkinql`. For inquiries, suggestions, complaints, and bug reports,
+    you can contact him through the provided Discord account.
+    -------
+    Buscar expresiones de palabras del Diccionario de Americanismos de la ASALE.
+    - Ejemplo de uso: `;damerexp pronto`.
+
+    Este comando fue desarrollado por `@perkinql`. Para consultas, sugerencias, quejas y reportes de problemas,
+    puedes contactarte con él a través de la cuenta de Discord proporcionada.
+    """
+    cog: DamerDictionary = interaction.client.get_cog('DamerDictionary')
+    if cog is None:
+        await interaction.response.send_message("DamerDictionary cog is not loaded.", ephemeral=True)
+        return
+    await cog._generate_and_send_embeds(interaction, DamerDictionary._sanitize_input(término), caller_mode=DamerMode.EXP)
 
 
 async def setup(bot):
