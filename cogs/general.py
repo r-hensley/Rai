@@ -609,11 +609,20 @@ class General(commands.Cog):
         # channels = sorted(channels, key=lambda c: utils.rem_emoji_url(c.name.casefold()))
 
         # sort list by channel position
-        channels = sorted(channels, key=lambda c: getattr(c, 'position', getattr(c.parent, 'position', 999)))
+        def sort_fun(c):
+            if isinstance(c, discord.CategoryChannel):
+                print(c, float(f"{c.position}.0") + 1)
+                return float(f"{c.position + 1}.0")
+            category = c.category.position or 0
+            position = c.position if hasattr(c, "position") else getattr(c.parent, "position", 999)
+            print(c, float(f"{category}.{position}"))
+            return float(f"{category + 1}.{position + 1}")
+
+        channels = sorted(channels, key=sort_fun)
 
         if channels:
-            string = "__List of channels excepted from hardcore__:\n#" + \
-                '\n#'.join([c.name for c in channels])
+            string = "__List of channels excepted from hardcore__:\n" + \
+                '\n'.join([c.mention for c in channels])
             await utils.safe_send(ctx, string)
 
     @commands.command(aliases=['git'])

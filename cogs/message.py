@@ -192,9 +192,21 @@ class Message(commands.Cog):
                     channel_id = msg.channel.id
                 else:
                     return None, False
+
+                # check for unregistered DB
                 if str(SP_SERVER_ID) not in self.bot.db['hardcore']:
                     return None, False
-                if channel_id not in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+
+                # check if ignored channel
+                if channel_id in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                    pass
+
+                # check if ignored category
+                elif getattr(msg.channel.category, 'id', 0) in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                    pass
+
+                # else, process hardcore roles
+                else:
                     hardcore_role = msg.guild.get_role(526089127611990046)
                     super_hardcore_role = msg.guild.get_role(1475913986561278024)
                     ultra_hardcore_role = msg.guild.get_role(1475914271610110014)
