@@ -9,83 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from PIL import Image
 from io import BytesIO
-
-class SolvedView(discord.ui.View):
-    """
-    Discord UI View that provides a button to mark an image spam alert as solved.
-
-    When the button is pressed by a moderator, the alert embed is updated,
-    the associated thread is deleted, and the alert lock is released so the
-    user can be flagged again in the future.
-    """
-    def __init__(self, cog, thread, key):
-        """
-        Initialize the SolvedView.
-
-        Parameters:
-        - cog: Reference to the ImageSpam cog.
-        - thread: The Discord thread containing evidence images.
-        - key: Tuple (guild_id, user_id) used to track active alerts.
-        """
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.thread = thread
-        self.key = key
-
-    @discord.ui.button(
-        label="Mark as solved",
-        style=discord.ButtonStyle.secondary,
-        custom_id="solved_button"
-    )
-    async def solved(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """
-        Callback executed when the 'Mark as solved' button is pressed.
-
-        - Updates the alert embed status
-        - Deletes the evidence thread
-        - Releases the alert lock for the user
-        """
-        if not interaction.user.guild_permissions.moderate_members:
-            await interaction.response.send_message(
-                "You don't have permission to do this.",
-                ephemeral=True
-            )
-            return
-
-        embed = interaction.message.embeds[0]
-
-        for i, field in enumerate(embed.fields):
-            if field.name == "Status":
-                embed.set_field_at(
-                    i,
-                    name="Status",
-                    value="✅ Solved",
-                    inline=True
-                )
-                break
-
-        embed.add_field(
-            name=" ",
-            value=(
-                f"Solved by {interaction.user.mention} · "
-                f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
-            ),
-            inline=False
-        )
-
-        button.disabled = True
-        await interaction.response.edit_message(embed=embed, view=self)
-
-        if self.thread:
-            try:
-                await self.thread.delete()
-            except Exception as e:
-                print("Error while solving alert:", e)
-
-        # Reseting lock after solving the alert
-        if self.key in self.cog.active_alerts:
-            self.cog.active_alerts[self.key]["lock_alert"] = None
-
+from .utils import helper_functions as hf
 
 class ImageSpam(commands.Cog):
     """
@@ -166,7 +90,6 @@ class ImageSpam(commands.Cog):
         channel="The text channel where alerts for flagged users will be sent",
         limit="The number of images required to trigger spam detection",
         timeframe="The time interval (in seconds) between images used to detect spam",
-        timeout="The duration (in minutes) the user will be punished for spamming"
     )
     @app_commands.default_permissions(administrator=True)
     async def spam_enable(
@@ -175,7 +98,6 @@ class ImageSpam(commands.Cog):
         channel: discord.TextChannel,
         limit: int = 2,
         timeframe: int = 10,
-        timeout: int = 60
     ):
         """
         Enables image spam detection for the guild and stores configuration.
@@ -195,8 +117,8 @@ class ImageSpam(commands.Cog):
             "channel": channel.id,
             "limit": limit,
             "timeframe": timeframe,
-            "timeout": timeout
         })
+        config.pop("timeout", None)
 
         embed = discord.Embed(
             title="⚠️ Image Spam Module",
@@ -206,7 +128,6 @@ class ImageSpam(commands.Cog):
 
         embed.add_field(name="Limit", value=f"{limit} images", inline=True)
         embed.add_field(name="Timeframe", value=f"{timeframe} seconds", inline=True)
-        embed.add_field(name="Timeout", value=f"{timeout // 60} hour(s)", inline=True)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -240,10 +161,10 @@ class ImageSpam(commands.Cog):
         Listens for new messages and detects image spam behavior.
 
         If spam is detected:
-        - Times out the user
         - Sends an alert embed
         - Collects image evidence
         - Deletes spam messages
+        - Ban the user
         """
         if message.author.bot or not message.guild:
             return
@@ -260,7 +181,9 @@ class ImageSpam(commands.Cog):
         if not images:
             return
 
-        key = (message.guild.id, message.author.id)
+        member = message.author
+
+        key = (message.guild.id, member.id)
         now = time.time()
 
         self.image_spam.setdefault(key, [])
@@ -289,12 +212,14 @@ class ImageSpam(commands.Cog):
             if not alert_channel:
                 return
 
-            until = datetime.now(timezone.utc) + timedelta(minutes=config["timeout"])
             bot_member = message.guild.me
 
+            timeout_seconds = 7 * 24 * 60 * 60  # Timeout 1 week
+            until = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
+
             try:
-                if bot_member.guild_permissions.moderate_members and message.author.top_role < bot_member.top_role:
-                    await message.author.timeout(until, reason="Automated detection of image spam")
+                if bot_member.guild_permissions.moderate_members and member.top_role < bot_member.top_role:
+                    await member.timeout(timedelta(seconds=timeout_seconds))
             except Exception:
                 pass
 
@@ -309,10 +234,10 @@ class ImageSpam(commands.Cog):
 
             embed = discord.Embed(
                 title="⚠️ Image Spam Detected",
-                description=f"{message.author.mention} was **timed out** <t:{timed_time}:R> for **{config['timeout'] // 60} hour(s)**",
+                description=f"-# {message.author.mention} was timed out <t:{timed_time}:R> for 1 week.",
                 color=discord.Color.blue()
             )
-            embed.add_field(name="Status", value="❌ Unsolved", inline=True)
+            embed.add_field(name="Status", value="⌛ Banning...", inline=True)
             embed.add_field(name="Rate", value=f"{total_images} images / {config['timeframe']} seconds", inline=True)
             embed.add_field(name="Top Spammed", value=top_channels_mentions, inline=True)
             embed.set_footer(
@@ -334,10 +259,6 @@ class ImageSpam(commands.Cog):
             thread = await alert_msg.create_thread(name=f"Spam by {message.author.name} - {message.author.id}")
             await asyncio.gather(*(thread.send(file=f) for f in files))
 
-            await alert_msg.edit(view=SolvedView(self, thread, key))
-
-            self.active_alerts[key]["lock_alert"] = alert_msg.id
-
             # Delete spam messages
             for _, ch, msg_id, _ in self.image_spam[key]:
                 try:
@@ -348,18 +269,37 @@ class ImageSpam(commands.Cog):
                 except:
                     pass
 
-            self.image_spam[key] = []
-
+            # Send evidence
             try:
+                evidence_msg = None
                 await asyncio.sleep(1.5)
                 evidence = await self.thread_to_image(thread)
                 if evidence:
-                    await alert_channel.send(
-                        content="**Evidence**",
+                    evidence_msg = await alert_channel.send(
+                        content="-# Evidence",
                         file=discord.File(evidence, filename=f"{message.author.id}_evidence_spam.png")
                     )
             except Exception as e:
                 print("Evidence generation failed:", e)
+
+            # Ban user
+            try: 
+                if bot_member.guild_permissions.moderate_members and member.top_role < bot_member.top_role: 
+                    await hf.auto_ban(member=member, evidence_msg=evidence_msg)
+            except Exception as e:
+                print("Banned failed:", e)
+
+            # Delete thread
+            try:
+                await thread.delete()
+            except Exception:
+                pass
+
+            embed.set_field_at(0, name="Status", value=f"✅ Banned")
+            await alert_msg.edit(embed=embed)
+
+            self.active_alerts[key]["lock_alert"] = alert_msg.id
+            self.image_spam[key] = []
 
 async def setup(bot: commands.Bot):
     """

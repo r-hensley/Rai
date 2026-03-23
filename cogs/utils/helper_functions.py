@@ -416,6 +416,72 @@ def add_to_modlog(ctx: Optional[commands.Context],
                                                 'jump_url': jump_url})
     return config
 
+async def auto_ban(
+    member: discord.Member,
+    reason: str | None = None,
+    length: tuple[int, int] | None = None,
+    delete_message_days: int = 1,
+    silent: bool = False,
+    evidence_msg: discord.Message | None = None,
+):
+    """
+    Automatically bans a member from the server.
+
+    Parameters:
+        member: The discord.Member to ban.
+        reason: Optional reason for the ban. If None, uses default hacked account reason.
+        length: Optional duration of the ban as (days, hours).
+        delete_message_days: Number of days of messages to delete.
+        silent: If True, no DM will be sent to the user.
+        evidence_msg: Optional discord.Message containing the evidence for the modlog.
+    """
+
+    default_reason = (
+        "Hacked account. Please appeal AFTER you've:\n"
+        "1) Changed your account password\n"
+        "2) Enabled two-factor authentication on your account\n"
+        "3) Removed all authorized apps from your Discord profile settings\n\n"
+        "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
+    )
+    dm_reason = reason or default_reason
+    modlog_reason = dm_reason
+    if evidence_msg:
+        modlog_reason += f"\n- [Evidence](<{evidence_msg.jump_url}>)"
+
+    this_user_modlog = here.bot.db['modlog'].get(str(member.id), [])
+    for entry in this_user_modlog:
+        if entry[1] == modlog_reason:
+            return
+
+    if not silent:
+        embed = discord.Embed(
+            title=f"You've been banned from {member.guild.name}",
+            description=dm_reason,
+            color=discord.Color.blue()
+        )
+        try:
+            await member.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
+    await member.ban(reason=modlog_reason, delete_message_days=delete_message_days)
+
+    add_to_modlog(
+        None,
+        [member, member.guild],
+        'Ban',
+        modlog_reason,
+        silent,
+        None
+    )
+
+    if length:
+        days, hours = length
+        time_string = f"{days}d{hours}h"
+        default_config = {'enable': False, 'channel': None, 'timed_bans': {}}
+        config = here.bot.db['bans'].setdefault(str(member.guild.id), default_config)
+        timed_bans = config.setdefault('timed_bans', {})
+        timed_bans[str(member.id)] = time_string
 
 def parse_time(
         time_in: str,
