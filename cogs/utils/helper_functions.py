@@ -448,7 +448,8 @@ async def auto_ban(
     if evidence_msg:
         modlog_reason += f"\n- [Evidence](<{evidence_msg.jump_url}>)"
 
-    this_user_modlog = here.bot.db['modlog'].get(str(member.id), [])
+    guild_modlogs = here.bot.db['modlog'].get(str(member.guild.id), {})
+    this_user_modlog = guild_modlogs.get(str(member.id), [])
     for entry in this_user_modlog:
         if entry[1] == modlog_reason:
             return
