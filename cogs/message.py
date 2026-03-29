@@ -221,6 +221,10 @@ class Message(commands.Cog):
             if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
                 check_lang = True
 
+        # make exception for a reply starting with "> "... it's probably someone correcting someone else
+        if msg.reference and msg.content.startswith("> "):
+            check_lang = False
+
         if check_lang:
             try:
                 if msg.guild.id in [SP_SERVER_ID, 1112421189739090101] and msg.channel.id != 817074401680818186:
