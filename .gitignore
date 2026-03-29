@@ -58,3 +58,4 @@ HISTORY.md
 setup.py
 /discord.log
 /cogs/rl/
+*.bak

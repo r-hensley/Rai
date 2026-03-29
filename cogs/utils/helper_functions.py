@@ -21,14 +21,11 @@ from urllib.parse import urlparse
 
 import discord
 import numpy as np
-from discord import app_commands
 from discord.ext import commands
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
-
-from cogs.interactions import Interactions
 
 from cogs.utils.BotUtils import bot_utils as utils
 
@@ -50,12 +47,7 @@ BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
 CH_SERV_ID = 266695661670367232
 JP_SERVER_ID = 189571157446492161
-REAL_RAI_ID = 270366726737231884
 FEDE_GUILD = discord.Object(941155953682821201)
-RY_SERV = discord.Object(275146036178059265)
-
-SP_SERV_GUILD = discord.Object(SP_SERV_ID)
-JP_SERV_GUILD = discord.Object(JP_SERVER_ID)
 
 
 def setup(bot, loop: asyncio.AbstractEventLoop):
@@ -991,133 +983,6 @@ def args_discriminator(args: str) -> Args:
             _time_arg = _time_obj = _length = _time_string = None
 
     return Args(_user_ids, _time_string, _length, _time_arg, _time_obj, _reason)
-
-@app_commands.context_menu(name="Delete and log")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions(manage_messages=True)
-async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
-    await Interactions.delete_and_log(interaction, message)
-
-
-@app_commands.context_menu(name="Mute user (1h)")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
-    await Interactions.context_message_mute(interaction, message)
-
-
-@app_commands.context_menu(name="Mute user (1h)")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
-    await Interactions.context_member_mute(interaction, member)
-
-
-@app_commands.context_menu(name="Ban user")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def ban_and_clear_message(interaction: discord.Interaction,
-                                message: discord.Message):  # message commands return the message
-    await Interactions.ban_and_clear_main(interaction, message)
-
-
-@app_commands.context_menu(name="Ban user")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def ban_and_clear_member(interaction: discord.Interaction,
-                               member: discord.User):  # message commands return the message
-    await Interactions.ban_and_clear_main(interaction, member)
-
-
-@app_commands.context_menu(name="View modlog")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def context_view_modlog(interaction: discord.Interaction, member: discord.Member):
-    modlog = here.bot.get_command("modlog")
-    ctx = await commands.Context.from_interaction(interaction)
-    embed = await ctx.invoke(modlog, str(member.id), post_embed=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-@app_commands.context_menu(name="View user stats")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def context_view_user_stats(interaction: discord.Interaction, member: discord.Member):
-    # async def user(self, ctx, *, member_in: str = None, post_embed=True):
-    user = here.bot.get_command("user")
-    ctx = await commands.Context.from_interaction(interaction)
-    embed = await ctx.invoke(user, member_in=str(member.id), post_embed=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-@app_commands.context_menu(name="Get ID from message")
-@app_commands.guilds(SP_SERV_GUILD, JP_SERV_GUILD)
-@app_commands.default_permissions()
-async def get_id_from_message(interaction: discord.Interaction, message: discord.Message):
-    ids = re.findall(r"\d{17,22}", message.content)
-    if ids:
-        await interaction.response.send_message(ids[-1], ephemeral=True)
-        await interaction.followup.send(f"<@{ids[-1]}>", ephemeral=True)
-    else:
-        await interaction.response.send_message("No IDs found in the message", ephemeral=True)
-
-
-@app_commands.context_menu(name="Log a message")
-@app_commands.guilds(SP_SERV_GUILD)
-@app_commands.default_permissions()
-async def log_message_context(interaction: discord.Interaction, message: discord.Message):
-    await Interactions.log_message(interaction, message)
-
-
-async def hf_sync(remove=False):
-    # only sync context menu commands for real Rai bot (not forks)
-    if here.bot.user.id == REAL_RAI_ID:
-        commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
-                            context_view_modlog, context_view_user_stats, get_id_from_message,
-                            ban_and_clear_member, ban_and_clear_message, log_message_context]
-    else:
-        commands_in_file = []
-        pass
-        
-    # add option to forcibly remove commands. this is really here for demonstration / ;eval use
-    if remove:
-        here.bot.tree.clear_commands(guild=SP_SERV_GUILD)
-        here.bot.tree.clear_commands(guild=JP_SERV_GUILD)
-    
-    # Add any commands from this file not currently registered in the tree (new/renamed commands)
-    for command in commands_in_file:
-        # if command.name not in command_names_in_tree:
-        here.bot.tree.add_command(command, guild=SP_SERV_GUILD, override=True)
-        here.bot.tree.add_command(command, guild=JP_SERV_GUILD, override=True)
-
-    # Try to sync
-    try:
-        await here.bot.tree.sync(guild=SP_SERV_GUILD)
-    except discord.Forbidden:
-        print("Failed to sync commands to SP_SERV_GUILD")
-
-    # Jp server
-    try:
-        await here.bot.tree.sync(guild=JP_SERV_GUILD)
-    except discord.Forbidden:
-        print("Failed to sync commands to JP_SERV_GUILD")
-
-    # Ry serv
-    for command in []:
-        if command not in here.bot.tree.get_commands(guild=RY_SERV):
-            here.bot.tree.add_command(command, guild=RY_SERV, override=True)
-
-    try:
-        await here.bot.tree.sync(guild=RY_SERV)
-    except discord.Forbidden:
-        print("Failed to sync commands to RY_SERV")
-
-    # ch serv
-    try:
-        await here.bot.tree.sync(guild=discord.Object(CH_SERV_ID))
-    except discord.Forbidden:
-        print("Failed to sync commands to Chinese server")
-
 
 def message_list_to_text(msgs: list[discord.Message], text: str = "") -> str:
     for msg in msgs:

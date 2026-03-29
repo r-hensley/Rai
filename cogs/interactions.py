@@ -25,6 +25,7 @@ CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
 RAI_MAIN_FORK_ID = 270366726737231884
+RYRY_TEST_BOT_ID = 536170400871219222
 
 RY_GUILD = discord.Object(id=RY_SERVER_ID)
 FEDE_GUILD = discord.Object(id=FEDE_TESTER_SERVER_ID)
@@ -36,7 +37,6 @@ DATABASE_PATH = rf'{dir_path}/database.db'
 
 # @app_commands.describe(): add a description to a parameter when the user is inputting it
 # @app_commands.rename():  rename a parameter after it's been defined by the function
-# app_commands.context_menu() doesn't work in cogs!
 
 
 async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
@@ -110,11 +110,47 @@ class Interactions(commands.Cog):
         self.bot = bot
         self.bot.tree.on_error = on_tree_error
 
+        # context menu commands must be constructed manually like this because
+        # @app_commands.context_menu() doesn't work in cogs.
+        # https://web.archive.org/web/20250126083207/https://github.com/Rapptz/discord.py/issues/7823#issuecomment-1086830458
+        if self.bot.user.id == RAI_MAIN_FORK_ID:
+            default_guilds = [SP_GUILD, JP_GUILD, RY_GUILD]
+        elif self.bot.user.id == RYRY_TEST_BOT_ID:
+            default_guilds = [RY_GUILD]
+        else:
+            default_guilds = []
+        self.manual_context_menu_specs = [
+            (app_commands.ContextMenu(name="Delete and log", callback=self.delete_and_log_context),
+             default_guilds),
+            (app_commands.ContextMenu(name="Mute user (1h)", callback=self.context_message_mute_menu),
+             default_guilds),
+            (app_commands.ContextMenu(name="Mute user (1h)", callback=self.context_member_mute_menu),
+             default_guilds),
+            (app_commands.ContextMenu(name="Ban user", callback=self.ban_message_context),
+             default_guilds),
+            (app_commands.ContextMenu(name="Ban user", callback=self.ban_member_context),
+             default_guilds),
+            (app_commands.ContextMenu(name="View modlog", callback=self.context_view_modlog),
+             default_guilds),
+            (app_commands.ContextMenu(name="View user stats", callback=self.context_view_user_stats),
+             default_guilds),
+            (app_commands.ContextMenu(name="Get ID from message", callback=self.get_id_from_message),
+             default_guilds),
+            (app_commands.ContextMenu(name="Log a message", callback=self.log_message_context),
+             [SP_GUILD, RY_GUILD]),
+        ]
+
+    async def cog_unload(self) -> None:
+        for command, guilds in self.manual_context_menu_specs:
+            for guild in guilds:
+                self.bot.tree.remove_command(command.name, guild=guild, type=command.type)
+
     async def sync_main(self):
         """Main code for syncing app commands"""
         allow_slash_commands_in_forks = False
+        sync_enabled_bot_ids = {RAI_MAIN_FORK_ID, RYRY_TEST_BOT_ID}
         current_line_no = inspect.currentframe().f_lineno
-        if self.bot.user.id != RAI_MAIN_FORK_ID and not allow_slash_commands_in_forks:
+        if self.bot.user.id not in sync_enabled_bot_ids and not allow_slash_commands_in_forks:
             print("Not syncing commands, not the main fork")
             current_file_path = os.path.realpath(__file__)
             print(f"Please set the variable to True at {current_file_path}:{current_line_no-1} "
@@ -127,18 +163,16 @@ class Interactions(commands.Cog):
         
         # Sync interactions here in this file
         bot_guilds = [g.id for g in self.bot.guilds]
-        # for guild_id in [FEDE_TESTER_SERVER_ID]:
-        # temporarily disable slash commands in fede's test server from disuse
         self.bot.tree.copy_global_to(guild=RY_GUILD)
-        for guild_id in []:  # these are synced in hf.hf_sync() command
+        for command, guilds in self.manual_context_menu_specs:
+            for guild in guilds:
+                self.bot.tree.add_command(command, guild=guild, override=True)
+        for guild_id in [FEDE_TESTER_SERVER_ID, RY_SERVER_ID, SP_SERVER_ID, JP_SERVER_ID, CH_SERVER_ID]:
             if guild_id in bot_guilds:
                 guild_object = discord.Object(id=guild_id)
                 await self.bot.tree.sync(guild=guild_object)
         
         await self.bot.tree.sync()  # global commands
-        
-        # Sync context commands in helper_functions()
-        await hf.hf_sync()
 
     @commands.command()
     async def sync(self, ctx: Optional[commands.Context]):
@@ -776,6 +810,10 @@ class Interactions(commands.Cog):
             await interaction.response.send_message("I failed to attach the role to the user. It seems I can't edit "
                                                     "their roles.", ephemeral=True)
 
+    @app_commands.default_permissions(manage_messages=True)
+    async def delete_and_log_context(self, interaction: discord.Interaction, message: discord.Message):
+        await self.delete_and_log(interaction, message)
+
     @staticmethod
     async def delete_and_log(interaction: discord.Interaction, message: discord.Message):
         ctx = await commands.Context.from_interaction(interaction)
@@ -796,6 +834,10 @@ class Interactions(commands.Cog):
             await interaction.response.send_message(f"There was an unknown error in using that command:\n`{e}`",
                                                     ephemeral=True)
             raise
+
+    @app_commands.default_permissions()
+    async def context_message_mute_menu(self, interaction: discord.Interaction, message: discord.Message):
+        await self.context_message_mute(interaction, message)
 
     @staticmethod
     async def context_message_mute(interaction: discord.Interaction, message: discord.Message):
@@ -828,6 +870,10 @@ class Interactions(commands.Cog):
             await interaction.response.send_message("The bot is missing permissions here to use that command.",
                                                     ephemeral=True)
 
+    @app_commands.default_permissions()
+    async def context_member_mute_menu(self, interaction: discord.Interaction, member: discord.Member):
+        await self.context_member_mute(interaction, member)
+
     @staticmethod
     async def context_member_mute(interaction: discord.Interaction, member: discord.Member):
         ctx = await commands.Context.from_interaction(interaction)
@@ -858,6 +904,41 @@ class Interactions(commands.Cog):
         except commands.BotMissingPermissions:
             await interaction.response.send_message("The bot is missing permissions here to use that command.",
                                                     ephemeral=True)
+
+    @app_commands.default_permissions()
+    async def ban_message_context(self, interaction: discord.Interaction, message: discord.Message):
+        await self.ban_and_clear_main(interaction, message)
+
+    @app_commands.default_permissions()
+    async def ban_member_context(self, interaction: discord.Interaction, member: discord.Member):
+        await self.ban_and_clear_main(interaction, member)
+
+    @app_commands.default_permissions()
+    async def context_view_modlog(self, interaction: discord.Interaction, member: discord.Member):
+        modlog = self.bot.get_command("modlog")
+        ctx = await commands.Context.from_interaction(interaction)
+        embed = await ctx.invoke(modlog, str(member.id), post_embed=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.default_permissions()
+    async def context_view_user_stats(self, interaction: discord.Interaction, member: discord.Member):
+        user = self.bot.get_command("user")
+        ctx = await commands.Context.from_interaction(interaction)
+        embed = await ctx.invoke(user, member_in=str(member.id), post_embed=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.default_permissions()
+    async def get_id_from_message(self, interaction: discord.Interaction, message: discord.Message):
+        ids = re.findall(r"\d{17,22}", message.content)
+        if ids:
+            await interaction.response.send_message(ids[-1], ephemeral=True)
+            await interaction.followup.send(f"<@{ids[-1]}>", ephemeral=True)
+        else:
+            await interaction.response.send_message("No IDs found in the message", ephemeral=True)
+
+    @app_commands.default_permissions()
+    async def log_message_context(self, interaction: discord.Interaction, message: discord.Message):
+        await self.log_message(interaction, message)
 
     @staticmethod
     async def ban_and_clear_main(interaction: discord.Interaction,
