@@ -89,6 +89,66 @@ class Stats(commands.Cog):
                        'hu': 'Hungarian', 'vi': 'Vietnamese', 'is': 'Icelandic', 'cy': 'Welsh', 'id': 'Indonesian',
                        'yi': 'Yiddish'}
 
+    @staticmethod
+    def _channel_sort_key(channel):
+        guild_id = getattr(channel.guild, "id", 0)
+        if isinstance(channel, discord.Thread):
+            parent = channel.parent
+            category_position = getattr(getattr(parent, "category", None), "position", -1)
+            parent_position = getattr(parent, "position", -1)
+            return guild_id, category_position, parent_position, channel.position, channel.id
+        if isinstance(channel, discord.CategoryChannel):
+            return guild_id, channel.position, -1, -1, channel.id
+        category_position = getattr(getattr(channel, "category", None), "position", -1)
+        position = getattr(channel, "position", -1)
+        return guild_id, category_position, position, -1, channel.id
+
+    def _resolve_stats_channel(self, ctx, channel_arg=None):
+        if not channel_arg:
+            return ctx.channel
+
+        channel_id_match = re.match(r'<?#?(\d+)>?', channel_arg)
+        if not channel_id_match:
+            return None
+
+        channel_id = int(channel_id_match.group(1))
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            return channel
+        if ctx.guild:
+            return ctx.guild.get_channel_or_thread(channel_id)
+        return None
+
+    @staticmethod
+    def _is_channel_hidden(hidden_config, channel):
+        if not channel:
+            return False
+        if str(channel.id) in hidden_config:
+            return True
+        if isinstance(channel, discord.Thread) and channel.parent_id:
+            return str(channel.parent_id) in hidden_config
+        return False
+
+    async def _send_hidden_channel_list(self, ctx, config):
+        channels = []
+        for c_id in config.copy():
+            channel = self.bot.get_channel(int(c_id))
+            if channel:
+                channels.append(channel)
+            else:
+                config.remove(c_id)
+                await utils.safe_send(
+                    ctx,
+                    f"Removed {c_id} from list of hidden channels (couldn't find it).")
+
+        channels = sorted(channels, key=self._channel_sort_key)
+        if channels:
+            msg = "__List of channels currently hidden from stats__:\n" + \
+                '\n'.join([channel.mention for channel in channels])
+            await utils.safe_send(ctx, msg)
+        else:
+            await utils.safe_send(ctx, "There are no hidden channels configured for stats.")
+
     @commands.command(aliases=['uc'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def uchannels(self, ctx: commands.Context, *, member_str: str = None):
@@ -150,14 +210,14 @@ class Stats(commands.Cog):
         for channel_tuple in sorted_msgs:
             if ctx.channel.id != 277511392972636161 and channel_tuple[0] == '277511392972636161':
                 continue
-            if str(ctx.channel.id) not in self.bot.stats[str(ctx.guild.id)]['hidden']:
-                if channel_tuple[0] in self.bot.stats[str(ctx.guild.id)]['hidden']:
-                    continue
             try:
                 channel = ctx.guild.get_channel_or_thread(
                     int(channel_tuple[0]))
                 if not channel:
                     continue
+                if not self._is_channel_hidden(self.bot.stats[str(ctx.guild.id)]['hidden'], ctx.channel):
+                    if self._is_channel_hidden(self.bot.stats[str(ctx.guild.id)]['hidden'], channel):
+                        continue
                 lb += (f"**{index}) {escape_markdown(channel.name)}**: "
                        f"{round((channel_tuple[1] / total) * 100, 2)}% ({channel_tuple[1]})\n")
                 index += 1
@@ -252,9 +312,10 @@ class Stats(commands.Cog):
                     sorted_msgs.remove(channel)
                     break
         for channel in sorted_msgs.copy():
-            if str(ctx.channel.id) in hidden:  # you're in a hidden channel, keep all
+            if self._is_channel_hidden(hidden, ctx.channel):  # you're in a hidden channel, keep all
                 break
-            if channel[0] in hidden:  # one of the top channels is a hidden channel, remove
+            resolved_channel = ctx.guild.get_channel_or_thread(int(channel[0]))
+            if self._is_channel_hidden(hidden, resolved_channel):  # one of the top channels is a hidden channel, remove
                 sorted_msgs.remove(channel)
             else:  # it's not a hidden channel, keep
                 good_channels += 1
@@ -709,8 +770,7 @@ class Stats(commands.Cog):
     @stats.command()
     @hf.is_admin()
     async def hide(self, ctx, flag=None):
-        """Hides the current channel from being shown in user stat pages.  Type `;stats hide view/list` to view a
-        list of the current channels being hidden."""
+        """Hides the current channel from being shown in user stat pages."""
         try:
             config = self.bot.stats[str(ctx.guild.id)]['hidden']
         except KeyError:
@@ -718,45 +778,50 @@ class Stats(commands.Cog):
 
         # hide/unhide current channel
         if not flag:
-            channel_id: str = str(ctx.channel.id)
+            channel = ctx.channel
+            channel_id = str(channel.id)
             if channel_id in config:
                 config.remove(channel_id)
                 await utils.safe_send(ctx,
-                                      f"Removed {ctx.channel.mention} from the list of hidden channels.  It will now "
+                                      f"Removed {channel.mention} from the list of hidden channels.  It will now "
                                       f"be shown when someone calls their stats page.")
             else:
                 config.append(channel_id)
-                await utils.safe_send(ctx, f"Hid {ctx.channel.mention}.  "
-                                      f"When someone calls their stats page, it will not be shown.")
-
-        # view list of channels
-        elif flag in ['list', 'view'] and config:
-            msg = 'List of channels currently hidden:\n'
-            c_id: str
-            for c_id in config:
-                channel: discord.TextChannel = self.bot.get_channel(int(c_id))
-                if not channel:
-                    config.remove(c_id)
-                    continue
-                msg += f"{channel.mention} ({channel.id})\n"
-            await utils.safe_send(ctx, msg)
+                extra = ""
+                if isinstance(channel, discord.ForumChannel):
+                    extra = " Its threads will also be hidden."
+                await utils.safe_send(ctx, f"Hid {channel.mention}.  "
+                                      f"When someone calls their stats page, it will not be shown.{extra}")
 
         # hide a specified channel
         else:
-            if re.findall(r"^<#\d{17,22}>$", flag):
-                flag = flag[2:-1]
-            channel = self.bot.get_channel(int(flag))
-            if channel:
-                if str(channel.id) in config:
-                    config.remove(str(channel.id))
-                    await utils.safe_send(ctx,
-                                          f"Removed {channel.mention} from the list of hidden channels. It will now "
-                                          f"be shown when someone calls their stats page.")
-                else:
-                    config.append(str(channel.id))
-                    await utils.safe_send(ctx,
-                                          f"Hid {channel.mention}. When someone calls their stats page, "
-                                          f"it will not be shown.")
+            channel = self._resolve_stats_channel(ctx, flag)
+            if not channel:
+                await utils.safe_reply(ctx, "I couldn't find the channel you specified.")
+                return
+            if str(channel.id) in config:
+                config.remove(str(channel.id))
+                await utils.safe_send(ctx,
+                                      f"Removed {channel.mention} from the list of hidden channels. It will now "
+                                      f"be shown when someone calls their stats page.")
+            else:
+                config.append(str(channel.id))
+                extra = ""
+                if isinstance(channel, discord.ForumChannel):
+                    extra = " Its threads will also be hidden."
+                await utils.safe_send(ctx,
+                                      f"Hid {channel.mention}. When someone calls their stats page, "
+                                      f"it will not be shown.{extra}")
+
+    @stats.command(name="list")
+    @hf.is_admin()
+    async def stats_list(self, ctx):
+        """Lists the channels currently hidden from stats."""
+        try:
+            config = self.bot.stats[str(ctx.guild.id)]['hidden']
+        except KeyError:
+            return
+        await self._send_hidden_channel_list(ctx, config)
 
     @commands.command()
     async def sentiment(self, ctx: commands.Context, user_id: str = None):
