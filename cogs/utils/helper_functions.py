@@ -29,6 +29,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
 from cogs.interactions import Interactions
+from cogs.damer import get_damer_def_results, get_damer_exp_results
 
 from cogs.utils.BotUtils import bot_utils as utils
 
@@ -995,9 +996,9 @@ async def hf_sync(remove=False):
     if here.bot.user.id == REAL_RAI_ID:
         commands_in_file = [delete_and_log, context_message_mute, context_member_mute,
                             context_view_modlog, context_view_user_stats, get_id_from_message,
-                            ban_and_clear_member, ban_and_clear_message, log_message_context]
+                            ban_and_clear_member, ban_and_clear_message, log_message_context,
+                            get_damer_exp_results, get_damer_def_results]
     else:
-        commands_in_file = []
         pass
         
     # add option to forcibly remove commands. this is really here for demonstration / ;eval use
