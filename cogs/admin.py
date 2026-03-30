@@ -2442,39 +2442,45 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.bot_has_permissions(ban_members=True)
-    async def unban(self, ctx: commands.Context, *users):
+    async def unban(self, ctx: commands.Context, *, args: str = ""):
         """Unban users from the server via IDs.
 
-        Usage: `;unban <user_id> <user_id> ...`
+        Usage: `;unban <user_id> <user_id> ... [reason]`
 
         Examples:
         - `;unban 123456789012345678`
-        - `;unban <@123456789012345678> 123456789012345678`"""
-        if not users:
+        - `;unban <@123456789012345678> 123456789012345678`
+        - `;unban 123456789012345678 234567890123456789 appeal accepted`"""
+        if not args:
             await utils.safe_reply(ctx, "Please input the user IDs you wish to unban.")
             # send command's help document (and ignore pycharm warning)
             # noinspection PyTypeChecker
             await ctx.invoke(self.bot.get_command('help'), 'unban')
             return
 
-        # use regex to extract IDs from <@ID> or <@!ID> format, or directly parse if already an ID
-        user_ids = []
-        for user in users:
-            # Match <@123456789012345678> or <@!123456789012345678>
-            re_result = re.search(r"<@!?(\d{17,22})>", user)
-            if re_result:
-                user_ids.append(int(re_result.group(1)))
-            else:
-                try:
-                    # Fallback to direct integer parsing if it's a plain ID
-                    user_ids.append(int(user))
-                except ValueError:
-                    await utils.safe_reply(ctx, f"Invalid user ID: {user}")
-                    continue
+        parsed_args = hf.args_discriminator(args=args)
+        user_ids = parsed_args.user_ids
+
+        # `args_discriminator` also parses leading time-like tokens. `unban` does not support those,
+        # so preserve them as part of the freeform reason instead of silently dropping them.
+        reason_parts = []
+        if parsed_args.time_arg:
+            reason_parts.append(parsed_args.time_arg)
+        if parsed_args.reason:
+            reason_parts.append(parsed_args.reason)
+        reason = ' '.join(reason_parts).strip()
+
+        if not user_ids:
+            await utils.safe_reply(ctx, "I couldn't find any valid user IDs to unban.")
+            return
+
+        audit_reason = f"Unban requested by {ctx.author} ({ctx.author.id})"
+        if reason:
+            audit_reason += f": {reason}"
 
         for user_id in user_ids:
             try:
-                await ctx.guild.unban(discord.Object(id=user_id))
+                await ctx.guild.unban(discord.Object(id=user_id), reason=audit_reason)
             except discord.NotFound:
                 await utils.safe_reply(ctx, f"Ban entry for user with ID {user_id} not found")
             except discord.Forbidden:
@@ -2485,8 +2491,11 @@ class Admin(commands.Cog):
 
                 # log the action
                 log_command = self.bot.get_command('log')
+                log_reason = "Unbanned user here"
+                if reason:
+                    log_reason += f" - {reason}"
                 # noinspection PyTypeChecker
-                await ctx.invoke(log_command, args=f"{user_id} Unbanned user here")
+                await ctx.invoke(log_command, args=f"{user_id} {log_reason}")
 
 
 async def setup(bot):
