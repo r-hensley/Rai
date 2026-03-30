@@ -112,7 +112,7 @@ class Rai(Bot):
                       'bansub': {}, 'forcehardcore': [], 'wordfilter': {}, 'ignored_servers': [], 'antispam': {},
                       'risk': {}, 'guildstats': {}, 'bannedservers': [],
                       'spvoice': [], 'spam_links': [], 'voice_lock': {}, "helper_role": {}, "helper_channel": {},
-                      'channels': {}, 'joindates': {}}
+                      'channels': {}, 'joindates': {}, 'quotes': {}}
             # A lot of these are unnecessary now but I'll fix that later when I make a new database
             print("Creating default values for database.")
             json.dump(new_db, db)
@@ -141,7 +141,7 @@ class Rai(Bot):
                               'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
                               'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
                               'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
-                              'cogs.cnserver', 'cogs.english_dictionary']
+                              'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes']
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:

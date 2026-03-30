@@ -1755,7 +1755,6 @@ class Logger(commands.Cog):
 
         # ######### Timeouts #############
         async def check_timeouts():
-            print("Checking for timeout event")
             if before.id == ABELIAN_ID:
                 print(before.timed_out_until, after.timed_out_until, before.guild.name, after.guild.name)
                 
@@ -1764,8 +1763,6 @@ class Logger(commands.Cog):
 
             if not (not before.is_timed_out() and after.is_timed_out()):
                 return  # event is not a timeout event
-
-            print(before, after)
 
             if before.guild.id == 189571157446492161:  # EJLX server
                 return
@@ -1787,7 +1784,6 @@ class Logger(commands.Cog):
                                                     action=discord.AuditLogAction.member_update,
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
                     entry: discord.AuditLogEntry
-                    print(entry)
                     if entry.target != before:
                         # make sure this log entry is about the same user
                         continue
