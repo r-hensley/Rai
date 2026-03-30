@@ -937,7 +937,7 @@ class Events(commands.Cog):
                             "received, please close your question by typing `;done`.")
 
             addition = ("\n\nIf more than three days have passed and no one has responded to your post, you may "
-                        "ping either `@Spanish Helper`, `@English Helper`, or a country role like `@AskUSA` or "
+                        "ping a country role like `@AskUSA` or "
                         "`@AskMexico`.")
             if thread.guild.id == SP_SERVER_ID:
                 instructions += addition
