@@ -1994,7 +1994,10 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
 
         if over_80:
             watch_log_channel = self.bot.get_channel(704323978596188180)
-            await utils.safe_send(watch_log_channel, s)  # pyright: ignore[reportArgumentType]
+            try:
+                await utils.safe_send(watch_log_channel, s)  # pyright: ignore[reportArgumentType]
+            except discord.Forbidden:
+                pass
 
     @on_message_function()
     async def translate_other_lang_channel(self, msg: hf.RaiMessage):

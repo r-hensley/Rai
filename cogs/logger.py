@@ -363,6 +363,8 @@ class Logger(commands.Cog):
                     await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
                 except discord.DiscordServerError:
                     pass
+            except discord.Forbidden:
+                pass
         
         t_start = hf.line_profile(t_start, "on_voice_state_update: voice logging")
 
@@ -1143,7 +1145,10 @@ class Logger(commands.Cog):
                         replace('$NAME$', member.name). \
                         replace('$USERMENTION$', member.mention). \
                         replace('$SERVER$', member.guild.name)
-                    await utils.safe_send(_welcome_channel, message)
+                    try:
+                        await utils.safe_send(_welcome_channel, message)
+                    except discord.Forbidden:
+                        pass
             return _welcome_channel
 
         welcome_channel = await welcome_message()
@@ -1750,6 +1755,7 @@ class Logger(commands.Cog):
 
         # ######### Timeouts #############
         async def check_timeouts():
+            print("Checking for timeout event")
             if before.id == ABELIAN_ID:
                 print(before.timed_out_until, after.timed_out_until, before.guild.name, after.guild.name)
                 
@@ -1759,7 +1765,9 @@ class Logger(commands.Cog):
             if not (not before.is_timed_out() and after.is_timed_out()):
                 return  # event is not a timeout event
 
-            if before.guild.id == 189571157446492161:
+            print(before, after)
+
+            if before.guild.id == 189571157446492161:  # EJLX server
                 return
 
             guild = before.guild
@@ -1779,6 +1787,7 @@ class Logger(commands.Cog):
                                                     action=discord.AuditLogAction.member_update,
                                                     after=discord.utils.utcnow() - timedelta(seconds=60)):
                     entry: discord.AuditLogEntry
+                    print(entry)
                     if entry.target != before:
                         # make sure this log entry is about the same user
                         continue
@@ -1881,17 +1890,22 @@ class Logger(commands.Cog):
                 hf.add_to_modlog(None, [after, after.guild], 'Timeout', reason,
                                  False, timeout_length_str)
 
-            # send second notification for sesion mods
-            event_helper = guild.get_role(830821949382983751)
-            voice_mod = guild.get_role(1228581686443507722)
-            event_host = guild.get_role(874020674124021760)
-            # if any of the lower helper roles exist
-            if {event_helper, voice_mod, event_host} & set(author.roles):
-                trial_staff = guild.get_role(591745589054668817)
-                server_helper = guild.get_role(258819531193974784)
-                admin = guild.get_role(243854949522472971)
-                # check to make sure no higher roles
-                if not {trial_staff, server_helper, admin} & set(author.roles):
+            # Send a follow-up notification when the timeout came from session staff,
+            # but skip it for staff who already have one of the higher moderation roles.
+            helper_roles = {
+                guild.get_role(830821949382983751),   # event_helper
+                guild.get_role(1228581686443507722),  # voice_mod
+                guild.get_role(874020674124021760),   # event_host
+            }
+            elevated_staff_roles = {
+                guild.get_role(591745589054668817),   # trial_staff
+                guild.get_role(258819531193974784),   # server_helper
+                guild.get_role(243854949522472971),   # admin
+            }
+            author_roles = set(author.roles)
+
+            if helper_roles & author_roles:
+                if not elevated_staff_roles & author_roles:
                     event_helpers_channel = guild.get_channel(861337623636475944)
                     if event_helpers_channel:
                         await utils.safe_send(event_helpers_channel, str(after.id), embed=emb)
