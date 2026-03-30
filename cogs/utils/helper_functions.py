@@ -405,6 +405,7 @@ def add_to_modlog(ctx: Optional[commands.Context],
                                                 'date': date,
                                                 'silent': silent,
                                                 'length': length,
+                                                'author_id': ctx.author.id if ctx else None,
                                                 'jump_url': jump_url})
     return config
 
@@ -570,12 +571,31 @@ def is_submod():
     return commands.check(pred)
 
 
+def trial_helper_check(ctx):
+    if not ctx.guild:
+        return
+    if submod_check(ctx):
+        return True
+
+    if ctx.guild.id == SP_SERV_ID:
+        trial_helper_role = ctx.guild.get_role(591745589054668817)
+        if trial_helper_role in ctx.author.roles:
+            return True
+
+
+def is_trial_helper():
+    async def pred(ctx):
+        return trial_helper_check(ctx)
+
+    return commands.check(pred)
+
+
 def helper_check(ctx):
     if not ctx.guild:
         return
     if admin_check(ctx):
         return True
-    if submod_check(ctx):
+    if trial_helper_check(ctx):
         return True
     try:
         role_id = here.bot.db['helper_role'][str(ctx.guild.id)]['id']
@@ -879,6 +899,7 @@ class ModlogEntry:
                                   "%Y/%m/%d %H:%M UTC"),
                               'silent': self.silent,
                               'length': self.length,
+                              'author_id': self.ctx.author.id if self.ctx else None,
                               'jump_url': jump_url})
         return config
 

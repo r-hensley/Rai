@@ -1370,7 +1370,7 @@ class ChannelMods(commands.Cog):
             return emb
 
     @modlog.command(name='delete', aliases=['del'])
-    @hf.is_admin()
+    @hf.is_trial_helper()
     async def modlog_delete(self, ctx, user, *, indices=""):
         """Delete modlog entries.  Do `;modlog delete user -all` to clear all warnings from a user.
         Alias: `;ml del`"""
@@ -1396,10 +1396,43 @@ class ChannelMods(commands.Cog):
             return
 
         config: dict = config[user_id]
+        can_delete_any_entry = hf.submod_check(ctx)
+
+        async def entry_belongs_to_caller(index: int) -> bool:
+            try:
+                entry = config[index]
+            except (IndexError, AttributeError):
+                return False
+            author_id = entry.get('author_id')
+            if author_id is not None:
+                return author_id == ctx.author.id
+
+            jump_url = entry.get('jump_url')
+            if not jump_url:
+                return False
+
+            try:
+                channel_id = int(jump_url.split('/')[-2])
+                message_id = int(jump_url.split('/')[-1])
+                channel = ctx.bot.get_channel(channel_id)
+                if not channel:
+                    return False
+                message = await channel.fetch_message(message_id)
+            except (ValueError, IndexError, AttributeError, discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return False
+            return message.author.id == ctx.author.id
 
         # Performs the deletions:
         # If any of these flags is found in the list:
         if '-a' in indices or '-all' in indices:
+            if not can_delete_any_entry:
+                unauthorized_entries = []
+                for i in range(len(config)):
+                    if not await entry_belongs_to_caller(i):
+                        unauthorized_entries.append(config[i])
+                if unauthorized_entries:
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                    return
             # clear the modlog...
             del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
             await utils.safe_send(ctx,
@@ -1408,6 +1441,9 @@ class ChannelMods(commands.Cog):
 
         elif len(indices) == 1:  # If there is a single argument given, then:
             try:
+                if not can_delete_any_entry and not await entry_belongs_to_caller(int(indices[0]) - 1):
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                    return
                 del config[int(indices[0]) - 1]  # delete it from modlog...
             except IndexError:  # except if the index given is not found in config...
                 await utils.safe_send(ctx,
@@ -1454,6 +1490,15 @@ class ChannelMods(commands.Cog):
             assert len(valid_indices) + len(invalid_indices) + len(not_found_indices) == len(indices), \
                 (f"Indices don't add up: {len(valid_indices)=} + {len(invalid_indices)=} + {len(not_found_indices)=} "
                  f"!= {len(indices)=}")
+
+            if not can_delete_any_entry:
+                unauthorized_indices = []
+                for i in valid_indices:
+                    if not await entry_belongs_to_caller(int(i) - 1):
+                        unauthorized_indices.append(i)
+                if unauthorized_indices:
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                    return
 
             n = 1
             for index in valid_indices:  # For every index in the list...

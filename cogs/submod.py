@@ -714,7 +714,7 @@ class Submod(commands.Cog):
             f"Set the submod channel for this server as {channel.mention}.")
     
     @commands.group(invoke_without_command=True, aliases=['w'])
-    @hf.is_submod()
+    @hf.is_trial_helper()
     async def warn(self, ctx, *, args):
         """Log a mod incident"""
         # If log came from context command, first two characters of args will be "⁣⁣". Remove those and set ephemeral
