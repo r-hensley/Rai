@@ -1087,6 +1087,21 @@ class Owner(commands.Cog):
         for m in to_send:
             await utils.safe_reply(ctx, m)
 
+    @commands.command()
+    async def pull(self, ctx, mode: str = ""):
+        """Safely fast-forward the bot repo."""
+        force = mode.casefold().strip() == "force"
+        try:
+            result = await utils.safe_git_pull(force=force)
+        except RuntimeError as exc:
+            await ctx.send(f"**`ABORTED:`** {exc}")
+            return
+
+        if len(result) > 1900:
+            result = result[:1900] + "\n...truncated"
+        await ctx.send(f"```{result}```")
+
+
 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
