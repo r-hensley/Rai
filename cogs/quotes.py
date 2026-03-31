@@ -15,6 +15,7 @@ from .utils import helper_functions as hf
 RYAN_TEST_SERV_ID = 275146036178059265
 SP_SERV_ID = 243838819743432704
 
+
 class Quotes(commands.Cog):
     """Quote storage, lookup, import/export, and moderation tools.
 
@@ -312,9 +313,10 @@ class Quotes(commands.Cog):
             return
 
         if content.startswith(("...", "…")):
-            await self._handle_quote_print(message, content[3:])
+            payload = content[4:] if content.startswith("...") else content[2:]
+            await self._handle_quote_print(message, payload)
         elif content.startswith(".."):
-            await self._handle_quote_add(message, content[2:])
+            await self._handle_quote_add(message, content[3:])
 
     @commands.guild_only()
     @commands.command(aliases=["qa"])
