@@ -151,12 +151,18 @@ class Quotes(commands.Cog):
         entry["last_used_at"] = datetime.now(timezone.utc).timestamp()
 
     @staticmethod
-    def _quote_jump_url(guild_id: int, entry: dict[str, Any]) -> Optional[str]:
-        channel_id = entry.get("source_channel_id")
-        message_id = entry.get("source_message_id")
+    def _message_jump_url(guild_id: int, channel_id: Optional[int], message_id: Optional[int]) -> Optional[str]:
         if not channel_id or not message_id:
             return None
         return f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+
+    @classmethod
+    def _quote_jump_url(cls, guild_id: int, entry: dict[str, Any]) -> Optional[str]:
+        return cls._message_jump_url(
+            guild_id,
+            entry.get("source_channel_id"),
+            entry.get("source_message_id"),
+        )
 
     @staticmethod
     def _quote_created_at(entry: dict[str, Any]) -> Optional[datetime]:
@@ -198,6 +204,7 @@ class Quotes(commands.Cog):
         *,
         color: int,
         extra_text: str = "",
+        action_message_url: Optional[str] = None,
     ) -> discord.Embed:
         embed = discord.Embed(
             description=f"**Quote {action}**",
@@ -208,6 +215,8 @@ class Quotes(commands.Cog):
         embed.add_field(name="By", value=actor, inline=False)
         if extra_text:
             embed.add_field(name="Context", value=extra_text, inline=False)
+        if action_message_url:
+            embed.add_field(name="Message Link", value=f"[Jump to message]({action_message_url})", inline=False)
 
         body = entry["body"]
         body_segments = utils.split_text_into_segments(body, 1024)
@@ -265,6 +274,7 @@ class Quotes(commands.Cog):
             "created",
             message.author.mention,
             color=0x7BA600,
+            action_message_url=self._message_jump_url(message.guild.id, message.channel.id, message.id),
         ))
         await message.channel.send(
             f"Saved quote ID `{entry['id']}` under `{entry['name']}`. "
@@ -324,6 +334,7 @@ class Quotes(commands.Cog):
             "created",
             ctx.author.mention,
             color=0x7BA600,
+            action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
         ))
         await utils.safe_send(ctx, f"Saved quote #{entry['id']} under `{entry['name']}`.")
 
@@ -478,6 +489,7 @@ class Quotes(commands.Cog):
                 "deleted",
                 ctx.author.mention,
                 color=0xDB3C3C,
+                action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
             ))
             guild_entries.remove(entry)
             deleted_ids.append(quote_id)
@@ -524,6 +536,7 @@ class Quotes(commands.Cog):
                 ctx.author.mention,
                 color=0xDB3C3C,
                 extra_text="Duplicate cleanup",
+                action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
             ))
         s = f"Deleted {len(duplicate_ids)} duplicate quotes: " \
             f"{', '.join(f'`#{quote_id}`' for quote_id in duplicate_ids)}"
@@ -632,6 +645,7 @@ class Quotes(commands.Cog):
                         f"`{entry['author_name']}`",
                         color=0x7BA600,
                         extra_text=f"Imported by {ctx.author.mention}",
+                        action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
                     ))
                 else:
                     duplicate_count += 1
