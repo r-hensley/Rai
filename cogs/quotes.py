@@ -482,7 +482,7 @@ class Quotes(commands.Cog):
 
             can_delete = (
                 ctx.author.id == entry["author_id"]
-                or hf.submod_check(ctx)
+                or hf.trial_helper_check(ctx)
             )
             if not can_delete:
                 denied_ids.append(quote_id)
