@@ -16,7 +16,30 @@ RYAN_TEST_SERV_ID = 275146036178059265
 SP_SERV_ID = 243838819743432704
 
 class Quotes(commands.Cog):
-    """Server quote commands and Nadeko-style shorthand listeners."""
+    """Quote storage, lookup, import/export, and moderation tools.
+
+    Prefix commands:
+    `;quoteadd` / `;qa` - Add a quote with a name. Example: `;qa rai Hello there`
+    `;quoteprint` / `;qp` - Print a random quote saved under a name. Example: `;qp rai`
+    `;quoteid` / `;qid` / `;quotebyid` - Print a quote by numeric ID. Example: `;qid 42`
+    `;qinfo` / `;qi` - Show full metadata for a quote, including author, usage, and source message when available.
+    `;quotelist` / `;liqu` - List all quotes, or only quotes for one name. Example: `;quotelist rai`
+    `;qsearch` / `;qs` - Search quote names and quote text. Example: `;qs hello`
+    `;quotedelete` / `;qdel` / `;quotedel` - Delete one or more quote IDs. Authors can delete their own quotes; submods can delete any quote.
+    `;dedupequotes` / `;qdedupe` / `;quotesdedupe` / `;quotededupe` - Admin-only duplicate cleanup for identical name/body pairs.
+    `;quotesimport` / `;qimport` / `;quotesyamlimport` - Admin-only import of Nadeko quote YAML from an attached or replied-to file.
+    `;quotesexport` / `;qexport` - Admin-only export of this server's quotes as YAML.
+
+    Shorthand listeners:
+    `.. name quote text` - Quick-add a quote from a normal message.
+    `... name` - Print a random quote for that name from a normal message.
+
+    Slash commands:
+    `/quotestats` - Admin-only usage totals and used vs. unused percentages.
+    `/quoteunused` - Admin-only list of quotes that have never been used.
+    `/myquotes` - Show the quotes you created in the current server.
+    `/setquotelog` - Admin-only set or clear the log channel for quote create/delete events.
+    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

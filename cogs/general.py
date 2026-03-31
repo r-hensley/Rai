@@ -158,11 +158,38 @@ class General(commands.Cog):
                 b = False
             return a and b
 
+        def find_command_case_insensitive(name: str):
+            lowered = name.casefold()
+            direct_match = self.bot.get_command(name)
+            if direct_match:
+                return direct_match
+
+            for command in self.bot.walk_commands():
+                qualified_names = {
+                    command.qualified_name.casefold(),
+                    command.name.casefold(),
+                    *(alias.casefold() for alias in command.aliases),
+                }
+                if lowered in qualified_names:
+                    return command
+            return None
+
+        def find_cog_case_insensitive(name: str):
+            lowered = name.casefold()
+            direct_match = self.bot.get_cog(name)
+            if direct_match:
+                return direct_match
+
+            for cog_name, cog in self.bot.cogs.items():
+                if cog_name.casefold() == lowered:
+                    return cog
+            return None
+
         if arg:  # user wants help on a specific command/cog
-            requested = self.bot.get_command(arg)
+            requested = find_command_case_insensitive(arg)
             which = 'command'
             if not requested:
-                requested = self.bot.get_cog(arg)
+                requested = find_cog_case_insensitive(arg)
                 which = 'cog'
             if not requested:
                 await utils.safe_send(ctx, "I was unable to find the command or command module you requested.")
