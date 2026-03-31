@@ -1647,8 +1647,7 @@ class Message(commands.Cog):
     @on_message_function(allow_message_types=[discord.MessageType.auto_moderation_action])
     async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
         """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
-        # if msg.channel.id != 808077477703712788:
-        if msg.channel.id != 275879535977955330:
+        if msg.channel.id != 808077477703712788:
             return
         if msg.type != discord.MessageType.auto_moderation_action:
             print("not auto moderation action")
