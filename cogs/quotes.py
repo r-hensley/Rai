@@ -12,7 +12,8 @@ import cogs.interactions
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 
-RYAN_TEST_SERV_ID = 275146036178059265
+RYAN_TEST_SERV_ID, SP_SERV_ID = 275146036178059265
+SP_SERV_ID = 243838819743432704
 
 class Quotes(commands.Cog):
     """Server quote commands and Nadeko-style shorthand listeners."""
@@ -627,7 +628,7 @@ class Quotes(commands.Cog):
         )
 
     @app_commands.command(name="quotestats", description="Show quote usage totals and used/unused percentages.")
-    @app_commands.guilds(RYAN_TEST_SERV_ID)
+    @app_commands.guilds(RYAN_TEST_SERV_ID, SP_SERV_ID)
     @app_commands.default_permissions()
     async def quotestats(self, interaction: discord.Interaction):
         if not hf.admin_check(interaction):
@@ -669,7 +670,7 @@ class Quotes(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="quoteunused", description="Show unused quotes in this server.")
-    @app_commands.guilds(RYAN_TEST_SERV_ID)
+    @app_commands.guilds(RYAN_TEST_SERV_ID, SP_SERV_ID)
     @app_commands.default_permissions()
     async def quoteunused(self, interaction: discord.Interaction):
         if not interaction.guild:
@@ -699,7 +700,7 @@ class Quotes(commands.Cog):
         await interaction.response.send_message(message, ephemeral=False)
 
     @app_commands.command(name="myquotes", description="Show the quotes you've created in this server.")
-    @app_commands.guilds(RYAN_TEST_SERV_ID)
+    @app_commands.guilds(RYAN_TEST_SERV_ID, SP_SERV_ID)
     async def myquotes(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
@@ -730,7 +731,7 @@ class Quotes(commands.Cog):
 
     @app_commands.command(name="setquotelog", description="Set or clear the channel for quote create/delete logs.")
     @app_commands.default_permissions()
-    @app_commands.guilds(RYAN_TEST_SERV_ID)
+    @app_commands.guilds(RYAN_TEST_SERV_ID, SP_SERV_ID)
     @app_commands.describe(channel="Leave blank to disable quote logging for this server")
     async def setquotelog(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
         if not interaction.guild:
