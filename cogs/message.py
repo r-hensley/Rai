@@ -1697,17 +1697,22 @@ class Message(commands.Cog):
         if embedded_steam_links and "@everyone" in content:
             found_bad_url = True
 
-        if not found_bad_url:
-            print(f"no bad url found in {content}")
-            return
-
         ban_reason = scam_ban_reason(content)
+        timeout_duration = parse_automod_timeout_duration(content)
+
+        if not found_bad_url:
+            if timeout_duration > timedelta(minutes=5):
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+            else:
+                print(f"no bad url found in {content}")
+            return
 
         # if they've sent more than 4 messages, don't ban them (it could be a mistake)
         recent_messages_count = hf.count_messages(msg.author.id, msg.guild)
         if recent_messages_count > 4 and msg.author.id != 414873201349361664:
             print(f"more than 4 messages: {recent_messages_count}")
-            await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+            if timeout_duration > timedelta(minutes=5):
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
             return
 
         appeal_instructions = """If your account was hacked, please do the following steps before appealing your ban:
@@ -1735,7 +1740,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
         except (discord.Forbidden, discord.HTTPException) as e:
             await incidents_channel.send(f"Failed to ban {msg.author} for spam message: `{e}`")
             await incidents_channel.send(f";ban {msg.author.id} Hacked account: {content[:150]}...")
-            await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+            if timeout_duration > timedelta(minutes=5):
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
 
     @on_message_function(time_threshold=10.5)
     async def antispam_check(self, msg: hf.RaiMessage):
