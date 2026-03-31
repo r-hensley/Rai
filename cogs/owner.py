@@ -1101,6 +1101,82 @@ class Owner(commands.Cog):
             result = result[:1900] + "\n...truncated"
         await ctx.send(f"```{result}```")
 
+    @commands.command()
+    async def commit_summary(self, ctx: commands.Context, hours: int = 48):
+        """Summarizes the last 48 hours of commits to this repository using AI.
+
+        Groups related changes together thematically rather than listing commit by commit.
+        Optionally pass a number of hours to look back (default: 48).
+        """
+        if not self.bot.openai:
+            await utils.safe_reply(ctx, "OpenAI not initialized")
+            return
+
+        await ctx.typing()
+
+        # Fetch commits with diffs from the last `hours` hours asynchronously
+        proc = await asyncio.create_subprocess_exec(
+            "git", "log",
+            f"--since={hours} hours ago",
+            "--format=commit %H%nauthor: %an%ndate: %ai%nmessage: %s%n",
+            "-p", "--no-color",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=dir_path,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await utils.safe_reply(ctx, "Git command timed out.")
+            return
+
+        if proc.returncode != 0:
+            error = stderr.decode(errors="replace")[:1800]
+            await utils.safe_reply(ctx, f"Git error:\n```{error}```")
+            return
+
+        git_output = stdout.decode(errors="replace")
+        if not git_output.strip():
+            await utils.safe_reply(ctx, f"No commits found in the last {hours} hours.")
+            return
+
+        # Truncate to avoid exceeding API context limits
+        max_diff_size = 50_000
+        truncated = len(git_output) > max_diff_size
+        if truncated:
+            git_output = git_output[:max_diff_size] + "\n... (diff truncated due to size)"
+
+        messages = [
+            {
+                "role": "developer",
+                "content": (
+                    f"You are a software engineering assistant. Summarize the following git commits and diffs "
+                    f"from the last {hours} hours of development. Do NOT list the changes commit by commit. Instead, "
+                    f"group related changes together thematically and explain the overall impact at a high level. "
+                    f"Use concise bullet points organized by feature area or type of change."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Git log and diffs from the last {hours} hours:\n\n{git_output}",
+            },
+        ]
+
+        try:
+            completion = await self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages)
+        except Exception as e:
+            await hf.send_to_test_channel(f"Error in commit_summary: `{e}`")
+            raise
+
+        summary = completion.choices[0].message.content
+        if truncated:
+            summary += "\n\n*(Note: diff output was truncated before summarizing.)*"
+
+        to_send = utils.split_text_into_segments(summary, 2000)
+        for m in to_send:
+            await utils.safe_reply(ctx, m)
+
 
 
 async def setup(bot):
