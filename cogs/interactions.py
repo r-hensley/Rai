@@ -148,7 +148,8 @@ class Interactions(commands.Cog):
     async def sync_main(self):
         """Main code for syncing app commands"""
         allow_slash_commands_in_forks = False
-        sync_enabled_bot_ids = {RAI_MAIN_FORK_ID, RYRY_TEST_BOT_ID}
+        # sync_enabled_bot_ids = {RAI_MAIN_FORK_ID, RYRY_TEST_BOT_ID}
+        sync_enabled_bot_ids = {RAI_MAIN_FORK_ID}
         current_line_no = inspect.currentframe().f_lineno
         if self.bot.user.id not in sync_enabled_bot_ids and not allow_slash_commands_in_forks:
             print("Not syncing commands, not the main fork")
