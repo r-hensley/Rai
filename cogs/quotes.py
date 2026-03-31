@@ -12,7 +12,7 @@ import cogs.interactions
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 
-RYAN_TEST_SERV_ID, SP_SERV_ID = 275146036178059265
+RYAN_TEST_SERV_ID = 275146036178059265
 SP_SERV_ID = 243838819743432704
 
 class Quotes(commands.Cog):
