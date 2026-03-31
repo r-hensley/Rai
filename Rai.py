@@ -145,14 +145,15 @@ class Rai(Bot):
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:
+            print(f"Loading extension {extension}... ", end="")
             try:
-                print(f"Loaded {extension}")
                 await self.load_extension(extension)
+                print(f"loaded!")
             except Exception:
                 print(f'Failed to load {extension}', file=sys.stderr)
                 traceback.print_exc()
                 raise
-
+        
         await create_database_tables()
 
 

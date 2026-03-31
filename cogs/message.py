@@ -132,43 +132,44 @@ def extract_scam_message_and_rule(content: str) -> tuple[str, str]:
     return message_text, rule
 
 
-def parse_automod_timeout_duration(content: str) -> timedelta:
-    timeout_match = re.search("Timeout:\\s*([^\\u2022\\n]+)", content)
-    if not timeout_match:
+def extract_automod_keyword(content: str) -> str:
+    keyword_match = re.search("Keyword:\\s*([^\\u2022\\n]+)", content)
+    if not keyword_match:
+        return ""
+
+    return keyword_match.group(1).strip().strip("*")
+
+
+def parse_automod_timeout_duration(message: discord.Message) -> timedelta:
+    if not message.embeds:
         return timedelta(0)
-
-    timeout_text = timeout_match.group(1).strip().lower()
-    total_seconds = 0
-    for amount, unit in re.findall(
-            r"(\d+)\s*(second|seconds|minute|minutes|hour|hours|day|days|week|weeks)",
-            timeout_text):
-        amount_int = int(amount)
-        if unit.startswith("second"):
-            total_seconds += amount_int
-        elif unit.startswith("minute"):
-            total_seconds += amount_int * 60
-        elif unit.startswith("hour"):
-            total_seconds += amount_int * 60 * 60
-        elif unit.startswith("day"):
-            total_seconds += amount_int * 60 * 60 * 24
-        elif unit.startswith("week"):
-            total_seconds += amount_int * 60 * 60 * 24 * 7
-
-    return timedelta(seconds=total_seconds)
+    
+    embed = message.embeds[0]
+    if not embed.fields:
+        return timedelta(0)
+    
+    timeout_duration_seconds = 0
+    for field in embed.fields:
+        if field.name == 'timeout_duration':
+            timeout_duration_seconds = int(field.value)
+    
+    return timedelta(seconds=timeout_duration_seconds)
 
 
-def scam_appeal_instructions() -> str:
-    return """If your account was hacked, please do the following steps before appealing your ban:
-1) Change your password.
-2) Enable two-factor authentication: https://support.discord.com/hc/en-us/articles/219576828-Setting-up-Multi-Factor-Authentication
-3) Remove all applications from your profile: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
+SCAM_APPEAL_INSTRUCTIONS = \
+"""**You've been banned from the Spanish-English Language Exchange.**
+
+If your account was hacked, please do the following steps before appealing your ban:
+1. Change your password.
+2. Enable two-factor authentication: <https://support.discord.com/hc/en-us/articles/219576828-Setting-up-Multi-Factor-Authentication>
+3. Remove all applications from your profile: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
 
 Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de apelar tu baneo:
-1) Cambia tu contraseÃƒÂ±a.
-2) Activa la autenticaciÃƒÂ³n de dos factores: https://support.discord.com/hc/es/articles/219576828-Configurando-la-AutenticaciÃƒÂ³n-de-mÃƒÂºltiples-factores
-3) Elimina todas las aplicaciones de tu perfil: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
+1. Cambia tu contraseña.
+2. Activa la autenticación de dos factores: <https://support.discord.com/hc/es/articles/219576828-Configurando-la-Autenticación-de-múltiples-factores>
+3. Elimina todas las aplicaciones de tu perfil: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
 
-**__Appeal link: https://discord.gg/pnHEGPah8X__**"""
+**__ Appeal link: https://discord.gg/pnHEGPah8X __**"""
 
 
 def scam_ban_reason(content: str) -> str:
@@ -181,14 +182,12 @@ class ScamBanPromptView(utils.RaiView):
                  bot: Rai,
                  target: discord.Member,
                  ban_reason: str,
-                 timeout_length: str,
-                 modlog_reason: str):
+                 content: str):
         super().__init__(timeout=24 * 60 * 60)
         self.bot = bot
         self.target = target
         self.ban_reason = ban_reason
-        self.timeout_length = timeout_length
-        self.modlog_reason = modlog_reason
+        self.content = content
         self.message: Optional[discord.Message] = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -215,7 +214,7 @@ class ScamBanPromptView(utils.RaiView):
     async def ban_user(self, interaction: discord.Interaction, _: discord.ui.Button):
         silent = True
         try:
-            await self.target.send(scam_appeal_instructions())
+            await self.target.send(SCAM_APPEAL_INSTRUCTIONS)
             silent = False
         except (discord.Forbidden, discord.HTTPException):
             pass
@@ -259,9 +258,9 @@ class ScamBanPromptView(utils.RaiView):
         user_modlog = guild_modlog.setdefault(str(self.target.id), [])
         for i in range(len(user_modlog) - 1, -1, -1):
             entry = user_modlog[i]
-            if (entry['type'] == 'AutoMod Timeout'
-                    and entry['reason'] == self.modlog_reason
-                    and entry['length'] == self.timeout_length):
+            if entry['type'] != 'AutoMod Timeout':
+                continue
+            if self.content in entry['reason']:
                 del user_modlog[i]
                 break
 
@@ -269,45 +268,24 @@ class ScamBanPromptView(utils.RaiView):
             item.disabled = True
 
         await interaction.response.edit_message(
-            content=f"Marked false alarm and removed the timeout from {self.target.mention}.",
+            content=f"Marked as false alarm. I've removed the timeout from {self.target.mention} "
+                    f"and deleted that modlog entry.",
             view=self
         )
         self.stop()
 
 
-async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str, ban_reason: str) -> None:
-    timeout_duration = parse_automod_timeout_duration(content)
+async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str, ban_reason: str,
+                                       timeout_duration: timedelta) -> None:
     if timeout_duration <= timedelta(minutes=5):
         return
 
-    message_text, rule = extract_scam_message_and_rule(content)
-    timeout_length = hf.format_interval(timeout_duration, show_seconds=False, show_minutes=True)
-    modlog_reason = (
-        f"AutoMod scam timeout in #{msg.channel.name}\n"
-        f"Rule: {rule}\n"
-        f"Message: {message_text}\n"
-        f"Suggested ban reason: {ban_reason}\n"
-        f"- [Evidence](<{msg.jump_url}>)"
-    )
-
-    guild_modlog = bot.db['modlog'].setdefault(str(msg.guild.id), {'channel': None})
-    user_modlog = guild_modlog.setdefault(str(msg.author.id), [])
-    modlog_date = discord.utils.utcnow().strftime("%Y/%m/%d %H:%M UTC")
-    for entry in reversed(user_modlog):
-        if (entry['type'] == 'AutoMod Timeout'
-                and entry['date'] == modlog_date
-                and entry['length'] == timeout_length):
-            entry['reason'] = modlog_reason
-            entry['silent'] = False
-            break
-    else:
-        hf.add_to_modlog(None, [msg.author, msg.guild], 'AutoMod Timeout', modlog_reason, False, timeout_length)
-
     prompt_text = (
         "Shall I ban the above user with the following ban reason?\n"
-        f"`{ban_reason[:400]}`"
+        f"`{ban_reason[:400]}`\n"
+        f"-# I'll send instructions on how to appeal the ban as well."
     )
-    view = ScamBanPromptView(bot, msg.author, ban_reason, timeout_length, modlog_reason)
+    view = ScamBanPromptView(bot, msg.author, ban_reason, content)
     prompt_msg = await msg.reply(prompt_text, view=view, mention_author=False)
     view.message = prompt_msg
 
@@ -1669,9 +1647,8 @@ class Message(commands.Cog):
     @on_message_function(allow_message_types=[discord.MessageType.auto_moderation_action])
     async def spanish_server_scam_message_ban(self, msg: hf.RaiMessage):
         """This command will ban users who say common spam messages from hacked accounts in the Spanish server"""
-        if msg.guild.id != SP_SERVER_ID:
-            return
-        if msg.channel.id != 808077477703712788:
+        # if msg.channel.id != 808077477703712788:
+        if msg.channel.id != 275879535977955330:
             return
         if msg.type != discord.MessageType.auto_moderation_action:
             print("not auto moderation action")
@@ -1698,11 +1675,12 @@ class Message(commands.Cog):
             found_bad_url = True
 
         ban_reason = scam_ban_reason(content)
-        timeout_duration = parse_automod_timeout_duration(content)
+        timeout_duration = parse_automod_timeout_duration(msg)
 
         if not found_bad_url:
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
+                                                   timeout_duration)
             else:
                 print(f"no bad url found in {content}")
             return
@@ -1712,23 +1690,12 @@ class Message(commands.Cog):
         if recent_messages_count > 4 and msg.author.id != 414873201349361664:
             print(f"more than 4 messages: {recent_messages_count}")
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
+                                                   timeout_duration)
             return
 
-        appeal_instructions = """If your account was hacked, please do the following steps before appealing your ban:
-1) Change your password.
-2) Enable two-factor authentication: https://support.discord.com/hc/en-us/articles/219576828-Setting-up-Multi-Factor-Authentication
-3) Remove all applications from your profile: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
-
-Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de apelar tu baneo:
-1) Cambia tu contraseña.
-2) Activa la autenticación de dos factores: https://support.discord.com/hc/es/articles/219576828-Configurando-la-Autenticación-de-múltiples-factores
-3) Elimina todas las aplicaciones de tu perfil: <https://www.iorad.com/player/2100432/Discord---How-to-deauthorize-an-app->
-
-**__Appeal link: https://discord.gg/pnHEGPah8X__**"""
-
         try:
-            await msg.author.send(scam_appeal_instructions())
+            await msg.author.send(SCAM_APPEAL_INSTRUCTIONS)
         except (discord.Forbidden, discord.HTTPException):
             pass
 
@@ -1741,7 +1708,8 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
             await incidents_channel.send(f"Failed to ban {msg.author} for spam message: `{e}`")
             await incidents_channel.send(f";ban {msg.author.id} Hacked account: {content[:150]}...")
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason)
+                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
+                                                   timeout_duration)
 
     @on_message_function(time_threshold=10.5)
     async def antispam_check(self, msg: hf.RaiMessage):
@@ -2343,4 +2311,3 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
 
 async def setup(bot):
     await bot.add_cog(Message(bot))
-

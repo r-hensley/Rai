@@ -819,7 +819,8 @@ class Quotes(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Quotes(bot))
-    await bot.wait_until_ready()
-    interactions_cog: cogs.interactions.Interactions = bot.get_cog("Interactions")
-    if interactions_cog and hasattr(interactions_cog, "sync_main"):
-        await interactions_cog.sync_main()
+    
+    if bot.is_ready():
+        interactions_cog: cogs.interactions.Interactions = bot.get_cog("Interactions")
+        if interactions_cog and hasattr(interactions_cog, "sync_main"):
+            await interactions_cog.sync_main()
