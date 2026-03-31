@@ -519,8 +519,8 @@ class Submod(commands.Cog):
             if hasattr(target, "joined_at"):  # will be false if the user is not in the server
                 joined_at = discord.utils.utcnow() - target.joined_at
             else:
-                # arbitrarily bigger than 24 to fail the conditional
-                joined_at = timedelta(hours=25)
+                # arbitrarily bigger than 30 days to fail the conditional
+                joined_at = timedelta(days=31)
             
             # check if top role of target user is higher than Rai
             if hasattr(target, "top_role"):
@@ -532,12 +532,12 @@ class Submod(commands.Cog):
                     continue
             
             # Allow server helpers on Spanish/JP server to
-            # ban users who joined within last 60 minutes
+            # ban users who joined within the last month
             perms = False
             if hf.admin_check(ctx):
                 perms = True
             else:
-                if joined_at < timedelta(hours=24):
+                if joined_at < timedelta(days=30):
                     if ctx.guild.id == JP_SERVER_ID:
                         jp_staff_role = 543721608506900480
                         if ctx.guild.get_role(jp_staff_role) in ctx.author.roles:
