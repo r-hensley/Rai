@@ -546,11 +546,17 @@ def parse_time(
     return time_string, length
 
 
-def submod_check(ctx: commands.Context):
+def submod_check(ctx: commands.Context | discord.Interaction):
     if not ctx.guild:
         return
     if admin_check(ctx):
         return True
+
+    author = ctx.author if isinstance(ctx, commands.Context) else ctx.user
+    if not isinstance(author, discord.Member):
+        author = ctx.guild.get_member(author.id)
+    if not author:
+        return
 
     submod_roles = []
     try:
@@ -560,7 +566,7 @@ def submod_check(ctx: commands.Context):
         return
 
     for role in submod_roles:
-        if role in ctx.author.roles:
+        if role in author.roles:
             return True
 
 
@@ -571,15 +577,21 @@ def is_submod():
     return commands.check(pred)
 
 
-def trial_helper_check(ctx):
+def trial_helper_check(ctx: commands.Context | discord.Interaction):
     if not ctx.guild:
         return
     if submod_check(ctx):
         return True
 
+    author = ctx.author if isinstance(ctx, commands.Context) else ctx.user
+    if not isinstance(author, discord.Member):
+        author = ctx.guild.get_member(author.id)
+    if not author:
+        return
+
     if ctx.guild.id == SP_SERV_ID:
         trial_helper_role = ctx.guild.get_role(591745589054668817)
-        if trial_helper_role in ctx.author.roles:
+        if trial_helper_role in author.roles:
             return True
 
 
@@ -642,7 +654,7 @@ def admin_check(ctx):
     # allow retired mods on Spanish server to use Rai commands
     if ctx.guild.id == SP_SERV_ID:
         retired_mod_role = ctx.guild.get_role(1014256322436415580)
-        if retired_mod_role in ctx.author.roles:
+        if retired_mod_role in author.roles:
             return True
 
     try:
