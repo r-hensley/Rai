@@ -190,9 +190,11 @@ class Quotes(commands.Cog):
         return None
 
     @staticmethod
-    async def _send_quote(destination: discord.abc.Messageable, entry: dict[str, Any]):
+    async def _send_quote(destination: discord.abc.Messageable,
+                          author: discord.abc.User,
+                          entry: dict[str, Any]):
         await destination.send(
-            f"`#{entry['id']}` {entry['body']}",
+            f"`#{entry['id']}` {author.mention} 📣\n{entry['body']}",
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -298,7 +300,7 @@ class Quotes(commands.Cog):
 
         selected = random.choice(matches)
         self._mark_quote_used(selected)
-        await self._send_quote(message.channel, selected)
+        await self._send_quote(message.channel, message.author, selected)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -349,7 +351,7 @@ class Quotes(commands.Cog):
 
         selected = random.choice(matches)
         self._mark_quote_used(selected)
-        await self._send_quote(ctx, selected)
+        await self._send_quote(ctx, ctx.author, selected)
 
     @commands.guild_only()
     @commands.command(aliases=["qid", "quotebyid"])
@@ -361,7 +363,7 @@ class Quotes(commands.Cog):
             return
 
         self._mark_quote_used(entry)
-        await self._send_quote(ctx, entry)
+        await self._send_quote(ctx, ctx.author, entry)
 
     @commands.guild_only()
     @commands.command(aliases=["qi"])
