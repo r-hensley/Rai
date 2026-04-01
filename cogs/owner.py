@@ -1041,53 +1041,6 @@ class Owner(commands.Cog):
         plt.close()
 
     @commands.command()
-    async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int] = 500):
-        """Summarizes a conversation using OpenAI's GPT-4"""
-        if not self.bot.openai:
-            await utils.safe_reply(ctx, "OpenAI not initialized")
-            return
-
-        re_result = re.findall(
-            r"https://(?:.*\.)?.*\.com/channels/\d{17,22}/(\d{17,22})/(\d{17,22})", limit_jump_url)
-        if not re_result:
-            await utils.safe_reply(ctx, "Invalid message link. Please give a message link to the message from which you want to "
-                                        "summarize")
-        channel_id = int(re_result[0][0])
-        message_id = int(re_result[0][1])
-        channel = self.bot.get_channel(channel_id)
-        first_message = await channel.fetch_message(message_id)
-        messages = [{"role": "developer",
-                     "content": "Please summarize the main points of the conversation given, including the main points of each user. "
-                                "Assume there is some important conversation happening, so if it ever looks like there's parts of "
-                                "the conversations that get off topic or parts of the conversation where people get sidetracked "
-                                "with casual conversation, please ignore those parts. Keep the answer very concise. For a debate or "
-                                "discussion, summarize each party's main points with bullet points. If any conclusions were reached, "
-                                "specify the conclusion. If the conversation involves messages from 'DM Modbot', messages starting with "
-                                "'_' are private messages among moderators that don't get sent to the user."}]
-        total_len = 0
-        last_message = None
-        async for message in ctx.channel.history(limit=limit_message_number, after=first_message.created_at, oldest_first=True):
-            content = f"{message.author.display_name}: {message.content}"
-            total_len += len(content)
-            last_message = message
-            messages.append({"role": "user", "content": content})
-
-        await utils.safe_reply(ctx, f"Summarizing {len(messages)} messages from "
-                               f"{first_message.jump_url} ({first_message.content[:50]}...)"
-                               f"to {last_message.jump_url} ({last_message.content[:50]}...)")
-
-        await hf.send_to_test_channel(messages)
-        try:
-            completion = await self.bot.openai.chat.completions.create(model="gpt-4o", messages=messages)
-        except Exception as e:
-            await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
-            raise
-        to_send = utils.split_text_into_segments(
-            completion.choices[0].message.content, 2000)
-        for m in to_send:
-            await utils.safe_reply(ctx, m)
-
-    @commands.command()
     async def pull(self, ctx, mode: str = ""):
         """Safely fast-forward the bot repo."""
         force = mode.casefold().strip() == "force"
