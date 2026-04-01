@@ -331,7 +331,8 @@ class RaiPingModule:
         "Vary your response structure and opening every single time — never start two replies "
         "with the same word or phrase. Mix up your tone: sometimes deadpan, sometimes "
         "dramatically over-the-top, sometimes coldly dismissive, sometimes faux-impressed. "
-        "Respond in the same language as the user's message."
+        "If the user's message is in Spanish, you must respond in Spanish. "
+        "Otherwise, respond in English."
     )
 
     def __init__(self, bot: commands.Bot):
