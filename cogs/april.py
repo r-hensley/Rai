@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 
 import discord
 from discord.ext import commands, tasks
 from cogs.utils.BotUtils import bot_utils as utils
+from .ai import chat_completion_text, setup_openai_client
 
 
 class ButtonModule:
@@ -317,6 +318,61 @@ class MysteriousMessageModule:
             pass
 
 
+class RaiPingModule:
+    """Responds to pings directed at Rai with a sarcastic ChatGPT reply."""
+
+    COOLDOWN_SECONDS = 30
+    SYSTEM_PROMPT = (
+        "You are an extremely sarcastic and mocking assistant. "
+        "Respond to every message with heavy sarcasm, condescension, and mockery. "
+        "Be witty but keep your response brief (under 200 words)."
+    )
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self._last_response_time: float = 0.0
+
+    async def on_message(self, msg: discord.Message):
+        if msg.author.bot or not msg.guild:
+            return
+        if not self.bot.user:
+            return
+        if self.bot.user not in msg.mentions:
+            return
+
+        now = datetime.now(tz=timezone.utc).timestamp()
+        if now - self._last_response_time < self.COOLDOWN_SECONDS:
+            return
+        self._last_response_time = now
+
+        setup_openai_client(self.bot)
+        if not getattr(self.bot, "openai", None):
+            return
+
+        # Strip the bot mention from the message content to get just the user's text.
+        user_text = msg.content
+        if self.bot.user:
+            user_text = user_text.replace(self.bot.user.mention, "").strip()
+            user_text = user_text.replace(f"<@!{self.bot.user.id}>", "").strip()
+        if not user_text:
+            user_text = "(no message)"
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
+        ]
+
+        try:
+            _, response_text = await chat_completion_text(self.bot, messages=messages)
+        except Exception:
+            return
+
+        try:
+            await msg.reply(response_text)
+        except discord.HTTPException:
+            pass
+
+
 class April(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -324,6 +380,7 @@ class April(commands.Cog):
         self.modules = [
             ButtonModule(bot),
             WorryBusinessModule(bot),
+            RaiPingModule(bot),
         ]
         self.mysterious_message_task.start()
 
