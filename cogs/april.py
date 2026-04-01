@@ -12,20 +12,22 @@ class ButtonModule:
 
     sp_serv_id = 243838819743432704
     sp_category = 685445597121216524
+    sp_category_2 = 1369719925421375498
 
     server_configs = {
         jp_serv_id: {
-            "category_id": jp_category,
+            "category_ids": [jp_category],
             "counter_key": "jp",
         },
         sp_serv_id: {
-            "category_id": sp_category,
+            "category_ids": [sp_category, sp_category_2],
             "counter_key": "sp",
         },
     }
 
     messages_per_button = 300
     button_request_messages = [
+        "Warning: If you push this button the server gets deleted.",
         "Quick! Push this button!",
         "Emergency! This button requires immediate poking!",
         "Press the scary red button. Nothing bad will probably happen.",
@@ -115,12 +117,12 @@ class ButtonModule:
         return now.month == 4 and now.day == 1
 
     @staticmethod
-    def message_is_in_target_category(msg: discord.Message, category_id: int) -> bool:
+    def message_is_in_target_categories(msg: discord.Message, category_ids: list[int]) -> bool:
         channel = msg.channel
         if isinstance(channel, discord.Thread):
             parent = channel.parent
-            return bool(parent and getattr(parent.category, "id", None) == category_id)
-        return getattr(channel.category, "id", None) == category_id
+            return bool(parent and getattr(parent.category, "id", None) in category_ids)
+        return getattr(channel.category, "id", None) in category_ids
 
     async def send_button_prompt(self, channel: discord.abc.Messageable):
         view = self.PanicButtonView(self)
@@ -140,7 +142,7 @@ class ButtonModule:
         server_config = self.server_configs.get(msg.guild.id)
         if not server_config:
             return
-        if not self.message_is_in_target_category(msg, server_config["category_id"]):
+        if not self.message_is_in_target_categories(msg, server_config["category_ids"]):
             return
 
         counts = self.bot.db.setdefault("april_button_message_counts", {})
