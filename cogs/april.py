@@ -2,7 +2,7 @@ from datetime import datetime
 import random
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from cogs.utils.BotUtils import bot_utils as utils
 
 
@@ -224,13 +224,87 @@ class WorryBusinessModule:
             pass
 
 
+class MysteriousMessageModule:
+    channel_id = 296491080881537024
+    mysterious_messages = [
+        "This user has been saved.",
+        "The signal has been received.",
+        "Your presence has been noted.",
+        "The cycle continues.",
+        "They have been chosen.",
+        "The record has been updated.",
+        "An offering has been accepted.",
+        "The alignment is complete.",
+        "This soul has been catalogued.",
+        "The transaction is finalized.",
+        "Their fate has been sealed.",
+        "The convergence is approaching.",
+        "This one has been marked.",
+        "The pattern recognizes you.",
+        "Existence confirmed. Proceed.",
+        "The archive grows.",
+        "Your thread remains unbroken.",
+        "The watchers are pleased.",
+        "An anomaly has been resolved.",
+        "This message has been received by the council.",
+        "The process is ongoing.",
+        "Sanctuary has been granted.",
+        "The ledger has been updated.",
+        "You have been witnessed.",
+        "The ritual is complete.",
+        "This account has been balanced.",
+        "The door remains open.",
+        "A light has been preserved.",
+        "The coordinates have been logged.",
+        "This user has been accounted for.",
+    ]
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @staticmethod
+    def is_april_fools() -> bool:
+        now = datetime.now()
+        return now.month == 4 and now.day == 1
+
+    async def send_mysterious_message(self):
+        if not self.is_april_fools():
+            return
+        channel = self.bot.get_channel(self.channel_id)
+        if not channel:
+            return
+        try:
+            messages = [msg async for msg in channel.history(limit=1)]
+        except discord.HTTPException:
+            return
+        if not messages:
+            return
+        try:
+            await messages[0].reply(random.choice(self.mysterious_messages))
+        except discord.HTTPException:
+            pass
+
+
 class April(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.mysterious_module = MysteriousMessageModule(bot)
         self.modules = [
             ButtonModule(bot),
             WorryBusinessModule(bot),
         ]
+        self.mysterious_message_task.start()
+
+    def cog_unload(self):
+        self.mysterious_message_task.cancel()
+
+    @tasks.loop(minutes=15)
+    async def mysterious_message_task(self):
+        await self.mysterious_module.send_mysterious_message()
+
+    @mysterious_message_task.before_loop
+    async def before_mysterious_message_task(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
