@@ -18,6 +18,21 @@ SP_SERVER_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
 
 
+async def openai_request(coro_func, *, retries: int = 3, base_delay: float = 2.0) -> Any:
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return await coro_func()
+        except openai.RateLimitError as e:
+            last_error = e
+            if attempt == retries - 1:
+                raise
+            await asyncio.sleep(base_delay * (attempt + 1))
+    if last_error:
+        raise last_error
+    raise RuntimeError("openai_request failed without an exception")
+
+
 def setup_openai_client(bot: Any) -> None:
     if hasattr(bot, "openai"):
         return
@@ -33,10 +48,32 @@ def setup_openai_client(bot: Any) -> None:
         bot.openai = None
 
 
-async def chat_completion(bot: Any, *, model: str, messages: list[dict[str, Any]]) -> Any:
+async def chat_completion(
+    bot: Any,
+    *,
+    messages: list[dict[str, Any]],
+    model: str = "gpt-4o-mini",
+) -> Any:
     if not getattr(bot, "openai", None):
         return None
-    return await bot.openai.chat.completions.create(model=model, messages=messages)
+    return await openai_request(
+        lambda: bot.openai.chat.completions.create(model=model, messages=messages)
+    )
+
+
+async def chat_completion_text(
+    bot: Any,
+    *,
+    messages: list[dict[str, Any]],
+    model: str = "gpt-4o-mini",
+    log_channel_id: int | None = None,
+) -> tuple[Any, str]:
+    completion = await chat_completion(bot, model=model, messages=messages)
+    if log_channel_id:
+        await hf.segment_send(log_channel_id, messages)
+        await hf.segment_send(log_channel_id, completion)
+    response_text = completion.choices[0].message.content
+    return completion, response_text
 
 
 async def moderation_with_image_fallback(
@@ -50,7 +87,9 @@ async def moderation_with_image_fallback(
         return None
 
     try:
-        return await bot.openai.moderations.create(model=model, input=messages)
+        return await openai_request(
+            lambda: bot.openai.moderations.create(model=model, input=messages)
+        )
     except openai.BadRequestError as e:
         if log_channel_id:
             await hf.segment_send(log_channel_id, messages)
@@ -59,7 +98,9 @@ async def moderation_with_image_fallback(
         if any(ignore_string in str(e) for ignore_string in ignore_strings):
             filtered_messages = [m for m in messages if m.get("type") != "image_url"]
             if len(filtered_messages) != len(messages):
-                moderation_result = await bot.openai.moderations.create(model=model, input=filtered_messages)
+                moderation_result = await openai_request(
+                    lambda: bot.openai.moderations.create(model=model, input=filtered_messages)
+                )
         if not moderation_result:
             raise
         return moderation_result
@@ -125,8 +166,7 @@ class AI(commands.Cog):
                                                      "(response continues). It occurred in cogs/modlog.py, line 1234"},
                     {"role": "user", "content": msg.content}]
 
-        completion = await chat_completion(self.bot, model="gpt-4o-mini", messages=messages)
-        response_text = completion.choices[0].message.content
+        _, response_text = await chat_completion_text(self.bot, messages=messages)
         post_name = response_text.split("\n")[0]
         if len(post_name) > 100:
             post_name = post_name[:100]
@@ -190,8 +230,20 @@ class AI(commands.Cog):
 
         if not self.bot.openai:
             return
-        if msg.guild.id not in [SP_SERVER_ID, JP_SERVER_ID]:
+        if msg.guild.id != SP_SERVER_ID:
             return
+        if not msg.reference:
+            return
+
+        replied_message = msg.reference.cached_message
+        if not replied_message and msg.reference.message_id:
+            try:
+                replied_message = await msg.channel.fetch_message(msg.reference.message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return
+        if not replied_message:
+            return
+
         if not hasattr(self.bot, "chatgpt_summaries"):
             self.bot.chatgpt_summaries = [(msg.channel.id, msg.created_at.timestamp())]
         else:
@@ -204,7 +256,10 @@ class AI(commands.Cog):
             self.bot.chatgpt_summaries.append((msg.channel.id, msg.created_at.timestamp()))
 
         instructions = (
-            "Someone pinged staff about a potential incident in a Discord text channel. There's three possibilities:\n"
+            "Someone pinged staff about a potential incident in a Discord text channel by replying to another message. "
+            "The replied-to message is the most important context and is most likely the reason staff was pinged. "
+            "Focus primarily on that replied-to message, its author, and the surrounding context that explains why the "
+            "staff ping happened. There's three possibilities:\n"
             "1) There's a singular issue in the channel. Identify that singular main issue, "
             "and do not explain anything else. Help staff understand what was happening in the channel that directly "
             "caused the staff ping.\n"
@@ -213,6 +268,8 @@ class AI(commands.Cog):
             "You will receive up to 50 messages above the ping (most of the beginning messages are likely unrelated). "
             "Here are some instructions:\n"
             "- This summary will help mods quickly understand the situation, so keep it VERY concise.\n"
+            "- Treat the replied-to message as the likely trigger for the staff ping unless the surrounding context clearly proves otherwise.\n"
+            "- Pay special attention to the author of the replied-to message.\n"
             "- Identify the troll or bad actor relevant to the staff ping and describe briefly what they did wrong.\n"
             "- If a problematic discussion or argument caused someone to ping staff, "
             "summarize it, focusing on who's driving the conflict.\n"
@@ -231,6 +288,21 @@ class AI(commands.Cog):
         )
 
         messages = [{"role": "system", "content": instructions}]
+        replied_content = {
+            "content": (replied_message.content or "")[:750],
+            "author": replied_message.author.display_name,
+            "message_id": replied_message.id,
+            "jump_url": replied_message.jump_url,
+        }
+        if replied_message.attachments:
+            replied_content["attachments"] = [a.filename for a in replied_message.attachments]
+        if replied_message.embeds:
+            replied_content["embeds"] = [e.to_dict() for e in replied_message.embeds]
+        messages.append({
+            "role": "user",
+            "content": "THIS IS THE REPLIED-TO MESSAGE THAT MOST LIKELY CAUSED THE STAFF PING:\n"
+                       f"{replied_content}",
+        })
         temporary_message_queue = []
         async for history_msg in msg.channel.history(limit=50, oldest_first=False):
             if not history_msg.content.strip():
@@ -246,16 +318,17 @@ class AI(commands.Cog):
         messages.extend(temporary_message_queue[::-1])
 
         chatgpt_log_id = 1351956893119283270
-        await hf.segment_send(chatgpt_log_id, messages)
         try:
-            completion = await chat_completion(self.bot, model="gpt-4o-mini", messages=messages)
-            await hf.segment_send(chatgpt_log_id, completion)
+            _, response_text = await chat_completion_text(
+                self.bot,
+                messages=messages,
+                log_channel_id=chatgpt_log_id,
+            )
         except Exception as e:
             await utils.safe_reply(notif, f"Failed to summarize logs. Sorry!\n`{e}`")
             self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
             raise
 
-        response_text = completion.choices[0].message.content
         to_send = utils.split_text_into_segments(response_text, 2000)
         if to_send[0].strip().lower().startswith("no summary available"):
             self.bot.chatgpt_summaries.remove((msg.channel.id, msg.created_at.timestamp()))
@@ -322,10 +395,12 @@ class AI(commands.Cog):
                               {"role": "user", "content": "L AS M NO ALSKWLAK / A HAHAGAHA / asfasef"},
                               {"role": "assistant", "content": "unknown"},
                               {"role": "user", "content": stripped_content}]
-            chatgpt_result = await chat_completion(self.bot, model="gpt-4o-mini", messages=chatgpt_prompt)
             chatgpt_log_id = 1351956893119283270
-            await hf.segment_send(chatgpt_log_id, chatgpt_prompt, chatgpt_result)
-            chatgpt_result = chatgpt_result.choices[0].message.content
+            _, chatgpt_result = await chat_completion_text(
+                self.bot,
+                messages=chatgpt_prompt,
+                log_channel_id=chatgpt_log_id,
+            )
             if chatgpt_result != "other":
                 return
 
@@ -472,11 +547,11 @@ class AI(commands.Cog):
 
         await hf.send_to_test_channel(messages)
         try:
-            completion = await chat_completion(self.bot, model="gpt-4o", messages=messages)
+            _, response_text = await chat_completion_text(self.bot, model="gpt-4o", messages=messages)
         except Exception as e:
             await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
             raise
-        to_send = utils.split_text_into_segments(completion.choices[0].message.content, 2000)
+        to_send = utils.split_text_into_segments(response_text, 2000)
         for message_part in to_send:
             await utils.safe_reply(ctx, message_part)
 
