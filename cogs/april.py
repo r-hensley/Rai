@@ -333,7 +333,7 @@ class RaiPingModule:
         "dramatically over-the-top, sometimes coldly dismissive, sometimes faux-impressed."
     )
     LANGUAGE_PROMPT = (
-        "If the user's message is in Spanish, you must respond in Spanish. "
+        "If the last (most recent) user's message is in Spanish, you must respond in Spanish. "
         "Otherwise, respond in English."
     )
 
