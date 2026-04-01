@@ -147,7 +147,12 @@ class ButtonModule:
 
         counts = self.bot.db.setdefault("april_button_message_counts", {})
         counter_key = server_config["counter_key"]
-        server_counts = counts.setdefault(counter_key, {})
+        existing_counts = counts.get(counter_key, {})
+        if isinstance(existing_counts, int):
+            # Migrate legacy per-server integer counters to per-channel storage.
+            existing_counts = {"_legacy": existing_counts}
+            counts[counter_key] = existing_counts
+        server_counts = existing_counts
         channel_key = str(msg.channel.id)
         count = server_counts.get(channel_key, 0) + 1
         server_counts[channel_key] = count
@@ -157,8 +162,15 @@ class ButtonModule:
 
     async def status(self) -> str:
         counts = self.bot.db.get("april_button_message_counts", {})
-        jp_total = sum(counts.get("jp", {}).values())
-        sp_total = sum(counts.get("sp", {}).values())
+
+        def total_for(server_key: str) -> int:
+            value = counts.get(server_key, {})
+            if isinstance(value, int):
+                return value
+            return sum(value.values())
+
+        jp_total = total_for("jp")
+        sp_total = total_for("sp")
         return f"JP total: {jp_total} | SP total: {sp_total}"
 
 
