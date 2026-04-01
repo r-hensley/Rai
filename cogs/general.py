@@ -36,6 +36,12 @@ ENG_ROLE = {
 }
 RYRY_RAI_BOT_ID = 270366726737231884
 
+# Spanish server hardcore role IDs
+SP_HARDCORE_ROLE_ID = 526089127611990046        # below 50%
+SP_SUPER_HARDCORE_ROLE_ID = 1475913986561278024  # 50 - 90%
+SP_ULTRA_HARDCORE_ROLE_ID = 1475914271610110014  # above 90%
+SP_HARDCORE_ROLE_IDS = (SP_HARDCORE_ROLE_ID, SP_SUPER_HARDCORE_ROLE_ID, SP_ULTRA_HARDCORE_ROLE_ID)
+
 
 def doneq_check(ctx):
     if not ctx.guild:
@@ -366,9 +372,9 @@ class General(commands.Cog):
             await self.hardcore_other_serv(ctx)
 
     async def hardcore_spanish_serv(self, ctx: commands.Context, new_threshold: int = 0):
-        hardcore_role = ctx.guild.get_role(526089127611990046)  # below 50%
-        super_hardcore_role = ctx.guild.get_role(1475913986561278024)  # 50 - 90%
-        ultra_hardcore_role = ctx.guild.get_role(1475914271610110014)  # above 90%
+        hardcore_role = ctx.guild.get_role(SP_HARDCORE_ROLE_ID)
+        super_hardcore_role = ctx.guild.get_role(SP_SUPER_HARDCORE_ROLE_ID)
+        ultra_hardcore_role = ctx.guild.get_role(SP_ULTRA_HARDCORE_ROLE_ID)
         learning_eng = ctx.guild.get_role(247021017740869632)
         learning_sp = ctx.guild.get_role(297415063302832128)
 
@@ -562,17 +568,25 @@ class General(commands.Cog):
     @hf.is_admin()
     async def hardcore_remove(self, ctx: commands.Context, member: discord.Member):
         """Admin override to forcibly remove hardcore from a user and clear any threshold lock."""
-        role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
-        if role not in member.roles:
-            await utils.safe_send(ctx, f"{member.mention} doesn't have the hardcore role.")
-            return
+        if ctx.guild.id == SP_SERVER_ID:
+            all_roles = [ctx.guild.get_role(r) for r in SP_HARDCORE_ROLE_IDS]
+            member_hc_roles = [r for r in all_roles if r and r in member.roles]
+            if not member_hc_roles:
+                await utils.safe_send(ctx, f"{member.mention} doesn't have any hardcore role.")
+                return
+        else:
+            role = ctx.guild.get_role(self.bot.db['hardcore'][str(ctx.guild.id)]['role'])
+            if role not in member.roles:
+                await utils.safe_send(ctx, f"{member.mention} doesn't have the hardcore role.")
+                return
+            member_hc_roles = [role]
 
         if ctx.author == member:
             await utils.safe_send(ctx, "You cannot use this command on yourself, silly. "
                                        "Get someone else to do it for you.")
             return
 
-        await member.remove_roles(role)
+        await member.remove_roles(*member_hc_roles)
 
         guild_id = str(ctx.guild.id)
         user_id = str(member.id)
@@ -621,14 +635,17 @@ class General(commands.Cog):
         """Lists the channels in hardcore mode."""
         channels = []
         try:
-            for channel_id in self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']:
+            ignore_list = self.bot.db['hardcore'][str(ctx.guild.id)]['ignore']
+            to_remove = []
+            for channel_id in ignore_list:
                 channel = self.bot.get_channel(int(channel_id))
                 if channel:
                     channels.append(channel)
                 else:
-                    self.bot.db['hardcore'][str(
-                        ctx.guild.id)]['ignore'].remove(channel_id)
+                    to_remove.append(channel_id)
                     await utils.safe_send(ctx, f"Removed {channel_id} from list of excepted channels (couldn't find it).")
+            for channel_id in to_remove:
+                ignore_list.remove(channel_id)
         except KeyError:
             return
 
@@ -638,11 +655,9 @@ class General(commands.Cog):
         # sort list by channel position
         def sort_fun(c):
             if isinstance(c, discord.CategoryChannel):
-                print(c, float(f"{c.position}.0") + 1)
                 return float(f"{c.position + 1}.0")
             category = c.category.position or 0
             position = c.position if hasattr(c, "position") else getattr(c.parent, "position", 999)
-            print(c, float(f"{category}.{position}"))
             return float(f"{category + 1}.{position + 1}")
 
         channels = sorted(channels, key=sort_fun)

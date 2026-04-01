@@ -38,6 +38,9 @@ ENG_ROLE = {
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
 RYRY_RAI_BOT_ID = 270366726737231884
+
+# Spanish server hardcore role IDs
+SP_HARDCORE_ROLE_IDS = (526089127611990046, 1475913986561278024, 1475914271610110014)
 on_message_functions = []
 
 
@@ -388,9 +391,9 @@ class Message(commands.Cog):
 
                 # else, process hardcore roles
                 else:
-                    hardcore_role = msg.guild.get_role(526089127611990046)
-                    super_hardcore_role = msg.guild.get_role(1475913986561278024)
-                    ultra_hardcore_role = msg.guild.get_role(1475914271610110014)
+                    hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[0])
+                    super_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[1])
+                    ultra_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[2])
                     all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role]
                     for r in all_roles:
                         if r in msg.author.roles:
