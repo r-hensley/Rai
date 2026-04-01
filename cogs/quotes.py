@@ -44,6 +44,9 @@ class Quotes(commands.Cog):
     `/setquotelog` - Admin-only set or clear the log channel for quote create/delete events.
     """
 
+    LIST_PAGE_SIZE = 5
+    MAX_LISTED_QUOTES = 100
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot.db.setdefault("quotes", {})
@@ -221,6 +224,79 @@ class Quotes(commands.Cog):
             return first_word
 
         return preview[:max_length - 3] + "..."
+
+    @classmethod
+    def _cap_listed_entries(cls, entries: list[Any]) -> tuple[list[Any], int]:
+        if len(entries) <= cls.MAX_LISTED_QUOTES:
+            return entries, 0
+        return entries[:cls.MAX_LISTED_QUOTES], len(entries) - cls.MAX_LISTED_QUOTES
+
+    @classmethod
+    def _build_quote_pages(
+        cls,
+        title: str,
+        lines: list[str],
+        *,
+        overflow_count: int = 0,
+        extra_lines: Optional[list[str]] = None,
+    ) -> list[str]:
+        pages = []
+        extra_lines = extra_lines or []
+        total_pages = (len(lines) + cls.LIST_PAGE_SIZE - 1) // cls.LIST_PAGE_SIZE
+        for start in range(0, len(lines), cls.LIST_PAGE_SIZE):
+            page_lines = lines[start:start + cls.LIST_PAGE_SIZE]
+            page_number = (start // cls.LIST_PAGE_SIZE) + 1
+            header = f"**{title}**"
+            if total_pages > 1:
+                header = f"**{title}** ({page_number}/{total_pages})"
+            header_lines = [header]
+            if extra_lines:
+                header_lines.extend(extra_lines)
+            if overflow_count and start == 0:
+                header_lines.append(
+                    f"Showing first {len(lines)} quotes. {overflow_count} more match(es) were omitted."
+                )
+            pages.append("\n".join(header_lines + page_lines))
+        return pages
+
+    async def _send_quote_pages(
+        self,
+        ctx: commands.Context,
+        title: str,
+        lines: list[str],
+        *,
+        overflow_count: int = 0,
+        extra_lines: Optional[list[str]] = None,
+    ):
+        for page in self._build_quote_pages(
+            title,
+            lines,
+            overflow_count=overflow_count,
+            extra_lines=extra_lines,
+        ):
+            await utils.safe_send(ctx, page)
+
+    async def _send_quote_pages_interaction(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        lines: list[str],
+        *,
+        overflow_count: int = 0,
+        extra_lines: Optional[list[str]] = None,
+        ephemeral: bool = False,
+    ):
+        pages = self._build_quote_pages(
+            title,
+            lines,
+            overflow_count=overflow_count,
+            extra_lines=extra_lines,
+        )
+        for index, page in enumerate(pages):
+            if index == 0:
+                await interaction.response.send_message(page, ephemeral=ephemeral)
+            else:
+                await interaction.followup.send(page, ephemeral=ephemeral)
 
     @staticmethod
     def _extract_attachment_source(ctx: commands.Context) -> Optional[discord.Message]:
@@ -459,27 +535,35 @@ class Quotes(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=["liqu"])
-    async def quotelist(self, ctx: commands.Context, *, name: str = ""):
-        """List all quotes, or only quotes with a specific name."""
-        if name:
-            entries = self._find_by_name(ctx.guild.id, name)  # pyright: ignore[reportOptionalMemberAccess]
-            title = f"Quotes for {name.strip()}"
+    async def quotelist(self, ctx: commands.Context, *args: str):
+        """List quotes by exact name, or by numeric ID range."""
+        if not args:
+            await utils.safe_send(ctx, "Usage: `;liqu <name>` or `;liqu <start_id> <end_id>`")
+            return
+
+        if len(args) == 2 and all(re.fullmatch(r"\d+", arg) for arg in args):
+            start_id, end_id = sorted((int(args[0]), int(args[1])))
+            entries = [
+                entry for entry in self._all_entries(ctx.guild.id)  # pyright: ignore[reportOptionalMemberAccess]
+                if start_id <= entry["id"] <= end_id
+            ]
+            title = f"Quotes #{start_id} to #{end_id}"
         else:
-            entries = self._all_entries(ctx.guild.id)  # pyright: ignore[reportOptionalMemberAccess]
-            title = "All quotes"
+            name = " ".join(args).strip()
+            entries = self._find_by_name(ctx.guild.id, name)  # pyright: ignore[reportOptionalMemberAccess]
+            title = f"Quotes for {name}"
 
         if not entries:
             await utils.safe_send(ctx, "No matching quotes found.")
             return
 
         lines = []
-        for entry in sorted(entries, key=lambda item: item["id"]):
+        entries = sorted(entries, key=lambda item: item["id"])
+        entries, overflow_count = self._cap_listed_entries(entries)
+        for entry in entries:
             preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
-
-        message = f"**{title}**\n" + "\n".join(lines)
-        for chunk in utils.split_text_into_segments(message, 1900):
-            await utils.safe_send(ctx, chunk)
+        await self._send_quote_pages(ctx, title, lines, overflow_count=overflow_count)
 
     @commands.guild_only()
     @hf.is_trial_helper()
@@ -509,20 +593,25 @@ class Quotes(commands.Cog):
             await utils.safe_send(ctx, f"No quotes were created in the last `{window_label}`.{extra}")
             return
 
+        entries = sorted(entries, key=lambda item: item[1], reverse=True)
+        entries, overflow_count = self._cap_listed_entries(entries)
         lines = []
-        for entry, created_at in sorted(entries, key=lambda item: item[1], reverse=True):
+        for entry, created_at in entries:
             preview = self._build_quote_preview(entry["body"])
             lines.append(
                 f"`#{entry['id']}` `{entry['name']}` <t:{int(created_at.timestamp())}:R> {preview}"
             )
 
-        header = f"**Quotes created in the last {window_label}** ({len(entries)})"
+        extra_lines = []
         if unknown_count:
-            header += f"\nSkipped {unknown_count} quote(s) with unknown creation time."
-
-        message = header + "\n" + "\n".join(lines)
-        for chunk in utils.split_text_into_segments(message, 1900):
-            await utils.safe_send(ctx, chunk)
+            extra_lines.append(f"Skipped {unknown_count} quote(s) with unknown creation time.")
+        await self._send_quote_pages(
+            ctx,
+            f"Quotes created in the last {window_label} ({len(lines) + overflow_count})",
+            lines,
+            overflow_count=overflow_count,
+            extra_lines=extra_lines,
+        )
 
     @commands.guild_only()
     @commands.command(aliases=["qs"])
@@ -541,14 +630,13 @@ class Quotes(commands.Cog):
             await utils.safe_send(ctx, "No matching quotes found.")
             return
 
+        entries = sorted(entries, key=lambda item: item["id"])
+        entries, overflow_count = self._cap_listed_entries(entries)
         lines = []
-        for entry in sorted(entries, key=lambda item: item["id"]):
+        for entry in entries:
             preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
-
-        message = f"**Search Results**\n" + "\n".join(lines)
-        for chunk in utils.split_text_into_segments(message, 1900):
-            await utils.safe_send(ctx, chunk)
+        await self._send_quote_pages(ctx, "Search Results", lines, overflow_count=overflow_count)
 
     @commands.guild_only()
     @commands.command(aliases=["qdel", "quotedel"])
@@ -819,15 +907,19 @@ class Quotes(commands.Cog):
             await interaction.response.send_message("There are no unused quotes.", ephemeral=True)
             return
 
-        message = "**Unused Quotes**\n"
+        entries, overflow_count = self._cap_listed_entries(entries)
+        lines = []
         for entry in entries:
-            preview = entry["body"].replace("\n", " ")
-            line = f"`#{entry['id']}` `{entry['name']}` {preview}\n"
-            if len(message) + len(line) > 2000:
-                break
-            message += line
+            preview = self._build_quote_preview(entry["body"])
+            lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
 
-        await interaction.response.send_message(message, ephemeral=False)
+        await self._send_quote_pages_interaction(
+            interaction,
+            "Unused Quotes",
+            lines,
+            overflow_count=overflow_count,
+            ephemeral=False,
+        )
 
     @app_commands.command(name="myquotes", description="Show the quotes you've created in this server.")
     @app_commands.guilds(RYAN_TEST_SERV_ID, SP_SERV_ID)
@@ -845,19 +937,20 @@ class Quotes(commands.Cog):
             await interaction.response.send_message("You haven't made any quotes in this server.", ephemeral=True)
             return
 
+        entries = sorted(entries, key=lambda item: item["id"])
+        entries, overflow_count = self._cap_listed_entries(entries)
         lines = []
-        for entry in sorted(entries, key=lambda item: item["id"]):
-            preview = entry["body"].replace("\n", " ")
-            if len(preview) > 80:
-                preview = preview[:77] + "..."
+        for entry in entries:
+            preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
 
-        message = f"**Your Quotes**\n" + "\n".join(lines)
-        for index, chunk in enumerate(utils.split_text_into_segments(message, 1900)):
-            if index == 0:
-                await interaction.response.send_message(chunk, ephemeral=True)
-            else:
-                await interaction.followup.send(chunk, ephemeral=True)
+        await self._send_quote_pages_interaction(
+            interaction,
+            "Your Quotes",
+            lines,
+            overflow_count=overflow_count,
+            ephemeral=True,
+        )
 
     @app_commands.command(name="setquotelog", description="Set or clear the channel for quote create/delete logs.")
     @app_commands.default_permissions()
