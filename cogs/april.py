@@ -258,6 +258,38 @@ class MysteriousMessageModule:
         "The coordinates have been logged.",
         "This user has been accounted for.",
     ]
+    mysterious_messages_es = [
+        "Este usuario ha sido rescatado.",
+        "La señal ha sido captada.",
+        "Su existencia ha sido registrada.",
+        "El equilibrio se ha restaurado.",
+        "Han sido seleccionados.",
+        "El protocolo ha sido activado.",
+        "La ofrenda ha sido recibida.",
+        "El alineamiento ha concluido.",
+        "Esta alma ha sido inscrita.",
+        "El intercambio ha sido completado.",
+        "Su destino ha quedado sellado.",
+        "La convergencia se acerca.",
+        "Este individuo ha sido marcado.",
+        "El patrón te ha reconocido.",
+        "Presencia verificada. Continúe.",
+        "El archivo se expande.",
+        "Su hilo permanece intacto.",
+        "Los observadores están satisfechos.",
+        "La anomalía ha sido corregida.",
+        "El consejo ha tomado nota.",
+        "El proceso avanza sin detenerse.",
+        "El refugio ha sido concedido.",
+        "El registro ha sido actualizado.",
+        "Has sido contemplado.",
+        "El rito ha concluido.",
+        "La cuenta ha sido saldada.",
+        "El umbral permanece abierto.",
+        "Una llama ha sido preservada.",
+        "Las coordenadas han sido guardadas.",
+        "Este usuario ha sido contabilizado.",
+    ]
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -280,7 +312,7 @@ class MysteriousMessageModule:
         if not messages:
             return
         try:
-            await messages[0].reply(random.choice(self.mysterious_messages))
+            await messages[0].reply(random.choice(self.mysterious_messages + self.mysterious_messages_es))
         except discord.HTTPException:
             pass
 
