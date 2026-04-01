@@ -46,6 +46,14 @@ class Quotes(commands.Cog):
         self.bot = bot
         self.bot.db.setdefault("quotes", {})
 
+    # add check on every command call in cog:
+    def cog_check(self, ctx: commands.Context) -> bool:
+        if not ctx.guild:
+            return False
+        if ctx.guild.id != SP_SERV_ID:
+            return False
+        return True
+
     @staticmethod
     def _normalize_name(name: str) -> str:
         return " ".join(name.strip().split()).lower()
@@ -194,11 +202,6 @@ class Quotes(commands.Cog):
     async def _send_quote(destination: discord.abc.Messageable,
                           author: discord.abc.User,
                           entry: dict[str, Any]):
-        if hasattr(destination, "guild"):
-            if not destination.guild:
-                return
-            if destination.guild.id != SP_SERV_ID:
-                return
         await destination.send(
             f"`#{entry['id']}` {author.mention} 📣\n{entry['body']}",
             allowed_mentions=discord.AllowedMentions.none(),
@@ -311,6 +314,9 @@ class Quotes(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.webhook_id or not message.guild:
+            return
+
+        if message.guild.id != SP_SERV_ID:
             return
 
         content = message.content.strip()
