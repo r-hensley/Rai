@@ -25,7 +25,7 @@ class ButtonModule:
         },
     }
 
-    messages_per_button = 300
+    messages_per_button = 100
     button_request_messages = [
         "Warning: If you push this button the server gets deleted.",
         "Quick! Push this button!",
@@ -147,15 +147,19 @@ class ButtonModule:
 
         counts = self.bot.db.setdefault("april_button_message_counts", {})
         counter_key = server_config["counter_key"]
-        count = counts.get(counter_key, 0) + 1
-        counts[counter_key] = count
+        server_counts = counts.setdefault(counter_key, {})
+        channel_key = str(msg.channel.id)
+        count = server_counts.get(channel_key, 0) + 1
+        server_counts[channel_key] = count
 
         if count % self.messages_per_button == 0:
             await self.send_button_prompt(msg.channel)
 
     async def status(self) -> str:
         counts = self.bot.db.get("april_button_message_counts", {})
-        return f"JP count: {counts.get('jp', 0)} | SP count: {counts.get('sp', 0)}"
+        jp_total = sum(counts.get("jp", {}).values())
+        sp_total = sum(counts.get("sp", {}).values())
+        return f"JP total: {jp_total} | SP total: {sp_total}"
 
 
 class WorryBusinessModule:
