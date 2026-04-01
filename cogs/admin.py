@@ -293,7 +293,7 @@ class Admin(commands.Cog):
         config2.remove(user.id)
         await utils.safe_send(ctx, embed=utils.green_embed(f"{user.mention} is no longer a voice mod."))
 
-    @commands.command(aliases=['mutes', 'incidents', 'ai'])
+    @commands.command(aliases=['mutes', 'incidents'])
     @commands.bot_has_permissions(embed_links=True)
     async def activeincidents(self, ctx):
         """Lists the current active incidents (timed mutes and bans)"""
