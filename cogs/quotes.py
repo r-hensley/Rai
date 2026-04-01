@@ -194,6 +194,11 @@ class Quotes(commands.Cog):
     async def _send_quote(destination: discord.abc.Messageable,
                           author: discord.abc.User,
                           entry: dict[str, Any]):
+        if hasattr(destination, "guild"):
+            if not destination.guild:
+                return
+            if destination.guild.id != SP_SERV_ID:
+                return
         await destination.send(
             f"`#{entry['id']}` {author.mention} 📣\n{entry['body']}",
             allowed_mentions=discord.AllowedMentions.none(),
