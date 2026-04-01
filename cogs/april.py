@@ -319,25 +319,84 @@ class MysteriousMessageModule:
 
 
 class RaiPingModule:
-    """Responds to pings directed at Rai with a sarcastic ChatGPT reply."""
+    """Responds to pings or replies directed at Rai with a sarcastic ChatGPT reply."""
 
-    COOLDOWN_SECONDS = 30
+    COOLDOWN_SECONDS = 15
+    MAX_CHAIN_LENGTH = 10
     SYSTEM_PROMPT = (
         "You are an extremely sarcastic and mocking assistant. "
         "Respond to every message with heavy sarcasm, condescension, and mockery. "
-        "Be witty but keep your response brief (under 200 words)."
+        "Be witty. Keep your response under 200 words, but a shorter reply is perfectly fine "
+        "if it gets the point across — do not pad your response just to reach 200 words. "
+        "Vary your response structure and opening every single time — never start two replies "
+        "with the same word or phrase. Mix up your tone: sometimes deadpan, sometimes "
+        "dramatically over-the-top, sometimes coldly dismissive, sometimes faux-impressed. "
+        "Respond in the same language as the user's message."
     )
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._last_response_time: float = 0.0
 
+    def _strip_bot_mention(self, text: str) -> str:
+        """Remove bot mention tokens from a message string."""
+        if not self.bot.user:
+            return text
+        text = text.replace(self.bot.user.mention, "").strip()
+        text = text.replace(f"<@!{self.bot.user.id}>", "").strip()
+        return text
+
+    async def _build_conversation(self, msg: discord.Message) -> list[dict[str, str]]:
+        """
+        Walk the reply chain (up to MAX_CHAIN_LENGTH messages) starting from *msg*
+        and return an ordered list of {role, content} dicts suitable for the
+        ChatGPT messages array (oldest message first, newest last).
+        """
+        # Each iteration adds one message and follows one reply link upward,
+        # so the loop naturally collects at most MAX_CHAIN_LENGTH messages.
+        chain: list[dict[str, str]] = []
+        current: discord.Message = msg
+
+        for _ in range(self.MAX_CHAIN_LENGTH):
+            content = self._strip_bot_mention(current.content) or "(no message)"
+            role = "assistant" if (self.bot.user and current.author.id == self.bot.user.id) else "user"
+            chain.append({"role": role, "content": content})
+
+            # Follow the reply chain upward.
+            if not current.reference or not current.reference.message_id:
+                break
+
+            resolved = current.reference.resolved
+            if isinstance(resolved, discord.Message):
+                current = resolved
+            else:
+                try:
+                    current = await current.channel.fetch_message(current.reference.message_id)
+                except discord.HTTPException:
+                    break
+
+        chain.reverse()  # oldest first
+        return chain
+
+    def _is_reply_to_bot(self, msg: discord.Message) -> bool:
+        """Return True if *msg* is a reply whose parent message was sent by the bot."""
+        if not msg.reference or not msg.reference.message_id:
+            return False
+        resolved = msg.reference.resolved
+        if isinstance(resolved, discord.Message):
+            return bool(self.bot.user and resolved.author.id == self.bot.user.id)
+        # If not cached we cannot confirm without a fetch; treated as False.
+        return False
+
     async def on_message(self, msg: discord.Message):
         if msg.author.bot or not msg.guild:
             return
         if not self.bot.user:
             return
-        if self.bot.user not in msg.mentions:
+
+        is_ping = self.bot.user in msg.mentions
+        is_reply_to_bot = self._is_reply_to_bot(msg)
+        if not is_ping and not is_reply_to_bot:
             return
 
         now = datetime.now(tz=timezone.utc).timestamp()
@@ -349,18 +408,11 @@ class RaiPingModule:
         if not getattr(self.bot, "openai", None):
             return
 
-        # Strip the bot mention from the message content to get just the user's text.
-        user_text = msg.content
-        if self.bot.user:
-            user_text = user_text.replace(self.bot.user.mention, "").strip()
-            user_text = user_text.replace(f"<@!{self.bot.user.id}>", "").strip()
-        if not user_text:
-            user_text = "(no message)"
-
-        messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT},
-            {"role": "user", "content": user_text},
-        ]
+        conversation = await self._build_conversation(msg)
+        # Require at least one user-role message so the API call is well-formed.
+        if not any(m["role"] == "user" for m in conversation):
+            return
+        messages = [{"role": "system", "content": self.SYSTEM_PROMPT}] + conversation
 
         try:
             _, response_text = await chat_completion_text(self.bot, messages=messages)
