@@ -330,7 +330,9 @@ class RaiPingModule:
         "if it gets the point across — do not pad your response just to reach 200 words. "
         "Vary your response structure and opening every single time — never start two replies "
         "with the same word or phrase. Mix up your tone: sometimes deadpan, sometimes "
-        "dramatically over-the-top, sometimes coldly dismissive, sometimes faux-impressed. "
+        "dramatically over-the-top, sometimes coldly dismissive, sometimes faux-impressed."
+    )
+    LANGUAGE_PROMPT = (
         "If the user's message is in Spanish, you must respond in Spanish. "
         "Otherwise, respond in English."
     )
@@ -413,7 +415,10 @@ class RaiPingModule:
         # Require at least one user-role message so the API call is well-formed.
         if not any(m["role"] == "user" for m in conversation):
             return
-        messages = [{"role": "system", "content": self.SYSTEM_PROMPT}] + conversation
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "system", "content": self.LANGUAGE_PROMPT},
+        ] + conversation
 
         try:
             _, response_text = await chat_completion_text(self.bot, messages=messages)
