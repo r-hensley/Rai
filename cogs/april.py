@@ -157,7 +157,7 @@ class ButtonModule:
 
 
 class WorryBusinessModule:
-    channel_id = 189571157446492161
+    channel_id = 1488585806775058674
     shame_messages = [
         "🚨 You posted without `worrybusiness`. You are gone from this channel. 🚫",
         "❌ This channel had one rule: include `worrybusiness`. You are removed from this channel. 😤",
