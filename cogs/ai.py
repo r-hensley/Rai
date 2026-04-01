@@ -3,8 +3,11 @@ import logging
 import os
 import re
 import traceback
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 
+import aiohttp
 import discord
 import openai
 from discord.ext import commands
@@ -16,6 +19,86 @@ from .utils import helper_functions as hf
 
 SP_SERVER_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
+
+
+def _format_ts(ts: int | float | None) -> str:
+    if ts is None:
+        return "unknown"
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _get_openai_admin_key() -> tuple[str | None, str]:
+    admin_key = os.getenv("OPENAI_ADMIN_KEY")
+    if admin_key:
+        return admin_key, "OPENAI_ADMIN_KEY"
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        return api_key, "OPENAI_API_KEY"
+    return None, "none"
+
+
+async def fetch_openai_admin_json(path: str, *, params: dict[str, Any] | None = None) -> tuple[int, str, Any]:
+    api_key, key_source = _get_openai_admin_key()
+    if not api_key:
+        return 0, "Missing OPENAI_ADMIN_KEY / OPENAI_API_KEY.", {"key_source": key_source}
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.openai.com/v1{path}", headers=headers, params=params) as resp:
+            text = await resp.text()
+            try:
+                payload = await resp.json()
+            except aiohttp.ContentTypeError:
+                payload = {"raw_text": text}
+            return resp.status, key_source, payload
+
+
+def summarize_cost_buckets(data: dict[str, Any]) -> str:
+    buckets = data.get("data", [])
+    if not buckets:
+        return "No cost data returned."
+
+    total_cost = 0.0
+    bucket_count = 0
+    for bucket in buckets:
+        bucket_count += 1
+        for result in bucket.get("results", []):
+            amount = result.get("amount", {})
+            total_cost += float(amount.get("value") or 0.0)
+
+    start_time = buckets[0].get("start_time")
+    end_time = buckets[-1].get("end_time")
+    return (
+        f"${total_cost:.4f} total across {bucket_count} bucket(s) "
+        f"from {_format_ts(start_time)} to {_format_ts(end_time)}"
+    )
+
+
+def summarize_usage_buckets(data: dict[str, Any], *, label: str, metric_keys: list[str]) -> str:
+    buckets = data.get("data", [])
+    if not buckets:
+        return f"{label}: no data returned."
+
+    total_requests = 0
+    totals: dict[str, float] = defaultdict(float)
+    for bucket in buckets:
+        for result in bucket.get("results", []):
+            total_requests += int(result.get("num_model_requests") or 0)
+            for key in metric_keys:
+                totals[key] += float(result.get(key) or 0.0)
+
+    parts = [f"{label}: {total_requests} request(s)"]
+    for key in metric_keys:
+        if totals[key]:
+            parts.append(f"{key}={totals[key]:.0f}")
+
+    start_time = buckets[0].get("start_time")
+    end_time = buckets[-1].get("end_time")
+    parts.append(f"window={_format_ts(start_time)} to {_format_ts(end_time)}")
+    return ", ".join(parts)
 
 
 async def openai_request(coro_func, *, retries: int = 3, base_delay: float = 2.0) -> Any:
@@ -90,6 +173,10 @@ async def moderation_with_image_fallback(
         return await openai_request(
             lambda: bot.openai.moderations.create(model=model, input=messages)
         )
+    except openai.RateLimitError as e:
+        if log_channel_id:
+            await hf.segment_send(log_channel_id, f"OpenAI moderation rate-limited: `{e}`")
+        return None
     except openai.BadRequestError as e:
         if log_channel_id:
             await hf.segment_send(log_channel_id, messages)
@@ -98,9 +185,14 @@ async def moderation_with_image_fallback(
         if any(ignore_string in str(e) for ignore_string in ignore_strings):
             filtered_messages = [m for m in messages if m.get("type") != "image_url"]
             if len(filtered_messages) != len(messages):
-                moderation_result = await openai_request(
-                    lambda: bot.openai.moderations.create(model=model, input=filtered_messages)
-                )
+                try:
+                    moderation_result = await openai_request(
+                        lambda: bot.openai.moderations.create(model=model, input=filtered_messages)
+                    )
+                except openai.RateLimitError as inner_e:
+                    if log_channel_id:
+                        await hf.segment_send(log_channel_id, f"OpenAI moderation rate-limited: `{inner_e}`")
+                    return None
         if not moderation_result:
             raise
         return moderation_result
@@ -110,11 +202,17 @@ class AI(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    def ai_features_enabled(self) -> bool:
+        config = self.bot.db.setdefault("ai_features", {})
+        return config.get("enabled", True)
+
     @commands.Cog.listener()
     async def on_message(self, msg_in: discord.Message):
         if not msg_in.guild:
             return
         msg = hf.RaiMessage(msg_in)
+        if not self.ai_features_enabled():
+            return
         try:
             await self.log_rai_tracebacks(msg)
         except Exception as e:
@@ -471,6 +569,8 @@ class AI(commands.Cog):
             await hf.segment_send(chatgpt_log_id, f"ERROR: `{e}`\n{messages}")
             raise
 
+        if not moderation_result:
+            return
         result = moderation_result.results[0]
         if not result.flagged:
             return
@@ -498,6 +598,9 @@ class AI(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int] = 500):
+        if not self.ai_features_enabled():
+            await utils.safe_reply(ctx, "AI features in this module are disabled.")
+            return
         if not self.bot.openai:
             await utils.safe_reply(ctx, "OpenAI not initialized")
             return
@@ -554,6 +657,89 @@ class AI(commands.Cog):
         to_send = utils.split_text_into_segments(response_text, 2000)
         for message_part in to_send:
             await utils.safe_reply(ctx, message_part)
+
+    @commands.command(name="openai_quota")
+    @commands.is_owner()
+    async def openai_quota(self, ctx: commands.Context):
+        now = datetime.now(timezone.utc)
+        last_day = int((now - timedelta(days=1)).timestamp())
+        last_week = int((now - timedelta(days=7)).timestamp())
+
+        requests = await asyncio.gather(
+            fetch_openai_admin_json("/organization/costs", params={"start_time": last_day}),
+            fetch_openai_admin_json(
+                "/organization/usage/moderations",
+                params={"start_time": last_week, "bucket_width": "1d", "limit": 7},
+            ),
+            fetch_openai_admin_json(
+                "/organization/usage/completions",
+                params={"start_time": last_week, "bucket_width": "1d", "limit": 7},
+            ),
+        )
+
+        costs_status, key_source, costs_data = requests[0]
+        moderations_status, _, moderations_data = requests[1]
+        completions_status, _, completions_data = requests[2]
+
+        lines = [f"OpenAI quota info using `{key_source}`"]
+        lines.append("There is no simple 'remaining quota' endpoint here; this command shows org cost/usage endpoints.")
+
+        if costs_status == 200:
+            lines.append(f"Costs, last 24h: {summarize_cost_buckets(costs_data)}")
+        else:
+            lines.append(f"Costs endpoint failed: HTTP {costs_status} | {str(costs_data)[:500]}")
+
+        if moderations_status == 200:
+            lines.append(
+                summarize_usage_buckets(
+                    moderations_data,
+                    label="Moderations, last 7d",
+                    metric_keys=["input_tokens"],
+                )
+            )
+        else:
+            lines.append(f"Moderations usage failed: HTTP {moderations_status} | {str(moderations_data)[:500]}")
+
+        if completions_status == 200:
+            lines.append(
+                summarize_usage_buckets(
+                    completions_data,
+                    label="Completions, last 7d",
+                    metric_keys=["input_tokens", "output_tokens"],
+                )
+            )
+        else:
+            lines.append(f"Completions usage failed: HTTP {completions_status} | {str(completions_data)[:500]}")
+
+        if any(status in [401, 403] for status in [costs_status, moderations_status, completions_status]):
+            lines.append("These organization endpoints usually require an admin API key. Set `OPENAI_ADMIN_KEY` if needed.")
+
+        for segment in utils.split_text_into_segments("\n".join(lines), 1900):
+            await utils.safe_reply(ctx, segment)
+
+    @commands.command(name="ai")
+    @commands.is_owner()
+    async def ai_toggle(self, ctx: commands.Context, mode: str = "status"):
+        config = self.bot.db.setdefault("ai_features", {})
+        current = config.get("enabled", True)
+        normalized = mode.strip().lower()
+
+        if normalized in ["status", "state"]:
+            await utils.safe_reply(ctx, f"AI features in `cogs.ai` are currently {'enabled' if current else 'disabled'}.")
+            return
+
+        if normalized in ["on", "enable", "enabled", "true"]:
+            new_state = True
+        elif normalized in ["off", "disable", "disabled", "false"]:
+            new_state = False
+        elif normalized == "toggle":
+            new_state = not current
+        else:
+            await utils.safe_reply(ctx, "Usage: `;ai [status|on|off|toggle]`")
+            return
+
+        config["enabled"] = new_state
+        await utils.safe_reply(ctx, f"AI features in `cogs.ai` are now {'enabled' if new_state else 'disabled'}.")
 
 
 async def setup(bot: commands.Bot):
