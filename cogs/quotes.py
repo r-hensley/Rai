@@ -211,6 +211,18 @@ class Quotes(commands.Cog):
         return amount * seconds_per_unit[unit], f"{amount}{unit}"
 
     @staticmethod
+    def _build_quote_preview(body: str, max_length: int = 80) -> str:
+        preview = body.replace("\n", " ").strip()
+        if len(preview) <= max_length:
+            return preview
+
+        first_word = preview.split(maxsplit=1)[0]
+        if re.match(r"^https?://\S+$", first_word, flags=re.IGNORECASE):
+            return first_word
+
+        return preview[:max_length - 3] + "..."
+
+    @staticmethod
     def _extract_attachment_source(ctx: commands.Context) -> Optional[discord.Message]:
         if ctx.message.attachments:
             return ctx.message
@@ -462,9 +474,7 @@ class Quotes(commands.Cog):
 
         lines = []
         for entry in sorted(entries, key=lambda item: item["id"]):
-            preview = entry["body"].replace("\n", " ")
-            if len(preview) > 80:
-                preview = preview[:77] + "..."
+            preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
 
         message = f"**{title}**\n" + "\n".join(lines)
@@ -501,9 +511,7 @@ class Quotes(commands.Cog):
 
         lines = []
         for entry, created_at in sorted(entries, key=lambda item: item[1], reverse=True):
-            preview = entry["body"].replace("\n", " ")
-            if len(preview) > 80:
-                preview = preview[:77] + "..."
+            preview = self._build_quote_preview(entry["body"])
             lines.append(
                 f"`#{entry['id']}` `{entry['name']}` <t:{int(created_at.timestamp())}:R> {preview}"
             )
@@ -535,9 +543,7 @@ class Quotes(commands.Cog):
 
         lines = []
         for entry in sorted(entries, key=lambda item: item["id"]):
-            preview = entry["body"].replace("\n", " ")
-            if len(preview) > 80:
-                preview = preview[:77] + "..."
+            preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
 
         message = f"**Search Results**\n" + "\n".join(lines)
