@@ -151,8 +151,6 @@ class ButtonModule:
         if count % self.messages_per_button == 0:
             await self.send_button_prompt(msg.channel)
 
-        if count % 25 == 0 or count % self.messages_per_button == 0:
-
     async def status(self) -> str:
         counts = self.bot.db.get("april_button_message_counts", {})
         return f"JP count: {counts.get('jp', 0)} | SP count: {counts.get('sp', 0)}"
