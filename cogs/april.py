@@ -5,109 +5,108 @@ import discord
 from discord.ext import commands
 from cogs.utils.BotUtils import bot_utils as utils
 
-jp_serv_id = 189571157446492161
-jp_category = 360571352102600704
 
-sp_serv_id = 243838819743432704
-sp_category = 685445597121216524
+class ButtonModule:
+    jp_serv_id = 189571157446492161
+    jp_category = 360571352102600704
 
-SERVER_CONFIGS = {
-    jp_serv_id: {
-        "category_id": jp_category,
-        "counter_key": "jp",
-    },
-    sp_serv_id: {
-        "category_id": sp_category,
-        "counter_key": "sp",
-    },
-}
+    sp_serv_id = 243838819743432704
+    sp_category = 685445597121216524
 
-MESSAGES_PER_BUTTON = 100
-BUTTON_REQUEST_MESSAGES = [
-    "Quick! Push this button!",
-    "Emergency! This button requires immediate poking!",
-    "Press the scary red button. Nothing bad will probably happen.",
-    "Attention please: dramatic button-pushing is now required.",
-    "Rapid response needed. Slam the button.",
-    "Urgent April protocol: push the button!",
-    "This button looks lonely. Fix that.",
-    "Warning: the red button demands a hero.",
-    "Oye, rapido, pulsa este boton!",
-    "Boton importante. Casi seguramente. Presionalo.",
-    "たすけて! このボタンを押して!",
-    "緊急です! 赤いボタンを押してください!",
-]
-FIRST_PRESS_RESPONSES = [
-    "Ah, thanks.",
-    "Excellent. Crisis averted.",
-    "Perfect timing. The button gods are pleased.",
-    "Much appreciated. That was deeply official.",
-    "Thank you for your brave service.",
-    "Nice. That looked important.",
-    "Gracias. Eso era absolutamente necesario.",
-    "Gracias por oprimir el boton aterrador.",
-    "助かりました。ありがとう。",
-    "ありがとう。とてもボタンでした。",
-]
-REPEAT_PRESS_RESPONSES = [
-    "Ah, thanks for your repeated assistance. You've pushed it {count} times.",
-    "Back again. Excellent. You've saved us {count} times now.",
-    "Reliable as ever. This is push number {count} for you.",
-    "Your continued button support is noted. Total pushes: {count}.",
-    "Impressive dedication. You've pressed the thing {count} times.",
-    "You keep answering the call. Lifetime pushes: {count}.",
-    "Gracias otra vez. Ya llevas {count} pulsaciones.",
-    "Tu asistencia continua es admirable. Total: {count}.",
-    "また助けてくれてありがとう。これで{count}回目です。",
-    "いつもありがとう。このボタンはもう{count}回押されました。",
-]
+    server_configs = {
+        jp_serv_id: {
+            "category_id": jp_category,
+            "counter_key": "jp",
+        },
+        sp_serv_id: {
+            "category_id": sp_category,
+            "counter_key": "sp",
+        },
+    }
 
+    messages_per_button = 300
+    button_request_messages = [
+        "Quick! Push this button!",
+        "Emergency! This button requires immediate poking!",
+        "Press the scary red button. Nothing bad will probably happen.",
+        "Attention please: dramatic button-pushing is now required.",
+        "Rapid response needed. Slam the button.",
+        "Urgent April protocol: push the button!",
+        "This button looks lonely. Fix that.",
+        "Warning: the red button demands a hero.",
+        "Oye, rapido, pulsa este boton!",
+        "Boton importante. Casi seguramente. Presionalo.",
+        "たすけて! このボタンを押して!",
+        "緊急です! 赤いボタンを押してください!",
+    ]
+    first_press_responses = [
+        "Ah, thanks.",
+        "Excellent. Crisis averted.",
+        "Perfect timing. The button gods are pleased.",
+        "Much appreciated. That was deeply official.",
+        "Thank you for your brave service.",
+        "Nice. That looked important.",
+        "Gracias. Eso era absolutamente necesario.",
+        "Gracias por oprimir el boton aterrador.",
+        "助かりました。ありがとう。",
+        "ありがとう。とてもボタンでした。",
+    ]
+    repeat_press_responses = [
+        "Ah, thanks for your repeated assistance. You've pushed it {count} times.",
+        "Back again. Excellent. You've saved us {count} times now.",
+        "Reliable as ever. This is push number {count} for you.",
+        "Your continued button support is noted. Total pushes: {count}.",
+        "Impressive dedication. You've pressed the thing {count} times.",
+        "You keep answering the call. Lifetime pushes: {count}.",
+        "Gracias otra vez. Ya llevas {count} pulsaciones.",
+        "Tu asistencia continua es admirable. Total: {count}.",
+        "また助けてくれてありがとう。これで{count}回目です。",
+        "いつもありがとう。このボタンはもう{count}回押されました。",
+    ]
 
-class PanicButtonView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=70)
-        self.pressed = False
-        self.message: discord.Message | None = None
+    class PanicButtonView(discord.ui.View):
+        def __init__(self, module: "ButtonModule"):
+            super().__init__(timeout=70)
+            self.module = module
+            self.pressed = False
+            self.message: discord.Message | None = None
 
-    @discord.ui.button(label="PUSH THE BUTTON", style=discord.ButtonStyle.danger)
-    async def push_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.pressed:
-            await interaction.response.send_message("Too late.", ephemeral=True)
-            return
+        @discord.ui.button(label="PUSH THE BUTTON", style=discord.ButtonStyle.danger)
+        async def push_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if self.pressed:
+                await interaction.response.send_message("Too late.", ephemeral=True)
+                return
 
-        config = interaction.client.db.setdefault("april_button", {})
-        user_id = str(interaction.user.id)
-        push_count = config.get(user_id, 0) + 1
-        config[user_id] = push_count
+            config = interaction.client.db.setdefault("april_button", {})
+            user_id = str(interaction.user.id)
+            push_count = config.get(user_id, 0) + 1
+            config[user_id] = push_count
 
-        self.pressed = True
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        if push_count > 1:
-            thank_you = random.choice(REPEAT_PRESS_RESPONSES).format(count=push_count)
-        else:
-            thank_you = random.choice(FIRST_PRESS_RESPONSES)
+            self.pressed = True
+            button.disabled = True
+            await interaction.response.edit_message(view=self)
+            if push_count > 1:
+                thank_you = random.choice(self.module.repeat_press_responses).format(count=push_count)
+            else:
+                thank_you = random.choice(self.module.first_press_responses)
 
-        await interaction.followup.send(thank_you)
-        await utils.dump_json("db")
-        self.stop()
+            await interaction.followup.send(f"{interaction.user.mention}\n{thank_you}")
+            self.stop()
 
-    async def on_timeout(self):
-        if not self.message or self.pressed:
-            return
+        async def on_timeout(self):
+            if not self.message or self.pressed:
+                return
 
-        for item in self.children:
-            if isinstance(item, discord.ui.Button):
-                item.disabled = True
+            for item in self.children:
+                if isinstance(item, discord.ui.Button):
+                    item.disabled = True
 
-        try:
-            await self.message.edit(view=self)
-        except discord.HTTPException:
-            pass
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
-
-class April(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @staticmethod
@@ -124,22 +123,21 @@ class April(commands.Cog):
         return getattr(channel.category, "id", None) == category_id
 
     async def send_button_prompt(self, channel: discord.abc.Messageable):
-        view = PanicButtonView()
+        view = self.PanicButtonView(self)
         try:
-            message = await channel.send(random.choice(BUTTON_REQUEST_MESSAGES), view=view)
+            message = await channel.send(random.choice(self.button_request_messages), view=view)
         except discord.HTTPException:
             return
 
         view.message = message
 
-    @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
         if not self.is_april_fools():
             return
         if msg.author.bot or not msg.guild:
             return
 
-        server_config = SERVER_CONFIGS.get(msg.guild.id)
+        server_config = self.server_configs.get(msg.guild.id)
         if not server_config:
             return
         if not self.message_is_in_target_category(msg, server_config["category_id"]):
@@ -150,18 +148,83 @@ class April(commands.Cog):
         count = counts.get(counter_key, 0) + 1
         counts[counter_key] = count
 
-        if count % MESSAGES_PER_BUTTON == 0:
+        if count % self.messages_per_button == 0:
             await self.send_button_prompt(msg.channel)
 
-        if count % 25 == 0 or count % MESSAGES_PER_BUTTON == 0:
-            await utils.dump_json("db")
+        if count % 25 == 0 or count % self.messages_per_button == 0:
+
+    async def status(self) -> str:
+        counts = self.bot.db.get("april_button_message_counts", {})
+        return f"JP count: {counts.get('jp', 0)} | SP count: {counts.get('sp', 0)}"
+
+
+class WorryBusinessModule:
+    channel_id = 189571157446492161
+    shame_messages = [
+        "🚨 You posted without `worrybusiness`. You are gone from this channel. 🚫",
+        "❌ This channel had one rule: include `worrybusiness`. You are removed from this channel. 😤",
+        "🙅 No `worrybusiness`? Bold mistake. Channel ban. 🚪",
+        "⚠️ You had one job: include `worrybusiness`. You have been removed from this channel. 😠",
+        "😑 Disappointing. Please reflect on your lack of `worrybusiness`. Channel exile activated. 🚫",
+        "📛 Channel law violated. `worrybusiness` was required. You are banned from this channel. 🚷",
+        "🚨 `worrybusiness` を書いてないです。だめです。このチャンネルBANです。🚫",
+        "😤 残念です。`worrybusiness` が必要でした。このチャンネルから削除です。🚪",
+        "❌ `worrybusiness` がないので失格です。このチャンネル利用禁止です。🙅",
+        "📛 このチャンネルでは `worrybusiness` を入れてください。今回はこのチャンネルBANです。⚠️",
+    ]
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @staticmethod
+    def is_april_fools() -> bool:
+        now = datetime.now()
+        return now.month == 4 and now.day == 1
+
+    async def on_message(self, msg: discord.Message):
+        if not self.is_april_fools():
+            return
+        if msg.author.bot or not msg.guild:
+            return
+        if msg.channel.id != self.channel_id:
+            return
+        if "worrybusiness" in msg.content.lower():
+            return
+
+        try:
+            await msg.channel.send(f"{msg.author.mention} {random.choice(self.shame_messages)}")
+        except discord.HTTPException:
+            pass
+
+        overwrite = msg.channel.overwrites_for(msg.author)
+        overwrite.send_messages = False
+        try:
+            await msg.channel.set_permissions(
+                msg.author,
+                overwrite=overwrite,
+                reason="April Fools worrybusiness enforcement: channel-only send restriction",
+            )
+        except discord.HTTPException:
+            pass
+
+
+class April(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.modules = [
+            ButtonModule(bot),
+            WorryBusinessModule(bot),
+        ]
+
+    @commands.Cog.listener()
+    async def on_message(self, msg: discord.Message):
+        for module in self.modules:
+            await module.on_message(msg)
 
     @commands.command(name="april")
     async def april(self, ctx):
-        counts = self.bot.db.get("april_button_message_counts", {})
-        await ctx.send(
-            f"JP count: {counts.get('jp', 0)} | SP count: {counts.get('sp', 0)}"
-        )
+        button_module = next(module for module in self.modules if isinstance(module, ButtonModule))
+        await ctx.send(await button_module.status())
 
 
 async def setup(bot):
