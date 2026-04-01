@@ -415,10 +415,9 @@ class RaiPingModule:
         # Require at least one user-role message so the API call is well-formed.
         if not any(m["role"] == "user" for m in conversation):
             return
-        messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT},
-            {"role": "system", "content": self.LANGUAGE_PROMPT},
-        ] + conversation
+        a = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+        b = [{"role": "system", "content": self.LANGUAGE_PROMPT}]
+        messages = a + conversation + b
 
         try:
             _, response_text = await chat_completion_text(self.bot, messages=messages)
