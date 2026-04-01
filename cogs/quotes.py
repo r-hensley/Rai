@@ -1,5 +1,6 @@
 import random
 import io
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -25,6 +26,7 @@ class Quotes(commands.Cog):
     `;quoteid` / `;qid` / `;quotebyid` - Print a quote by numeric ID. Example: `;qid 42`
     `;qinfo` / `;qi` - Show full metadata for a quote, including author, usage, and source message when available.
     `;quotelist` / `;liqu` - List all quotes, or only quotes for one name. Example: `;quotelist rai`
+    `;pullquotes` / `;recentquotes` - List quotes created in a recent time window. Example: `;pullquotes 7d`
     `;qsearch` / `;qs` - Search quote names and quote text. Example: `;qs hello`
     `;quotedelete` / `;qdel` / `;quotedel` - Delete one or more quote IDs. Authors can delete their own quotes; submods can delete any quote.
     `;dedupequotes` / `;qdedupe` / `;quotesdedupe` / `;quotededupe` - Admin-only duplicate cleanup for identical name/body pairs.
@@ -75,6 +77,7 @@ class Quotes(commands.Cog):
         entry.setdefault("last_used_at", None)
         entry.setdefault("source_channel_id", None)
         entry.setdefault("source_message_id", None)
+        entry.setdefault("created_at_source", None)
         return entry
 
     def _find_by_id(self, guild_id: int, quote_id: int) -> Optional[dict[str, Any]]:
@@ -119,6 +122,7 @@ class Quotes(commands.Cog):
             "last_used_at": None,
             "source_channel_id": source_channel_id,
             "source_message_id": source_message_id,
+            "created_at_source": "message",
         }
         config["entries"].append(entry)
         config["next_id"] += 1
@@ -149,6 +153,7 @@ class Quotes(commands.Cog):
             "last_used_at": None,
             "source_channel_id": source_channel_id,
             "source_message_id": source_message_id,
+            "created_at_source": "import_unknown",
         }
         config["entries"].append(entry)
         config["next_id"] += 1
@@ -175,6 +180,10 @@ class Quotes(commands.Cog):
 
     @staticmethod
     def _quote_created_at(entry: dict[str, Any]) -> Optional[datetime]:
+        created_at_source = entry.get("created_at_source")
+        if created_at_source == "import_unknown":
+            return None
+
         message_id = entry.get("source_message_id")
         if not message_id:
             return None
@@ -182,6 +191,24 @@ class Quotes(commands.Cog):
             return discord.utils.snowflake_time(int(message_id))
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _parse_recent_window(argument: str) -> Optional[tuple[int, str]]:
+        match = re.fullmatch(r"\s*(\d+)\s*([dwm])\s*", argument.lower())
+        if not match:
+            return None
+
+        amount = int(match.group(1))
+        unit = match.group(2)
+        if amount <= 0:
+            return None
+
+        seconds_per_unit = {
+            "d": 24 * 60 * 60,
+            "w": 7 * 24 * 60 * 60,
+            "m": 30 * 24 * 60 * 60,
+        }
+        return amount * seconds_per_unit[unit], f"{amount}{unit}"
 
     @staticmethod
     def _extract_attachment_source(ctx: commands.Context) -> Optional[discord.Message]:
@@ -441,6 +468,51 @@ class Quotes(commands.Cog):
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
 
         message = f"**{title}**\n" + "\n".join(lines)
+        for chunk in utils.split_text_into_segments(message, 1900):
+            await utils.safe_send(ctx, chunk)
+
+    @commands.guild_only()
+    @hf.is_trial_helper()
+    @commands.command(aliases=["recentquotes"])
+    async def pullquotes(self, ctx: commands.Context, *, window: str):
+        """List quotes created in a recent time window like 7d, 1w, or 1m."""
+        parsed_window = self._parse_recent_window(window)
+        if not parsed_window:
+            await utils.safe_send(ctx, "Usage: `;pullquotes <duration>` where duration looks like `7d`, `1w`, or `1m`.")
+            return
+
+        window_seconds, window_label = parsed_window
+        cutoff = datetime.now(timezone.utc).timestamp() - window_seconds
+
+        entries = []
+        unknown_count = 0
+        for entry in self._all_entries(ctx.guild.id):  # pyright: ignore[reportOptionalMemberAccess]
+            created_at = self._quote_created_at(entry)
+            if not created_at:
+                unknown_count += 1
+                continue
+            if created_at.timestamp() >= cutoff:
+                entries.append((entry, created_at))
+
+        if not entries:
+            extra = f" {unknown_count} quote(s) were skipped because their creation time is unknown." if unknown_count else ""
+            await utils.safe_send(ctx, f"No quotes were created in the last `{window_label}`.{extra}")
+            return
+
+        lines = []
+        for entry, created_at in sorted(entries, key=lambda item: item[1], reverse=True):
+            preview = entry["body"].replace("\n", " ")
+            if len(preview) > 80:
+                preview = preview[:77] + "..."
+            lines.append(
+                f"`#{entry['id']}` `{entry['name']}` <t:{int(created_at.timestamp())}:R> {preview}"
+            )
+
+        header = f"**Quotes created in the last {window_label}** ({len(entries)})"
+        if unknown_count:
+            header += f"\nSkipped {unknown_count} quote(s) with unknown creation time."
+
+        message = header + "\n" + "\n".join(lines)
         for chunk in utils.split_text_into_segments(message, 1900):
             await utils.safe_send(ctx, chunk)
 
