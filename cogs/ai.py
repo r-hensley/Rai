@@ -210,6 +210,11 @@ class AI(commands.Cog):
     async def on_message(self, msg_in: discord.Message):
         if not msg_in.guild:
             return
+        if msg_in.author == self.bot.user:
+            return
+        if msg.author.bot:
+            return
+        
         msg = hf.RaiMessage(msg_in)
         if not self.ai_features_enabled():
             return
