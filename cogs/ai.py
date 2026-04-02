@@ -212,7 +212,7 @@ class AI(commands.Cog):
             return
         if msg_in.author == self.bot.user:
             return
-        if msg.author.bot:
+        if msg_in.author.bot:
             return
         
         msg = hf.RaiMessage(msg_in)
