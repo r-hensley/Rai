@@ -940,53 +940,38 @@ class ChannelMods(commands.Cog):
 
         # --- Current VC status ---
         voice_state = member.voice
-        current_vc_lines = []
-        current_session_str = None
-
+        vc_lines = []
         if voice_state and voice_state.channel:
             channel = voice_state.channel
+            vc_lines.append(f"**Currently in:** {channel.mention}")
             others = [m.display_name for m in channel.members if m.id != member.id]
-            current_vc_lines.append(f"**Currently in:** {channel.mention}")
-            if others:
-                current_vc_lines.append(f"**With:** {', '.join(others)}")
-            else:
-                current_vc_lines.append("**With:** nobody else")
-
-            # Session duration from in_voice tracking
+            vc_lines.append(f"**With:** {', '.join(others) if others else 'nobody else'}")
             try:
                 join_ts = self.bot.stats[guild_id]['voice']['in_voice'].get(str(member.id))
                 if join_ts:
-                    session_secs = now.timestamp() - float(join_ts)
-                    current_session_str = hf.format_interval(session_secs)
+                    vc_lines.append(f"**Session:** {format_interval(now.timestamp() - float(join_ts))}")
             except (KeyError, AttributeError, ValueError):
                 pass
-
-            if current_session_str:
-                current_vc_lines.append(f"**Session:** {current_session_str}")
-
-        # --- Build embed ---
-        emb = discord.Embed(
-            title=f"Voice activity — {member.display_name}",
-            color=0x3B88C3,
-            timestamp=now,
-        )
-        emb.set_thumbnail(url=member.display_avatar.url)
-
-        if voice_minutes:
-            emb.add_field(
-                name="Last 24h voice time",
-                value=format_interval(voice_minutes * 60),
-                inline=False,
-            )
         else:
-            emb.add_field(name="Last 24h voice time", value="No data", inline=False)
+            vc_lines.append("Not currently in voice")
 
-        if current_vc_lines:
-            emb.add_field(name="Current status", value="\n".join(current_vc_lines), inline=False)
-        else:
-            emb.add_field(name="Current status", value="Not in voice", inline=False)
+        # --- Build components v2 layout ---
+        view = discord.ui.LayoutView()
+        view.add_item(discord.ui.Container(
+            discord.ui.Section(
+                discord.ui.TextDisplay(f"## 🎙️ {discord.utils.escape_markdown(member.display_name)}"),
+                accessory=discord.ui.Thumbnail(member.display_avatar.url),
+            ),
+            discord.ui.Separator(),
+            discord.ui.TextDisplay(
+                f"**Last 24h voice time**\n{format_interval(voice_minutes * 60) if voice_minutes else 'No data'}"
+            ),
+            discord.ui.Separator(),
+            discord.ui.TextDisplay("\n".join(vc_lines)),
+            accent_colour=discord.Colour(0x3B88C3),
+        ))
 
-        await utils.safe_send(ctx, embed=emb)
+        await ctx.send(view=view)
 
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
