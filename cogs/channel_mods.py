@@ -914,6 +914,80 @@ class ChannelMods(commands.Cog):
 
             assert final_roles == test_case[2], f"Failed test case: {test_case}, result: {final_roles}"
 
+    @commands.command(aliases=['voicelog', 'vl'])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def vml(self, ctx: commands.Context, *, id_in: str):
+        """Voice activity summary for a user (last 24h)"""
+        member = await utils.member_converter(ctx, id_in)
+        if not member:
+            await utils.safe_send(ctx, "I couldn't find that user.")
+            return
+
+        guild_id = str(ctx.guild.id)
+        now = discord.utils.utcnow()
+
+        # --- Voice time: today + yesterday ---
+        voice_minutes = 0
+        try:
+            total_time: dict = self.bot.stats[guild_id]['voice']['total_time']
+            today_key = now.strftime("%Y%m%d")
+            yesterday_key = (now - timedelta(days=1)).strftime("%Y%m%d")
+            for key in (today_key, yesterday_key):
+                if key in total_time and str(member.id) in total_time[key]:
+                    voice_minutes += total_time[key][str(member.id)]
+        except (KeyError, AttributeError):
+            pass
+
+        # --- Current VC status ---
+        voice_state = member.voice
+        current_vc_lines = []
+        current_session_str = None
+
+        if voice_state and voice_state.channel:
+            channel = voice_state.channel
+            others = [m.display_name for m in channel.members if m.id != member.id]
+            current_vc_lines.append(f"**Currently in:** {channel.mention}")
+            if others:
+                current_vc_lines.append(f"**With:** {', '.join(others)}")
+            else:
+                current_vc_lines.append("**With:** nobody else")
+
+            # Session duration from in_voice tracking
+            try:
+                join_ts = self.bot.stats[guild_id]['voice']['in_voice'].get(str(member.id))
+                if join_ts:
+                    session_secs = now.timestamp() - float(join_ts)
+                    current_session_str = hf.format_interval(session_secs)
+            except (KeyError, AttributeError, ValueError):
+                pass
+
+            if current_session_str:
+                current_vc_lines.append(f"**Session:** {current_session_str}")
+
+        # --- Build embed ---
+        emb = discord.Embed(
+            title=f"Voice activity — {member.display_name}",
+            color=0x3B88C3,
+            timestamp=now,
+        )
+        emb.set_thumbnail(url=member.display_avatar.url)
+
+        if voice_minutes:
+            emb.add_field(
+                name="Last 24h voice time",
+                value=format_interval(voice_minutes * 60),
+                inline=False,
+            )
+        else:
+            emb.add_field(name="Last 24h voice time", value="No data", inline=False)
+
+        if current_vc_lines:
+            emb.add_field(name="Current status", value="\n".join(current_vc_lines), inline=False)
+        else:
+            emb.add_field(name="Current status", value="Not in voice", inline=False)
+
+        await utils.safe_send(ctx, embed=emb)
+
     @commands.group(aliases=['warnlog', 'ml', 'wl'], invoke_without_command=True)
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @hf.basic_timer(0.5)
