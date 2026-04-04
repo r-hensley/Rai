@@ -403,8 +403,8 @@ class Quotes(commands.Cog):
             action_message_url=self._message_jump_url(message.guild.id, message.channel.id, message.id),
         ))
         await message.channel.send(
-            f"Saved quote ID `{entry['id']}` under `{entry['name']}`. "
-            f"Type `... {entry['name']}` to call this quote, "
+            f"Saved quote ID `{entry['id']}` under `{entry['name']}`.\n"
+            f"-# Type `... {entry['name']}` to call this quote, "
             f"or `;qdel {entry['id']}` to delete it.",
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -434,14 +434,14 @@ class Quotes(commands.Cog):
         if message.guild.id != SP_SERV_ID:
             return
 
-        content = message.content.strip()
+        content = message.content.lstrip()
         if not content:
             return
 
-        if content.startswith(("...", "…")):
-            payload = content[4:] if content.startswith("...") else content[2:]
+        if content.startswith(("... ", "… ")):
+            payload = content[4:] if content.startswith("... ") else content[2:]
             await self._handle_quote_print(message, payload)
-        elif content.startswith(".."):
+        elif content.startswith(".. "):
             await self._handle_quote_add(message, content[3:])
 
     @commands.guild_only()
@@ -647,6 +647,7 @@ class Quotes(commands.Cog):
             return
 
         guild_entries = self._all_entries(ctx.guild.id)  # pyright: ignore[reportOptionalMemberAccess]
+        deleted_entries: list[dict[str, Any]] = []
         deleted_ids: list[int] = []
         missing_ids: list[int] = []
         denied_ids: list[int] = []
@@ -673,11 +674,15 @@ class Quotes(commands.Cog):
                 action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
             ))
             guild_entries.remove(entry)
+            deleted_entries.append(entry)
             deleted_ids.append(quote_id)
 
         result_lines = []
         if deleted_ids:
             result_lines.append(f"Deleted: {', '.join(f'`#{quote_id}`' for quote_id in deleted_ids)}")
+            for entry in deleted_entries:
+                preview = self._build_quote_preview(entry["body"])
+                result_lines.append(f"`#{entry['id']}` `{entry['name']}`: {preview}")
         if missing_ids:
             result_lines.append(f"Not found: {', '.join(f'`#{quote_id}`' for quote_id in missing_ids)}")
         if denied_ids:
