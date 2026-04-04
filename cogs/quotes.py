@@ -438,10 +438,10 @@ class Quotes(commands.Cog):
         if not content:
             return
 
-        if content.startswith(("...", "…")):
-            payload = content[4:] if content.startswith("...") else content[2:]
+        if content.startswith(("... ", "… ")):
+            payload = content[4:] if content.startswith("... ") else content[2:]
             await self._handle_quote_print(message, payload)
-        elif content.startswith(".."):
+        elif content.startswith(".. "):
             await self._handle_quote_add(message, content[3:])
 
     @commands.guild_only()
