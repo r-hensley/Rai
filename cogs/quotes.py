@@ -434,7 +434,7 @@ class Quotes(commands.Cog):
         if message.guild.id != SP_SERV_ID:
             return
 
-        content = message.content.strip()
+        content = message.content.lstrip()
         if not content:
             return
 
@@ -681,7 +681,8 @@ class Quotes(commands.Cog):
         if deleted_ids:
             result_lines.append(f"Deleted: {', '.join(f'`#{quote_id}`' for quote_id in deleted_ids)}")
             for entry in deleted_entries:
-                result_lines.append(f"`{entry['name']}`: {entry['body']}")
+                preview = self._build_quote_preview(entry["body"])
+                result_lines.append(f"`#{entry['id']}` `{entry['name']}`: {preview}")
         if missing_ids:
             result_lines.append(f"Not found: {', '.join(f'`#{quote_id}`' for quote_id in missing_ids)}")
         if denied_ids:
