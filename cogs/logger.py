@@ -3,7 +3,7 @@ from collections import deque
 
 import aiohttp.client_exceptions
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime, timedelta, timezone
 from Levenshtein import distance as LDist
@@ -24,8 +24,6 @@ SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
-BURST_DELETE_WINDOW = 5.0    # seconds: sliding window for burst detection
-BURST_DELETE_THRESHOLD = 5   # max raw delete events in the window before throttling
 
 
 class Logger(commands.Cog):
@@ -34,7 +32,12 @@ class Logger(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
         self.bot.recently_removed_members = {}
-        self.bot.raw_delete_rate: dict[int, dict] = {}  # per-guild burst-deletion tracker
+        # Per-channel queue of (channel, embed, optional_message) tuples for batched delete logging.
+        self.delete_log_queue: dict[int, list[tuple]] = {}
+        self.flush_delete_log_queue.start()
+
+    def cog_unload(self):
+        self.flush_delete_log_queue.cancel()
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -621,14 +624,8 @@ class Logger(commands.Cog):
         url = message.author.display_avatar.replace(static_format="png").url
         if url:
             emb.set_footer(text=f'#{message.channel.name}', icon_url=url)
-        
-        try:
-            log_message = await utils.safe_send(channel, embed=emb)
-        except Exception as e:
-            if "embeds.0.footer.icon_url: Not a well formed URL." in str(e):
-                await hf.send_to_test_channel("on_raw_message_delete: bad avatar URL:", [url])
-            raise
-        await hf.send_attachments_to_thread_on_message(log_message, message)
+
+        self.delete_log_queue.setdefault(channel.id, []).append((channel, emb, message))
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -662,52 +659,42 @@ class Logger(commands.Cog):
             # await self.module_disable_notification(message.guild, guild_config, 'message deletes')
             pass
 
+    @tasks.loop(seconds=5)
+    async def flush_delete_log_queue(self):
+        """Send queued delete-log embeds in batches to avoid Discord 429 rate-limit errors.
+
+        Discord allows up to 10 embeds per message, so we batch entries by logging channel and
+        send them together, reducing API calls significantly during burst-deletion events.
+        """
+        if not self.delete_log_queue:
+            return
+        queue, self.delete_log_queue = self.delete_log_queue, {}
+        for entries in queue.values():
+            while entries:
+                batch, entries = entries[:10], entries[10:]
+                channel = batch[0][0]
+                embeds = [entry[1] for entry in batch]
+                try:
+                    # Use channel.send(embeds=...) for all batch sizes for consistency.
+                    # The calling code already catches Forbidden/HTTPException so safe_send's
+                    # extra guards are not needed here.
+                    log_msg = await channel.send(embeds=embeds)
+                    for _, _, attachment_msg in batch:
+                        if attachment_msg and (attachment_msg.attachments or attachment_msg.embeds):
+                            await hf.send_attachments_to_thread_on_message(log_msg, attachment_msg)
+                except (discord.HTTPException, discord.Forbidden):
+                    pass  # best-effort: skip undeliverable batches
+
+    @flush_delete_log_queue.before_loop
+    async def before_flush_delete_log_queue(self):
+        await self.bot.wait_until_ready()
+
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
         await hf.sleep("raw_message_delete", 0.2)  # to give on_message_delete time to potentially add a message to the deletion_tracker
         if payload.message_id in getattr(self.bot, "deletion_tracker", []):
             return
-
-        # Detect burst deletions (e.g. a userscript wiping message history) to avoid Discord 429 errors.
-        if payload.guild_id:
-            tracker = self.bot.raw_delete_rate.setdefault(
-                payload.guild_id, {"times": deque(), "notified": False}
-            )
-            now = time.monotonic()
-            times = tracker["times"]
-            # Evict timestamps outside the sliding window
-            while times and now - times[0] > BURST_DELETE_WINDOW:
-                times.popleft()
-            times.append(now)
-            if len(times) > BURST_DELETE_THRESHOLD:
-                # In burst mode: send one warning then skip individual logs
-                if not tracker["notified"]:
-                    tracker["notified"] = True
-                    await self._notify_delete_burst(payload)
-                return
-            # Below threshold – reset the notified flag so the next burst triggers a new warning
-            tracker["notified"] = False
-
         await self.log_raw_payload(payload)
-
-    async def _notify_delete_burst(self, payload: discord.RawMessageDeleteEvent):
-        """Send a one-time warning embed to the logging channel when rapid deletions are detected."""
-        guild_id_str = str(payload.guild_id)
-        try:
-            guild_config: dict = self.bot.db['deletes'].get(guild_id_str, {})
-            if not guild_config.get('enable', False):
-                return
-            logging_channel = self.bot.get_channel(int(guild_config['channel']))
-            if not logging_channel:
-                return
-            emb = utils.red_embed(
-                "**Rapid message deletions detected.**\n"
-                "Many messages are being deleted at once. "
-                "Individual deletion logging has been temporarily paused to prevent rate limiting."
-            )
-            await utils.safe_send(logging_channel, embed=emb)
-        except (KeyError, discord.HTTPException, discord.Forbidden):
-            pass
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
@@ -784,7 +771,9 @@ class Logger(commands.Cog):
                                       f"{logging_channel.guild.id}/{payload.channel_id}/{payload.message_id}")
                 emb.timestamp = original_timestamp
                 emb.set_footer(text=f"{age} ago")
-                await utils.safe_send(logging_channel, embed=emb)
+                self.delete_log_queue.setdefault(logging_channel.id, []).append(
+                    (logging_channel, emb, None)
+                )
                 return
             else:  # edits
                 # there's weird events where messages from like 1000's of days in the past get edited randomly
