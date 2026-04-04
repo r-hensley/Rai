@@ -24,6 +24,8 @@ SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
+BURST_DELETE_WINDOW = 5.0    # seconds: sliding window for burst detection
+BURST_DELETE_THRESHOLD = 5   # max raw delete events in the window before throttling
 
 
 class Logger(commands.Cog):
@@ -32,6 +34,7 @@ class Logger(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
         self.bot.recently_removed_members = {}
+        self.bot.raw_delete_rate: dict[int, dict] = {}  # per-guild burst-deletion tracker
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -664,8 +667,48 @@ class Logger(commands.Cog):
         await hf.sleep("raw_message_delete", 0.2)  # to give on_message_delete time to potentially add a message to the deletion_tracker
         if payload.message_id in getattr(self.bot, "deletion_tracker", []):
             return
+
+        # Detect burst deletions (e.g. a userscript wiping message history) to avoid Discord 429 errors.
+        if payload.guild_id:
+            tracker = self.bot.raw_delete_rate.setdefault(
+                payload.guild_id, {"times": deque(), "notified": False}
+            )
+            now = time.monotonic()
+            times = tracker["times"]
+            # Evict timestamps outside the sliding window
+            while times and now - times[0] > BURST_DELETE_WINDOW:
+                times.popleft()
+            times.append(now)
+            if len(times) > BURST_DELETE_THRESHOLD:
+                # In burst mode: send one warning then skip individual logs
+                if not tracker["notified"]:
+                    tracker["notified"] = True
+                    await self._notify_delete_burst(payload)
+                return
+            # Below threshold – reset the notified flag so the next burst triggers a new warning
+            tracker["notified"] = False
+
         await self.log_raw_payload(payload)
-        
+
+    async def _notify_delete_burst(self, payload: discord.RawMessageDeleteEvent):
+        """Send a one-time warning embed to the logging channel when rapid deletions are detected."""
+        guild_id_str = str(payload.guild_id)
+        try:
+            guild_config: dict = self.bot.db['deletes'].get(guild_id_str, {})
+            if not guild_config.get('enable', False):
+                return
+            logging_channel = self.bot.get_channel(int(guild_config['channel']))
+            if not logging_channel:
+                return
+            emb = utils.red_embed(
+                "**Rapid message deletions detected.**\n"
+                "Many messages are being deleted at once. "
+                "Individual deletion logging has been temporarily paused to prevent rate limiting."
+            )
+            await utils.safe_send(logging_channel, embed=emb)
+        except (KeyError, discord.HTTPException, discord.Forbidden):
+            pass
+
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
         await self.log_raw_payload(payload)
