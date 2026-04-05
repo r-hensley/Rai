@@ -261,7 +261,7 @@ class ScamBanPromptView(utils.RaiView):
             entry = user_modlog[i]
             if entry['type'] != 'AutoMod Timeout':
                 continue
-            if self.content in entry['reason']:
+            if self.content in re.sub(r'\*\*(.*?)\*\*', r'\1', entry['reason']):
                 del user_modlog[i]
                 break
 
