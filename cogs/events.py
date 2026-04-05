@@ -989,6 +989,8 @@ class Events(commands.Cog):
         # return
         guild = execution.guild
         member = execution.member
+        if not member:
+            return
         if not guild.me.guild_permissions.manage_guild:
             return
 
@@ -997,9 +999,17 @@ class Events(commands.Cog):
 
         rule = await execution.fetch_rule()
 
-        if len(rule.actions) > 1:
-            if execution.action.type != rule.actions[-1].type:
-                return
+        timeout_action = None
+        # loop through the actions associated with this rule
+        # example: Timeout, Notify, Block Message
+        for a in rule.actions:
+            if a.type == discord.AutoModRuleActionType.timeout:
+                timeout_action = a
+                break
+
+        # check if execution action type is Timeout
+        if execution.action.type != getattr(timeout_action, 'type', None):
+            return
 
         # Add main line of text describing what triggered the filter
         if execution.rule_trigger_type == discord.AutoModRuleTriggerType.keyword:
@@ -1021,17 +1031,10 @@ class Events(commands.Cog):
         else:
             rule_description = "User triggered some kind of AutoMod rule (unknown type)"
 
-        # Add line if user was muted
-        silent = True
-        modlog_type = "AutoMod"
-        # if discord.AutoModRuleActionType.timeout in rule.actions:
-        if execution.action.type == discord.AutoModRuleActionType.timeout:
-            silent = False
-            modlog_type = "AutoMod Timeout"
-            rule_description += "\nUser was **timed out** for this"
-        else:
-            return  # only log mutes
-            # pass  # log everything, including non-mutes
+        # start building modlog entry
+        silent = False
+        modlog_type = "AutoMod Timeout"
+        rule_description += "\nUser was **timed out** for this"
 
         if execution.matched_content:
             formatted_content = execution.content.replace(execution.matched_content,
