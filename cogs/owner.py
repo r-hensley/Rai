@@ -25,6 +25,7 @@ from matplotlib.colors import Normalize
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .database import clear_readd_role_entries_for_guild, store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -717,7 +718,7 @@ class Owner(commands.Cog):
         # id_to_role = {role.id: role for role in channel.guild.roles}
         # self.bot.messages = await channel.history(limit=None, after=discord.utils.utcnow() - timedelta(days=60)).flatten()
         config = self.bot.db['joins'][str(channel.guild.id)]['readd_roles']
-        config['users'] = {}
+        await clear_readd_role_entries_for_guild(channel.guild.id)
         print(len(self.bot.messages))
         for message in self.bot.messages:
             if message.author.id == RYRY_RAI_BOT_ID:
@@ -746,8 +747,12 @@ class Owner(commands.Cog):
                             pass
                         if role_id_list:
                             print(USER_ID, embed.fields)
-                            config['users'][USER_ID] = [message.created_at.strftime("%Y%m%d"),
-                                                        role_id_list]
+                            await store_readd_role_entry(
+                                channel.guild.id,
+                                int(USER_ID),
+                                message.created_at.strftime("%Y%m%d"),
+                                role_id_list,
+                            )
         print('done')
 
     @commands.Cog.listener()

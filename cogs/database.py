@@ -1,11 +1,16 @@
 import os
+import re
+import sqlite3
+import asyncio
 from ast import literal_eval
+from datetime import datetime, timezone
 from typing import Optional, Iterable
 
 import asqlite
 
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+DATABASE_PATH = f"{dir_path}/database.db"
 
 table_primary_keys = {
     'users': 'user_id',
@@ -287,6 +292,89 @@ class Connect(SQLCommands):
                 return my_list
 
 
+def _normalize_role_ids(role_payload, role_map: dict) -> list[int]:
+    if isinstance(role_payload, str):
+        tokens = [token for token in role_payload.split(',') if token]
+    elif isinstance(role_payload, (list, tuple)):
+        tokens = [str(token) for token in role_payload if token is not None]
+    else:
+        return []
+
+    role_ids = []
+    for token in tokens:
+        role_id = role_map.get(token, token)
+        try:
+            role_ids.append(int(role_id))
+        except (TypeError, ValueError):
+            continue
+
+    # Preserve order while dropping duplicates.
+    return list(dict.fromkeys(role_ids))
+
+
+def _normalize_left_at(left_at) -> str:
+    if isinstance(left_at, str) and re.fullmatch(r"\d{8}", left_at):
+        return left_at
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
+async def fetch_readd_role_entry(guild_id: int, user_id: int) -> Optional[tuple[str, list[int]]]:
+    async with asqlite.connect(DATABASE_PATH) as db:
+        async with db.cursor() as cursor:
+            row = await cursor.execute(
+                "SELECT left_at, role_ids FROM readd_roles WHERE guild_id = ? AND user_id = ?",
+                (guild_id, user_id),
+            )
+            result = await row.fetchone()
+
+    if not result:
+        return None
+
+    left_at, role_ids = result
+    normalized_role_ids = _normalize_role_ids(role_ids, {})
+    return left_at, normalized_role_ids
+
+
+async def store_readd_role_entry(guild_id: int, user_id: int, left_at: str, role_ids: list[int]) -> None:
+    role_ids_text = ",".join(str(role_id) for role_id in role_ids)
+    async with asqlite.connect(DATABASE_PATH) as db:
+        async with db.cursor() as cursor:
+            await cursor.execute(
+                """
+                INSERT OR REPLACE INTO readd_roles (guild_id, user_id, left_at, role_ids)
+                VALUES (?, ?, ?, ?)
+                """,
+                (guild_id, user_id, _normalize_left_at(left_at), role_ids_text),
+            )
+        await db.commit()
+
+
+async def delete_readd_role_entry(guild_id: int, user_id: int) -> None:
+    async with asqlite.connect(DATABASE_PATH) as db:
+        async with db.cursor() as cursor:
+            await cursor.execute(
+                "DELETE FROM readd_roles WHERE guild_id = ? AND user_id = ?",
+                (guild_id, user_id),
+            )
+        await db.commit()
+
+
+async def clear_readd_role_entries_for_guild(guild_id: int) -> None:
+    async with asqlite.connect(DATABASE_PATH) as db:
+        async with db.cursor() as cursor:
+            await cursor.execute("DELETE FROM readd_roles WHERE guild_id = ?", (guild_id,))
+        await db.commit()
+
+
+async def purge_old_readd_role_entries(cutoff: str) -> int:
+    async with asqlite.connect(DATABASE_PATH) as db:
+        async with db.cursor() as cursor:
+            await cursor.execute("DELETE FROM readd_roles WHERE left_at < ?", (cutoff,))
+            deleted = cursor.get_cursor().rowcount
+        await db.commit()
+    return deleted
+
+
 async def create_database_tables() -> None:
     """
     Setup the database when the bot starts
@@ -345,6 +433,16 @@ async def create_database_tables() -> None:
                            "FOREIGN KEY (id_1) REFERENCES users (user_id) ON DELETE RESTRICT,"
                            "FOREIGN KEY (id_2) REFERENCES users (user_id) ON DELETE RESTRICT,"
                            "FOREIGN KEY (guild_id) REFERENCES guilds (guild_id) ON DELETE RESTRICT)")
+
+    readd_roles = Connect("database.db", "", "")
+    await readd_roles.execute("CREATE TABLE IF NOT EXISTS readd_roles "
+                              "(guild_id INTEGER, "
+                              "user_id INTEGER, "
+                              "left_at TEXT, "
+                              "role_ids TEXT, "
+                              "PRIMARY KEY (guild_id, user_id))")
+    await readd_roles.execute("CREATE INDEX IF NOT EXISTS idx_readd_roles_left_at "
+                              "ON readd_roles (left_at)")
 
 
 async def setup(bot):

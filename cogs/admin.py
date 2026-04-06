@@ -867,27 +867,21 @@ class Admin(commands.Cog):
                                                        'channel': ctx.channel.id,
                                                        'invites': {},
                                                        'invites_enable': False,
-                                                       'readd_roles': {'enable': True,
-                                                                       'users': {},
-                                                                       'roles': {}
-                                                                       }
+                                                       'readd_roles': {'enable': True}
                                                        }
         try:
             config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles']
             config['enable'] = not config['enable']
         except KeyError:  # the guild was in 'joins' but it didn't have 'readd_roles'
-            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {
-                'enable': True, 'users': {}, 'roles': {}}
+            config = self.bot.db['joins'][str(ctx.guild.id)]['readd_roles'] = {'enable': True}
         if config['enable']:
             if not ctx.me.guild_permissions.manage_roles:
                 await utils.safe_send(ctx, "I lack permission to manage roles.  Please fix that before enabling this")
-                config['readd_roles']['enable'] = False
+                config['enable'] = False
                 return
             await utils.safe_send(ctx, "I will readd roles to people who have previously left the server")
         else:
             await utils.safe_send(ctx, "I will NOT readd roles to people who have previously left the server")
-        if 'users' not in config:
-            config['users'] = {}
 
     @commands.command(aliases=['newuserwatch'])
     async def new_user_watch(self, ctx):

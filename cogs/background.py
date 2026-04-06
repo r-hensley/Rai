@@ -3,11 +3,12 @@ import os
 import sys
 import time
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import traceback
 import discord
 from discord.ext import commands, tasks
 from cogs.utils.BotUtils import bot_utils as utils
+from .database import purge_old_readd_role_entries
 
 RYRY_SPAM_CHAN = 275879535977955330
 TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
@@ -35,6 +36,7 @@ class Background(commands.Cog):
         self.bot = bot
         self.bot.bg_tasks = {self.check_desync_voice, self.unban_users,
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
+                             self.delete_old_readd_role_entries,
                              self.check_downed_tasks, self.save_db, self.live_latency,
                              self.fireside_message}
         self.bot.running_tasks = []
@@ -327,6 +329,13 @@ class Background(commands.Cog):
                             "%Y%m%d").replace(tzinfo=timezone.utc)).days
                 if days_ago > 30:
                     del config['voice']['total_time'][day]
+
+    @rai_task(hours=24)
+    async def delete_old_readd_role_entries(self):
+        cutoff = (discord.utils.utcnow() - timedelta(days=365 * 2)).strftime("%Y%m%d")
+        removed = await purge_old_readd_role_entries(cutoff)
+        if removed:
+            print(f"Removed {removed:,} stale readd_roles entries older than {cutoff}")
 
     @rai_task(seconds=5)
     async def live_latency(self):

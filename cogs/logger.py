@@ -10,6 +10,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
+from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
 
 from typing import Optional, List, Tuple, Dict, Union
 
@@ -1253,26 +1254,31 @@ class Logger(commands.Cog):
             if maybe_used_invite and not used_invite:
                 used_invite = maybe_used_invite
 
-            def get_list_of_roles() -> tuple[dict, List[discord.Role]]:
+            async def get_list_of_roles() -> tuple[dict, List[discord.Role]]:
                 try:
                     config: dict = self.bot.db['joins'][guild_id]['readd_roles']
                 except KeyError:
                     return None, None
-                if not config['enable'] or str(member.id) not in config['users']:
+                if not config['enable']:
                     return None, None
 
+                readd_entry = await fetch_readd_role_entry(member.guild.id, member.id)
+                if not readd_entry:
+                    return None, None
+
+                _left_at, stored_role_ids = readd_entry
                 list_of_roles: List[discord.Role] = []
                 roles_dict: Dict[int: discord.Role] = {role.id: role for role in member.guild.roles}
-                for role_code in config['users'][str(member.id)][1].split(','):
+                for role_id in stored_role_ids:
                     try:
-                        list_of_roles.append(roles_dict[config['roles'][role_code]])
+                        list_of_roles.append(roles_dict[role_id])
                     except KeyError:
                         pass
                 return config, list_of_roles
 
             readd_config: dict
             list_of_readd_roles: List[discord.Role]
-            readd_config, list_of_readd_roles = get_list_of_roles()
+            readd_config, list_of_readd_roles = await get_list_of_roles()
             failed_roles = []  # roles higher than the bot's highest role
             if list_of_readd_roles:
                 try:
@@ -1304,8 +1310,8 @@ class Logger(commands.Cog):
                 except discord.Forbidden:
                     pass
                 try:
-                    del readd_config['users'][str(member.id)]
-                except KeyError:
+                    await delete_readd_role_entry(member.guild.id, member.id)
+                except Exception:
                     pass
             x = await self.make_join_embed(member, used_invite, welcome_channel, server_config,
                                            list_of_readd_roles, failed_roles)
@@ -1553,11 +1559,7 @@ class Logger(commands.Cog):
             pass
         else:
             if config['enable']:
-                if 'roles' in config:
-                    codes = {str(y): x for x, y in config['roles'].items()}  # {str(role_id): index} dictionary
-                else:
-                    codes = config['roles'] = {}
-                found_roles = []
+                found_role_ids = []
                 for role in member.roles:
                     if role.name in ['Nitro Booster', 'New User'] or \
                             role.id in [249695630606336000,  # jp server new user role
@@ -1567,16 +1569,15 @@ class Logger(commands.Cog):
 
                         pass
                     else:
-                        if str(role.id) in codes:
-                            found_roles.append(codes[str(role.id)])
-                        else:
-                            index = str(len(codes))
-                            config['roles'][index] = role.id
-                            codes[str(role.id)] = index
-                            found_roles.append(codes[str(role.id)])
+                        found_role_ids.append(role.id)
 
-                if found_roles:  # if the role list isn't empty (i.e., no roles)
-                    config['users'][str(member.id)] = [discord.utils.utcnow().strftime("%Y%m%d"), ','.join(found_roles)]
+                if found_role_ids:  # if the role list isn't empty (i.e., no roles)
+                    await store_readd_role_entry(
+                        member.guild.id,
+                        member.id,
+                        discord.utils.utcnow().strftime("%Y%m%d"),
+                        found_role_ids,
+                    )
 
         if guild in self.bot.db['kicks']:
             guild_config: dict = self.bot.db['kicks'][guild]
