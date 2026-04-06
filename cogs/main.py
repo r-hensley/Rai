@@ -103,7 +103,8 @@ class Main(commands.Cog):
             ctxmsg = await test_channel.send("Almost done!")
             self.bot.ctx = await self.bot.get_context(ctxmsg)
             sync: commands.Command = self.bot.get_command("sync")
-            await self.bot.ctx.invoke(sync)
+            if sync:
+                await self.bot.ctx.invoke(sync)
         else:
             ctxmsg = self.bot.ctx = None
 
@@ -175,7 +176,7 @@ class Main(commands.Cog):
         self.bot.loop.set_debug(False)
         # logger_asyncio.setLevel(logging.DEBUG)
         
-        logger_root = logging.getLogger('root')
+        logger_root = logging.getLogger()
         logger_root.setLevel(logging.INFO)
 
         # Set up the file handler
@@ -197,6 +198,8 @@ class Main(commands.Cog):
                 handler.close()
                 logger.removeHandler(handler)
         logger.addHandler(handler)
+        logger_root.addHandler(handler)
+        handler.setLevel(logging.INFO)
     
         # example using colors for console logging
         # from: https://stackoverflow.com/questions/384076/how-can-i-color-python-logging-output

@@ -9,6 +9,7 @@ import re
 import os
 import importlib
 import datetime
+import sqlite3
 from collections import Counter, deque
 from ast import literal_eval
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,7 @@ from contextlib import redirect_stdout
 from typing import Union
 
 import discord
+import asqlite
 from discord.ext import commands
 from matplotlib import pyplot as plt, cm
 from matplotlib.colors import Normalize
@@ -37,6 +39,7 @@ RAI_TEST_BOT_ID = 536170400871219222
 
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
+    SQL_MAX_ROWS = 20
 
     def __init__(self, bot):
         self.bot: commands.Bot = bot
@@ -459,6 +462,41 @@ class Owner(commands.Cog):
         # remove `single quotes`
         return content.strip('` \n')
 
+    @staticmethod
+    def validate_sql_query(query: str) -> str:
+        query = Owner.cleanup_code(query).strip()
+        if not query:
+            raise ValueError("Provide a SQL query.")
+
+        query_without_trailing_semicolon = query.rstrip().rstrip(";").rstrip()
+        if ";" in query_without_trailing_semicolon:
+            raise ValueError("Only a single SQL statement is allowed.")
+
+        first_word = query_without_trailing_semicolon.split(None, 1)[0].upper()
+        if first_word not in {"SELECT", "EXPLAIN", "PRAGMA"}:
+            raise ValueError("Only read-only `SELECT`, `EXPLAIN`, and `PRAGMA` queries are allowed.")
+
+        return query_without_trailing_semicolon
+
+    @staticmethod
+    def format_sql_value(value):
+        if isinstance(value, bytes):
+            return f"<{len(value)} bytes>"
+        return value
+
+    def render_sql_rows(self, columns: list[str], rows: list[sqlite3.Row], truncated: bool) -> str:
+        rendered_rows = []
+        for row in rows:
+            rendered_rows.append({column: self.format_sql_value(row[column]) for column in columns})
+
+        payload = {
+            "columns": columns,
+            "row_count": len(rows),
+            "truncated": truncated,
+            "rows": rendered_rows,
+        }
+        return json.dumps(payload, indent=2, default=str)
+
     @commands.command(hidden=True)
     async def pp(self, ctx):
         """Checks most active members who are in ping party but not welcoming party yet"""
@@ -622,6 +660,45 @@ class Owner(commands.Cog):
         await utils.safe_send(ctx, msg1)
         print(emoji_dict)
         print(emoji_list)
+
+    @commands.command(hidden=True, name='sql', aliases=['sqlite'])
+    async def sql(self, ctx: commands.Context, *, query: str):
+        """Run a read-only SQLite query against database.db."""
+        try:
+            query = self.validate_sql_query(query)
+        except ValueError as e:
+            await utils.safe_send(ctx, str(e))
+            return
+
+        db_path = os.path.join(dir_path, "database.db")
+        uri = f"file:{db_path}?mode=ro"
+
+        try:
+            async with asqlite.connect(uri, uri=True) as db:
+                db.row_factory = sqlite3.Row
+                async with db.cursor() as cursor:
+                    cur = await cursor.execute(query)
+                    rows = await cur.fetchmany(self.SQL_MAX_ROWS + 1)
+                    sqlite_cursor = cur.get_cursor()
+                    description = sqlite_cursor.description
+                    columns = [column[0] for column in description] if description else []
+        except Exception as e:
+            await utils.safe_send(ctx, f"```py\n{type(e).__name__}: {e}\n```")
+            return
+
+        truncated = len(rows) > self.SQL_MAX_ROWS
+        rows = rows[:self.SQL_MAX_ROWS]
+
+        if not columns:
+            await utils.safe_send(ctx, "Query completed. No tabular result was returned.")
+            return
+
+        output = self.render_sql_rows(columns, rows, truncated)
+        segments = utils.split_text_into_segments(output, 1900)
+        for segment in segments[:5]:
+            await utils.safe_send(ctx, f"```json\n{segment}\n```")
+        if len(segments) > 5:
+            await utils.safe_send(ctx, "Output truncated. Showing only the first 5 messages.")
 
     @commands.command(hidden=True)
     async def self_mute_owner(self, ctx, time: str):

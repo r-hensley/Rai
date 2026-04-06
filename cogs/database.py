@@ -64,11 +64,6 @@ class SQLCommands(object):
             return res
 
 
-def test():
-    print('hello')
-    return 5
-
-
 class Connect(SQLCommands):
     """
     Instantiate a conversion to and from sqlite3 database and python dictionary.

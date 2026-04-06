@@ -137,12 +137,16 @@ class Rai(Bot):
         hf.setup(bot=self, loop=asyncio.get_event_loop())
         utils.setup(bot=self, loop=asyncio.get_event_loop())
 
-        initial_extensions = ['cogs.main', 'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
-                              'cogs.math', 'cogs.owner', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
-                              'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
-                              'cogs.ai',
-                              'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
-                              'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes']
+        initial_extensions = [
+            # 'cogs.memory_profile',
+            'cogs.main', 'cogs.owner',
+            'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
+            'cogs.math', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
+            'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
+            'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
+            'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes',
+            'cogs.ai',
+        ]
 
         # cogs.background is loaded in main.py
         for extension in initial_extensions:
