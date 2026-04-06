@@ -25,7 +25,7 @@ from matplotlib.colors import Normalize
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
-from .database import clear_readd_role_entries_for_guild, store_readd_role_entry
+from .database import store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -392,7 +392,7 @@ class Owner(commands.Cog):
         for cog in cogs.split():
             if cog == 'database':
                 importlib.reload(sys.modules['cogs.database'])
-            if cog in ['hf', 'helper_function']:
+            elif cog in ['hf', 'helper_function']:
                 try:
                     importlib.reload(
                         sys.modules['cogs.utils.helper_functions'])
@@ -709,51 +709,6 @@ class Owner(commands.Cog):
         self.bot.selfMute = True
         await utils.safe_send(ctx, f'Muting {ctx.author} for {hours} hours and {minutes} minutes (he chose to do this).')
         self.bot.selfMute = await asyncio.sleep(hours * 3600 + minutes * 60, False)
-
-    @commands.command(aliases=['fd'])
-    async def get_left_users(self, ctx):
-        print('>>finding messages<<')
-        channel = self.bot.get_channel(277384105245802497)
-        name_to_id = {role.name: role.id for role in channel.guild.roles}
-        # id_to_role = {role.id: role for role in channel.guild.roles}
-        # self.bot.messages = await channel.history(limit=None, after=discord.utils.utcnow() - timedelta(days=60)).flatten()
-        config = self.bot.db['joins'][str(channel.guild.id)]['readd_roles']
-        await clear_readd_role_entries_for_guild(channel.guild.id)
-        print(len(self.bot.messages))
-        for message in self.bot.messages:
-            if message.author.id == RYRY_RAI_BOT_ID:
-                if message.embeds:
-                    try:
-                        embed = message.embeds[0]
-                    except IndexError:
-                        continue
-                    if embed.footer.text[0:10] == 'User Leave':
-                        USER_ID = embed.description.split('. (')[1][:-1]
-                        try:
-                            role_name_list = embed.fields[0].value.split(', ')
-                        except IndexError:
-                            await utils.safe_send(ctx, "Index error failure")
-                            return
-                        role_id_list = [name_to_id[role]
-                                        for role in role_name_list]
-                        try:
-                            role_id_list.remove(
-                                309913956061806592)  # in voice role
-                        except ValueError:
-                            pass
-                        try:
-                            role_id_list.remove(249695630606336000)  # new user
-                        except ValueError:
-                            pass
-                        if role_id_list:
-                            print(USER_ID, embed.fields)
-                            await store_readd_role_entry(
-                                channel.guild.id,
-                                int(USER_ID),
-                                message.created_at.strftime("%Y%m%d"),
-                                role_id_list,
-                            )
-        print('done')
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

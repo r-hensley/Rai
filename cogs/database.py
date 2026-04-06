@@ -11,6 +11,8 @@ import asqlite
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATABASE_PATH = f"{dir_path}/database.db"
+SQLITE_BUSY_TIMEOUT_MS = 5000
+SQLITE_WRITE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0)
 
 table_primary_keys = {
     'users': 'user_id',
@@ -318,8 +320,35 @@ def _normalize_left_at(left_at) -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d")
 
 
+def _is_locked_database_error(error: Exception) -> bool:
+    return isinstance(error, sqlite3.OperationalError) and "database is locked" in str(error).lower()
+
+
+async def connect_to_database():
+    db = await asqlite.connect(DATABASE_PATH)
+    await db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+    return db
+
+
+async def _run_readd_roles_write(query: str, parameters: Iterable, *, return_rowcount: bool = False) -> Optional[int]:
+    for delay in (*SQLITE_WRITE_RETRY_DELAYS, None):
+        try:
+            async with await connect_to_database() as db:
+                async with db.cursor() as cursor:
+                    await cursor.execute(query, parameters)
+                    rowcount = cursor.get_cursor().rowcount
+                await db.commit()
+            return rowcount if return_rowcount else None
+        except sqlite3.OperationalError as error:
+            if delay is None or not _is_locked_database_error(error):
+                raise
+            await asyncio.sleep(delay)
+
+    return 0 if return_rowcount else None
+
+
 async def fetch_readd_role_entry(guild_id: int, user_id: int) -> Optional[tuple[str, list[int]]]:
-    async with asqlite.connect(DATABASE_PATH) as db:
+    async with await connect_to_database() as db:
         async with db.cursor() as cursor:
             row = await cursor.execute(
                 "SELECT left_at, role_ids FROM readd_roles WHERE guild_id = ? AND user_id = ?",
@@ -337,42 +366,29 @@ async def fetch_readd_role_entry(guild_id: int, user_id: int) -> Optional[tuple[
 
 async def store_readd_role_entry(guild_id: int, user_id: int, left_at: str, role_ids: list[int]) -> None:
     role_ids_text = ",".join(str(role_id) for role_id in role_ids)
-    async with asqlite.connect(DATABASE_PATH) as db:
-        async with db.cursor() as cursor:
-            await cursor.execute(
-                """
-                INSERT OR REPLACE INTO readd_roles (guild_id, user_id, left_at, role_ids)
-                VALUES (?, ?, ?, ?)
-                """,
-                (guild_id, user_id, _normalize_left_at(left_at), role_ids_text),
-            )
-        await db.commit()
+    await _run_readd_roles_write(
+        """
+        INSERT OR REPLACE INTO readd_roles (guild_id, user_id, left_at, role_ids)
+        VALUES (?, ?, ?, ?)
+        """,
+        (guild_id, user_id, _normalize_left_at(left_at), role_ids_text),
+    )
 
 
 async def delete_readd_role_entry(guild_id: int, user_id: int) -> None:
-    async with asqlite.connect(DATABASE_PATH) as db:
-        async with db.cursor() as cursor:
-            await cursor.execute(
-                "DELETE FROM readd_roles WHERE guild_id = ? AND user_id = ?",
-                (guild_id, user_id),
-            )
-        await db.commit()
-
-
-async def clear_readd_role_entries_for_guild(guild_id: int) -> None:
-    async with asqlite.connect(DATABASE_PATH) as db:
-        async with db.cursor() as cursor:
-            await cursor.execute("DELETE FROM readd_roles WHERE guild_id = ?", (guild_id,))
-        await db.commit()
+    await _run_readd_roles_write(
+        "DELETE FROM readd_roles WHERE guild_id = ? AND user_id = ?",
+        (guild_id, user_id),
+    )
 
 
 async def purge_old_readd_role_entries(cutoff: str) -> int:
-    async with asqlite.connect(DATABASE_PATH) as db:
-        async with db.cursor() as cursor:
-            await cursor.execute("DELETE FROM readd_roles WHERE left_at < ?", (cutoff,))
-            deleted = cursor.get_cursor().rowcount
-        await db.commit()
-    return deleted
+    deleted = await _run_readd_roles_write(
+        "DELETE FROM readd_roles WHERE left_at < ?",
+        (cutoff,),
+        return_rowcount=True,
+    )
+    return deleted or 0
 
 
 async def create_database_tables() -> None:
@@ -443,6 +459,10 @@ async def create_database_tables() -> None:
                               "PRIMARY KEY (guild_id, user_id))")
     await readd_roles.execute("CREATE INDEX IF NOT EXISTS idx_readd_roles_left_at "
                               "ON readd_roles (left_at)")
+
+    async with await connect_to_database() as db:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.commit()
 
 
 async def setup(bot):

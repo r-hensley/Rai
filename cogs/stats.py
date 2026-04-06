@@ -4,6 +4,7 @@ import re
 import random
 import sqlite3
 import sys
+import asyncio
 from typing import Union
 
 from datetime import datetime, timedelta, timezone
@@ -15,12 +16,14 @@ from discord.utils import escape_markdown
 import matplotlib.pyplot as plt
 
 from cogs.utils.BotUtils import bot_utils as utils
+from .database import connect_to_database
 from .utils import helper_functions as hf
 from .utils.helper_functions import format_interval
 
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SPAM_CHAN = 275879535977955330
+SQLITE_WRITE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0)
 
 
 async def add_message_to_database(msg):
@@ -34,7 +37,7 @@ async def add_message_to_database(msg):
     lang = 'en'
 
     # guild = await db.execute(f"SELECT (rai_id, guild_id) FROM guilds WHERE guild_id = {msg.guild.id}")
-    async with asqlite.connect(rf'{dir_path}/database.db') as c:
+    async with await connect_to_database() as c:
         async with c.transaction():
             await c.execute(f"INSERT OR IGNORE INTO guilds (guild_id) VALUES ({msg.guild.id})")
             await c.execute(f"INSERT OR IGNORE INTO channels (channel_id) VALUES ({msg.channel.id})")
@@ -979,7 +982,7 @@ class Stats(commands.Cog):
             await utils.safe_send(ctx, file=discord.File(plotIm, 'plot.png'))
 
     async def process_message_pool(self, message_pool: list[discord.Message]):
-        async with asqlite.connect(rf'{dir_path}/database.db') as c:
+        async with await connect_to_database() as c:
             async with c.transaction():
                 res_guilds = await c.execute("SELECT guild_id, rai_id FROM guilds")
                 res_channels = await c.execute("SELECT channel_id, rai_id FROM channels")
@@ -1004,41 +1007,47 @@ class Stats(commands.Cog):
         channel_dict = {c_id[0]: c_id[1] for c_id in channels}
         user_dict = {u_id[0]: u_id[1] for u_id in users}
 
-        async with asqlite.connect(rf'{dir_path}/database.db') as c:
-            async with c.transaction():
-                # Batch insert new guilds
-                if new_guild_ids:
-                    await c.executemany("INSERT INTO guilds (guild_id) VALUES (?)",
-                                        [(guild_id,) for guild_id in new_guild_ids])
-                    # Update guild_dict with new Rai IDs to use below when inserting messages
-                    placeholders = ", ".join("?" for _ in new_guild_ids)
-                    query = f"SELECT guild_id, rai_id FROM guilds WHERE guild_id IN ({placeholders})"
-                    res = await c.execute(query, tuple(new_guild_ids))
-                    guild_dict.update({row[0]: row[1] for row in await res.fetchall()})
+        for delay in (*SQLITE_WRITE_RETRY_DELAYS, None):
+            try:
+                async with await connect_to_database() as c:
+                    async with c.transaction():
+                        # Batch insert new guilds
+                        if new_guild_ids:
+                            await c.executemany("INSERT INTO guilds (guild_id) VALUES (?)",
+                                                [(guild_id,) for guild_id in new_guild_ids])
+                            placeholders = ", ".join("?" for _ in new_guild_ids)
+                            query = f"SELECT guild_id, rai_id FROM guilds WHERE guild_id IN ({placeholders})"
+                            res = await c.execute(query, tuple(new_guild_ids))
+                            guild_dict.update({row[0]: row[1] for row in await res.fetchall()})
 
-                if new_channel_ids:
-                    await c.executemany("INSERT INTO channels (channel_id) VALUES (?)",
-                                        [(channel_id,) for channel_id in new_channel_ids])
-                    placeholders = ", ".join("?" for _ in new_channel_ids)
-                    query = f"SELECT channel_id, rai_id FROM channels WHERE channel_id IN ({placeholders})"
-                    res = await c.execute(query, tuple(new_channel_ids))
-                    channel_dict.update({row[0]: row[1] for row in await res.fetchall()})
+                        if new_channel_ids:
+                            await c.executemany("INSERT INTO channels (channel_id) VALUES (?)",
+                                                [(channel_id,) for channel_id in new_channel_ids])
+                            placeholders = ", ".join("?" for _ in new_channel_ids)
+                            query = f"SELECT channel_id, rai_id FROM channels WHERE channel_id IN ({placeholders})"
+                            res = await c.execute(query, tuple(new_channel_ids))
+                            channel_dict.update({row[0]: row[1] for row in await res.fetchall()})
 
-                if new_user_ids:
-                    await c.executemany("INSERT INTO users (user_id) VALUES (?)",
-                                        [(user_id,) for user_id in new_user_ids])
-                    placeholders = ", ".join("?" for _ in new_user_ids)
-                    query = f"SELECT user_id, rai_id FROM users WHERE user_id IN ({placeholders})"
-                    res = await c.execute(query, tuple(new_user_ids))
-                    user_dict.update({row[0]: row[1] for row in await res.fetchall()})
+                        if new_user_ids:
+                            await c.executemany("INSERT INTO users (user_id) VALUES (?)",
+                                                [(user_id,) for user_id in new_user_ids])
+                            placeholders = ", ".join("?" for _ in new_user_ids)
+                            query = f"SELECT user_id, rai_id FROM users WHERE user_id IN ({placeholders})"
+                            res = await c.execute(query, tuple(new_user_ids))
+                            user_dict.update({row[0]: row[1] for row in await res.fetchall()})
 
-                param_list = [
-                    (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id],
-                     channel_dict[msg.channel.id], 'en')
-                    for msg in message_pool]
-                query = "INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
-                    "VALUES (?, ?, ?, ?, ?)"
-                await c.executemany(query, param_list)
+                        param_list = [
+                            (msg.id, user_dict[msg.author.id], guild_dict[msg.guild.id],
+                             channel_dict[msg.channel.id], 'en')
+                            for msg in message_pool]
+                        query = "INSERT INTO messages (message_id, user_id, guild_id, channel_id, language) " \
+                            "VALUES (?, ?, ?, ?, ?)"
+                        await c.executemany(query, param_list)
+                break
+            except sqlite3.OperationalError as error:
+                if delay is None or "database is locked" not in str(error).lower():
+                    raise
+                await asyncio.sleep(delay)
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
