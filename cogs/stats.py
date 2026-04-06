@@ -850,12 +850,15 @@ class Stats(commands.Cog):
                 return
 
         if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
-            user_sentiment = self.bot.db['sentiments'][str(
+            sentiment_data = self.bot.db['sentiments'][str(
                 ctx.guild.id)].get(user_id, [])
-            len_user_sentiment = len(user_sentiment)
-            if user_sentiment:
-                user_sentiment = round(
-                    sum(user_sentiment) * 1000 / len_user_sentiment, 2)
+            len_user_sentiment, total_sentiment = hf.get_sentiment_count_and_sum(sentiment_data)
+            user_sentiment = 0
+            if len_user_sentiment:
+                if len_user_sentiment == 1000:
+                    user_sentiment = round(total_sentiment, 2)
+                else:
+                    user_sentiment = round(total_sentiment * 1000 / len_user_sentiment, 2)
         else:
             return
 
@@ -892,12 +895,12 @@ class Stats(commands.Cog):
         user_sentiments = []
         sentiments_dict = self.bot.db['sentiments'][str(ctx.guild.id)]
         for user_id in sentiments_dict:
-            user_sentiment = sentiments_dict[user_id]
-            if len(user_sentiment) == 1000:
+            count, total_sentiment = hf.get_sentiment_count_and_sum(sentiments_dict[user_id])
+            if count == 1000:
                 member = await utils.member_converter(ctx, user_id)
                 if not member:
                     continue
-                user_sentiments.append((member, round(sum(user_sentiment), 2)))
+                user_sentiments.append((member, round(total_sentiment, 2)))
 
         user_sentiments.sort(key=lambda x: x[1], reverse=reverse)
 

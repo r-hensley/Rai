@@ -15,7 +15,7 @@ from collections import deque, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Optional, List, Union, Tuple, Iterable, Callable
+from typing import Optional, List, Union, Tuple, Iterable, Callable, Any
 from unittest.mock import Mock
 from urllib.parse import urlparse
 
@@ -92,6 +92,22 @@ def count_messages(member_id: int, guild: discord.Guild) -> int:
         return msgs
     except (KeyError, AttributeError):
         return 0
+
+
+def get_sentiment_count_and_sum(sentiment_data: Any) -> tuple[int, float]:
+    """Returns (count, sum) for both legacy sentiment lists and compact sentiment dicts."""
+    if isinstance(sentiment_data, dict):
+        count = sentiment_data.get('count', 0)
+        total = sentiment_data.get('sum', 0.0)
+        try:
+            return max(int(count), 0), float(total)
+        except (TypeError, ValueError):
+            return 0, 0.0
+
+    if isinstance(sentiment_data, list):
+        return len(sentiment_data), float(sum(sentiment_data))
+
+    return 0, 0.0
 
 
 def get_top_stats_list(stats_type: str,

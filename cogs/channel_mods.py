@@ -1155,17 +1155,16 @@ class ChannelMods(commands.Cog):
 
             # ### Add sentiment information ###
             if str(ctx.guild.id) in self.bot.db.get('sentiments', []):
-                user_sentiment = self.bot.db['sentiments'][str(
+                sentiment_data = self.bot.db['sentiments'][str(
                     ctx.guild.id)].get(str(member.id), [])
-                num_sentiment_msg = len(user_sentiment)
-                if user_sentiment:
+                num_sentiment_msg, total_sentiment = hf.get_sentiment_count_and_sum(sentiment_data)
+                if num_sentiment_msg:
                     if num_sentiment_msg == 1000:
-                        user_sentiment_total = round(sum(user_sentiment), 2)
+                        user_sentiment_total = round(total_sentiment, 2)
                         emb.description += f"\n**`Recent sentiment ({num_sentiment_msg} msgs)`** : " \
                             f"{user_sentiment_total}"
                     else:
-                        user_sentiment_total = round(
-                            sum(user_sentiment) * 1000 / num_sentiment_msg, 2)
+                        user_sentiment_total = round(total_sentiment * 1000 / num_sentiment_msg, 2)
                         emb.description += f"\n**`Recent sentiment (scale {num_sentiment_msg}→1000 msgs)`** : " \
                             f"{user_sentiment_total}"
 

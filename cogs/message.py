@@ -1062,12 +1062,28 @@ class Message(commands.Cog):
         if str(msg.guild.id) not in self.bot.db['sentiments']:
             self.bot.db['sentiments'][str(msg.guild.id)] = {}
         config = self.bot.db['sentiments'][str(msg.guild.id)]
+        user_id = str(msg.author.id)
+        user_sentiment = config.get(user_id)
 
-        if str(msg.author.id) not in config:
-            config[str(msg.author.id)] = [sentiment]
+        if isinstance(user_sentiment, list):
+            user_sentiment = {
+                'count': len(user_sentiment),
+                'sum': float(sum(user_sentiment)),
+            }
+        elif not isinstance(user_sentiment, dict):
+            user_sentiment = {'count': 0, 'sum': 0.0}
+
+        count = max(int(user_sentiment.get('count', 0)), 0)
+        total = float(user_sentiment.get('sum', 0.0))
+
+        if count < 1000:
+            count += 1
+            total += sentiment
         else:
-            config[str(msg.author.id)] = config[str(msg.author.id)][-999:]
-            config[str(msg.author.id)].append(sentiment)
+            count = 1000
+            total = total - (total / 1000) + sentiment
+
+        config[user_id] = {'count': count, 'sum': total}
 
     # """Message counting"""
 
