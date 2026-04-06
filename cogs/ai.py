@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -10,7 +11,7 @@ from typing import Any, Union
 import aiohttp
 import discord
 import openai
-from discord.ext import commands
+from discord.ext import commands, tasks
 from lingua import Language
 from openai import AsyncOpenAI
 
@@ -19,6 +20,13 @@ from .utils import helper_functions as hf
 
 SP_SERVER_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
+SUMMARY_SOURCE_CHANNEL_ID = 296013414755598346
+SUMMARY_DESTINATION_CHANNEL_ID = 1490594218798743572
+SUMMARY_LOG_CHANNEL_ID = 1351956893119283270
+SUMMARY_HEADER = "**4-Hour Summary**"
+SUMMARY_WINDOW_HOURS = 4
+SUMMARY_MAX_MESSAGES = 1200
+SUMMARY_MAX_TRANSCRIPT_CHARS = 100_000
 
 
 def _format_ts(ts: int | float | None) -> str:
@@ -118,7 +126,8 @@ async def openai_request(coro_func, *, retries: int = 3, base_delay: float = 2.0
 
 def setup_openai_client(bot: Any) -> None:
     if hasattr(bot, "openai"):
-        return
+        if bot.openai:
+            return
 
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -198,13 +207,233 @@ async def moderation_with_image_fallback(
         return moderation_result
 
 
+def floor_to_summary_window(dt: datetime) -> datetime:
+    """
+Floors the given datetime to the nearest previous summary window boundary (e.g., 00:00, 04:00, 08:00, etc. UTC).
+    """
+    dt = dt.astimezone(timezone.utc)
+    floored_hour = dt.hour - (dt.hour % SUMMARY_WINDOW_HOURS)
+    return dt.replace(hour=floored_hour, minute=0, second=0, microsecond=0)
+
+
+def fake_jump_url_for_time(channel: discord.TextChannel, dt: datetime) -> str:
+    message_id = discord.utils.time_snowflake(dt.astimezone(timezone.utc))
+    return f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{message_id}"
+
+
+def parse_json_block(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return json.loads(cleaned)
+
+
 class AI(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.channel_summary_loop.start()
+
+    def cog_unload(self):
+        self.channel_summary_loop.cancel()
 
     def ai_features_enabled(self) -> bool:
         config = self.bot.db.setdefault("ai_features", {})
         return config.get("enabled", True)
+
+    async def get_previous_channel_summary(self, channel: discord.TextChannel) -> str:
+        async for message in channel.history(limit=20):
+            if message.author != self.bot.user:
+                continue
+            if not message.content.startswith(SUMMARY_HEADER):
+                continue
+            return message.content
+        return "No previous summary available."
+
+    def serialize_summary_message(self, message: discord.Message) -> str | None:
+        content_parts = []
+        if message.content:
+            content_parts.append(re.sub(r"\s+", " ", message.content).strip())
+        if message.attachments:
+            content_parts.append(f"attachments={', '.join(a.filename for a in message.attachments[:3])}")
+        if message.embeds:
+            content_parts.append(f"embeds={len(message.embeds)}")
+        content = " | ".join(part for part in content_parts if part).strip()
+        if not content:
+            return None
+        if len(content) > 350:
+            content = content[:347] + "..."
+        created_at = message.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        author_name = message.author.display_name.replace("\n", " ")
+        return f"[id={message.id}][author={author_name}] {content}"
+
+    async def collect_summary_messages(
+        self,
+        channel: discord.TextChannel,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> tuple[list[discord.Message], str, bool]:
+        messages: list[discord.Message] = []
+        transcript_lines: list[str] = []
+        transcript_chars = 0
+        broke_early = False
+        async for message in channel.history(limit=None, after=start_time, before=end_time, oldest_first=True):
+            serialized = self.serialize_summary_message(message)
+            if not serialized:
+                continue
+            projected_chars = transcript_chars + len(serialized) + 1
+            if len(messages) >= SUMMARY_MAX_MESSAGES or projected_chars > SUMMARY_MAX_TRANSCRIPT_CHARS:
+                broke_early = True
+                break
+            messages.append(message)
+            transcript_lines.append(serialized)
+            transcript_chars = projected_chars
+        return messages, "\n".join(transcript_lines), broke_early
+
+    async def build_channel_summary(self, start_time: datetime, end_time: datetime) -> str | None:
+        source_channel = self.bot.get_channel(SUMMARY_SOURCE_CHANNEL_ID)
+        destination_channel = self.bot.get_channel(SUMMARY_DESTINATION_CHANNEL_ID)
+        if not isinstance(source_channel, discord.TextChannel):
+            raise ValueError(f"Source channel {SUMMARY_SOURCE_CHANNEL_ID} not found.")
+        if not isinstance(destination_channel, discord.TextChannel):
+            raise ValueError(f"Destination channel {SUMMARY_DESTINATION_CHANNEL_ID} not found.")
+
+        previous_summary = await self.get_previous_channel_summary(destination_channel)
+        source_messages, transcript, broke_early = await self.collect_summary_messages(source_channel, start_time, end_time)
+        if not source_messages or not transcript.strip():
+            return None
+
+        message_lookup = {message.id: message for message in source_messages}
+        prompt = (
+            "Previous summary from the summary log channel:\n"
+            f"{previous_summary}\n\n"
+            f"New transcript covering {start_time.strftime('%Y-%m-%d %H:%M UTC')} to "
+            f"{end_time.strftime('%Y-%m-%d %H:%M UTC')}:\n"
+            f"{transcript}"
+        )
+        messages = [
+            {
+                "role": "developer",
+                "content": (
+                    "You summarize a Discord channel every 4 hours. "
+                    "Group the conversation into distinct topics of discussion. "
+                    "Use the previous summary to continue topics that are ongoing instead of restarting them. "
+                    "Ignore trivial chatter unless it materially affects a topic. "
+                    "Return valid JSON only with this schema: "
+                    "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
+                    "Requirements: Choose start_message_id from the transcript exactly, "
+                    "order topics by when they started, and keep the entire response compact enough "
+                    "that each topic text stays under 2000 characters "
+                    "(there is no need to use all 2000 characters if not necessary)."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ]
+
+        _, response_text = await chat_completion_text(
+            self.bot,
+            messages=messages,
+            log_channel_id=SUMMARY_LOG_CHANNEL_ID,
+        )
+        payload = parse_json_block(response_text)
+        topics = payload.get("topics", [])
+        if not isinstance(topics, list) or not topics:
+            return None
+
+        lines = [
+            SUMMARY_HEADER,
+            (
+                f"[{discord.utils.format_dt(start_time, 'f')}]"
+                f"({fake_jump_url_for_time(source_channel, start_time)}) to "
+                f"[{discord.utils.format_dt(end_time, 'f')}]"
+                f"({fake_jump_url_for_time(source_channel, end_time)})"
+            ),
+            "",
+        ]
+        for index, topic in enumerate(topics, start=1):
+            if not isinstance(topic, dict):
+                continue
+            title = str(topic.get("title", "")).strip() or f"Topic {index}"
+            summary = str(topic.get("summary", "")).strip()
+            try:
+                start_message_id = int(topic.get("start_message_id"))
+            except (TypeError, ValueError):
+                start_message_id = 0
+
+            start_message = message_lookup.get(start_message_id)
+            jump_url = start_message.jump_url if start_message else None
+            lines.append(f"**{index}. {title}**")
+            if jump_url:
+                lines.append(f"Started: {jump_url}")
+            if summary:
+                lines.append(summary)
+            lines.append("")
+
+        final_text = "\n".join(lines).strip()
+        if final_text == SUMMARY_HEADER:
+            return None
+        return final_text
+
+    async def maybe_run_channel_summary(self, *, force: bool = False) -> bool:
+        if not self.ai_features_enabled():
+            return False
+        if not self.bot.openai:
+            return False
+
+        # Calculate the latest completed summary window end time
+        # Example: if it's currently 10:17 UTC and SUMMARY_WINDOW_HOURS is 4, the latest completed window end is 08:00 UTC
+        now = discord.utils.utcnow().replace(tzinfo=timezone.utc)
+        latest_completed_end = floor_to_summary_window(now)
+        if latest_completed_end == now:
+            latest_completed_end -= timedelta(hours=SUMMARY_WINDOW_HOURS)
+
+        config = self.bot.db['ai_features']
+        last_completed_iso = config.get("last_completed_window_end", None)
+        if last_completed_iso:
+            next_window_end = datetime.fromisoformat(last_completed_iso)
+            if next_window_end.tzinfo is None:
+                next_window_end = next_window_end.replace(tzinfo=timezone.utc)
+            next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
+        else:
+            next_window_end = latest_completed_end
+
+        if not force and next_window_end > latest_completed_end:
+            return False
+
+        destination_channel = self.bot.get_channel(SUMMARY_DESTINATION_CHANNEL_ID)
+        if not isinstance(destination_channel, discord.TextChannel):
+            raise ValueError(f"Destination channel {SUMMARY_DESTINATION_CHANNEL_ID} not found.")
+
+        posted_summary = False
+        while next_window_end <= latest_completed_end:
+            window_start = next_window_end - timedelta(hours=SUMMARY_WINDOW_HOURS)
+            summary_text = await self.build_channel_summary(window_start, next_window_end)
+            if summary_text:
+                for segment in utils.split_text_into_segments(summary_text, 2000):
+                    await utils.safe_send(destination_channel, segment)
+                posted_summary = True
+            config["last_completed_window_end"] = next_window_end.isoformat()
+            next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
+            if force:
+                break
+        return posted_summary
+
+    @tasks.loop(minutes=15)
+    async def channel_summary_loop(self):
+        try:
+            await self.maybe_run_channel_summary()
+        except Exception as e:
+            traceback_channel_id = int(os.getenv("TRACEBACK_LOGGING_CHANNEL", "0"))
+            if traceback_channel_id:
+                await hf.segment_send(
+                    traceback_channel_id,
+                    f"Channel summary loop failed: `{e}`\n```py\n{traceback.format_exc()}\n```",
+                )
+            raise
+
+    @channel_summary_loop.before_loop
+    async def before_channel_summary_loop(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_message(self, msg_in: discord.Message):
@@ -686,8 +915,8 @@ class AI(commands.Cog):
         moderations_status, _, moderations_data = requests[1]
         completions_status, _, completions_data = requests[2]
 
-        lines = [f"OpenAI quota info using `{key_source}`"]
-        lines.append("There is no simple 'remaining quota' endpoint here; this command shows org cost/usage endpoints.")
+        lines = [f"OpenAI quota info using `{key_source}`",
+                 "There is no simple 'remaining quota' endpoint here; this command shows org cost/usage endpoints."]
 
         if costs_status == 200:
             lines.append(f"Costs, last 24h: {summarize_cost_buckets(costs_data)}")
@@ -745,6 +974,22 @@ class AI(commands.Cog):
 
         config["enabled"] = new_state
         await utils.safe_reply(ctx, f"AI features in `cogs.ai` are now {'enabled' if new_state else 'disabled'}.")
+
+    @commands.command(name="summary_now")
+    @commands.is_owner()
+    async def summary_now(self, ctx: commands.Context):
+        if not self.ai_features_enabled():
+            await utils.safe_reply(ctx, "AI features in this module are disabled.")
+            return
+        if not self.bot.openai:
+            await utils.safe_reply(ctx, "OpenAI not initialized")
+            return
+
+        posted_summary = await self.maybe_run_channel_summary(force=True)
+        if posted_summary:
+            await utils.safe_reply(ctx, "Posted the latest completed 4-hour summary.")
+        else:
+            await utils.safe_reply(ctx, "No summary was posted for the latest completed 4-hour window.")
 
 
 async def setup(bot: commands.Bot):
