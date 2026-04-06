@@ -484,8 +484,6 @@ class Message(commands.Cog):
         if msg.author.id != MODBOT_ID:
             return
 
-        t1 = log_time(t1, f"[{mini_id}] 1/2. after sleeping / setting up")
-
         # if it's the first message of the thread, ignore all the text past "Recent reports:"
         if msg.id == msg.channel.id:
             content = content.split("**__Recent reports:__**")[0]
@@ -493,9 +491,6 @@ class Message(commands.Cog):
         # if it's NOT the first message, then ignore the >>> <@ID>: portion of the message
         else:
             content = re.sub(r">>> <@!?\d{17,22}>: ", "", content)
-
-        t1 = log_time(t1, f"[{mini_id}] 3. after splitting content")
-        # content = msg.content[25:]
 
         modlog: commands.Command = self.bot.get_command("modlog")
         await msg.get_ctx()
@@ -518,8 +513,6 @@ class Message(commands.Cog):
             # noinspection PyTypeChecker
             await msg.ctx.invoke(modlog, id_in=str(user_id))
 
-        t1 = log_time(t1, f"[{mini_id}] 4. after searching for user IDs")
-
         # Search for usernames like Ryry013#1234
         usernames = re.findall(r"(\S+)#(\d{4})", content)
         usernames = set(usernames)  # eliminate duplicate usernames
@@ -531,7 +524,6 @@ class Message(commands.Cog):
                     continue
                 # noinspection PyTypeChecker
                 await msg.ctx.invoke(modlog, id_in=str(user.id))
-        t1 = log_time(t1, f"[{mini_id}] 5. command finish")
 
     @on_message_function(allow_bots=True)
     async def log_ciri_warnings(self, msg: hf.RaiMessage):

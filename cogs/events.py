@@ -101,9 +101,11 @@ class Events(commands.Cog):
             # was cirilla the one who reacted to the message
             if user.id != cirilla_id:
                 return
+            cirilla = user  # alias for clarity
+            new_user = reaction.message.author
 
             # is the user untagged
-            user_role_ids = [role.id for role in user.roles]
+            user_role_ids = [role.id for role in new_user.roles]
             if (native_english_role_id in user_role_ids
                     or native_japanese_role_id in user_role_ids
                     or native_other_role_id in user_role_ids):
@@ -163,39 +165,6 @@ class Events(commands.Cog):
                 await sent_msg.edit(content=new_msg)
 
         utils.asyncio_task(check_untagged_jho_users)
-
-        async def remove_from_waiting_list():
-            if reaction.emoji == '🚫':
-                if user == self.bot.user:
-                    return
-                if reaction.message.channel == user.dm_channel:
-                    config = self.bot.db['report']
-                    for guild_id in config:
-                        if user.id in config[guild_id]['waiting_list']:
-                            config[guild_id]['waiting_list'].remove(user.id)
-                            await user.send("Understood.  You've been removed from the waiting list.  Have a nice day.")
-
-                            mod_channel = self.bot.get_channel(
-                                self.bot.db["mod_channel"][guild_id])
-                            msg_to_mod_channel = f"The user {user.name} was previously on the wait list for the " \
-                                f"report room but just removed themselves."
-                            await utils.safe_send(mod_channel, msg_to_mod_channel)
-                            return
-                    await user.send("You aren't on the waiting list.")
-
-        await remove_from_waiting_list()
-
-        # "I or people with manage messages permission can delete bot messages by attaching X or trash can"
-
-        async def delete_rai_message():
-            if str(reaction.emoji) in '🗑':
-                if user == self.bot.user:
-                    return  # Don't let Rai delete messages that Rai attaches :x: to
-                if reaction.message.author == self.bot.user:
-                    if user.id == self.bot.owner_id or reaction.message.channel.permissions_for(user).manage_messages:
-                        await reaction.message.delete()
-
-        await delete_rai_message()
 
         # "Count emojis for stats"
 
