@@ -740,19 +740,23 @@ class Logger(commands.Cog):
         if event_type == "edits":
             if not payload.data.get('edited_timestamp', None):
                 return
+
+        guild_config: dict = self.bot.db[event_type][guild_id_str]
+        logging_channel = self.bot.get_channel(int(guild_config['channel']))
+        if not logging_channel:
+            return
                 
         # for bot messages: if message is in bot.cached_messages, ignore it here
         for msg in self.bot.cached_messages:
             if msg.id == payload.message_id:
                 return
-            
-        guild_config: dict = self.bot.db[event_type][guild_id_str]
-        logging_channel = self.bot.get_channel(int(guild_config['channel']))
-        if not logging_channel:
-            return
         
-        # try to get old message from bot.message_queue
-        mini_message_list: list[hf.MiniMessage] = self.bot.message_queue.find(payload.message_id)
+        # Avoid a full queue scan for messages older than the queue window.
+        message_queue = getattr(self.bot, "message_queue", None)
+        queue_could_contain_message = bool(message_queue) and message_queue[0].created_at < original_timestamp
+        mini_message_list: list[hf.MiniMessage] = (
+            message_queue.find(payload.message_id) if queue_could_contain_message else []
+        )
         if mini_message_list:
             old_message = mini_message_list[0]
         else:
@@ -761,7 +765,7 @@ class Logger(commands.Cog):
                 emb = utils.red_embed(f"**A message was deleted.** This is all I know:\n")
                 
                 # check if the message that wasn't found was within the queue's depth
-                if self.bot.message_queue[0].created_at < original_timestamp:
+                if queue_could_contain_message:
                     # this message theoretically should've been in the queue
                     # if it's not, that means it's most likely a bot message, so it wasn't recorded
                     emb.description += f"*(it's possible this was an old bot message that was deleted)*\n"
