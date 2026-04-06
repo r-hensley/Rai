@@ -1311,17 +1311,6 @@ class Logger(commands.Cog):
                                            list_of_readd_roles, failed_roles)
             log_message = await utils.safe_send(log_channel, member.id, embed=x)
 
-            # Logging join info for modlog pulls
-            recorded_info = {}
-            if log_message:
-                recorded_info['jump_url'] = log_message.jump_url
-
-            if used_invite:
-                recorded_info['invite'] = getattr(used_invite[0], "code", None)
-                # invite_creator = getattr(used_invite[0].inviter, "id", None)
-
-            server_config.setdefault('join_history', {})[str(member.id)] = recorded_info
-
             # Special Japanese server invite management
             if guild_id == str(JP_SERV_ID):
                 jpJHO = self.bot.get_channel(JP_SERV_JHO_ID)
@@ -1600,12 +1589,6 @@ class Logger(commands.Cog):
                     return
                 if emb:
                     await utils.safe_send(channel, embed=emb)
-
-        # ### Remove from join_history used in modlog command
-        try:
-            del self.bot.db['joins'][str(member.guild.id)]['join_history'][str(member.id)]
-        except KeyError:
-            pass
 
     # ############### nicknames/usernames #####################
 

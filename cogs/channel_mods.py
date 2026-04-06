@@ -17,39 +17,6 @@ SP_SERV = 243838819743432704
 JP_SERV = 189571157446492161
 
 
-async def fix_join_history_invite(ctx: commands.Context, user_id: int, join_history: dict) -> dict:
-    """Fix the invite used in join_history database for the year period of bugged logging"""
-    if not join_history:
-        return join_history
-    notification_message_url = join_history['jump_url']
-    # example: https://discord.com/channels/266695661670367232/321837027295363073/858265556297187328
-    _guild_id, channel_id, message_id = map(
-        int, notification_message_url.split('/')[-3:])
-    channel = ctx.bot.get_channel(channel_id)
-
-    if not channel:
-        return join_history
-
-    try:
-        message = await channel.fetch_message(message_id)
-    except (discord.NotFound, discord.HTTPException):
-        return join_history
-
-    if not message.embeds:
-        return join_history
-
-    embed = message.embeds[0]
-    invite_field = discord.utils.get(embed.fields, name="Invite link used")
-    if not invite_field:
-        return join_history
-    if invite_field.value == "Through server discovery":
-        used_invite = "Through server discovery"
-    else:
-        used_invite = invite_field.value.replace("`", "").split(' ')[0]
-    join_history['invite'] = used_invite
-    return join_history
-
-
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
     mods, see `;help channel_mod`. Submods and admins can also use these commands."""
@@ -1202,55 +1169,6 @@ class ChannelMods(commands.Cog):
                         emb.description += f"\n**`Recent sentiment (scale {num_sentiment_msg}→1000 msgs)`** : " \
                             f"{user_sentiment_total}"
 
-        join_history = self.bot.db['joins'].get(str(ctx.guild.id), {}).get(
-            'join_history', {}).get(user_id, None)
-
-        # most invites recorded between june 26, 2021 and july 23, 2022 had a bug that caused them to default to
-        # the same invite. For those invites, I jump to the jump_url in the join_history object and check in that embed
-        # what the correct invite was
-        if member:
-            if datetime(2021, 6, 25, tzinfo=timezone.utc) <= member.joined_at <= datetime(2022, 7, 24,
-                                                                                          tzinfo=timezone.utc):
-                join_history = await fix_join_history_invite(ctx, user_id, join_history)
-        else:
-            join_history = await fix_join_history_invite(ctx, user_id, join_history)
-
-        if join_history:
-            invite: Optional[str]
-            invite_creator_id: Optional[int]
-            if invite := join_history.get('invite'):
-                if invite not in ['Through server discovery', ctx.guild.vanity_url_code]:
-                    # all old join entries don't have this field
-                    invite_creator_id = join_history.get('invite_creator')
-                    if not invite_creator_id:
-                        invite_obj: Optional[discord.Invite] = discord.utils.find(lambda i: i.code == invite,
-                                                                                  await ctx.guild.invites())
-                        if not invite_obj:
-                            if invite == ctx.guild.vanity_url_code:
-                                invite_obj = await ctx.guild.vanity_invite()
-
-                        invite_creator_id = getattr(
-                            getattr(invite_obj, "inviter", None), "id", None)
-
-                    invite_creator_user = None
-                    if invite_creator_id:
-                        try:
-                            invite_creator_user = await ctx.bot.fetch_user(invite_creator_id)
-                        except (discord.NotFound, discord.HTTPException):
-                            pass
-
-                    if invite_creator_user:
-                        invite_author_str = \
-                            f"by {str(invite_creator_user)} " \
-                            f"([ID](https://rai/inviter-id-is-I{invite_creator_id}))"
-                    else:
-                        invite_author_str = "by unknown user"
-                else:
-                    invite_author_str = ""
-
-                emb.description += f"\n[**`Used Invite`**]({join_history['jump_url']}) : " \
-                    f"{invite} {invite_author_str}"
-
         #
         #
         # ############ Current Language Roles ############
@@ -1915,18 +1833,10 @@ class ChannelMods(commands.Cog):
                     user_id_3: str = None):
         """Compares the join/leave dates, creation dates, and used invite of two users"""
         guild = interaction.guild
-        join_history = self.bot.db['joins'].get(
-            str(guild.id), {}).get('join_history', {})
-        if not join_history:
-            await interaction.response.send_message("This guild is not set up properly to use this command",
-                                                    ephemeral=True)
-            return
-
         users = []
         joins = []
         modlogs = []
         creates = []
-        invites = []
 
         try:
             user_ids = list(
@@ -1953,8 +1863,6 @@ class ChannelMods(commands.Cog):
             modlogs.append(self.bot.db['modlog'].get(
                 str(guild.id), {}).get(str(user_id), []))
             creates.append(user.created_at)
-            invites.append(join_history.get(
-                (str(user.id)), {}).get("invite", None))
 
         emb = discord.Embed()
         for num, user in enumerate(users):
@@ -1974,9 +1882,6 @@ class ChannelMods(commands.Cog):
                         modlog_entry['date'])
                     emb_value += f"Last modlog date ({modlog_entry['type']}): <t:{int(last_modlog_date.timestamp())}>\n"
                     break
-
-            if invite := invites[num]:
-                emb_value += f"Invite used: {invite}\n"
 
             emb.add_field(name=emb_name, value=emb_value, inline=False)
 
