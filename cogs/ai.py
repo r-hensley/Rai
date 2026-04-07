@@ -317,7 +317,8 @@ class AI(commands.Cog):
                 "content": (
                     "You summarize a Discord channel every 4 hours. "
                     "Group the conversation into distinct topics of discussion. "
-                    "Use the previous summary to continue topics that are ongoing instead of restarting them. "
+                    "If needed, use the previous summary for context to continue topics that are ongoing "
+                    "instead of restarting them. Do not re-summarize things from the 'previous summary' section. "
                     "Ignore trivial chatter unless it materially affects a topic. "
                     "Return valid JSON only with this schema: "
                     "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
