@@ -305,10 +305,10 @@ class AI(commands.Cog):
 
         message_lookup = {message.id: message for message in source_messages}
         prompt = (
-            "Previous summary from the summary log channel:\n"
+            "Previous summary from the summary log channel (don't re-summarize this):\n"
             f"{previous_summary}\n\n"
             f"New transcript covering {start_time.strftime('%Y-%m-%d %H:%M UTC')} to "
-            f"{end_time.strftime('%Y-%m-%d %H:%M UTC')}:\n"
+            f"{end_time.strftime('%Y-%m-%d %H:%M UTC')} (summarize this):\n"
             f"{transcript}"
         )
         messages = [
