@@ -374,10 +374,6 @@ class Quotes(commands.Cog):
 
         parts = payload.split(maxsplit=1)
         if len(parts) < 2:
-            await message.channel.send(
-                "Usage: `.. quote_name quote_text`",
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
             return
 
         name, body = parts
@@ -412,10 +408,6 @@ class Quotes(commands.Cog):
     async def _handle_quote_print(self, message: discord.Message, payload: str):
         name = payload.strip()
         if not name:
-            await message.channel.send(
-                "Usage: `... quote_name`",
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
             return
 
         matches = self._find_by_name(message.guild.id, name)  # pyright: ignore[reportOptionalMemberAccess]
