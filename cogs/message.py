@@ -1479,6 +1479,7 @@ class Message(commands.Cog):
         if msg.channel.id in config['ignored']:
             return
         spam_count = 1
+        seen_channel_ids = {msg.channel.id}
 
         def normalize_url(url: str) -> str:
             if not url:
@@ -1511,14 +1512,15 @@ class Message(commands.Cog):
         target_signature = message_signature(msg)
 
         def check(m):
-            return message_signature(m) == target_signature
+            return message_signature(m) == target_signature and m.channel.id not in seen_channel_ids
 
         while spam_count < config['message_threshold']:
             try:
-                await self.bot.wait_for('message', timeout=config['time_threshold'], check=check)
+                matched_msg = await self.bot.wait_for('message', timeout=config['time_threshold'], check=check)
             except asyncio.TimeoutError:
                 return
             else:
+                seen_channel_ids.add(matched_msg.channel.id)
                 spam_count += 1
 
         reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshold']} " \
