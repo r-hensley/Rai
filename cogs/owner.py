@@ -61,41 +61,46 @@ class Owner(commands.Cog):
         guild_info = {}
         id_to_guild = {str(g.id): g for g in self.bot.guilds}
         for guild_id in config.copy():
+            try:
+                guild = id_to_guild[guild_id]
+            except KeyError:
+                await ctx.send(f"Guild with ID {guild_id} not found, removing from stats")
+                del config[guild_id]
+                continue
+
             message_count = 0
             for day in config[guild_id]['messages'].copy():
-                days_ago = (discord.utils.utcnow() - datetime.strptime(day,
-                            "%Y%m%d").replace(tzinfo=timezone.utc)).days
-                if days_ago > 30:
-                    del config[guild_id]['messages'][day]
-                else:
-                    message_count += config[guild_id]['messages'][day]
+                # days_ago = (discord.utils.utcnow() - datetime.strptime(day,
+                #             "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                # if days_ago > 30:
+                #     del config[guild_id]['messages'][day]
+                # else:
+                message_count += config[guild_id]['messages'][day]
 
             command_count = 0
             for day in config[guild_id]['commands'].copy():
-                days_ago = (discord.utils.utcnow() - datetime.strptime(day,
-                            "%Y%m%d").replace(tzinfo=timezone.utc)).days
-                if days_ago > 30:
-                    del config[guild_id]['commands'][day]
-                else:
-                    command_count += config[guild_id]['commands'][day]
+                # days_ago = (discord.utils.utcnow() - datetime.strptime(day,
+                #             "%Y%m%d").replace(tzinfo=timezone.utc)).days
+                # if days_ago > 30:
+                #     del config[guild_id]['commands'][day]
+                # else:
+                command_count += config[guild_id]['commands'][day]
 
-            guild = id_to_guild[guild_id]
-            bot_num = len([m for m in guild.members if m.bot])
-            human_num = len([m for m in guild.members if not m.bot])
+            bot_num = sum(1 for m in guild.members if m.bot)
+            human_num = guild.member_count - bot_num
             guild_info[guild] = {"messages": message_count,
                                  "member_count": guild.member_count,
                                  "bots": bot_num,
                                  "humans": human_num,
                                  "commands": command_count}
         msg = ''
-        for guild in guild_info:
-            info = guild_info[guild]
+        for guild, info in sorted(guild_info.items(), key=lambda item: item[1]['messages'], reverse=True):
             msg_addition = f"**{guild.name}: ({guild.id})**" \
-                f"\n{info['messages']} messages" \
-                f"\n{info['member_count']} members " \
+                f"\n  {info['messages']} messages" \
+                f"\n  {info['member_count']} members " \
                 f"({info['humans']} humans, {info['bots']} bots, " \
                 f"{round(info['humans'] / info['member_count'], 2)})" \
-                f"\n{info['commands']} commands\n"
+                f"\n  {info['commands']} commands\n"
             if len(msg + msg_addition) < 2000:
                 msg += msg_addition
             else:

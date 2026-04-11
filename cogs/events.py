@@ -55,16 +55,10 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        to_delete = []
-        for x in self.bot.db:
-            try:
-                for key in self.bot.db[x]:
-                    if str(guild.id) == key:
-                        to_delete.append((x, key))
-            except TypeError:
-                continue
-        for i in to_delete:
-            del self.bot.db[i[0]][i[1]]
+        guild_id = str(guild.id)
+        for section in self.bot.db.values():
+            if isinstance(section, dict) and guild_id in section:
+                del section[guild_id]
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
