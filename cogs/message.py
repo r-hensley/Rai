@@ -1480,6 +1480,7 @@ class Message(commands.Cog):
             return
         spam_count = 1
         seen_channel_ids = {msg.channel.id}
+        matched_messages = [msg]
 
         def normalize_url(url: str) -> str:
             if not url:
@@ -1520,8 +1521,10 @@ class Message(commands.Cog):
             except asyncio.TimeoutError:
                 return
             else:
-                seen_channel_ids.add(matched_msg.channel.id)
-                spam_count += 1
+                matched_messages.append(matched_msg)
+                if matched_msg.channel.id not in seen_channel_ids:
+                    seen_channel_ids.add(matched_msg.channel.id)
+                    spam_count += 1
 
         reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshold']} " \
             f"times in {config['time_threshold']} seconds."
@@ -1588,10 +1591,11 @@ class Message(commands.Cog):
             # remove from temporary list after all actions done
             self.bot.spammer_mute.remove(spammer_mute_entry)
 
-        def purge_check(m):
-            return m.author == msg.author and m.content == msg.content
-
-        await msg.channel.purge(limit=50, check=purge_check)
+        for matched_msg in matched_messages:
+            try:
+                await matched_msg.delete()
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
