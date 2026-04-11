@@ -403,7 +403,7 @@ class AI(commands.Cog):
 
         destination_channel = self.bot.get_channel(SUMMARY_DESTINATION_CHANNEL_ID)
         if not isinstance(destination_channel, discord.TextChannel):
-            raise ValueError(f"Destination channel {SUMMARY_DESTINATION_CHANNEL_ID} not found.")
+            return False
 
         posted_summary = False
         while next_window_end <= latest_completed_end:

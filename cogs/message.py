@@ -1480,8 +1480,38 @@ class Message(commands.Cog):
             return
         spam_count = 1
 
+        def normalize_url(url: str) -> str:
+            if not url:
+                return ""
+            split_url = urllib.parse.urlsplit(url)
+            return split_url.path or url
+
+        def message_signature(message: hf.RaiMessage) -> tuple:
+            attachments = tuple(
+                (
+                    getattr(attachment, "id", None),
+                    getattr(attachment, "filename", ""),
+                    normalize_url(getattr(attachment, "url", "")),
+                    normalize_url(getattr(attachment, "proxy_url", "")),
+                )
+                for attachment in getattr(message, "attachments", [])
+            )
+            embeds = tuple(
+                normalize_url(getattr(embed, "url", ""))
+                for embed in getattr(message, "embeds", [])
+            )
+            return (
+                getattr(message.guild, "id", None),
+                getattr(message.author, "id", None),
+                message.content,
+                attachments,
+                embeds,
+            )
+
+        target_signature = message_signature(msg)
+
         def check(m):
-            return m.guild == msg.guild and m.author == msg.author and m.content == msg.content
+            return message_signature(m) == target_signature
 
         while spam_count < config['message_threshold']:
             try:
