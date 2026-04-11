@@ -57,9 +57,13 @@ class Owner(commands.Cog):
     @commands.command()
     async def guildstats(self, ctx):
         """Checks stats on various guilds that the bot is on"""
+        def parse_day(day_str):
+            return datetime.strptime(day_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+
         config = self.bot.db['guildstats']
         guild_info = {}
         id_to_guild = {str(g.id): g for g in self.bot.guilds}
+        cutoff = discord.utils.utcnow() - timedelta(days=30)
         for guild_id in config.copy():
             try:
                 guild = id_to_guild[guild_id]
@@ -68,39 +72,41 @@ class Owner(commands.Cog):
                 del config[guild_id]
                 continue
 
-            message_count = 0
-            for day in config[guild_id]['messages'].copy():
-                # days_ago = (discord.utils.utcnow() - datetime.strptime(day,
-                #             "%Y%m%d").replace(tzinfo=timezone.utc)).days
-                # if days_ago > 30:
-                #     del config[guild_id]['messages'][day]
-                # else:
-                message_count += config[guild_id]['messages'][day]
+            message_days = config[guild_id]['messages']
+            message_count = sum(message_days.values())
+            message_count_last_month = sum(
+                count for day, count in message_days.items() if parse_day(day) >= cutoff
+            )
+            first_message_day = min(message_days, default=None)
 
-            command_count = 0
-            for day in config[guild_id]['commands'].copy():
-                # days_ago = (discord.utils.utcnow() - datetime.strptime(day,
-                #             "%Y%m%d").replace(tzinfo=timezone.utc)).days
-                # if days_ago > 30:
-                #     del config[guild_id]['commands'][day]
-                # else:
-                command_count += config[guild_id]['commands'][day]
+            command_days = config[guild_id]['commands']
+            command_count = sum(command_days.values())
+            command_count_last_month = sum(
+                count for day, count in command_days.items() if parse_day(day) >= cutoff
+            )
+            first_command_day = min(command_days, default=None)
 
             bot_num = sum(1 for m in guild.members if m.bot)
             human_num = guild.member_count - bot_num
             guild_info[guild] = {"messages": message_count,
+                                 "messages_last_month": message_count_last_month,
+                                 "first_message_day": first_message_day,
                                  "member_count": guild.member_count,
                                  "bots": bot_num,
                                  "humans": human_num,
-                                 "commands": command_count}
+                                 "commands": command_count,
+                                 "commands_last_month": command_count_last_month,
+                                 "first_command_day": first_command_day}
         msg = ''
         for guild, info in sorted(guild_info.items(), key=lambda item: item[1]['messages'], reverse=True):
+            first_message_day = info['first_message_day'] or "n/a"
+            first_command_day = info['first_command_day'] or "n/a"
             msg_addition = f"**{guild.name}: ({guild.id})**" \
-                f"\n  {info['messages']} messages" \
+                f"\n  {info['messages']} messages ({info['messages_last_month']} in last 30d, first {first_message_day})" \
                 f"\n  {info['member_count']} members " \
                 f"({info['humans']} humans, {info['bots']} bots, " \
                 f"{round(info['humans'] / info['member_count'], 2)})" \
-                f"\n  {info['commands']} commands\n"
+                f"\n  {info['commands']} commands ({info['commands_last_month']} in last 30d, first {first_command_day})\n"
             if len(msg + msg_addition) < 2000:
                 msg += msg_addition
             else:
