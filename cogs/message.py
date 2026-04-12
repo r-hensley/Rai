@@ -236,7 +236,8 @@ class ScamBanPromptView(utils.RaiView):
 
         await interaction.response.edit_message(
             content=(f"Banned {self.target.mention}.\n"
-                     f"Reason: `{self.ban_reason[:400]}`"),
+                     f"Reason: `{self.ban_reason[:400]}`\n"
+                     f"-# Incident handled by {interaction.user.mention}"),
             view=self
         )
         self.stop()
@@ -273,7 +274,8 @@ class ScamBanPromptView(utils.RaiView):
 
         await interaction.response.edit_message(
             content=f"Marked as false alarm. I've removed the timeout from {self.target.mention} "
-                    f"and deleted that modlog entry.",
+                    f"and deleted that modlog entry.\n"
+                    f"-# Incident handled by {interaction.user.mention}",
             view=self
         )
         self.stop()
