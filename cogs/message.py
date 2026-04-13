@@ -1705,8 +1705,11 @@ class Message(commands.Cog):
             source='auto', target='en').translate(content))
         trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(
             source='auto', target='es').translate(content))
-        translated = await trans_task
-        translated_2 = await trans_task_2
+        try:
+            translated = await trans_task
+            translated_2 = await trans_task_2
+        except Exception:
+            return
         if not translated or not translated_2:
             return
         eng_dist = LDist(re.sub(r'\W', '', translated),
