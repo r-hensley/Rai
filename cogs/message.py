@@ -19,6 +19,7 @@ from Levenshtein import distance as LDist
 from deep_translator import GoogleTranslator
 from deep_translator.exceptions import RequestError, TranslationNotFound
 import requests
+from socket import gaierror
 
 from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
@@ -1710,7 +1711,7 @@ class Message(commands.Cog):
         try:
             translated = await trans_task
             translated_2 = await trans_task_2
-        except (requests.exceptions.RequestException, RequestError, TranslationNotFound):
+        except (gaierror, requests.exceptions.RequestException, RequestError, TranslationNotFound):
             return
         if not translated or not translated_2:
             return
