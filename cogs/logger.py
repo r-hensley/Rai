@@ -2555,6 +2555,10 @@ class Logger(commands.Cog):
             except discord.Forbidden:
                 pass
             return
+        except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
+            # Transient Discord/API transport failures can occur while fetching audit logs.
+            # Continue without actor attribution instead of crashing the event listener.
+            pass
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
