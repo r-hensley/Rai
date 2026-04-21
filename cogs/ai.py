@@ -688,7 +688,7 @@ class AI(commands.Cog):
         if msg.channel.id in ignored_channel_ids:
             return
         parent_id = getattr(msg.channel, "parent_id", None)
-        if parent_id in ignored_channel_ids:
+        if parent_id and parent_id in ignored_channel_ids:
             return
 
         message_cog = self.bot.get_cog("Message")
