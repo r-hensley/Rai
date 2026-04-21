@@ -687,10 +687,10 @@ class AI(commands.Cog):
         ignored_channel_ids = {817074401680818186, 1141761988012290179}
         if msg.channel.id in ignored_channel_ids:
             return
-        parent_id = (
-            getattr(msg.channel, "parent_id", None)
-            or getattr(getattr(msg.channel, "parent", None), "id", None)
-        )
+        parent_id = getattr(msg.channel, "parent_id", None)
+        if not parent_id:
+            parent = getattr(msg.channel, "parent", None)
+            parent_id = getattr(parent, "id", None)
         if parent_id in ignored_channel_ids:
             return
 
