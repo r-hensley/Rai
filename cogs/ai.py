@@ -684,11 +684,15 @@ class AI(commands.Cog):
             return
         if msg.channel.type == discord.ChannelType.voice:
             return
-        if msg.channel.id == 817074401680818186:
+        ignored_channel_ids = {817074401680818186, 1141761988012290179}
+        if msg.channel.id in ignored_channel_ids:
             return
-        if getattr(msg.channel, "parent", None):
-            if msg.channel.parent.id == 1141761988012290179:
-                return
+        parent_id = getattr(msg.channel, "parent_id", None)
+        if not parent_id:
+            parent = getattr(msg.channel, "parent", None)
+            parent_id = getattr(parent, "id", None)
+        if parent_id in ignored_channel_ids:
+            return
 
         message_cog = self.bot.get_cog("Message")
         if not message_cog:
