@@ -20,8 +20,11 @@ from .utils import helper_functions as hf
 
 SP_SERVER_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
-SUMMARY_SOURCE_CHANNEL_ID = 296013414755598346
-SUMMARY_DESTINATION_CHANNEL_ID = 1490594218798743572
+SUMMARY_CHANNELS: dict[int, int] = {
+    296013414755598346: 1490594218798743572,
+    913886469809115206: 1497026725358473376,
+    1083146531928014950: 1497026725358473376,
+}
 SUMMARY_LOG_CHANNEL_ID = 1351956893119283270
 SUMMARY_HEADER = "**4-Hour Summary**"
 SUMMARY_WINDOW_HOURS = 4
@@ -229,6 +232,10 @@ def parse_json_block(text: str) -> dict[str, Any]:
     return json.loads(cleaned)
 
 
+def summary_state_key(source_channel_id: int) -> str:
+    return f"last_completed_window_end:{source_channel_id}"
+
+
 class AI(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -241,35 +248,55 @@ class AI(commands.Cog):
         config = self.bot.db.setdefault("ai_features", {})
         return config.get("enabled", True)
 
-    async def get_previous_channel_summary(self, channel: discord.TextChannel) -> str:
-        async for message in channel.history(limit=20):
+    async def get_previous_channel_summary(self, channel: discord.TextChannel, source_channel_id: int) -> str:
+        current_block: list[str] = []
+        source_marker = f"Source Channel ID: {source_channel_id}"
+
+        async for message in channel.history(limit=100):
             if message.author != self.bot.user:
                 continue
-            if not message.content.startswith(SUMMARY_HEADER):
+            content = message.content or ""
+            current_block.append(content)
+
+            if not content.startswith(SUMMARY_HEADER):
                 continue
-            return message.content
+            if source_marker in content:
+                return "\n".join(reversed(current_block))
+            current_block = []
+
         return "No previous summary available."
 
-    def serialize_summary_message(self, message: discord.Message) -> str | None:
-        content_parts = []
-        if message.content:
-            content_parts.append(re.sub(r"\s+", " ", message.content).strip())
-        if message.attachments:
-            content_parts.append(f"attachments={', '.join(a.filename for a in message.attachments[:3])}")
-        if message.embeds:
-            content_parts.append(f"embeds={len(message.embeds)}")
-        content = " | ".join(part for part in content_parts if part).strip()
-        if not content:
-            return None
-        if len(content) > 350:
-            content = content[:347] + "..."
-        created_at = message.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
-        author_name = message.author.display_name.replace("\n", " ")
-        return f"[id={message.id}][author={author_name}] {content}"
+    async def get_active_child_threads(self, source_channel: Any) -> list[Any]:
+        threads_by_id: dict[int, Any] = {}
+
+        cached_threads = getattr(source_channel, "threads", None) or []
+        for thread in cached_threads:
+            if getattr(thread, "parent_id", None) != source_channel.id:
+                continue
+            if getattr(thread, "archived", False):
+                continue
+            threads_by_id[thread.id] = thread
+
+        try:
+            active_threads = await source_channel.guild.active_threads()
+        except (AttributeError, discord.Forbidden, discord.HTTPException):
+            active_threads = None
+
+        if active_threads:
+            for thread in getattr(active_threads, "threads", []):
+                if getattr(thread, "parent_id", None) != source_channel.id:
+                    continue
+                if getattr(thread, "archived", False):
+                    continue
+                threads_by_id[thread.id] = thread
+
+        threads = list(threads_by_id.values())
+        threads.sort(key=lambda thread: getattr(thread, "created_at", datetime.min.replace(tzinfo=timezone.utc)))
+        return threads
 
     async def collect_summary_messages(
         self,
-        channel: discord.TextChannel,
+        channel: Any,
         start_time: datetime,
         end_time: datetime,
     ) -> tuple[list[discord.Message], str, bool]:
@@ -290,23 +317,94 @@ class AI(commands.Cog):
             transcript_chars = projected_chars
         return messages, "\n".join(transcript_lines), broke_early
 
-    async def build_channel_summary(self, start_time: datetime, end_time: datetime) -> str | None:
-        source_channel = self.bot.get_channel(SUMMARY_SOURCE_CHANNEL_ID)
-        destination_channel = self.bot.get_channel(SUMMARY_DESTINATION_CHANNEL_ID)
-        if not isinstance(source_channel, discord.TextChannel):
-            raise ValueError(f"Source channel {SUMMARY_SOURCE_CHANNEL_ID} not found.")
-        if not isinstance(destination_channel, discord.TextChannel):
-            raise ValueError(f"Destination channel {SUMMARY_DESTINATION_CHANNEL_ID} not found.")
+    async def collect_threaded_summary_messages(
+        self,
+        source_channel: Any,
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        include_parent_messages: bool,
+    ) -> tuple[list[discord.Message], str, bool]:
+        all_messages: list[discord.Message] = []
+        transcript_sections: list[str] = []
+        transcript_chars = 0
+        broke_early = False
 
-        previous_summary = await self.get_previous_channel_summary(destination_channel)
-        source_messages, transcript, broke_early = await self.collect_summary_messages(source_channel, start_time, end_time)
+        def append_section(section_title: str, section_messages: list[discord.Message], section_transcript: str, section_broke_early: bool) -> bool:
+            nonlocal transcript_chars, broke_early
+            if not section_messages or not section_transcript.strip():
+                return False
+            section_text = f"{section_title}\n{section_transcript}".strip()
+            projected_chars = transcript_chars + len(section_text) + 2
+            if transcript_sections and (len(all_messages) >= SUMMARY_MAX_MESSAGES or projected_chars > SUMMARY_MAX_TRANSCRIPT_CHARS):
+                broke_early = True
+                return False
+            all_messages.extend(section_messages)
+            transcript_sections.append(section_text)
+            transcript_chars = projected_chars
+            broke_early = broke_early or section_broke_early
+            return True
+
+        if include_parent_messages:
+            parent_messages, parent_transcript, parent_broke_early = await self.collect_summary_messages(source_channel, start_time, end_time)
+            append_section(
+                f"Channel: {source_channel.name} ({source_channel.id})",
+                parent_messages,
+                parent_transcript,
+                parent_broke_early,
+            )
+
+        threads = await self.get_active_child_threads(source_channel)
+        for thread in threads:
+            thread_messages, thread_transcript, thread_broke_early = await self.collect_summary_messages(thread, start_time, end_time)
+            if not thread_messages or not thread_transcript.strip():
+                continue
+            if not append_section(f"Thread: {thread.name} ({thread.id})", thread_messages, thread_transcript, thread_broke_early):
+                break
+
+        return all_messages, "\n\n".join(transcript_sections), broke_early
+
+    async def build_channel_summary(
+        self,
+        source_channel: Any,
+        destination_channel: discord.TextChannel,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> str | None:
+        previous_summary = await self.get_previous_channel_summary(destination_channel, source_channel.id)
+        if isinstance(source_channel, discord.ForumChannel):
+            source_messages, transcript, broke_early = await self.collect_threaded_summary_messages(
+                source_channel,
+                start_time,
+                end_time,
+                include_parent_messages=False,
+            )
+            source_context_note = (
+                "The transcript below is separated by forum thread. "
+                "Treat each thread section as its own conversation, and only connect topics across threads if the messages clearly relate."
+            )
+        elif isinstance(source_channel, discord.TextChannel):
+            source_messages, transcript, broke_early = await self.collect_threaded_summary_messages(
+                source_channel,
+                start_time,
+                end_time,
+                include_parent_messages=True,
+            )
+            source_context_note = (
+                "The transcript below contains the parent text channel plus active thread sections. "
+                "Treat the parent channel and each thread section as separate conversation contexts unless the messages clearly relate."
+            )
+        else:
+            return None
         if not source_messages or not transcript.strip():
             return None
 
         message_lookup = {message.id: message for message in source_messages}
+        source_channel_label = getattr(source_channel, "mention", f"#{getattr(source_channel, 'name', 'unknown')}")
         prompt = (
-            "Previous summary from the summary log channel (don't re-summarize this):\n"
+            "Previous summary from the summary log channel for this source channel (don't re-summarize this):\n"
             f"{previous_summary}\n\n"
+            f"{source_context_note}\n"
             f"New transcript covering {start_time.strftime('%Y-%m-%d %H:%M UTC')} to "
             f"{end_time.strftime('%Y-%m-%d %H:%M UTC')} (summarize this):\n"
             f"{transcript}"
@@ -316,16 +414,18 @@ class AI(commands.Cog):
                 "role": "developer",
                 "content": (
                     "You summarize a Discord channel every 4 hours. "
-                    "Group the conversation into distinct topics of discussion. "
-                    "If needed, use the previous summary for context to continue topics that are ongoing "
-                    "instead of restarting them. Do not re-summarize things from the 'previous summary' section. "
-                    "Ignore trivial chatter unless it materially affects a topic. "
+                    "Group the conversation into distinct topics of discussion.\n"
+                    "- If the transcript is separated by forum thread sections, summarize each thread separately and do not mix unrelated threads.\n"
+                    "- If the transcript includes a parent channel section plus thread sections, treat the parent channel and each thread as separate contexts unless the messages clearly relate.\n"
+                    "- If needed, use the previous summary for context to continue topics that are ongoing instead of restarting them.\n"
+                    "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
+                    "- Ignore trivial chatter unless it materially affects a topic.\n"
+                    "- Reference all relevant user names.\n"
+                    "- Keep summaries concise. If only one or two messages are included in a four hour window, you can just very shortly summarize exactly what they say.\n"
                     "Return valid JSON only with this schema: "
                     "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
-                    "Requirements: Choose start_message_id from the transcript exactly, "
-                    "order topics by when they started, and keep the entire response compact enough "
-                    "that each topic text stays under 2000 characters "
-                    "(there is no need to use all 2000 characters if not necessary)."
+                    "Requirements: Choose start_message_id from the transcript exactly, order topics by when they started, and keep the entire response compact enough "
+                    "that each topic text stays under 2000 characters (there is no need to use all 2000 characters if not necessary)."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -343,6 +443,8 @@ class AI(commands.Cog):
 
         lines = [
             SUMMARY_HEADER,
+            f"Source Channel: {source_channel_label}",
+            f"Source Channel ID: {source_channel.id}",
             (
                 f"[{discord.utils.format_dt(start_time, 'f')}]"
                 f"({fake_jump_url_for_time(source_channel, start_time)}) to "
@@ -370,9 +472,10 @@ class AI(commands.Cog):
                 lines.append(summary)
             lines.append("")
 
-        final_text = "\n".join(lines).strip()
-        if final_text == SUMMARY_HEADER:
+        if len(lines) == 5:
             return None
+
+        final_text = "\n".join(lines).strip()
         return final_text
 
     async def maybe_run_channel_summary(self, *, force: bool = False) -> bool:
@@ -388,35 +491,39 @@ class AI(commands.Cog):
         if latest_completed_end == now:
             latest_completed_end -= timedelta(hours=SUMMARY_WINDOW_HOURS)
 
-        config = self.bot.db['ai_features']
-        last_completed_iso = config.get("last_completed_window_end", None)
-        if last_completed_iso:
-            next_window_end = datetime.fromisoformat(last_completed_iso)
-            if next_window_end.tzinfo is None:
-                next_window_end = next_window_end.replace(tzinfo=timezone.utc)
-            next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
-        else:
-            next_window_end = latest_completed_end
-
-        if not force and next_window_end > latest_completed_end:
-            return False
-
-        destination_channel = self.bot.get_channel(SUMMARY_DESTINATION_CHANNEL_ID)
-        if not isinstance(destination_channel, discord.TextChannel):
-            return False
-
+        config = self.bot.db.setdefault('ai_features', {})
         posted_summary = False
-        while next_window_end <= latest_completed_end:
-            window_start = next_window_end - timedelta(hours=SUMMARY_WINDOW_HOURS)
-            summary_text = await self.build_channel_summary(window_start, next_window_end)
-            if summary_text:
-                for segment in utils.split_text_into_segments(summary_text, 2000):
-                    await utils.safe_send(destination_channel, segment)
-                posted_summary = True
-            config["last_completed_window_end"] = next_window_end.isoformat()
-            next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
-            if force:
-                break
+        for source_channel_id, destination_channel_id in SUMMARY_CHANNELS.items():
+            source_channel = self.bot.get_channel(source_channel_id)
+            destination_channel = self.bot.get_channel(destination_channel_id)
+            if not isinstance(source_channel, (discord.TextChannel, discord.ForumChannel)):
+                continue
+            if not isinstance(destination_channel, discord.TextChannel):
+                continue
+
+            last_completed_iso = config.get(summary_state_key(source_channel_id), None)
+            if last_completed_iso:
+                next_window_end = datetime.fromisoformat(last_completed_iso)
+                if next_window_end.tzinfo is None:
+                    next_window_end = next_window_end.replace(tzinfo=timezone.utc)
+                next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
+            else:
+                next_window_end = latest_completed_end
+
+            if not force and next_window_end > latest_completed_end:
+                continue
+
+            while next_window_end <= latest_completed_end:
+                window_start = next_window_end - timedelta(hours=SUMMARY_WINDOW_HOURS)
+                summary_text = await self.build_channel_summary(source_channel, destination_channel, window_start, next_window_end)
+                if summary_text:
+                    for segment in utils.split_text_into_segments(summary_text, 2000):
+                        await utils.safe_send(destination_channel, segment)
+                    posted_summary = True
+                config[summary_state_key(source_channel_id)] = next_window_end.isoformat()
+                next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
+                if force:
+                    break
         return posted_summary
 
     @tasks.loop(minutes=15)
@@ -627,10 +734,6 @@ class AI(commands.Cog):
             "message_id": replied_message.id,
             "jump_url": replied_message.jump_url,
         }
-        if replied_message.attachments:
-            replied_content["attachments"] = [a.filename for a in replied_message.attachments]
-        if replied_message.embeds:
-            replied_content["embeds"] = [e.to_dict() for e in replied_message.embeds]
         messages.append({
             "role": "user",
             "content": "THIS IS THE REPLIED-TO MESSAGE THAT MOST LIKELY CAUSED THE STAFF PING:\n"
@@ -712,7 +815,7 @@ class AI(commands.Cog):
             chatgpt_prompt = [{"role": "system",
                                "content": "Please check the language of the following messages. Respond either "
                                           "'en', 'es', 'both' (a mix of English and Spanish), "
-                                          "or 'other' if it's another language "
+                                          "'other' if it's another language "
                                           "or 'unknown' if it just looks like gibberish. "
                                           "It's ok if it has one or two "
                                           "words in another language as long as the main content of the message is "
@@ -836,7 +939,7 @@ class AI(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int] = 500):
+    async def summarize(self, ctx: commands.Context, limit_jump_url: str = None, limit_message_number: Union[int, int] = 500):
         if not self.ai_features_enabled():
             await utils.safe_reply(ctx, "AI features in this module are disabled.")
             return
