@@ -1582,7 +1582,7 @@ class Message(commands.Cog):
                         self.bot.db['mod_channel'][str(msg.ctx.guild.id)])
                     if msg.guild.id == SP_SERVER_ID:
                         mod_channel = msg.guild.get_channel_or_thread(
-                            297877202538594304)  # incidents channel
+                            808077477703712788)  # incidents channel
                     if mod_channel:
                         await utils.safe_send(mod_channel, msg.author.id,
                                               embed=utils.red_embed(
