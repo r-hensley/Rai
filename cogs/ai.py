@@ -294,6 +294,22 @@ class AI(commands.Cog):
         threads.sort(key=lambda thread: getattr(thread, "created_at", datetime.min.replace(tzinfo=timezone.utc)))
         return threads
 
+    def serialize_summary_message(self, message: discord.Message) -> str | None:
+        content_parts = []
+        if message.content:
+            content_parts.append(re.sub(r"\s+", " ", message.content).strip())
+        if message.attachments:
+            content_parts.append(f"attachments={', '.join(a.filename for a in message.attachments[:3])}")
+        if message.embeds:
+            content_parts.append(f"embeds={len(message.embeds)}")
+        content = " | ".join(part for part in content_parts if part).strip()
+        if not content:
+            return None
+        if len(content) > 350:
+            content = content[:347] + "..."
+        author_name = message.author.display_name.replace("\n", " ")
+        return f"[id={message.id}][author={author_name}] {content}"
+
     async def collect_summary_messages(
         self,
         channel: Any,
