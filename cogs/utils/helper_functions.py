@@ -1745,7 +1745,7 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
         raise ValueError(f"Attachment URL ({to_use_url}) not found.")
 
     # Download the file using my async utils.aiohttp_get_text()
-    data = await utils.aiohttp_get(to_use_url)
+    data = await utils.aiohttp_get_bytes(to_use_url)
 
     if not data:
         return

@@ -5,6 +5,9 @@ import urllib.parse
 import aiohttp
 from dotenv import load_dotenv
 
+from cogs.utils.BotUtils import bot_utils as utils
+from cogs.utils import helper_functions as hf
+
 # Load env vars once at startup, not every time a command runs
 load_dotenv()
 
@@ -78,7 +81,7 @@ class MerriamWebster(commands.Cog):
         self.thesaurus_key = os.getenv('ENG_THES_API_KEY')
         self.footer_text = ("Merriam-Webster Dictionary | Command by @jobcuenca")
 
-    async def fetch_definitions(self, word, dict_type) -> list[discord.Embed]:
+    async def fetch_definitions(self, word, dict_type, ctx) -> list[discord.Embed]:
         # 1. Determine which key and reference to use
         if dict_type == "the":
             full_dict_type = "thesaurus"
@@ -97,16 +100,27 @@ class MerriamWebster(commands.Cog):
         url = f"https://www.dictionaryapi.com/api/v3/references/{ref}/json/{safe_word}?key={key}"
         
         embeds = []
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-
-                    if not data:
-                        return []
-                else:
-                    return []
-
+        
+        try:
+            data = await utils.aiohttp_get_json(url)
+        
+        except aiohttp.ClientResponseError as e:
+            # API responded, but not with 200 / 2xx status code
+            if e.status == 404:
+                return []  # word not found → normal case
+            
+            # unexpected API failure → surface it
+            raise
+        
+        except aiohttp.ClientConnectionError:
+            # network issue
+            await utils.safe_send(ctx, "Dictionary service is currently unavailable.")
+            return []
+        
+        # normal path
+        if not data:
+            return []
+        
         # API returns empty list or list of strings (suggestions) if word not found
         if isinstance(data[0], str):
             for i in range(0, len(data), 10):
@@ -116,7 +130,8 @@ class MerriamWebster(commands.Cog):
                 
                 embed = discord.Embed(
                     title="No definitions found",
-                    description=f"No definitions found for **{word}** in the {full_dict_type}.\n\n**Did you mean:**\n{description}",
+                    description=f"No definitions found for **{word}** in the {full_dict_type}.\n\n"
+                                f"**Did you mean:**\n{description}",
                     color=discord.Color.orange()
                 )
                 embed.set_footer(text=self.footer_text)
@@ -167,7 +182,7 @@ class MerriamWebster(commands.Cog):
         return embeds
 
     @commands.command(aliases=["web", "webster"])
-    async def webster_dictionary(self, ctx, arg1: str, *, arg2: str = None):
+    async def webster_dictionary(self, ctx: commands.Context, arg1: str, *, arg2: str = None):
         """
         Look up definitions of a word from the Merriam-Webster Dictionary.
         - Format: 
@@ -226,7 +241,7 @@ class MerriamWebster(commands.Cog):
             return
 
         # Pass dict_type explicitly to the function
-        embeds = await self.fetch_definitions(word, dict_type)
+        embeds = await self.fetch_definitions(word, dict_type, ctx)
         
         if not embeds:
             title = "No definitions found"

@@ -4,6 +4,7 @@ import urllib
 
 from collections import OrderedDict
 from urllib.request import urlopen, Request
+from urllib.error import HTTPError
 
 import discord
 from bs4 import BeautifulSoup
@@ -191,10 +192,20 @@ class Dictionary(commands.Cog):
             'Host': "dle.rae.es",
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0'
         })
+        
+        # webpage = await utils.aiohttp_get_bytes(url, headers=headers)
+        # above gives ClientResponseError: 403, message='Forbidden', url='https://dle.rae.es/prueba/'
+        # (it tries to do a CloudFlare browser challenge, somehow urllib works)
+        # see my attempt to debug it: https://chatgpt.com/s/t_69ee7d2543cc8191a39256780a8a1f85
+        
+        # must use below
         req = Request(url, headers=headers)
         urlopen_task = utils.asyncio_task(urlopen, req)
         resp = await urlopen_task
+        if resp.status == 403:
+            raise HTTPError(url, resp.status, "Forbidden", resp.headers, None)
         webpage = resp.read()
+        
         soup = BeautifulSoup(webpage, "html5lib")
         articles = soup.find_all('article', class_="o-main__article")
         self.check_info_availability(articles)
@@ -265,7 +276,14 @@ class Dictionary(commands.Cog):
         # noinspection PyUnresolvedReferences
         # Convert text to a URL-supported format
         formatted_word = urllib.parse.quote(word)
-        main_articles, url, copyright_text, soup = await self.fetch_rae_data(formatted_word)
+        try:
+            main_articles, url, copyright_text, soup = await self.fetch_rae_data(formatted_word)
+        except HTTPError:
+            # raised specifically when a 403 error is returned
+            await utils.safe_reply(ctx, "RAE is detecting that I am a bot and is blocking "
+                                        "my request :("
+                                        "\n||-# <@202995638860906496> <@442481962985193482>||")
+            return None, None, None, None
 
         related_words = []
         embeds = []

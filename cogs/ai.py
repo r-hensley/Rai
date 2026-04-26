@@ -38,18 +38,17 @@ def _format_ts(ts: int | float | None) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _get_openai_admin_key() -> tuple[str | None, str]:
-    admin_key = os.getenv("OPENAI_ADMIN_KEY")
-    if admin_key:
-        return admin_key, "OPENAI_ADMIN_KEY"
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
-        return api_key, "OPENAI_API_KEY"
-    return None, "none"
-
-
 async def fetch_openai_admin_json(path: str, *, params: dict[str, Any] | None = None) -> tuple[int, str, Any]:
-    api_key, key_source = _get_openai_admin_key()
+    api_key = os.getenv("OPENAI_ADMIN_KEY")
+    if api_key:
+        key_source = "OPENAI_ADMIN_KEY"
+    else:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            key_source = "OPENAI_API_KEY"
+        else:
+            key_source = "none"
+        
     if not api_key:
         return 0, "Missing OPENAI_ADMIN_KEY / OPENAI_API_KEY.", {"key_source": key_source}
 
@@ -57,14 +56,10 @@ async def fetch_openai_admin_json(path: str, *, params: dict[str, Any] | None = 
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.openai.com/v1{path}", headers=headers, params=params) as resp:
-            text = await resp.text()
-            try:
-                payload = await resp.json()
-            except aiohttp.ContentTypeError:
-                payload = {"raw_text": text}
-            return resp.status, key_source, payload
+    
+    url = f"https://api.openai.com/v1{path}"
+    payload = await utils.aiohttp_get_json(url, headers, params)
+    return payload
 
 
 def summarize_cost_buckets(data: dict[str, Any]) -> str:

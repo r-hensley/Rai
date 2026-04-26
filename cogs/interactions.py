@@ -1143,16 +1143,25 @@ class Interactions(commands.Cog):
                                                         "the URL ends in something like .../image.png",
                                                         ephemeral=True)
                 return
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status == 200:
-                        cont = BytesIO(await resp.content.read())
-                    else:
-                        await interaction.response.send_message("I had trouble downloading the image you linked. "
-                                                                "Please try again or try a different image."
-                                                                f" {message_id}, {message_link}, {url}",
-                                                                ephemeral=True)
-                        return
+            
+            try:
+                data = await utils.aiohttp_get_bytes(url)
+                cont = BytesIO(data)
+            
+            except aiohttp.ClientResponseError:
+                await interaction.response.send_message(
+                    "I had trouble downloading the image you linked. "
+                    f"{message_id}, {message_link}, {url}",
+                    ephemeral=True
+                )
+                return
+            
+            except aiohttp.ClientConnectionError:
+                await interaction.response.send_message(
+                    "Could not connect to the image host.",
+                    ephemeral=True
+                )
+                return
 
             try:
                 cont.seek(0)

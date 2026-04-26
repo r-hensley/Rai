@@ -933,7 +933,7 @@ class Owner(commands.Cog):
     @commands.command()
     async def spybotcheck(self, ctx, url="https://gist.githubusercontent.com/Dziurwa14/"
                                          "05db50c66e4dcc67d129838e1b9d739a/raw/spy.pet%2520accounts"):
-        id_list_str = await utils.aiohttp_get_text(ctx, url)
+        id_list_str = await utils.aiohttp_get_text(url, ctx)
         if not id_list_str:
             await utils.safe_send(ctx, "Failed to get list")
             return

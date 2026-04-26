@@ -297,7 +297,7 @@ class Buscador:
                     fragmentos.append(texto_celda)
                     fragmentos_raw.append(texto_celda)
 
-            # Recoge todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
+            # Recoge _todo el texto de los elementos, teniendo en cuenta si están en itálica, negrita, etc.
             texto_fila, texto_fila_raw = Buscador.extraer_y_combinar_textos(celda_elem)
             fragmentos.append(texto_fila)
             fragmentos_raw.append(texto_fila_raw)
@@ -429,11 +429,15 @@ class Buscador:
     async def búsqueda_damer(término: str) -> list[Entrada]:
         safe_term = quote(término, safe="")
         url_búsqueda = f"https://www.asale.org/damer/{safe_term}"
-        async with aiohttp.ClientSession(headers={'User-Agent': Buscador.USER_AGENT}) as sesión:
-            async with sesión.get(url_búsqueda) as resp:
-                if resp.status != 200:
-                    raise Exception(f'Búsqueda fallida para el término: {término}.')
-                raw_html = await resp.text()
+        
+        try:
+            raw_html = await utils.aiohttp_get_text(url_búsqueda, headers={'User-Agent': Buscador.USER_AGENT})
+        
+        except aiohttp.ClientResponseError as e:
+            if hasattr(e, 'add_note'):  # python 3.11+
+                e.add_note(f'Búsqueda fallida para el término: {término}.')
+            raise e
+
         return Buscador.parsear_resultados(término, raw_html)
 
 
