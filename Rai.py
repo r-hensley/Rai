@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 import discord
 from discord.ext.commands import Bot
-from discord.ext import commands
+from openai import AsyncOpenAI
 
 # check Python version
 current_ver = sys.version_info
@@ -69,10 +69,7 @@ t_start = datetime.now()
 max_messages = 10000
 
 
-
-
-
-def prefix(bot: commands.Bot, msg: discord.Message) -> str:
+def prefix(bot: "Rai", msg: discord.Message) -> str:
     if not bot.user:
         raise Exception("Something is weird...")
     if bot.user.name == "Rai":
@@ -88,6 +85,12 @@ def prefix(bot: commands.Bot, msg: discord.Message) -> str:
 
 
 class Rai(Bot):
+    openai: AsyncOpenAI
+    message_queue: "hf.MessageQueue"
+    db: dict
+    stats: dict
+    language_detection: bool
+    
     def __init__(self):
         super().__init__(description="Bot by Ryry013#9234", command_prefix=prefix,
                          help_command=None, intents=intents, max_messages=max_messages)
@@ -97,7 +100,7 @@ class Rai(Bot):
         self.language_detection: bool = False
         self.t_start = t_start
         print('starting loading of jsons')
-        # Create json files if they don't exist
+        # Create JSON files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
             db = open(f"{dir_path}/db.json", 'w', encoding='utf-8')
             new_db = {'ultraHardcore': {}, 'hardcore': {}, 'welcome_message': {}, 'roles': {}, 'ID': {},

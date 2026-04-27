@@ -1,20 +1,22 @@
 import asyncio
 import json
-import logging
 import os
 import re
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from random import choice
+from textwrap import dedent
 from typing import Any, Union
 
-import aiohttp
 import discord
 import openai
 from discord.ext import commands, tasks
 from lingua import Language
-from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
+from openai.types.responses import Response
 
+from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 
@@ -122,89 +124,6 @@ async def openai_request(coro_func, *, retries: int = 3, base_delay: float = 2.0
     raise RuntimeError("openai_request failed without an exception")
 
 
-def setup_openai_client(bot: Any) -> None:
-    if hasattr(bot, "openai"):
-        if bot.openai:
-            return
-
-    logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-
-    open_ai_key = os.getenv("OPENAI_API_KEY")
-    if open_ai_key:
-        bot.openai = AsyncOpenAI(api_key=open_ai_key)
-    else:
-        bot.openai = None
-
-
-async def chat_completion(
-    bot: Any,
-    *,
-    messages: list[dict[str, Any]],
-    model: str = "gpt-4o-mini",
-) -> Any:
-    if not getattr(bot, "openai", None):
-        return None
-    return await openai_request(
-        lambda: bot.openai.chat.completions.create(model=model, messages=messages)
-    )
-
-
-async def chat_completion_text(
-    bot: Any,
-    *,
-    messages: list[dict[str, Any]],
-    model: str = "gpt-4o-mini",
-    log_channel_id: int | None = None,
-) -> tuple[Any, str]:
-    completion = await chat_completion(bot, model=model, messages=messages)
-    if log_channel_id:
-        await hf.segment_send(log_channel_id, messages)
-        await hf.segment_send(log_channel_id, completion)
-    response_text = completion.choices[0].message.content
-    return completion, response_text
-
-
-async def moderation_with_image_fallback(
-    bot: Any,
-    *,
-    model: str,
-    messages: list[dict[str, Any]],
-    log_channel_id: int | None = None,
-) -> Any:
-    if not getattr(bot, "openai", None):
-        return None
-
-    try:
-        return await openai_request(
-            lambda: bot.openai.moderations.create(model=model, input=messages)
-        )
-    except openai.RateLimitError as e:
-        if log_channel_id:
-            await hf.segment_send(log_channel_id, f"OpenAI moderation rate-limited: `{e}`")
-        return None
-    except openai.BadRequestError as e:
-        if log_channel_id:
-            await hf.segment_send(log_channel_id, messages)
-        moderation_result = None
-        ignore_strings = ["invalid_image_format", "image_url_unavailable", "file_too_large", "Failed to download"]
-        if any(ignore_string in str(e) for ignore_string in ignore_strings):
-            filtered_messages = [m for m in messages if m.get("type") != "image_url"]
-            if len(filtered_messages) != len(messages):
-                try:
-                    moderation_result = await openai_request(
-                        lambda: bot.openai.moderations.create(model=model, input=filtered_messages)
-                    )
-                except openai.RateLimitError as inner_e:
-                    if log_channel_id:
-                        await hf.segment_send(log_channel_id, f"OpenAI moderation rate-limited: `{inner_e}`")
-                    return None
-        if not moderation_result:
-            raise
-        return moderation_result
-
-
 def floor_to_summary_window(dt: datetime) -> datetime:
     """
 Floors the given datetime to the nearest previous summary window boundary (e.g., 00:00, 04:00, 08:00, etc. UTC).
@@ -227,17 +146,196 @@ def parse_json_block(text: str) -> dict[str, Any]:
     return json.loads(cleaned)
 
 
-def summary_state_key(source_channel_id: int) -> str:
-    return f"last_completed_window_end:{source_channel_id}"
-
-
 class AI(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: Rai):
+        self.previous_response_id = None
         self.bot = bot
         self.channel_summary_loop.start()
 
     def cog_unload(self):
         self.channel_summary_loop.cancel()
+        
+    async def log_output(self,
+                         openai_obj: ChatCompletion | Response,
+                         input: str | list[dict],
+                         log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID):
+        if not log_channel_id:
+            return
+        
+        await hf.segment_send(log_channel_id, input,
+                              allowed_mentions=discord.AllowedMentions.none())
+        await hf.segment_send(log_channel_id, openai_obj,
+                              allowed_mentions=discord.AllowedMentions.none())
+        
+        # Chat Completions usage fields: prompt_tokens, completion_tokens, total_tokens
+        usage = openai_obj.usage
+        if not usage:
+            await hf.segment_send(
+                log_channel_id,
+                "Tokens used - unavailable (no usage in response).",
+            )
+            return
+        
+        if isinstance(openai_obj, ChatCompletion):
+            in_label = "prompt"
+            out_label = "completion"
+            in_tokens = usage.prompt_tokens
+            out_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+        
+            cached_tokens = (
+                usage.prompt_tokens_details.cached_tokens
+                if usage.prompt_tokens_details else 0
+            )
+            reasoning_tokens = (
+                usage.completion_tokens_details.reasoning_tokens
+                if usage.completion_tokens_details else 0
+            )
+        
+        elif isinstance(openai_obj, Response):
+            in_label = "input"
+            out_label = "output"
+            in_tokens = usage.input_tokens
+            out_tokens = usage.output_tokens
+            total_tokens = usage.total_tokens
+        
+            cached_tokens = (
+                usage.input_tokens_details.cached_tokens
+                if usage.input_tokens_details else 0
+            )
+            reasoning_tokens = (
+                usage.output_tokens_details.reasoning_tokens
+                if usage.output_tokens_details else 0
+            )
+        else:
+            return
+        
+        await hf.segment_send(
+            log_channel_id,
+            "Tokens used - "
+            f"{in_label}: {in_tokens}, "
+            f"{out_label}: {out_tokens}, "
+            f"total: {total_tokens}, "
+            f"cached_{in_label}: {cached_tokens}, "
+            f"reasoning: {reasoning_tokens}",
+        )
+        
+    async def responses_text(
+            self, *,
+            input: str,
+            model: str = 'gpt-4o-mini',
+            instructions: str = "",
+            previous_response_id: int | None = None,
+            log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID,
+            return_response = False,
+            store: bool = True,
+            reasoning: None | dict = None,
+            **kwargs
+    ) -> str | Response:
+        if store is False and previous_response_id is not None:
+            raise Exception("If you have store=False, you cannot be passing in a previous_response_id")
+            
+        result: Response = await openai_request(
+            lambda: self.bot.openai.responses.create(
+                model=model,
+                instructions=instructions,
+                input=input,
+                reasoning=reasoning,
+                
+                # WARNING:
+                # This causes a gradual increase in token usage per call if used repeatedly
+                # It uploads the whole chat history (with caching / auto-reduction) as input.
+                previous_response_id=previous_response_id,
+                
+                **kwargs
+            )
+        )
+        
+        await self.log_output(
+            result,
+            (instructions, input),
+            log_channel_id,
+        )
+        
+        if return_response:
+            return result
+        else:
+            return result.text
+    
+    async def chat_completion_text(
+            self,
+            *,
+            messages: list[dict[str, Any]],
+            model: str = "gpt-4o-mini",
+            log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID,
+            prompt_cache_retention: str = "in_memory",
+            return_completion_object: bool = False,
+            **kwargs
+    ) -> Any | str:
+        if not getattr(self.bot, "openai", None):
+            return None
+        
+        completion: ChatCompletion = await openai_request(
+            lambda: self.bot.openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                prompt_cache_retention=prompt_cache_retention,
+                **kwargs
+            )
+        )
+        
+        await self.log_output(
+            completion,
+            messages,
+            log_channel_id,
+        )
+        
+        if return_completion_object:
+            return completion
+        else:
+            response_text = completion.choices[0].message.content
+            return response_text
+    
+    async def moderation_with_image_fallback(
+            self,
+            *,
+            model: str,
+            messages: list[dict[str, Any]],
+            log_channel_id: int | None = None,
+    ) -> Any:
+        if not getattr(self.bot, "openai", None):
+            return None
+        
+        try:
+            return await openai_request(
+                lambda: self.bot.openai.moderations.create(model=model, input=messages)
+            )
+        except openai.RateLimitError as e:
+            if log_channel_id:
+                await hf.segment_send(log_channel_id, f"OpenAI moderation rate-limited: `{e}`")
+            return None
+        except openai.BadRequestError as e:
+            if log_channel_id:
+                await hf.segment_send(log_channel_id, messages)
+            moderation_result = None
+            ignore_strings = ["invalid_image_format", "image_url_unavailable", "file_too_large",
+                              "Failed to download"]
+            if any(ignore_string in str(e) for ignore_string in ignore_strings):
+                filtered_messages = [m for m in messages if m.get("type") != "image_url"]
+                if len(filtered_messages) != len(messages):
+                    try:
+                        moderation_result = await openai_request(
+                            lambda: self.bot.openai.moderations.create(model=model,
+                                                                  input=filtered_messages)
+                        )
+                    except openai.RateLimitError as inner_e:
+                        if log_channel_id:
+                            await hf.segment_send(log_channel_id,
+                                                  f"OpenAI moderation rate-limited: `{inner_e}`")
+                        return None
+            if not moderation_result:
+                raise
+            return moderation_result
 
     def ai_features_enabled(self) -> bool:
         config = self.bot.db.setdefault("ai_features", {})
@@ -261,7 +359,8 @@ class AI(commands.Cog):
 
         return "No previous summary available."
 
-    async def get_active_child_threads(self, source_channel: Any) -> list[Any]:
+    @staticmethod
+    async def get_active_child_threads(source_channel: Any) -> list[Any]:
         threads_by_id: dict[int, Any] = {}
 
         cached_threads = getattr(source_channel, "threads", None) or []
@@ -286,10 +385,12 @@ class AI(commands.Cog):
                 threads_by_id[thread.id] = thread
 
         threads = list(threads_by_id.values())
-        threads.sort(key=lambda thread: getattr(thread, "created_at", datetime.min.replace(tzinfo=timezone.utc)))
+        threads.sort(key=lambda thr: getattr(thr, "created_at",
+                                             datetime.min.replace(tzinfo=timezone.utc)))
         return threads
 
-    def serialize_summary_message(self, message: discord.Message) -> str | None:
+    @staticmethod
+    def serialize_summary_message(message: discord.Message) -> str | None:
         content_parts = []
         if message.content:
             content_parts.append(re.sub(r"\s+", " ", message.content).strip())
@@ -442,10 +543,8 @@ class AI(commands.Cog):
             {"role": "user", "content": prompt},
         ]
 
-        _, response_text = await chat_completion_text(
-            self.bot,
+        response_text = await self.chat_completion_text(
             messages=messages,
-            log_channel_id=SUMMARY_LOG_CHANNEL_ID,
         )
         payload = parse_json_block(response_text)
         topics = payload.get("topics", [])
@@ -512,7 +611,8 @@ class AI(commands.Cog):
             if not isinstance(destination_channel, discord.TextChannel):
                 continue
 
-            last_completed_iso = config.get(summary_state_key(source_channel_id), None)
+            summary_state_key = f"last_completed_window_end:{source_channel_id}"
+            last_completed_iso = config.get(summary_state_key, None)
             if last_completed_iso:
                 next_window_end = datetime.fromisoformat(last_completed_iso)
                 if next_window_end.tzinfo is None:
@@ -531,7 +631,7 @@ class AI(commands.Cog):
                     for segment in utils.split_text_into_segments(summary_text, 2000):
                         await utils.safe_send(destination_channel, segment)
                     posted_summary = True
-                config[summary_state_key(source_channel_id)] = next_window_end.isoformat()
+                config[summary_state_key] = next_window_end.isoformat()
                 next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
                 if force:
                     break
@@ -573,6 +673,7 @@ class AI(commands.Cog):
         await self.mods_ping(msg)
         await self.sp_serv_other_language_detection(msg)
         await self.chatgpt_new_user_moderation(msg)
+        await self.check_ryry_messages(msg)
 
     async def log_rai_tracebacks(self, msg: hf.RaiMessage):
         new_tracebacks_channel = self.bot.get_channel(1360884895957651496)
@@ -617,7 +718,7 @@ class AI(commands.Cog):
                                                      "(response continues). It occurred in cogs/modlog.py, line 1234"},
                     {"role": "user", "content": msg.content}]
 
-        _, response_text = await chat_completion_text(self.bot, messages=messages)
+        response_text = await self.chat_completion_text(messages=messages, log_channel_id=None)
         post_name = response_text.split("\n")[0]
         if len(post_name) > 100:
             post_name = post_name[:100]
@@ -626,8 +727,12 @@ class AI(commands.Cog):
 
         self.bot.db["rai_tracebacks"].append(traceback_msg)
         try:
-            thread = await new_tracebacks_channel.create_thread(name=post_name, content=msg.content, embeds=msg.embeds)
-            thread = thread.thread
+            new_tracebacks_channel: discord.ForumChannel
+            thread_message = await new_tracebacks_channel.create_thread(name=post_name,
+                                                                        content=msg.content,
+                                                                        embeds=msg.embeds)
+            # above object has .thread and .message on it
+            thread = thread_message.thread
         except discord.Forbidden as e:
             errmsg = f"Permission denied while creating thread in channel {new_tracebacks_channel.id}"
             e.add_note(errmsg)
@@ -764,12 +869,9 @@ class AI(commands.Cog):
             temporary_message_queue.append(to_add_message)
         messages.extend(temporary_message_queue[::-1])
 
-        chatgpt_log_id = 1351956893119283270
         try:
-            _, response_text = await chat_completion_text(
-                self.bot,
+            response_text = await self.chat_completion_text(
                 messages=messages,
-                log_channel_id=chatgpt_log_id,
             )
         except Exception as e:
             await utils.safe_reply(notif, f"Failed to summarize logs. Sorry!\n`{e}`")
@@ -846,13 +948,10 @@ class AI(commands.Cog):
                               {"role": "user", "content": "L AS M NO ALSKWLAK / A HAHAGAHA / asfasef"},
                               {"role": "assistant", "content": "unknown"},
                               {"role": "user", "content": stripped_content}]
-            chatgpt_log_id = 1351956893119283270
-            _, chatgpt_result = await chat_completion_text(
-                self.bot,
+            response_text = await self.chat_completion_text(
                 messages=chatgpt_prompt,
-                log_channel_id=chatgpt_log_id,
             )
-            if chatgpt_result != "other":
+            if response_text != "other":
                 return
 
             is_staff_member = log_channel.permissions_for(msg.author).read_messages
@@ -882,7 +981,6 @@ class AI(commands.Cog):
             pass
 
     async def chatgpt_new_user_moderation(self, msg: hf.RaiMessage):
-        chatgpt_log_id = 1351956893119283270
         if msg.guild.id != SP_SERVER_ID:
             return
         if not self.bot.message_queue:
@@ -912,14 +1010,12 @@ class AI(commands.Cog):
         if attachment_url:
             messages.append({"type": "image_url", "image_url": {"url": attachment_url}})
         try:
-            moderation_result = await moderation_with_image_fallback(
-                self.bot,
+            moderation_result = await self.moderation_with_image_fallback(
                 model="omni-moderation-latest",
                 messages=messages,
-                log_channel_id=chatgpt_log_id,
             )
         except Exception as e:
-            await hf.segment_send(chatgpt_log_id, f"ERROR: `{e}`\n{messages}")
+            await hf.segment_send(SUMMARY_LOG_CHANNEL_ID, f"ERROR: `{e}`\n{messages}")
             raise
 
         if not moderation_result:
@@ -927,7 +1023,7 @@ class AI(commands.Cog):
         result = moderation_result.results[0]
         if not result.flagged:
             return
-        await hf.segment_send(chatgpt_log_id, moderation_result)
+        await hf.segment_send(SUMMARY_LOG_CHANNEL_ID, moderation_result)
 
         flagged_categories = [category[0] for category in result.categories if category[1]]
         out = f"__ChatGPT moderation result__\nby {msg.author.mention} in {msg.jump_url}\n"
@@ -1003,7 +1099,8 @@ class AI(commands.Cog):
 
         await hf.send_to_test_channel(messages)
         try:
-            _, response_text = await chat_completion_text(self.bot, model="gpt-4o", messages=messages)
+            response_text = await self.chat_completion_text(model="gpt-4o", messages=messages,
+                                                            log_channel_id=None)
         except Exception as e:
             await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
             raise
@@ -1109,6 +1206,74 @@ class AI(commands.Cog):
             await utils.safe_reply(ctx, "Posted the latest completed 4-hour summary.")
         else:
             await utils.safe_reply(ctx, "No summary was posted for the latest completed 4-hour window.")
+    
+    async def check_ryry_messages(self, msg):
+        """
+        Module to check messages from Ryry013 in Italian, Japanese, and Spanish
+        """
+        if not msg.content:
+            return
+        
+        if len(msg.content) > 500:
+            return
+        
+        if msg.content.startswith(('r;', ';')):
+            return
+        
+        RYRY_ID = 202995638860906496
+        SKYZ_ID = 107202830846148608
+        if msg.author.id not in [RYRY_ID, SKYZ_ID]:
+            return
+        
+        GRAMMAR_CHECK_SYSTEM = """
+        You are checking a Discord user's message for grammar.
+        
+        The user is learning Japanese, Italian, and Spanish.
+        
+        Rules:
+        - Ignore the message if it is in English. Return exactly: ignored
+        - If it is in Japanese, Italian, or Spanish, correct grammar errors.
+        - Ignore (DO NOT CORRECT) missing capitalization or missing punctuation.
+        - Ignore missing diacritics if the message generally omits all diacritics.
+        - If the message generally uses diacritics but misses one, correct it.
+        - If no errors are found, return exactly: ignored
+        - If errors are found, return only the corrected text.
+        - Surround changed parts with double asterisks.
+        - If an explanation for something is necessary, explain very briefly.
+
+        """
+        model_choices = [
+            ('gpt-4o-mini', None),
+            ('gpt-4.1-nano', None),
+            ('gpt-5-nano', {'effort': 'minimal'}),
+            ('gpt-5-mini', {'effort': 'minimal'})
+        ]
+        model = choice(model_choices)
+        
+        input = utils.rem_emoji_url(msg.content)
+        input = re.sub(r'<..\d+>', '', input).strip()
+        
+        response = await self.responses_text(
+            model=model[0],
+            input=input,
+            instructions=dedent(GRAMMAR_CHECK_SYSTEM),
+            return_response=True,
+            store=False,
+            reasoning=model[1],
+            # previous_response_id=self.previous_response_id  # don't use right now
+        )
+        
+        if not response:
+            return
+        
+        response_text = response.output_text
+        self.previous_response_id = response.id
+        if response_text.lower() == 'ignored':
+            return
+
+        await utils.safe_send(msg.author,
+                               f"{model[0]}: Here's a grammar correction for your message:\n"
+                               f">>> Before:\n{msg.content}\nAfter:\n{response_text}")
 
 
 async def setup(bot: commands.Bot):

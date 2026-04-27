@@ -1905,7 +1905,8 @@ async def send_to_test_channel(*content):
     await segment_send(channel, *content)
 
 
-async def segment_send(channel: Union[int, discord.abc.Messageable], *content, max_messages: int = 5):
+async def segment_send(channel: Union[int, discord.abc.Messageable], *content, max_messages: int = 5,
+                       **kwargs):
     content = ' '.join([str(i) for i in content])
     if isinstance(channel, int):
         channel = here.bot.get_channel(channel)
@@ -1918,7 +1919,7 @@ async def segment_send(channel: Union[int, discord.abc.Messageable], *content, m
     
     try:
         for segment in segments[:max_messages]:
-            await utils.safe_send(channel, segment)
+            await utils.safe_send(channel, segment, **kwargs)
         if len(segments) > max_messages:
             await utils.safe_send(channel, f"Message too long, only sent the first 5 segments")
     except discord.Forbidden as e:
