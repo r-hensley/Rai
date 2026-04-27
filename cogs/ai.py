@@ -1251,6 +1251,9 @@ class AI(commands.Cog):
         input = utils.rem_emoji_url(msg.content)
         input = re.sub(r'<..\d+>', '', input).strip()
         
+        if not input:
+            return
+        
         response = await self.responses_text(
             model=model[0],
             input=input,
