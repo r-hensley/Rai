@@ -363,7 +363,14 @@ class Logger(commands.Cog):
                     await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
                 except (discord.DiscordServerError, discord.HTTPException):
                     pass
-            except (discord.Forbidden, discord.HTTPException):
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    await asyncio.sleep(e.retry_after)
+                    try:
+                        await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+            except discord.Forbidden:
                 pass
         
         """ Super voice watch"""
