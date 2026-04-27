@@ -1237,8 +1237,29 @@ class AI(commands.Cog):
         - If no errors are found, return exactly: ignored
         - If errors are found, return only the corrected text.
         - Surround changed parts with double asterisks.
+        - The corrected text should not match the input text. If nothing is changed, instead return: ignored
         - If an explanation for something is necessary, explain very briefly.
-
+        
+        GOOD EXAMPLES:
+        (ignore correct text)
+        input: おはよう！
+        good output: ignored 
+        
+        (ignore English)
+        input: I am book
+        output: ignored
+        
+        (correct other languages IF and only if theres an error)
+        input: soy un persona
+        output: soy **una** persona
+        input: 私は人間でし
+        output: 私は人間で**す**
+        
+        BAD EXAMPLE:
+        (do not correct a text with nothing wrong)
+        input: いいね！
+        bad output: **いいね！** (do not do this)
+        good output: ignored
         """
         model_choices = [
             ('gpt-4o-mini', None),
@@ -1274,7 +1295,7 @@ class AI(commands.Cog):
 
         await utils.safe_send(msg.author,
                                f"{model[0]}: Here's a grammar correction for your message:\n"
-                               f">>> Before:\n{msg.content}\nAfter:\n{response_text}")
+                               f">>> Before:\n{input}\nAfter:\n{response_text}")
 
 
 async def setup(bot: commands.Bot):
