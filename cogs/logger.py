@@ -361,9 +361,9 @@ class Logger(commands.Cog):
                 await hf.sleep("voice_state_update", 3, add=True)
                 try:
                     await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
-                except discord.DiscordServerError:
+                except (discord.DiscordServerError, discord.HTTPException):
                     pass
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.HTTPException):
                 pass
         
         """ Super voice watch"""
