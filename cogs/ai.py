@@ -268,7 +268,6 @@ class AI(commands.Cog):
             messages: list[dict[str, Any]],
             model: str = "gpt-4o-mini",
             log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID,
-            prompt_cache_retention: str = "in_memory",
             return_completion_object: bool = False,
             **kwargs
     ) -> Any | str:
@@ -279,7 +278,6 @@ class AI(commands.Cog):
             lambda: self.bot.openai.chat.completions.create(
                 model=model,
                 messages=messages,
-                prompt_cache_retention=prompt_cache_retention,
                 **kwargs
             )
         )
