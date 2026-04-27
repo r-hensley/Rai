@@ -1269,15 +1269,15 @@ class AI(commands.Cog):
         ]
         model = choice(model_choices)
         
-        input = utils.rem_emoji_url(msg.content)
-        input = re.sub(r'<..\d+>', '', input).strip()
+        ai_input = utils.rem_emoji_url(msg.content)
+        ai_input = re.sub(r'<..\d+>', '', ai_input).strip()
         
-        if not input:
+        if not ai_input:
             return
         
         response = await self.responses_text(
             model=model[0],
-            input=input,
+            input=ai_input,
             instructions=dedent(GRAMMAR_CHECK_SYSTEM),
             return_response=True,
             store=False,
@@ -1295,7 +1295,7 @@ class AI(commands.Cog):
 
         await utils.safe_send(msg.author,
                                f"{model[0]}: Here's a grammar correction for your message:\n"
-                               f">>> Before:\n{input}\nAfter:\n{response_text}")
+                               f">>> Before:\n{ai_input}\nAfter:\n{response_text}")
 
 
 async def setup(bot: commands.Bot):
