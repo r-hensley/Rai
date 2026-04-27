@@ -1249,7 +1249,7 @@ class AI(commands.Cog):
         input: I am book
         output: ignored
         
-        (correct other languages IF and only if theres an error)
+        (correct other languages IF and only if there's an error)
         input: soy un persona
         output: soy **una** persona
         input: 私は人間でし
