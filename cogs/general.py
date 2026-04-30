@@ -18,8 +18,13 @@ from cogs.utils.helper_functions import format_interval
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.views import PaginationView
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+MEMBERS_PER_PAGE = 20
+
+
 BLACKLIST_CHANNEL_ID = 533863928263082014
 MODCHAT_SERVER_ID = 257984339025985546
 JP_SERVER_ID = 189571157446492161
@@ -332,8 +337,9 @@ class General(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def inrole(self, ctx, *, role_name):
-        """Type `;inrole <role_name>` to see a list of users in a role."""
-        role_name = role_name.casefold()
+        """Type `;inrole <role_name>` to see a list of users in a role. Add `--count` to just see the number."""
+        count_only = "--count" in role_name
+        role_name = role_name.replace("--count", "").strip().casefold()
         role: Optional[discord.Role] = discord.utils.find(
             lambda i: i.name.casefold() == role_name, ctx.guild.roles)
         if not role:
@@ -344,18 +350,27 @@ class General(commands.Cog):
         if not role:
             await utils.safe_send(ctx, "I couldn't find the role you specified.")
             return
-        emb = discord.Embed(title=f"**List of members in {role.name} role - {len(role.members)}**",
-                            description="",
-                            color=0x00FF00)
+        if count_only:
+            await utils.safe_send(ctx, f"**{role.name}** has **{len(role.members)}** members.")
+            return
         members = sorted(role.members, key=lambda m: m.name.casefold())
-        for member in members:
-            new_desc = emb.description + f"{str(member)}\n"
-            if len(new_desc) < 2045:
-                emb.description = new_desc
-            else:
-                emb.description += "..."
-                break
-        await utils.safe_send(ctx, embed=emb)
+        pages = [members[i:i + MEMBERS_PER_PAGE] for i in range(0, len(members), MEMBERS_PER_PAGE)]
+        if not pages:
+            pages = [[]]
+        embeds = []
+        for idx, page in enumerate(pages):
+            emb = discord.Embed(
+                title=f"**List of members in {role.name} role - {len(members)}**",
+                description="\n".join(str(m) for m in page) or "No members.",
+                color=0x00FF00)
+            emb.set_footer(text=f"Page {idx + 1}/{len(pages)}")
+            embeds.append(emb)
+        if len(embeds) == 1:
+            await utils.safe_send(ctx, embed=embeds[0])
+        else:
+            view = PaginationView(embeds, ctx.author)
+            msg = await utils.safe_send(ctx, embed=embeds[0], view=view)
+            view.message = msg
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
