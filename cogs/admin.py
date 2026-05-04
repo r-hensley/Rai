@@ -2300,18 +2300,18 @@ class Admin(commands.Cog):
                 await ctx.invoke(log_command, args=f"{user_id} {log_reason}")
 
 
-    @app_commands.command(name="temprole", description="Add a temporary (or permanent) role to a user.")
+    @app_commands.command(name="addrole", description="Add a role to a user, or remove it if they already have it.")
     @app_commands.describe(
-        member="The member to give the role to",
-        role="The role to assign",
-        time="Duration (e.g. 7d, 2h30m, 1y). Leave empty for indefinite."
+        member="The member to add or remove the role from",
+        role="The role to assign (or remove if the member already has it)",
+        time="Duration when adding (e.g. 7d, 2h30m, 1y). Leave empty for indefinite."
     )
     @app_commands.default_permissions(manage_roles=True)
-    async def temprole(self, interaction: discord.Interaction,
-                       member: discord.Member,
-                       role: discord.Role,
-                       time: Optional[str] = None):
-        """Assign a role to a user, optionally expiring after the given duration."""
+    async def addrole(self, interaction: discord.Interaction,
+                      member: discord.Member,
+                      role: discord.Role,
+                      time: Optional[str] = None):
+        """Assign a role to a user, or remove it if they already have it. Optionally expires after the given duration."""
         if not interaction.guild:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return
@@ -2319,7 +2319,31 @@ class Admin(commands.Cog):
         # Check that the bot can manage this role
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
-                f"I cannot assign {role.mention} because it is at or above my highest role.", ephemeral=True)
+                f"I cannot manage {role.mention} because it is at or above my highest role.", ephemeral=True)
+            return
+
+        # Toggle: remove the role if the member already has it
+        if role in member.roles:
+            audit_reason = f"addrole (toggle remove) by {interaction.user} ({interaction.user.id})"
+            try:
+                await member.remove_roles(role, reason=audit_reason)
+            except discord.Forbidden:
+                await interaction.response.send_message(
+                    f"I don't have permission to remove {role.mention}.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                await interaction.response.send_message(f"Failed to remove role: {e}", ephemeral=True)
+                return
+
+            # Clean up any timed_roles DB entry for this role
+            timed_roles = self.bot.db.get('timed_roles', {})
+            guild_timed = timed_roles.get(str(interaction.guild.id), {})
+            user_timed = guild_timed.get(str(member.id), {})
+            if str(role.id) in user_timed:
+                del user_timed[str(role.id)]
+
+            await interaction.response.send_message(
+                f"✅ Removed {role.mention} from {member.mention}.")
             return
 
         time_stamp: Optional[int] = None
@@ -2337,7 +2361,7 @@ class Admin(commands.Cog):
             time_stamp = int(finish_dt.timestamp())
 
         # Add the role
-        audit_reason = f"temprole by {interaction.user} ({interaction.user.id})"
+        audit_reason = f"addrole by {interaction.user} ({interaction.user.id})"
         if length_str:
             audit_reason += f" for {length_str}"
         try:
