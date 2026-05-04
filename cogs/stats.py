@@ -703,7 +703,10 @@ class Stats(commands.Cog):
 
             total_emojis = 0
             field_counter = 0
+            fields_added = 0
             while field_counter <= len(uses_to_emoji_list_dict) and (field_counter < 6 or total_emojis < 50):
+                if fields_added >= 25:
+                    break
                 if field_counter in uses_to_emoji_list_dict:
                     if field_counter == 1:
                         field_name = f"{field_counter} use"
@@ -717,8 +720,11 @@ class Stats(commands.Cog):
                         if len(field_value + new_addition) < 1024:
                             field_value += new_addition
                         else:
+                            if fields_added >= 25:
+                                break
                             emb.add_field(name=field_name,
                                           value=field_value, inline=True)
+                            fields_added += 1
 
                             if field_counter == 1:
                                 field_name = f"{field_counter} use (cont.)"
@@ -728,12 +734,14 @@ class Stats(commands.Cog):
                             field_value = new_addition
                         total_emojis += 1
 
-                    if 'cont' in field_name:
-                        emb.add_field(name=field_name,
-                                      value=field_value, inline=True)
-                    else:
-                        emb.add_field(name=field_name,
-                                      value=field_value, inline=False)
+                    if fields_added < 25 and field_value:
+                        if 'cont' in field_name:
+                            emb.add_field(name=field_name,
+                                          value=field_value, inline=True)
+                        else:
+                            emb.add_field(name=field_name,
+                                          value=field_value, inline=False)
+                        fields_added += 1
 
                 field_counter += 1
 
