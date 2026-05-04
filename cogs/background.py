@@ -395,9 +395,9 @@ class Background(commands.Cog):
             for user_id in list(guild_config):
                 member = guild.get_member(int(user_id))
                 for role_id in list(guild_config[user_id]):
-                    remove_time = datetime.strptime(
-                        guild_config[user_id][role_id], "%Y/%m/%d %H:%M UTC"
-                    ).replace(tzinfo=timezone.utc)
+                    remove_time = datetime.fromtimestamp(
+                        guild_config[user_id][role_id], tz=timezone.utc
+                    )
                     if remove_time < discord.utils.utcnow():
                         if member:
                             role = guild.get_role(int(role_id))
