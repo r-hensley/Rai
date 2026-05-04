@@ -495,7 +495,7 @@ async def auto_ban(
 
 def parse_time(
         time_in: str,
-        return_seconds: bool = False
+        return_seconds: bool = True
     ) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
     """
     Parses a time string and returns a formatted UTC datetime string plus a time length.
@@ -509,9 +509,10 @@ def parse_time(
         - Years (y)
 
     :param time_in: a string like "2d3h", "10h", "1y2d", "1y", "10s", etc.
+    :param return_seconds: Deprecated, kept for backward compatibility. Seconds are always included.
     :return:
       - *time_string*: Formatted UTC datetime string ("%Y/%m/%d %H:%M UTC")
-      - *length*: tuple (days, hours, minutes) if parsed successfully, or (None, None, None) if failed.
+      - *length*: tuple (days, hours, minutes, seconds) if parsed successfully, or (None, None, None, None) if failed.
     """
     time_re = re.fullmatch(r''
                            r'((\d+)y)?'
@@ -521,10 +522,7 @@ def parse_time(
                            r'((\d+)m)?'
                            r'((\d+)s)?', time_in)
     if not time_re:
-        if return_seconds:
-            return '', (None, None, None, None)
-        else:
-            return '', (None, None, None)
+        return '', (None, None, None, None)
     
     years = int(time_re.group(2) or 0)
     weeks = int(time_re.group(4) or 0)
@@ -535,28 +533,18 @@ def parse_time(
     
     # move years and weeks into days
     total_days = (years * 365) + (weeks * 7) + days
-    
-    # keep hours the same
     total_hours = hours
-    
-    # move seconds into minutes
-    if return_seconds:
-        total_minutes = minutes
-        total_seconds = seconds
-    else:
-        total_minutes = int(minutes + seconds / 86400)
-        total_seconds = None
+    total_minutes = minutes
+    total_seconds = seconds
     
     if total_days > 1_000_000:
         # to avoid C integer overflow at 1,000,000 days
-        length: tuple[int, int, int] = (999_999, 0, 0)
+        length: tuple[int, int, int, int] = (999_999, 0, 0, 0)
     else:
-        length = (total_days, total_hours, total_minutes)
+        length = (total_days, total_hours, total_minutes, total_seconds)
         
-    finish_time = discord.utils.utcnow() + timedelta(days=length[0], hours=length[1], minutes=length[2])
-    if return_seconds:
-        length += (total_seconds,)
-        finish_time += timedelta(seconds=length[3])
+    finish_time = discord.utils.utcnow() + timedelta(
+        days=length[0], hours=length[1], minutes=length[2], seconds=length[3])
     time_string = finish_time.strftime("%Y/%m/%d %H:%M UTC")
     
     return time_string, length
@@ -1027,7 +1015,7 @@ def args_discriminator(args: str) -> Args:
 
     if _length:
         try:
-            _time_obj = discord.utils.utcnow() + timedelta(days=_length[0], hours=_length[1], minutes=_length[2])
+            _time_obj = discord.utils.utcnow() + timedelta(days=_length[0], hours=_length[1], minutes=_length[2], seconds=_length[3])
         except OverflowError:
             _time_arg = _time_obj = _length = _time_string = None
 

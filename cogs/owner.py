@@ -555,9 +555,9 @@ class Owner(commands.Cog):
         try:
             seconds = int(time)
         except ValueError:
-            # length is a list of ints [days, hours, minutes]
+            # length is a list of ints [days, hours, minutes, seconds]
             _, length = hf.parse_time(time)
-            seconds = length[0] * 86400 + length[1] * 3600 + length[2] * 60
+            seconds = length[0] * 86400 + length[1] * 3600 + length[2] * 60 + length[3]
         # noinspection PyTypeChecker
         await ctx.invoke(self.eval_internal, seconds=seconds, body=body)
 
@@ -715,7 +715,7 @@ class Owner(commands.Cog):
     @commands.command(hidden=True)
     async def self_mute_owner(self, ctx, time: str):
         """Irreversibly mutes the bot owner for x amount of minutes"""
-        _, (days, hours, minutes) = hf.parse_time(time)
+        _, (days, hours, minutes, _) = hf.parse_time(time)
         hours += days * 24
         self.bot.selfMute = True
         await utils.safe_send(ctx, f'Muting {ctx.author} for {hours} hours and {minutes} minutes (he chose to do this).')

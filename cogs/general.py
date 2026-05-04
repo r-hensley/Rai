@@ -1489,7 +1489,7 @@ class General(commands.Cog):
             await ctx.message.reply("Please give a length of time like 3d, 2h, 5d2h, 5m.")
             return
         delta_obj = timedelta(
-            days=length[0], hours=length[1], minutes=length[2])
+            days=length[0], hours=length[1], minutes=length[2], seconds=length[3])
         if neg:
             unmute_time = discord.utils.utcnow() - delta_obj
         else:
