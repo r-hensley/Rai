@@ -2322,7 +2322,7 @@ class Admin(commands.Cog):
                 f"I cannot assign {role.mention} because it is at or above my highest role.", ephemeral=True)
             return
 
-        time_string: Optional[str] = None
+        time_stamp: Optional[int] = None
         length_str: Optional[str] = None
 
         if time is not None:
@@ -2331,10 +2331,10 @@ class Admin(commands.Cog):
                 await interaction.response.send_message(
                     "Invalid time format. Use something like `7d`, `2h30m`, `1y2d`, or `10m`.", ephemeral=True)
                 return
-            time_string = parsed_time_string
             duration = timedelta(days=length[0], hours=length[1], minutes=length[2])
             length_str = format_interval(duration)
             finish_dt = discord.utils.utcnow() + duration
+            time_stamp = int(finish_dt.timestamp())
 
         # Add the role
         audit_reason = f"temprole by {interaction.user} ({interaction.user.id})"
@@ -2351,10 +2351,10 @@ class Admin(commands.Cog):
             return
 
         # Store in DB if timed
-        if time_string:
+        if time_stamp:
             guild_config = self.bot.db.setdefault('timed_roles', {}).setdefault(str(interaction.guild.id), {})
             user_config = guild_config.setdefault(str(member.id), {})
-            user_config[str(role.id)] = time_string
+            user_config[str(role.id)] = time_stamp
 
             discord_ts = discord.utils.format_dt(finish_dt, style='R')
             await interaction.response.send_message(
