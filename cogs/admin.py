@@ -483,7 +483,7 @@ class Admin(commands.Cog):
         if not time:
             await utils.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")
             return
-        time = timedelta(days=time[0], hours=time[1], minutes=time[2])
+        time = timedelta(days=time[0], hours=time[1], minutes=time[2], seconds=time[3])
 
         to_prune_channels = []
         cached_messages = list(self.bot.cached_messages).copy()[::-1]
@@ -2331,7 +2331,7 @@ class Admin(commands.Cog):
                 await interaction.response.send_message(
                     "Invalid time format. Use something like `7d`, `2h30m`, `1y2d`, or `10m`.", ephemeral=True)
                 return
-            duration = timedelta(days=length[0], hours=length[1], minutes=length[2])
+            duration = timedelta(days=length[0], hours=length[1], minutes=length[2], seconds=length[3])
             length_str = format_interval(duration)
             finish_dt = discord.utils.utcnow() + duration
             time_stamp = int(finish_dt.timestamp())
