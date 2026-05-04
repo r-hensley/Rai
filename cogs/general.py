@@ -1480,7 +1480,7 @@ class General(commands.Cog):
         if neg := time.startswith("-"):  # negative time
             time = time[1:]  # remove negative sign
         try:
-            # length = [days, hours, minutes]
+            # length = [days, hours, minutes, seconds]
             time_string, length = hf.parse_time(f"{time}")
         except OverflowError:
             await utils.safe_reply(ctx, "You chose way too big of a number! Please choose a smaller one.")

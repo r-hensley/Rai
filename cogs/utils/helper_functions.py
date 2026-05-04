@@ -495,7 +495,6 @@ async def auto_ban(
 
 def parse_time(
         time_in: str,
-        return_seconds: bool = True
     ) -> tuple[str, tuple[int, ...] | tuple[None, ...]]:
     """
     Parses a time string and returns a formatted UTC datetime string plus a time length.
@@ -509,7 +508,6 @@ def parse_time(
         - Years (y)
 
     :param time_in: a string like "2d3h", "10h", "1y2d", "1y", "10s", etc.
-    :param return_seconds: Deprecated, kept for backward compatibility. Seconds are always included.
     :return:
       - *time_string*: Formatted UTC datetime string ("%Y/%m/%d %H:%M UTC")
       - *length*: tuple (days, hours, minutes, seconds) if parsed successfully, or (None, None, None, None) if failed.
