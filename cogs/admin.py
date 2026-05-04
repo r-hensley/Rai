@@ -478,7 +478,7 @@ class Admin(commands.Cog):
         Usage: `;clearall <ID> [time: 10m, 2h, etc]`"""
         target_id = int(
             re.search(r"^(<@)?!?(\d{17,22})>?$", target_in).group(2))
-        # gives list of integers: [days, hours, minutes]
+        # gives list of integers: [days, hours, minutes, seconds]
         time = hf.parse_time(time_in)[1]
         if not time:
             await utils.safe_send(ctx, "If you input a time, please do something in a form like 2d, 1h, 3m, 2h30m, etc.")

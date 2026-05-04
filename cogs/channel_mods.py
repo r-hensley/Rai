@@ -271,7 +271,7 @@ class ChannelMods(commands.Cog):
             time_in = ''  # to be checked at final confirmation message again
 
         time_string, (days, hours, minutes, seconds) = hf.parse_time(
-            time_in, return_seconds=True)
+            time_in)
         if not time_string:
             await utils.safe_reply(ctx,
                                    "I could not parse your input. Please see the following.\n" + ctx.command.help)
