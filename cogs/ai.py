@@ -1224,47 +1224,22 @@ class AI(commands.Cog):
             return
         
         GRAMMAR_CHECK_SYSTEM = """
-        You are checking a Discord user's message for grammar.
-        
-        The user is learning Japanese, Italian, and Spanish.
-        
-        Rules:
-        - Ignore the message if it is in English. Return exactly: ignored
-        - If it is in Japanese, Italian, or Spanish, correct grammar errors.
-        - Ignore (DO NOT CORRECT) missing capitalization or missing punctuation.
-        - Ignore missing diacritics if the message generally omits all diacritics.
-        - If the message generally uses diacritics but misses one, correct it.
-        - If no errors are found, return exactly: ignored
-        - If errors are found, return only the corrected text.
-        - Surround changed parts with double asterisks.
-        - The corrected text should not match the input text. If nothing is changed, instead return: ignored
-        - If an explanation for something is necessary, explain very briefly.
-        
-        GOOD EXAMPLES:
-        (ignore correct text)
-        input: おはよう！
-        good output: ignored 
-        
-        (ignore English)
-        input: I am book
-        output: ignored
-        
-        (correct other languages IF and only if there's an error)
-        input: soy un persona
-        output: soy **una** persona
-        input: 私は人間でし
-        output: 私は人間で**す**
-        
-        BAD EXAMPLE:
-        (do not correct a text with nothing wrong)
-        input: いいね！
-        bad output: **いいね！** (do not do this)
-        good output: ignored
+        You are a grammar checker. The user is learning Japanese, Italian, and Spanish.
+
+        - If the message is in English, return exactly: ignored
+        - If the message has no grammar errors, return exactly: ignored
+        - Only correct real grammar errors (wrong word forms, wrong particles, wrong conjugations, etc.).
+        - Do NOT correct missing capitalization, missing punctuation, or missing accents.
+        - If there are errors, return only the corrected text with changed parts wrapped in **double asterisks**.
+
+        Examples:
+        input: おはよう！  →  ignored
+        input: I am book  →  ignored
+        input: soy un persona  →  soy **una** persona
+        input: 私は人間でし  →  私は人間で**す**
         """
         model_choices = [
             ('gpt-4o-mini', None),
-            ('gpt-4.1-nano', None),
-            ('gpt-5-nano', {'effort': 'minimal'}),
             ('gpt-5-mini', {'effort': 'minimal'})
         ]
         model = choice(model_choices)
