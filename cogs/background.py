@@ -38,7 +38,7 @@ class Background(commands.Cog):
                              self.unmute_users, self.unselfmute_users, self.delete_old_stats_days,
                              self.delete_old_readd_role_entries,
                              self.check_downed_tasks, self.save_db, self.live_latency,
-                             self.fireside_message}
+                             self.fireside_message, self.remove_temp_roles}
         self.bot.running_tasks = []
         task_names = {task.coro.__name__ for task in self.bot.bg_tasks}
         for task in asyncio.all_tasks():
@@ -380,6 +380,37 @@ class Background(commands.Cog):
             await utils.safe_send(fireside_channel_text, msg)
         except discord.Forbidden:
             pass
+
+
+    @rai_task(minutes=5.0)
+    async def remove_temp_roles(self):
+        config = self.bot.db.get('timed_roles', {})
+        for guild_id in list(config):
+            guild = self.bot.get_guild(int(guild_id))
+            guild_config = config[guild_id]
+            if not guild:
+                # Bot is no longer in this guild; clean up all entries
+                del config[guild_id]
+                continue
+            for user_id in list(guild_config):
+                member = guild.get_member(int(user_id))
+                for role_id in list(guild_config[user_id]):
+                    remove_time = datetime.strptime(
+                        guild_config[user_id][role_id], "%Y/%m/%d %H:%M UTC"
+                    ).replace(tzinfo=timezone.utc)
+                    if remove_time < discord.utils.utcnow():
+                        if member:
+                            role = guild.get_role(int(role_id))
+                            if role and role in member.roles:
+                                try:
+                                    await member.remove_roles(role, reason="Temporary role expired")
+                                except (discord.Forbidden, discord.HTTPException):
+                                    pass
+                        del guild_config[user_id][role_id]
+                if not guild_config[user_id]:
+                    del guild_config[user_id]
+            if not guild_config:
+                del config[guild_id]
 
 
 async def setup(bot):

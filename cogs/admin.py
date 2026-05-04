@@ -7,12 +7,13 @@ from typing import Optional, List
 
 import aiohttp
 import discord
+from discord import app_commands
 from discord.ext import commands
 from emoji import is_emoji
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
-from .utils.helper_functions import format_interval
+from .utils.helper_functions import format_interval, parse_time
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 JP_SERVER_ID = 189571157446492161
@@ -2297,6 +2298,71 @@ class Admin(commands.Cog):
                     log_reason += f" - {reason}"
                 # noinspection PyTypeChecker
                 await ctx.invoke(log_command, args=f"{user_id} {log_reason}")
+
+
+    @app_commands.command(name="temprole", description="Add a temporary (or permanent) role to a user.")
+    @app_commands.describe(
+        member="The member to give the role to",
+        role="The role to assign",
+        time="Duration (e.g. 7d, 2h30m, 1y). Leave empty for indefinite."
+    )
+    @app_commands.default_permissions(manage_roles=True)
+    async def temprole(self, interaction: discord.Interaction,
+                       member: discord.Member,
+                       role: discord.Role,
+                       time: Optional[str] = None):
+        """Assign a role to a user, optionally expiring after the given duration."""
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
+        # Check that the bot can manage this role
+        if role >= interaction.guild.me.top_role:
+            await interaction.response.send_message(
+                f"I cannot assign {role.mention} because it is at or above my highest role.", ephemeral=True)
+            return
+
+        time_string: Optional[str] = None
+        length_str: Optional[str] = None
+
+        if time is not None:
+            parsed_time_string, length = parse_time(time)
+            if not parsed_time_string or length[0] is None:
+                await interaction.response.send_message(
+                    "Invalid time format. Use something like `7d`, `2h30m`, `1y2d`, or `10m`.", ephemeral=True)
+                return
+            time_string = parsed_time_string
+            duration = timedelta(days=length[0], hours=length[1], minutes=length[2])
+            length_str = format_interval(duration)
+            finish_dt = discord.utils.utcnow() + duration
+
+        # Add the role
+        audit_reason = f"temprole by {interaction.user} ({interaction.user.id})"
+        if length_str:
+            audit_reason += f" for {length_str}"
+        try:
+            await member.add_roles(role, reason=audit_reason)
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                f"I don't have permission to assign {role.mention}.", ephemeral=True)
+            return
+        except discord.HTTPException as e:
+            await interaction.response.send_message(f"Failed to assign role: {e}", ephemeral=True)
+            return
+
+        # Store in DB if timed
+        if time_string:
+            guild_config = self.bot.db.setdefault('timed_roles', {}).setdefault(str(interaction.guild.id), {})
+            user_config = guild_config.setdefault(str(member.id), {})
+            user_config[str(role.id)] = time_string
+
+            discord_ts = discord.utils.format_dt(finish_dt, style='R')
+            await interaction.response.send_message(
+                f"✅ Assigned {role.mention} to {member.mention}. "
+                f"It will be removed {discord_ts} (in {length_str}).")
+        else:
+            await interaction.response.send_message(
+                f"✅ Assigned {role.mention} to {member.mention} indefinitely.")
 
 
 async def setup(bot):
