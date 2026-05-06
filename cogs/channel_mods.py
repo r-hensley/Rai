@@ -363,78 +363,76 @@ class ChannelMods(commands.Cog):
 
     @commands.command()
     async def evidence(self, ctx: commands.Context, *, args):
-        """This command will add evidence to the last log of a user.
+        """This command will add evidence to the last log of one or more users.
         Example: `;evidence 123456789012345678 <link to message or picture>`
+        Multiple users: `;evidence 111111111111111111 222222222222222222 <link>`
         Note, if it is a link to an image hosted in Discord, the link might break so message links are good."""
         if not args:
             await utils.safe_reply(ctx, "Please provide a user ID and a link to the evidence.")
             return
+
+        id_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')
         split_args = args.split()
 
-        # if there's only one argument, it should be the evidence; search for the ID in the message history
-        if len(split_args) == 1:
-            try:
-                # works if this is the ID
-                int(split_args[0])
-            except ValueError:
-                id = await self.check_for_id_reference(ctx)
-                if not id:
+        # Pull all leading IDs from the args (same approach as ban's args_discriminator)
+        user_ids = []
+        remaining_args = args
+        for token in split_args:
+            if id_match := id_regex.match(token):
+                user_ids.append(int(id_match.group(1)))
+                # Strip this token from remaining_args (preserve the rest as-is)
+                if f"{token} " in remaining_args:
+                    remaining_args = remaining_args.replace(f"{token} ", "", 1)
+                else:
+                    remaining_args = remaining_args.replace(token, "", 1).lstrip()
+            else:
+                break  # stop at the first non-ID token; the rest is the evidence
+
+        evidence = remaining_args.strip()
+
+        # If no IDs were found, try to look one up from recent command history
+        if not user_ids:
+            if len(split_args) == 1:
+                # Only one arg and it's not an ID — treat it as evidence, look up ID from history
+                possible_id = await self.check_for_id_reference(ctx)
+                if not possible_id:
                     await utils.safe_reply(ctx, "Please provide a valid user ID.")
                     return
-                else:
-                    user_id = id
-                    user_id_str = str(user_id)
-                    # since there was only one arg passed and it was the evidence
-                    evidence = split_args[0]
-            else:
-                # int(id) worked, so no evidence was given
-                await utils.safe_reply(ctx, "Please provide a link to the evidence.")
-                return
-        else:
-            # there were multiple arguments passed, first was ID, rest was evidence
-            # take just the evidence
-            user_id_str, *_ = split_args
-            # remove the ID from the original args string, and then use that over the split verison (to preserve new
-            # lines inserted in original command invocation)
-            args_without_id = args[len(user_id_str) + 1:]
-            evidence = args_without_id
-
-        # check to make sure the ID is actually an ID
-        if not re.match(r'^\d{17,22}$', user_id_str):
-            possible_id = await self.check_for_id_reference(ctx)
-            if possible_id:
-                user_id = possible_id
-                evidence = args
+                user_ids = [possible_id]
+                evidence = split_args[0]
             else:
                 await utils.safe_reply(ctx, "Please provide a valid user ID.")
                 return
-        else:
-            user_id = int(user_id_str)
 
-        url = True
-        if not re.match(r'^https?://', evidence):
-            url = False
+        if not evidence:
+            await utils.safe_reply(ctx, "Please provide a link to the evidence.")
+            return
+
+        url = bool(re.match(r'^https?://', evidence))
 
         # Replace any lone instance of the word "ctx" in the evidence with a link to the jump_url of the ctx message
         evidence = re.sub(
             r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
 
-        modlog = self.bot.db['modlog'].get(
-            str(ctx.guild.id), {}).get(str(user_id), [])
-        if not modlog:
-            await utils.safe_reply(ctx, "I couldn't find any logs for that user.")
-            return
+        results = []
+        for user_id in user_ids:
+            modlog = self.bot.db['modlog'].get(
+                str(ctx.guild.id), {}).get(str(user_id), [])
+            if not modlog:
+                results.append(f"⚠️ No logs found for <@{user_id}> (`{user_id}`).")
+                continue
 
-        most_recent_log = modlog[-1]
-        if url:
-            most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)"
-        else:
-            evidence = evidence.replace('\n', '\n  ')
-            most_recent_log['reason'] += f"\n- {evidence}"
+            most_recent_log = modlog[-1]
+            if url:
+                most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)"
+            else:
+                formatted_evidence = evidence.replace('\n', '\n  ')
+                most_recent_log['reason'] += f"\n- {formatted_evidence}"
 
-        await utils.safe_reply(ctx.message, f"Added evidence to the last log for {user_id} (<@{user_id}>). "
-                               f"New reason: "
-                               f"\n>>> {most_recent_log['reason']}")
+            results.append(f"✅ Added evidence to the last log for <@{user_id}> (`{user_id}`).\n"
+                           f">>> {most_recent_log['reason']}")
+
+        await utils.safe_reply(ctx.message, "\n\n".join(results))
 
     async def check_for_id_reference(self, ctx: commands.Context):
         """This will check the last five messages for any message starting with ;log, ;mute, or ;warn and pull
