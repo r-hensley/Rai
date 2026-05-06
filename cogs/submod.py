@@ -656,7 +656,10 @@ class Submod(commands.Cog):
                         name="Failed to Ban",
                         value=", ".join(user.mention for user in failures),
                         inline=False)
-                await confirmation_msg.edit(embed=embed, view=None)
+                try:
+                    await confirmation_msg.edit(embed=embed, view=None)
+                except discord.NotFound:
+                    pass
                 
                 return
         
@@ -665,7 +668,10 @@ class Submod(commands.Cog):
             description="The ban operation was cancelled.",
             color=0xFFA500
         )
-        await confirmation_msg.edit(content=None, embed=embed, view=None)
+        try:
+            await confirmation_msg.edit(content=None, embed=embed, view=None)
+        except discord.NotFound:
+            pass
     
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
                                 guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265,
