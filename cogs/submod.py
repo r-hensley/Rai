@@ -644,7 +644,10 @@ class Submod(commands.Cog):
                                 f"- {member.mention} ***(Was flagged for both excessive DM activity "
                                 f"and potential spamming activities)***\n")
                     flag_msg += f"-# ||<@{self.bot.owner_id}>||\n"
-                    await confirmation_msg.reply(flag_msg)
+                    try:
+                        await confirmation_msg.reply(flag_msg)
+                    except discord.NotFound:
+                        await ctx.send(flag_msg)
                 
                 embed = discord.Embed(
                     title="Ban Successful",
