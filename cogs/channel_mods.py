@@ -16,6 +16,8 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SP_SERV = 243838819743432704
 JP_SERV = 189571157446492161
 
+_ID_REGEX = re.compile(r'^<?@?!?(\d{17,22})>?$')
+
 
 class ChannelMods(commands.Cog):
     """Commands that channel mods can use in their specific channels only. For adding channel \
@@ -371,64 +373,47 @@ class ChannelMods(commands.Cog):
             await utils.safe_reply(ctx, "Please provide a user ID and a link to the evidence.")
             return
 
-        id_regex = re.compile(r'^<?@?!?(\d{17,22})>?$')
         split_args = args.split()
 
-        # Pull all leading IDs from the args (same approach as ban's args_discriminator)
+        # Collect all leading IDs; evidence is everything after the last matched ID
         user_ids = []
-        remaining_args = args
+        id_end = 0  # character offset into args where IDs end
         for token in split_args:
-            if id_match := id_regex.match(token):
+            if id_match := _ID_REGEX.match(token):
                 user_ids.append(int(id_match.group(1)))
-                # Strip this token from remaining_args (preserve the rest as-is)
-                if f"{token} " in remaining_args:
-                    remaining_args = remaining_args.replace(f"{token} ", "", 1)
-                else:
-                    remaining_args = remaining_args.replace(token, "", 1).lstrip()
+                id_end = args.index(token) + len(token)
             else:
-                break  # stop at the first non-ID token; the rest is the evidence
+                break  # first non-ID token starts the evidence
 
-        evidence = remaining_args.strip()
-
-        # If no IDs were found, try to look one up from recent command history
+        # If no IDs found, the single arg is evidence and we look up the ID from history
         if not user_ids:
-            if len(split_args) == 1:
-                # Only one arg and it's not an ID — treat it as evidence, look up ID from history
-                possible_id = await self.check_for_id_reference(ctx)
-                if not possible_id:
-                    await utils.safe_reply(ctx, "Please provide a valid user ID.")
-                    return
-                user_ids = [possible_id]
-                evidence = split_args[0]
-            else:
+            possible_id = await self.check_for_id_reference(ctx)
+            if not possible_id:
                 await utils.safe_reply(ctx, "Please provide a valid user ID.")
                 return
+            user_ids = [possible_id]
+            evidence = args.strip()
+        else:
+            evidence = args[id_end:].strip()
 
         if not evidence:
             await utils.safe_reply(ctx, "Please provide a link to the evidence.")
             return
 
         url = bool(re.match(r'^https?://', evidence))
-
-        # Replace any lone instance of the word "ctx" in the evidence with a link to the jump_url of the ctx message
-        evidence = re.sub(
-            r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
+        evidence = re.sub(r'\bctx\b', f"[(Message Link)]({ctx.message.jump_url})", evidence)
+        formatted_evidence = evidence.replace('\n', '\n  ')
 
         results = []
         for user_id in user_ids:
             modlog = self.bot.db['modlog'].get(
                 str(ctx.guild.id), {}).get(str(user_id), [])
             if not modlog:
-                results.append(f"⚠️ No logs found for <@{user_id}> (`{user_id}`).")
+                results.append(f"⚠️ No logs found for <@{user_id}> (`{user_id}`).")                
                 continue
 
             most_recent_log = modlog[-1]
-            if url:
-                most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)"
-            else:
-                formatted_evidence = evidence.replace('\n', '\n  ')
-                most_recent_log['reason'] += f"\n- {formatted_evidence}"
-
+            most_recent_log['reason'] += f"\n- [`Evidence`](<{evidence}>)" if url else f"\n- {formatted_evidence}"
             results.append(f"✅ Added evidence to the last log for <@{user_id}> (`{user_id}`).\n"
                            f">>> {most_recent_log['reason']}")
 
@@ -675,12 +660,12 @@ class ChannelMods(commands.Cog):
         if to_add_lang_roles:
             sorted_adds = sorted(
                 to_add_lang_roles, key=lambda x: x.position, reverse=True)
-            adds = '\n'.join([f'＋ {r.mention}' for r in sorted_adds])
+            adds = '\n'.join([f'+ {r.mention}' for r in sorted_adds])
             msg += f"__Added__\n{adds}\n"
         if to_remove:
             sorted_removes = sorted(
                 to_remove, key=lambda x: x.position, reverse=True)
-            removes = '\n'.join([f'－ {r.mention}' for r in sorted_removes])
+            removes = '\n'.join([f'- {r.mention}' for r in sorted_removes])
             msg += f"__Removed__\n{removes}\n"
 
         sorted_current = sorted(
