@@ -106,7 +106,7 @@ class Rai(Bot):
             new_db = {'ultraHardcore': {}, 'hardcore': {}, 'welcome_message': {}, 'roles': {}, 'ID': {},
                       'mod_channel': {}, 'mod_role': {}, 'deletes': {}, 'nicknames': {}, 'edits': {},
                       'leaves': {}, 'reactions': {}, 'captcha': {}, 'bans': {}, 'kicks': {}, 'welcomes': {},
-                      'auto_bans': {}, 'global_blacklist': {}, 'super_voicewatch': {},
+                      'auto_bans': {}, 'global_blacklist': {}, 'super_voicewatch': {}, 'report': {},
                       'super_watch': {}, 'prefix': {}, 'questions': {}, 'mutes': {}, 'submod_role': {},
                       'colors': {}, 'submod_channel': {}, 'SAR': {}, 'channel_mod': {}, 'channel_mods': {},
                       'modlog': {}, 'dbtest': {}, 'modsonly': {}, 'voice_mutes': {},
