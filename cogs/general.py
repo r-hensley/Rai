@@ -264,7 +264,7 @@ class General(commands.Cog):
             await utils.safe_send(ctx, help_msg)
 
     @commands.command()
-    async def report(self, ctx):
+    async def report(self, ctx: commands.Context):
         """Redirect users from the legacy report flow to DMModbot."""
         await ctx.send("If you're using this, please DM <@713245294657273856> instead (DMModbot).")
 
