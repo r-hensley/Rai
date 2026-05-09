@@ -10,6 +10,7 @@ class Reports(commands.Cog):
 
     @commands.command()
     async def report(self, ctx):
+        """Redirect users from the legacy report flow to DMModbot."""
         await ctx.send(f"If you're using this, please DM <@{DM_MODBOT_ID}> instead (DMModbot).")
 
 
