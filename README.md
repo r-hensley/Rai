@@ -3,7 +3,6 @@
 Discord bot for Discord language servers (Python). Some key features:
 
 - Extensive logging of joins, leaves, bans, deletes, edits, reaction removes, and invites that people use to join a server
-- A report room for users to make either anonymous reports to mods or enter a mod report chat room to discuss an issue. Designed to eliminate the need for private messages completely from mod business.
 - A smart message prune/clear command which takes a message ID as input so you don't have to count messages
 - Configurable reaction requirement to enter a server
 - Super watchlist for when you have raiders who are repeatedly making accounts and spamming gore/porn/etc.
@@ -57,7 +56,6 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;pencil`** Adds a :pencil: to the end of your name to signify that you wish to be corrected. See ;eraser
 - **`;punch`** The first command I made with cogs, just a test, try it
 - **`;randomWalk`** <number> Generates a random walk plot, try it
-- **`;report`** Starts the dialogue in PM for entering the report room (server admins must run the setup command first)
 - **`;ryan`** Posts an invite link to this page/my testing server
 - **`;u`** Shows your profile information
 
@@ -130,11 +128,6 @@ Typical usage:
 Special syntax:
 
 - **`;clear MESSAGE_ID`** A syntax where you only specify a message ID. It will default to a max of 100 messages at the most, and it will delete all messages from all users past the specified message id.
-
-#### Report room
-
-This command module, while it's still in the bot, has mainly been replaced by the DMModbot bot on my repo.
-⠀
 
 #### Super_watch lists: an anti-raid tool
 

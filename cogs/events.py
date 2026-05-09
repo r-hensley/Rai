@@ -62,7 +62,7 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
-        """removes people from the waiting list for ;report if they react with '🚫' to a certain message"""
+        """Handles reaction-based utility logic."""
 
         async def check_untagged_jho_users():
             """This will watch for untagged users in JHO.
