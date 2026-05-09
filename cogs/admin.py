@@ -1066,18 +1066,15 @@ class Admin(commands.Cog):
                        # 3
                        "Set/view the custom prefix (`;set_prefix <prefix>`)",
                        "Logging modules",  # 4
-                       "Report module (`;report`)",  # 5
-                       "Setup a questions channel (`;q`)",  # 6
-                       # 7
-                       "Automatically readd roles to users who rejoin the server (`;readd_roles`)",
-                       # 8
-                       "Reaction-to-enter requirement for the server (`;captcha`)",
-                       "Super voice watch (`;svw`)",  # 9
-                       "Super text watch (`;sw`)",  # 10
+                       "Setup a questions channel (`;q`)",  # 5
+                       "Automatically readd roles to users who rejoin the server (`;readd_roles`)",  # 6
+                       "Reaction-to-enter requirement for the server (`;captcha`)",  # 7
+                       "Super voice watch (`;svw`)",  # 8
+                       "Super text watch (`;sw`)",  # 9
                        ]
             emb = self.make_options_embed(options)
             emb.description = "(WIP) " + emb.description
-            choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'x']
+            choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'x']
             try:
                 choice, menu = await self.wait_menu(ctx, menu, emb, choices)
             except discord.Forbidden:
@@ -1540,90 +1537,16 @@ class Admin(commands.Cog):
                             elif choice == '2':
                                 await ctx.invoke(self.bot.get_command('reaction_logging reactions_set'))
 
-            #           main > report module
-            elif choice == '5':
-                while True:
-                    options = ['Set the mod role (these users can do `;report done`) (`set_mod_role`)',
-                               "Set the mod channel (this is where anonymous reports go) (`;set_mod_channel`)",
-                               "Set the report room (this is where users get taken for reports) (`;report setup`)",
-                               "Check the report room waiting list (`;report check_waiting_list`)",
-                               "Clear the report room waiting list (`;report clear_waiting_list`)",
-                               "Reset the report room (in case of bugs) (`;report reset`)",
-                               "Ping `@here` when someone makes an anonymous report (`;report anonymous_ping`)",
-                               "Ping `@here` when someone makes enters the report room (`;report room_ping`)"]
-                    emb = self.make_options_embed(options)
-                    emb.title = "Setting up the report module"
-                    try:
-                        config = self.bot.db['report'][str(ctx.guild.id)]
-                        channel = ctx.guild.get_channel_or_thread(
-                            config['channel'])
-                        emb.description = f"Current report channel is {channel.mention} ({channel.id})\n" \
-                            f"{emb.description}"
-                    except KeyError:
-                        emb.description = f"The report room is not setup yet.\n{emb.description}"
-
-                    choices = ['1', '2', '3', '4',
-                               '5', '6', '7', '8', 'b', 'x']
-                    choice, menu = await self.wait_menu(ctx, menu, emb, choices)
-                    if choice == 'time_out':
-                        return
-                    if choice == 'b':
-                        break
-                    elif choice == 'x':
-                        await utils.safe_send(ctx, "Closed options menu")
-                        await menu.delete()
-                        return
-
-                    # set mod role
-                    elif choice == '1':
-                        instr_msg = await utils.safe_send(ctx,
-                                                          "Please input the exact name of the role you wish to set as "
-                                                          "the mod role")
-                        reply_msg = await self.bot.wait_for('message',
-                                                            timeout=20.0,
-                                                            check=lambda x: x.author == ctx.author)
-                        await ctx.invoke(self.set_mod_role, reply_msg.content)
-                        await instr_msg.delete()
-                        await reply_msg.delete()
-
-                    # set mod channel
-                    elif choice == '2':
-                        await ctx.invoke(self.set_mod_channel)
-
-                    # Set the report room
-                    elif choice == '3':
-                        await ctx.invoke(self.bot.get_command('report setup'))
-
-                    # Check waiting list
-                    elif choice == '4':
-                        await ctx.invoke(self.bot.get_command('report check_waiting_list'))
-
-                    # Clear waiting list
-                    elif choice == '5':
-                        await ctx.invoke(self.bot.get_command('report clear_waiting_list'))
-
-                    # Reset report room
-                    elif choice == '6':
-                        await ctx.invoke(self.bot.get_command('report reset'))
-
-                    # Ping `@here` for anonymous reports
-                    elif choice == '7':
-                        await ctx.invoke(self.bot.get_command('report anonymous_ping'))
-
-                    # Ping `@here` for users in the report room
-                    elif choice == '8':
-                        await ctx.invoke(self.bot.get_command('report room_ping'))
-
             #           main > questions module
-            elif choice == '6':
+            elif choice == '5':
                 await ctx.invoke(self.bot.get_command('question setup'))
 
             #           main > readd roles
-            elif choice == '7':
+            elif choice == '6':
                 await ctx.invoke(self.bot.get_command('readd_roles'))
 
             #           main > captcha
-            elif choice == '8':
+            elif choice == '7':
                 while True:
                     options = ['Enable/disable the module (`;captcha toggle`)',
                                "Set here as the channel the new users will see (`;captcha set_channel`)",
@@ -1674,7 +1597,7 @@ class Admin(commands.Cog):
                         await ctx.invoke(self.captcha_post_message)
 
             #           main > super voice watch
-            elif choice == '9':
+            elif choice == '8':
                 while True:
                     options = ["Set here as the channel logs will be posted (`;svw`)",
                                'View list of people in super voice watch (`;svw list`)']
@@ -1712,7 +1635,7 @@ class Admin(commands.Cog):
                         await ctx.invoke(self.super_voicewatch_list)
 
             #           main > super text watch
-            elif choice == '10':
+            elif choice == '9':
                 while True:
                     options = ["Set here as the channel logs will be sent to (`;sw`)",
                                'View list of people in super voice watch (`;sw list`)']
