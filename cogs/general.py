@@ -34,6 +34,7 @@ CL_SERVER_ID = 320439136236601344
 RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
 FRENCH_SERVER_ID = 254463427949494292
+DM_MODBOT_ID = 713245294657273856
 
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
@@ -266,7 +267,7 @@ class General(commands.Cog):
     @commands.command()
     async def report(self, ctx: commands.Context):
         """Redirect users from the legacy report flow to DMModbot."""
-        await ctx.send("If you're using this, please DM <@713245294657273856> instead (DMModbot).")
+        await ctx.send(f"If you're using this, please DM <@{DM_MODBOT_ID}> instead (DMModbot).")
 
     @commands.command()
     @commands.check(fe_check)
