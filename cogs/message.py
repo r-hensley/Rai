@@ -63,7 +63,8 @@ def should_execute_task(allow_bots, allow_self, allow_message_types, self, msg):
 def on_message_function(allow_bots: bool = False,
                         allow_self: bool = False,
                         allow_message_types: Optional[list[discord.MessageType]] = None,
-                        time_threshold: float = 5.) -> Callable:
+                        time_threshold: float = 5.,
+                        expected_sleep: float = 0.) -> Callable:
     def decorator(func: Callable):
         # wrapper just to turn function into an asyncio task coroutine
         @wraps(func)  # Ensures the function retains its original name and docstring
@@ -74,7 +75,8 @@ def on_message_function(allow_bots: bool = False,
 
             # time_task() is a wrapper that returns an uncalled async function definition
             # this is what asyncio_task needs, you're supposed to give it a function to call later
-            task = utils.asyncio_task(time_task(func, *args, time_threshold=time_threshold),
+            task = utils.asyncio_task(
+                time_task(func, *args, time_threshold=time_threshold, expected_sleep=expected_sleep),
                                       task_name=f"on_message.{func.__name__}")
             return task
 
@@ -98,16 +100,22 @@ def log_time(t_in, description: str):
     return new_time
 
 
-def time_task(func, *args, time_threshold: float = 0.5):
+def time_task(func, *args, time_threshold: float = 0.5, expected_sleep: float = 0.):
     @wraps(func)
     async def time_task_internal():
         t1 = time.perf_counter()
         result = await func(*args)
         t2 = time.perf_counter()
         diff = t2 - t1
-        if diff > time_threshold:
-            print(
-                f"on_message function {func.__name__} took {diff:.2f} seconds to run.")
+        adjusted_diff = diff - expected_sleep
+        if adjusted_diff > time_threshold:
+            if expected_sleep > 0:
+                print(
+                    f"on_message function {func.__name__} took {diff:.2f} seconds to run "
+                    f"({adjusted_diff:.2f}s excluding expected {expected_sleep:.2f}s wait).")
+            else:
+                print(
+                    f"on_message function {func.__name__} took {diff:.2f} seconds to run.")
         return result
 
     return time_task_internal
@@ -1472,7 +1480,7 @@ class Message(commands.Cog):
                 await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
                                                    timeout_duration)
 
-    @on_message_function(time_threshold=10.5)
+    @on_message_function(time_threshold=10.5, expected_sleep=20)
     async def antispam_check(self, msg: hf.RaiMessage):
         """"""
         if str(msg.guild.id) in self.bot.db['antispam']:
