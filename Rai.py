@@ -144,7 +144,7 @@ class Rai(Bot):
             # 'cogs.memory_profile',
             'cogs.main', 'cogs.owner',
             'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
-            'cogs.math', 'cogs.questions', 'cogs.stats', 'cogs.submod',
+            'cogs.math', 'cogs.questions', 'cogs.reports', 'cogs.stats', 'cogs.submod',
             'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
             'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
             'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes',
