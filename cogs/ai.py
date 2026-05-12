@@ -1226,17 +1226,20 @@ class AI(commands.Cog):
         GRAMMAR_CHECK_SYSTEM = """
         You are a grammar checker. The user is learning Japanese, Italian, and Spanish.
 
-        - If the message is in English, return exactly: ignored
-        - If the message has no grammar errors, return exactly: ignored
+        - Return valid JSON only.
+        - If the message is in English, return exactly: {"corrected":"ignored","explanation":""}
+        - If the message has no grammar errors, return exactly: {"corrected":"ignored","explanation":""}
         - Only correct real grammar errors (wrong word forms, wrong particles, wrong conjugations, etc.).
         - Do NOT correct missing capitalization, missing punctuation, or missing accents.
-        - If there are errors, return only the corrected text with changed parts wrapped in **double asterisks**.
+        - If there are errors:
+          - corrected: corrected text with changed parts wrapped in **double asterisks**
+          - explanation: <= 200 chars, describe exactly what changed and why.
 
         Examples:
-        input: おはよう！  →  ignored
-        input: I am book  →  ignored
-        input: soy un persona  →  soy **una** persona
-        input: 私は人間でし  →  私は人間で**す**
+        input: おはよう！  →  {"corrected":"ignored","explanation":""}
+        input: I am book  →  {"corrected":"ignored","explanation":""}
+        input: soy un persona  →  {"corrected":"soy **una** persona","explanation":"Changed 'un' to 'una' so the article agrees with feminine noun 'persona'."}
+        input: 私は人間でし  →  {"corrected":"私は人間で**す**","explanation":"Changed でし to です to use the correct copula ending."}
         """
         model_choices = [
             ('gpt-4o-mini', None),
@@ -1263,14 +1266,35 @@ class AI(commands.Cog):
         if not response:
             return
         
-        response_text = response.output_text
+        response_text = response.output_text.strip()
         self.previous_response_id = response.id
         if response_text.lower() == 'ignored':
             return
+        
+        try:
+            payload = parse_json_block(response_text)
+            corrected_text = str(payload.get("corrected", "")).strip()
+            explanation = str(payload.get("explanation", "")).strip()
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            corrected_text = response_text
+            explanation = ""
+        
+        if not corrected_text or corrected_text.lower() == "ignored":
+            return
+        
+        if corrected_text == ai_input:
+            return
+        
+        if corrected_text.replace("**", "") == ai_input:
+            return
+        
+        if not explanation:
+            explanation = "No explanation provided."
+        explanation = explanation[:200].strip()
 
         await utils.safe_send(msg.author,
                                f"{model[0]}: Here's a grammar correction for your message:\n"
-                               f">>> Before:\n{ai_input}\nAfter:\n{response_text}")
+                               f">>> Before:\n{ai_input}\nAfter:\n{corrected_text}\nWhy:\n{explanation}")
 
 
 async def setup(bot: commands.Bot):
