@@ -32,6 +32,7 @@ SUMMARY_HEADER = "**4-Hour Summary**"
 SUMMARY_WINDOW_HOURS = 4
 SUMMARY_MAX_MESSAGES = 1200
 SUMMARY_MAX_TRANSCRIPT_CHARS = 100_000
+MAX_GRAMMAR_EXPLANATION_LENGTH = 200
 
 
 def _format_ts(ts: int | float | None) -> str:
@@ -1282,15 +1283,12 @@ class AI(commands.Cog):
         if not corrected_text or corrected_text.lower() == "ignored":
             return
         
-        if corrected_text == ai_input:
-            return
-        
         if corrected_text.replace("**", "") == ai_input:
             return
         
         if not explanation:
             explanation = "No explanation provided."
-        explanation = explanation[:200].strip()
+        explanation = explanation[:MAX_GRAMMAR_EXPLANATION_LENGTH].strip()
 
         await utils.safe_send(msg.author,
                                f"{model[0]}: Here's a grammar correction for your message:\n"
