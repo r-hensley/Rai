@@ -1272,26 +1272,31 @@ class AI(commands.Cog):
         if response_text.lower() == 'ignored':
             return
         
+        parse_failed = False
         try:
             payload = parse_json_block(response_text)
             corrected_text = str(payload.get("corrected", "")).strip()
             explanation = str(payload.get("explanation", "")).strip()
         except (json.JSONDecodeError, TypeError, AttributeError):
+            parse_failed = True
             corrected_text = response_text
             explanation = ""
         
         if not corrected_text or corrected_text.lower() == "ignored":
             return
         
-        if corrected_text == ai_input:
-            return
-        
-        if corrected_text.replace("**", "") == ai_input.replace("**", ""):
+        unbold_corrected = re.sub(r"\*\*(.+?)\*\*", r"\1", corrected_text)
+        unbold_original = re.sub(r"\*\*(.+?)\*\*", r"\1", ai_input)
+        if unbold_corrected == unbold_original:
             return
         
         if not explanation:
-            explanation = "Unable to parse explanation from model response."
-        explanation = explanation[:MAX_GRAMMAR_EXPLANATION_LENGTH].strip()
+            if parse_failed:
+                explanation = "Unable to parse explanation from model response."
+            else:
+                explanation = "No explanation provided."
+        if len(explanation) > MAX_GRAMMAR_EXPLANATION_LENGTH:
+            explanation = explanation[:MAX_GRAMMAR_EXPLANATION_LENGTH - 3].rstrip() + "..."
 
         await utils.safe_send(msg.author,
                                f"{model[0]}: Here's a grammar correction for your message:\n"
