@@ -351,10 +351,11 @@ class AI(commands.Cog):
             content = message.content or ""
             current_block.append(content)
 
-            if not (content.startswith(SUMMARY_DIVIDER) or content.startswith(SUMMARY_LEGACY_HEADER)):
+            is_divider_summary = content.startswith(SUMMARY_DIVIDER)
+            if not (is_divider_summary or content.startswith(SUMMARY_LEGACY_HEADER)):
                 continue
 
-            if content.startswith(SUMMARY_DIVIDER):
+            if is_divider_summary:
                 lines = content.splitlines()
                 if len(lines) < 2:
                     current_block = []
