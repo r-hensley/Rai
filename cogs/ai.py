@@ -1283,11 +1283,14 @@ class AI(commands.Cog):
         if not corrected_text or corrected_text.lower() == "ignored":
             return
         
-        if corrected_text.replace("**", "") == ai_input:
+        if corrected_text == ai_input:
+            return
+        
+        if corrected_text.replace("**", "") == ai_input.replace("**", ""):
             return
         
         if not explanation:
-            explanation = "No explanation provided."
+            explanation = "Unable to parse explanation from model response."
         explanation = explanation[:MAX_GRAMMAR_EXPLANATION_LENGTH].strip()
 
         await utils.safe_send(msg.author,
