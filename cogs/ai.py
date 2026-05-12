@@ -28,7 +28,8 @@ SUMMARY_CHANNELS: dict[int, int] = {
     1083146531928014950: 1497026725358473376,
 }
 SUMMARY_LOG_CHANNEL_ID = 1351956893119283270
-SUMMARY_HEADER = "**4-Hour Summary**"
+SUMMARY_LEGACY_HEADER = "**4-Hour Summary**"
+SUMMARY_DIVIDER = "-----------------"
 SUMMARY_WINDOW_HOURS = 4
 SUMMARY_MAX_MESSAGES = 1200
 SUMMARY_MAX_TRANSCRIPT_CHARS = 100_000
@@ -342,6 +343,7 @@ class AI(commands.Cog):
     async def get_previous_channel_summary(self, channel: discord.TextChannel, source_channel_id: int) -> str:
         current_block: list[str] = []
         source_marker = f"Source Channel ID: {source_channel_id}"
+        channel_path_marker = f"/{source_channel_id}/"
 
         async for message in channel.history(limit=100):
             if message.author != self.bot.user:
@@ -349,9 +351,9 @@ class AI(commands.Cog):
             content = message.content or ""
             current_block.append(content)
 
-            if not content.startswith(SUMMARY_HEADER):
+            if not (content.startswith(SUMMARY_DIVIDER) or content.startswith(SUMMARY_LEGACY_HEADER)):
                 continue
-            if source_marker in content:
+            if source_marker in content or channel_path_marker in content:
                 return "\n".join(reversed(current_block))
             current_block = []
 
@@ -510,7 +512,6 @@ class AI(commands.Cog):
             return None
 
         message_lookup = {message.id: message for message in source_messages}
-        source_channel_label = getattr(source_channel, "mention", f"#{getattr(source_channel, 'name', 'unknown')}")
         prompt = (
             "Previous summary from the summary log channel for this source channel (don't re-summarize this):\n"
             f"{previous_summary}\n\n"
@@ -550,9 +551,7 @@ class AI(commands.Cog):
             return None
 
         lines = [
-            SUMMARY_HEADER,
-            f"Source Channel: {source_channel_label}",
-            f"Source Channel ID: {source_channel.id}",
+            SUMMARY_DIVIDER,
             (
                 f"[{discord.utils.format_dt(start_time, 'f')}]"
                 f"({fake_jump_url_for_time(source_channel, start_time)}) to "
