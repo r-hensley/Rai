@@ -343,7 +343,11 @@ class AI(commands.Cog):
     async def get_previous_channel_summary(self, channel: discord.TextChannel, source_channel_id: int) -> str:
         current_block: list[str] = []
         source_marker = f"Source Channel ID: {source_channel_id}"
-        channel_path_marker = f"/{source_channel_id}/"
+        channel_link_pattern = rf"\(https://discord\.com/channels/\d+/{source_channel_id}/\d+\)"
+        time_range_line_pattern = (
+            r"^\[<t:\d+:f>\]\(https://discord\.com/channels/\d+/\d+/\d+\) to "
+            r"\[<t:\d+:f>\]\(https://discord\.com/channels/\d+/\d+/\d+\)$"
+        )
 
         async for message in channel.history(limit=100):
             if message.author != self.bot.user:
@@ -353,7 +357,14 @@ class AI(commands.Cog):
 
             if not (content.startswith(SUMMARY_DIVIDER) or content.startswith(SUMMARY_LEGACY_HEADER)):
                 continue
-            if source_marker in content or channel_path_marker in content:
+
+            if content.startswith(SUMMARY_DIVIDER):
+                lines = content.splitlines()
+                if len(lines) < 2 or not re.match(time_range_line_pattern, lines[1].strip()):
+                    current_block = []
+                    continue
+
+            if source_marker in content or re.search(channel_link_pattern, content):
                 return "\n".join(reversed(current_block))
             current_block = []
 
