@@ -645,7 +645,11 @@ class AI(commands.Cog):
                 summary_text = await self.build_channel_summary(source_channel, destination_channel, window_start, next_window_end)
                 if summary_text:
                     for segment in utils.split_text_into_segments(summary_text, 2000):
-                        await utils.safe_send(destination_channel, segment)
+                        await utils.safe_send(
+                            destination_channel,
+                            segment,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
                     posted_summary = True
                 config[summary_state_key] = next_window_end.isoformat()
                 next_window_end += timedelta(hours=SUMMARY_WINDOW_HOURS)
