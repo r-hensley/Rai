@@ -45,8 +45,7 @@ class Quotes(commands.Cog):
     """
 
     LIST_PAGE_SIZE = 5
-    MAX_LISTED_QUOTES = 100
-    MAX_QUOTELIST_QUOTES = 20
+    MAX_LISTED_QUOTES = 20
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -227,11 +226,10 @@ class Quotes(commands.Cog):
         return preview[:max_length - 3] + "..."
 
     @classmethod
-    def _cap_listed_entries(cls, entries: list[Any], *, limit: Optional[int] = None) -> tuple[list[Any], int]:
-        effective_limit = cls.MAX_LISTED_QUOTES if limit is None else limit
-        if len(entries) <= effective_limit:
+    def _cap_listed_entries(cls, entries: list[Any]) -> tuple[list[Any], int]:
+        if len(entries) <= cls.MAX_LISTED_QUOTES:
             return entries, 0
-        return entries[:effective_limit], len(entries) - effective_limit
+        return entries[:cls.MAX_LISTED_QUOTES], len(entries) - cls.MAX_LISTED_QUOTES
 
     @classmethod
     def _build_quote_pages(
@@ -553,7 +551,7 @@ class Quotes(commands.Cog):
 
         lines = []
         entries = sorted(entries, key=lambda item: item["id"])
-        entries, overflow_count = self._cap_listed_entries(entries, limit=self.MAX_QUOTELIST_QUOTES)
+        entries, overflow_count = self._cap_listed_entries(entries)
         for entry in entries:
             preview = self._build_quote_preview(entry["body"])
             lines.append(f"`#{entry['id']}` `{entry['name']}` {preview}")
