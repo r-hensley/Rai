@@ -515,7 +515,10 @@ class Stats(commands.Cog):
             if not stripped_msg or len(stripped_msg) <= 15 or stripped_msg[0] in '=;>':
                 continue
 
-            detected_lang = hf.detect_language(stripped_msg)
+            try:
+                detected_lang = hf.detect_language(stripped_msg)
+            except (AttributeError, TypeError, ValueError):
+                continue
             jump_url = f"https://discord.com/channels/{guild.id}/{channel_id}/{message_id}"
             if detected_lang == 'en' and len(english_links) < per_language:
                 english_links.append(jump_url)
@@ -562,7 +565,7 @@ class Stats(commands.Cog):
         emb = discord.Embed(
             title=title,
             description=f"Classified messages in the last 30 days: **{total_classified}**",
-            color=discord.Color(int('00ccFF', 16))
+            color=discord.Color(0x00CCFF)
         )
         emb.add_field(
             name=f"English — {english_count} ({english_percentage}%)",
