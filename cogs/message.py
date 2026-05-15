@@ -1205,8 +1205,8 @@ class Message(commands.Cog):
             today[author]['lang_messages'].setdefault(msg.detected_lang, [])
             language_links = today[author]['lang_messages'][msg.detected_lang]
             language_links.append(msg.jump_url)
-            if len(language_links) > 25:
-                del language_links[:-25]
+            while len(language_links) > 25:
+                language_links.pop(0)
 
     @on_message_function()
     async def uhc_check(self, msg: hf.RaiMessage):
