@@ -34,6 +34,7 @@ SUMMARY_WINDOW_HOURS = 4
 SUMMARY_MAX_MESSAGES = 1200
 SUMMARY_MAX_TRANSCRIPT_CHARS = 100_000
 SUMMARY_MAX_TOPIC_SUMMARY_CHARS = 220
+ELLIPSIS_LENGTH = 3
 MAX_GRAMMAR_EXPLANATION_LENGTH = 200
 SUMMARY_LOW_SIGNAL_PATTERNS = [
     r"\b(thanks?|thank you|ty)\b",
@@ -46,6 +47,7 @@ SUMMARY_HIGH_SIGNAL_HINTS = [
     "policy", "rule", "decision", "vote", "incident", "report", "moderation",
     "ban", "appeal", "bug", "error", "outage", "proposal", "plan", "release",
 ]
+SUMMARY_LOW_SIGNAL_REGEXES = [re.compile(pattern) for pattern in SUMMARY_LOW_SIGNAL_PATTERNS]
 
 
 def _format_ts(ts: int | float | None) -> str:
@@ -160,14 +162,14 @@ def parse_json_block(text: str) -> dict[str, Any]:
     return json.loads(cleaned)
 
 
-def looks_like_low_signal_topic(title: str, summary: str) -> bool:
+def is_low_signal_topic(title: str, summary: str) -> bool:
     text = f"{title} {summary}".strip().lower()
     if not text:
         return True
     for hint in SUMMARY_HIGH_SIGNAL_HINTS:
         if hint in text:
             return False
-    return any(re.search(pattern, text) for pattern in SUMMARY_LOW_SIGNAL_PATTERNS)
+    return any(regex.search(text) for regex in SUMMARY_LOW_SIGNAL_REGEXES)
 
 
 class AI(commands.Cog):
@@ -609,10 +611,10 @@ class AI(commands.Cog):
                 continue
             title = str(topic.get("title", "")).strip() or f"Topic {index}"
             summary = str(topic.get("summary", "")).strip()
-            if looks_like_low_signal_topic(title, summary):
+            if is_low_signal_topic(title, summary):
                 continue
             if len(summary) > SUMMARY_MAX_TOPIC_SUMMARY_CHARS:
-                summary = summary[:SUMMARY_MAX_TOPIC_SUMMARY_CHARS - 3].rstrip() + "..."
+                summary = summary[:SUMMARY_MAX_TOPIC_SUMMARY_CHARS - ELLIPSIS_LENGTH].rstrip() + "..."
             try:
                 start_message_id = int(topic.get("start_message_id"))
             except (TypeError, ValueError):
