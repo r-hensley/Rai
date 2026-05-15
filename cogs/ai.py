@@ -34,6 +34,31 @@ SUMMARY_WINDOW_HOURS = 4
 SUMMARY_MAX_MESSAGES = 1200
 SUMMARY_MAX_TRANSCRIPT_CHARS = 100_000
 MAX_GRAMMAR_EXPLANATION_LENGTH = 200
+CHANNEL_SUMMARY_DEVELOPER_PROMPT = (
+    "You summarize a Discord channel every 4 hours for people who want a quick index of worthwhile topics, "
+    "not a detailed recap of everything said. Use a high threshold for inclusion.\n"
+    "- Group the conversation into distinct topics of discussion.\n"
+    "- Include only topics that would still be useful to someone scanning the channel later: decisions, plans, "
+    "announcements, unresolved issues, moderation/admin actions, substantial Q&A, useful resources, or broad "
+    "discussions with clear lasting relevance.\n"
+    "- Exclude casual chatter and low-signal moments, including greetings, thanks, acknowledgements, jokes, "
+    "reaction-only messages, memes, quick polls about personal taste, brief yes/no exchanges, and side comments "
+    "unless they materially affect an included topic.\n"
+    "- A topic is not important just because several people replied to it. If it is casual banter, omit it.\n"
+    "- If the transcript is separated by forum thread sections, summarize each thread separately and do not mix unrelated threads.\n"
+    "- If the transcript includes a parent channel section plus thread sections, treat the parent channel and each thread as separate contexts unless the messages clearly relate.\n"
+    "- If needed, use the previous summary for context to continue topics that are ongoing instead of restarting them.\n"
+    "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
+    "- Prefer broad topic labels over detailed descriptions. Do not narrate the order of replies or each person's stance.\n"
+    "- Mention user names (<@ID>) when needed to identify an action owner, decision maker, or directly relevant person.\n"
+    "- Keep each summary to one short sentence, usually under 25 words. If the title already captures the topic, use an empty summary string.\n"
+    "- If only one or two messages are included in a four hour window, include them only if they meet the importance threshold.\n"
+    "- If there are no worthwhile topics, return an empty topics list.\n"
+    "Return valid JSON only with this schema: "
+    "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
+    "Requirements: Choose start_message_id from the transcript exactly, order topics by when they started, and keep the entire response compact enough "
+    "that each topic text stays under 2000 characters (there is no need to use all 2000 characters if not necessary)."
+)
 
 
 def _format_ts(ts: int | float | None) -> str:
@@ -543,21 +568,7 @@ class AI(commands.Cog):
         messages = [
             {
                 "role": "developer",
-                "content": (
-                    "You summarize a Discord channel every 4 hours. "
-                    "Group the conversation into distinct topics of discussion.\n"
-                    "- If the transcript is separated by forum thread sections, summarize each thread separately and do not mix unrelated threads.\n"
-                    "- If the transcript includes a parent channel section plus thread sections, treat the parent channel and each thread as separate contexts unless the messages clearly relate.\n"
-                    "- If needed, use the previous summary for context to continue topics that are ongoing instead of restarting them.\n"
-                    "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
-                    "- Ignore trivial chatter unless it materially affects a topic.\n"
-                    "- Reference all relevant user names.\n"
-                    "- Keep summaries concise. If only one or two messages are included in a four hour window, you can just very shortly summarize exactly what they say.\n"
-                    "Return valid JSON only with this schema: "
-                    "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
-                    "Requirements: Choose start_message_id from the transcript exactly, order topics by when they started, and keep the entire response compact enough "
-                    "that each topic text stays under 2000 characters (there is no need to use all 2000 characters if not necessary)."
-                ),
+                "content": CHANNEL_SUMMARY_DEVELOPER_PROMPT,
             },
             {"role": "user", "content": prompt},
         ]
