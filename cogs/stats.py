@@ -463,7 +463,7 @@ class Stats(commands.Cog):
 
         def make_link_list(links: list[str]) -> str:
             if not links:
-                return "No recent language-tagged message links available."
+                return "No recent message examples available for this language."
             return "\n".join([f"• [Message {i + 1}]({url})" for i, url in enumerate(links)])
 
         title_user = escape_markdown(str(user))
