@@ -282,14 +282,25 @@ def get_language_percentage(member_id: int, guild: discord.Guild, language: str)
     _lang_count, _total, percentages = get_language_stats(member_id, guild)
     if not percentages:
         return None
-    return percentages.get(language, 0.0)
+    return percentages.get(_normalize_language_code(language), 0.0)
+
+
+def _normalize_language_code(language: str) -> str:
+    """Normalizes stored language codes to canonical values used by commands."""
+    if language == 'sp':
+        return 'es'
+    return language
 
 
 def get_language_stats(member_id: int, guild: discord.Guild) -> tuple[dict[str, int], int, dict[str, float]]:
     """Returns (language_counts, total_classified, language_percentages) over the last 30 days."""
-    lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
-    if not lang_count:
+    raw_lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
+    if not raw_lang_count:
         return {}, 0, {}
+    lang_count: dict[str, int] = {}
+    for lang, count in raw_lang_count.items():
+        normalized_lang = _normalize_language_code(lang)
+        lang_count[normalized_lang] = lang_count.get(normalized_lang, 0) + count
     total = sum(lang_count.values())
     if total <= 0:
         return lang_count, 0, {}
@@ -313,17 +324,24 @@ def get_recent_language_message_links(
     except (KeyError, AttributeError):
         return []
 
+    normalized_language = _normalize_language_code(language)
+    language_keys = [normalized_language]
+    if normalized_language == 'es':
+        language_keys = ['es', 'sp']
+
     links: list[str] = []
     for day in sorted(config.keys(), reverse=True):
         day_data = config[day]
         user_data = day_data.get(str(member_id), {})
-        day_links = user_data.get('lang_messages', {}).get(language, [])
-        if not isinstance(day_links, list):
-            continue
-        for link in reversed(day_links):
-            links.append(link)
-            if len(links) >= limit:
-                return links
+        lang_messages = user_data.get('lang_messages', {})
+        for key in language_keys:
+            day_links = lang_messages.get(key, [])
+            if not isinstance(day_links, list):
+                continue
+            for link in reversed(day_links):
+                links.append(link)
+                if len(links) >= limit:
+                    return links
     return links
 
 
