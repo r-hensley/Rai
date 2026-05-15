@@ -438,6 +438,8 @@ class Stats(commands.Cog):
             user = ctx.author
             user_id = ctx.author.id
         else:
+            if re.findall(r"[JIMVN]\d{17,22}", member_in):
+                member_in = re.sub('[JIMVN]', '', member_in)
             user = await utils.member_converter(ctx, member_in)
             if not user:
                 user = await utils.user_converter(ctx, member_in)

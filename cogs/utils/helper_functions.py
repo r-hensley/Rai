@@ -321,7 +321,7 @@ def get_recent_language_message_links(
         if not isinstance(day_links, list):
             continue
         for link in reversed(day_links):
-            links.append(str(link))
+            links.append(link)
             if len(links) >= limit:
                 return links
     return links
