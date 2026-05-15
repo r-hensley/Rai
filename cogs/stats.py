@@ -5,7 +5,7 @@ import random
 import sqlite3
 import sys
 import asyncio
-from typing import Union
+from typing import Union, Optional
 
 from datetime import datetime, timedelta, timezone
 import asqlite
@@ -428,6 +428,153 @@ class Stats(commands.Cog):
                 except discord.Forbidden:
                     await utils.safe_send(ctx.author, "I lack the permission to send messages in that channel")
         return emb
+
+    async def _resolve_stats_user(self, ctx: commands.Context, member_in: str = None) -> tuple[Optional[discord.abc.User], int, str]:
+        if not member_in:
+            user: Optional[discord.abc.User] = ctx.author
+            return user, ctx.author.id, escape_markdown(ctx.author.display_name)
+
+        if re.findall(r"[JIMVN]\d{17,22}", member_in):
+            member_in = re.sub('[JIMVN]', '', member_in)
+
+        member = await utils.member_converter(ctx, member_in)
+        if member:
+            return member, member.id, escape_markdown(member.display_name)
+
+        user = await utils.user_converter(ctx, member_in)
+        if user:
+            return user, user.id, escape_markdown(user.name)
+
+        try:
+            raw_user_id = int(member_in)
+        except (TypeError, ValueError):
+            return None, 0, ''
+        return None, raw_user_id, str(raw_user_id)
+
+    async def _get_recent_language_links(
+            self,
+            guild: discord.Guild,
+            user_id: int,
+            per_language: int = 5,
+            scan_limit: int = 200
+    ) -> tuple[list[str], list[str]]:
+        english_links: list[str] = []
+        spanish_links: list[str] = []
+
+        if not hasattr(self.bot, 'langdetect'):
+            return english_links, spanish_links
+
+        async with await connect_to_database() as c:
+            user_res = await c.execute("SELECT rai_id FROM users WHERE user_id = ?", (user_id,))
+            user_row = await user_res.fetchone()
+            guild_res = await c.execute("SELECT rai_id FROM guilds WHERE guild_id = ?", (guild.id,))
+            guild_row = await guild_res.fetchone()
+            if not user_row or not guild_row:
+                return english_links, spanish_links
+            user_rai_id = user_row[0]
+            guild_rai_id = guild_row[0]
+
+            messages_res = await c.execute(
+                "SELECT message_id, channel_id FROM messages WHERE user_id = ? AND guild_id = ? "
+                "ORDER BY message_id DESC LIMIT ?",
+                (user_rai_id, guild_rai_id, scan_limit)
+            )
+            message_rows: list[Union[tuple, sqlite3.Row]] = await messages_res.fetchall()
+            if not message_rows:
+                return english_links, spanish_links
+
+            channel_rai_ids = sorted({row[1] for row in message_rows})
+            placeholders = ", ".join("?" for _ in channel_rai_ids)
+            channels_res = await c.execute(
+                f"SELECT rai_id, channel_id FROM channels WHERE rai_id IN ({placeholders})",
+                tuple(channel_rai_ids)
+            )
+            channel_map = {row[0]: row[1] for row in await channels_res.fetchall()}
+
+        for message_id, channel_rai_id in message_rows:
+            if len(english_links) >= per_language and len(spanish_links) >= per_language:
+                break
+
+            channel_id = channel_map.get(channel_rai_id)
+            if not channel_id:
+                continue
+
+            channel = guild.get_channel_or_thread(channel_id) or self.bot.get_channel(channel_id)
+            if not channel or not hasattr(channel, "fetch_message"):
+                continue
+
+            try:
+                msg = await channel.fetch_message(message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException, AttributeError):
+                continue
+
+            if msg.author.id != user_id:
+                continue
+
+            stripped_msg = utils.rem_emoji_url(msg).strip()
+            if not stripped_msg or len(stripped_msg) <= 15 or stripped_msg[0] in '=;>':
+                continue
+
+            detected_lang = hf.detect_language(stripped_msg)
+            jump_url = f"https://discord.com/channels/{guild.id}/{channel_id}/{message_id}"
+            if detected_lang == 'en' and len(english_links) < per_language:
+                english_links.append(jump_url)
+            elif detected_lang == 'es' and len(spanish_links) < per_language:
+                spanish_links.append(jump_url)
+
+        return english_links, spanish_links
+
+    @commands.command(aliases=['langpercent', 'langpct'])
+    @commands.guild_only()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def language_percentage(self, ctx: commands.Context, *, member_in: str = None):
+        """Shows EN/ES language-marker totals and links to recent messages classified as each language."""
+        user, user_id, display_name = await self._resolve_stats_user(ctx, member_in)
+        if not user_id:
+            await utils.safe_send(ctx, "I couldn't find the user.")
+            return
+
+        lang_count = hf.get_stats_per_channel(user_id, ctx.guild, desired_stat='lang')
+        if not lang_count:
+            await utils.safe_send(ctx, "I couldn't find any language-marker data for that user in the last 30 days.")
+            return
+
+        total_classified = sum(lang_count.values())
+        if total_classified <= 0:
+            await utils.safe_send(ctx, "I couldn't find any language-marker data for that user in the last 30 days.")
+            return
+
+        english_count = lang_count.get('en', 0)
+        spanish_count = lang_count.get('es', 0)
+        english_percentage = round((english_count / total_classified) * 100, 1)
+        spanish_percentage = round((spanish_count / total_classified) * 100, 1)
+
+        english_links, spanish_links = await self._get_recent_language_links(ctx.guild, user_id)
+
+        def make_link_list(links: list[str]) -> str:
+            if not links:
+                return "No accessible recent messages found."
+            return "\n".join([f"• [Message {i + 1}]({url})" for i, url in enumerate(links)])
+
+        title = f"Language ratio for {display_name}"
+        if user:
+            title = f"Language ratio for {escape_markdown(str(user))}"
+        emb = discord.Embed(
+            title=title,
+            description=f"Classified messages in the last 30 days: **{total_classified}**",
+            color=discord.Color(int('00ccFF', 16))
+        )
+        emb.add_field(
+            name=f"English — {english_count} ({english_percentage}%)",
+            value=make_link_list(english_links),
+            inline=False
+        )
+        emb.add_field(
+            name=f"Spanish — {spanish_count} ({spanish_percentage}%)",
+            value=make_link_list(spanish_links),
+            inline=False
+        )
+        await utils.safe_send(ctx, embed=emb)
 
     @staticmethod
     def make_leaderboard_embed(ctx,
