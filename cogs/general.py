@@ -447,7 +447,11 @@ class General(commands.Cog):
             lang_name = {'es': 'Spanish', 'en': 'English'}.get(target_lang, target_lang)
             current_pct = hf.get_language_percentage(ctx.author.id, ctx.guild, target_lang) or 0
 
-            if current_pct < current_threshold:
+            # Cap at 97%: due to a bug, percentages above ~98.3% are unreachable,
+            # so anything >=97 counts as meeting the threshold.
+            effective_pct = 100 if current_pct >= 97 else current_pct
+
+            if effective_pct < current_threshold:
                 await utils.safe_send(
                     ctx,
                     f"You can't remove hardcore yet. You need **{current_threshold}%** in "
