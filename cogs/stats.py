@@ -434,6 +434,7 @@ class Stats(commands.Cog):
             user: Optional[discord.abc.User] = ctx.author
             return user, ctx.author.id, escape_markdown(ctx.author.display_name)
 
+        # Allow IDs copied from mod tooling that prefixes a user ID with one control letter (e.g., J123...).
         if re.findall(r"[JIMVN]\d{17,22}", member_in):
             member_in = re.sub('[JIMVN]', '', member_in)
 
@@ -460,6 +461,8 @@ class Stats(commands.Cog):
     ) -> tuple[list[str], list[str]]:
         english_links: list[str] = []
         spanish_links: list[str] = []
+        min_length_for_detection = 15
+        ignored_start_chars = '=;>'
 
         if not hasattr(self.bot, 'langdetect'):
             return english_links, spanish_links
@@ -512,7 +515,9 @@ class Stats(commands.Cog):
                 continue
 
             stripped_msg = utils.rem_emoji_url(msg).strip()
-            if not stripped_msg or len(stripped_msg) <= 15 or stripped_msg[0] in '=;>':
+            if (not stripped_msg
+                    or len(stripped_msg) <= min_length_for_detection
+                    or stripped_msg[0] in ignored_start_chars):
                 continue
 
             try:
@@ -559,9 +564,8 @@ class Stats(commands.Cog):
                 return "No accessible recent messages found."
             return "\n".join([f"• [Message {i + 1}]({url})" for i, url in enumerate(links)])
 
-        title = f"Language ratio for {display_name}"
-        if user:
-            title = f"Language ratio for {escape_markdown(str(user))}"
+        title_user = escape_markdown(str(user)) if user else display_name
+        title = f"Language ratio for {title_user}"
         emb = discord.Embed(
             title=title,
             description=f"Classified messages in the last 30 days: **{total_classified}**",
