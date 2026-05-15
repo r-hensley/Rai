@@ -424,7 +424,7 @@ class AI(commands.Cog):
         if len(content) > 350:
             content = content[:347] + "..."
         author_name = message.author.display_name.replace("\n", " ")
-        return f"[id={message.id}][author={author_name}] {content}"
+        return f"[id={message.id}][author={author_name}][author_id={message.author.id}] {content}"
 
     async def collect_summary_messages(
         self,
@@ -551,7 +551,7 @@ class AI(commands.Cog):
                     "- If needed, use the previous summary for context to continue topics that are ongoing instead of restarting them.\n"
                     "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
                     "- Ignore trivial chatter unless it materially affects a topic.\n"
-                    "- Reference all relevant user names.\n"
+                    "- Reference all relevant users with Discord mention format `<@USER_ID>` using the `author_id` values from the transcript.\n"
                     "- Keep summaries concise. If only one or two messages are included in a four hour window, you can just very shortly summarize exactly what they say.\n"
                     "Return valid JSON only with this schema: "
                     "{\"topics\": [{\"title\": str, \"summary\": str, \"start_message_id\": int}]}. "
