@@ -279,13 +279,52 @@ def get_stats_per_channel(member_id: int, guild: discord.Guild, desired_stat: st
 def get_language_percentage(member_id: int, guild: discord.Guild, language: str) -> Optional[float]:
     """Returns the percentage (0-100) of a user's messages detected as `language` over the last 30 days.
     Returns None if no language data exists."""
+    _lang_count, _total, percentages = get_language_stats(member_id, guild)
+    if not percentages:
+        return None
+    return percentages.get(language, 0.0)
+
+
+def get_language_stats(member_id: int, guild: discord.Guild) -> tuple[dict[str, int], int, dict[str, float]]:
+    """Returns (language_counts, total_classified, language_percentages) over the last 30 days."""
     lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
     if not lang_count:
-        return None
+        return {}, 0, {}
     total = sum(lang_count.values())
-    if total == 0:
-        return None
-    return round((lang_count.get(language, 0) / total) * 100, 1)
+    if total <= 0:
+        return lang_count, 0, {}
+    percentages = {
+        lang: round((count / total) * 100, 1)
+        for lang, count in lang_count.items()
+    }
+    return lang_count, total, percentages
+
+
+def get_recent_language_message_links(
+        member_id: int,
+        guild: discord.Guild,
+        language: str,
+        limit: int = 5
+) -> list[str]:
+    """Returns up to `limit` stored message links for a user's language-tagged messages.
+    Links come from stats storage and are available only if language message links were recorded."""
+    try:
+        config = here.bot.stats[str(guild.id)]['messages']
+    except (KeyError, AttributeError):
+        return []
+
+    links: list[str] = []
+    for day in sorted(config.keys(), reverse=True):
+        day_data = config[day]
+        user_data = day_data.get(str(member_id), {})
+        day_links = user_data.get('lang_messages', {}).get(language, [])
+        if not isinstance(day_links, list):
+            continue
+        for link in reversed(day_links):
+            links.append(str(link))
+            if len(links) >= limit:
+                return links
+    return links
 
 
 def count_activity(member_id: int, guild: discord.Guild) -> int:
