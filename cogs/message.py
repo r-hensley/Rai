@@ -42,7 +42,6 @@ RYRY_RAI_BOT_ID = 270366726737231884
 
 # Spanish server hardcore role IDs
 SP_HARDCORE_ROLE_IDS = (526089127611990046, 1475913986561278024, 1475914271610110014)
-MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
 
 
@@ -1202,12 +1201,6 @@ class Message(commands.Cog):
             today[author].setdefault('lang', {})
             today[author]['lang'][msg.detected_lang] = today[author]['lang'].get(
                 msg.detected_lang, 0) + 1
-            today[author].setdefault('lang_messages', {})
-            today[author]['lang_messages'].setdefault(msg.detected_lang, [])
-            language_links = today[author]['lang_messages'][msg.detected_lang]
-            language_links.append(msg.jump_url)
-            if len(language_links) > MAX_LANGUAGE_LINKS_PER_DAY:
-                language_links[:] = language_links[-MAX_LANGUAGE_LINKS_PER_DAY:]
 
     @on_message_function()
     async def uhc_check(self, msg: hf.RaiMessage):

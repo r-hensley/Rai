@@ -300,31 +300,33 @@ def get_language_stats(member_id: int, guild: discord.Guild) -> tuple[dict[str, 
     return lang_count, total, percentages
 
 
-def get_recent_language_message_links(
+def get_recent_language_counts_by_day(
         member_id: int,
         guild: discord.Guild,
         language: str,
-        limit: int = 5
-) -> list[str]:
-    """Returns up to `limit` stored message links for a user's language-tagged messages.
-    Links come from stats storage and are available only if language message links were recorded."""
+        days: int = 2
+) -> list[tuple[str, int]]:
+    """Returns daily counts for `language` from stats storage, newest day first."""
     try:
         config = here.bot.stats[str(guild.id)]['messages']
     except (KeyError, AttributeError):
         return []
 
-    links: list[str] = []
-    for day in sorted(config.keys(), reverse=True):
-        day_data = config[day]
+    today = discord.utils.utcnow()
+    day_counts: list[tuple[str, int]] = []
+    for day_offset in range(days):
+        date = today - timedelta(days=day_offset)
+        day_key = date.strftime("%Y%m%d")
+        day_data = config.get(day_key, {})
         user_data = day_data.get(str(member_id), {})
-        day_links = user_data.get('lang_messages', {}).get(language, [])
-        if not isinstance(day_links, list):
-            continue
-        for link in reversed(day_links):
-            links.append(link)
-            if len(links) >= limit:
-                return links
-    return links
+        language_count = user_data.get('lang', {}).get(language, 0)
+        try:
+            language_count = int(language_count)
+        except (TypeError, ValueError):
+            language_count = 0
+        day_counts.append((date.strftime("%m/%d/%Y"), language_count))
+
+    return day_counts
 
 
 def count_activity(member_id: int, guild: discord.Guild) -> int:

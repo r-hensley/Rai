@@ -433,7 +433,7 @@ class Stats(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def language_percentage(self, ctx: commands.Context, *, member_in: str = None):
-        """Shows EN/ES language-marker totals and links to recent messages classified as each language."""
+        """Shows EN/ES language-marker totals and recent daily counts."""
         if not member_in:
             user = ctx.author
             user_id = ctx.author.id
@@ -458,13 +458,13 @@ class Stats(commands.Cog):
         spanish_count = lang_count.get('es', 0)
         english_percentage = lang_percentages.get('en', 0.0)
         spanish_percentage = lang_percentages.get('es', 0.0)
-        english_links = hf.get_recent_language_message_links(user_id, ctx.guild, 'en', 5)
-        spanish_links = hf.get_recent_language_message_links(user_id, ctx.guild, 'es', 5)
+        english_daily_counts = hf.get_recent_language_counts_by_day(user_id, ctx.guild, 'en')
+        spanish_daily_counts = hf.get_recent_language_counts_by_day(user_id, ctx.guild, 'es')
 
-        def make_link_list(links: list[str]) -> str:
-            if not links:
-                return "No recent message examples available for this language."
-            return "\n".join([f"• [Message {i + 1}]({url})" for i, url in enumerate(links)])
+        def make_daily_count_list(day_counts: list[tuple[str, int]]) -> str:
+            if not day_counts:
+                return "No recent daily counts available for this language."
+            return "\n".join([f"- {day}: {count}" for day, count in day_counts])
 
         title_user = escape_markdown(str(user))
         title = f"Language ratio for {title_user}"
@@ -475,12 +475,12 @@ class Stats(commands.Cog):
         )
         emb.add_field(
             name=f"English — {english_count} ({english_percentage}%)",
-            value=make_link_list(english_links),
+            value=make_daily_count_list(english_daily_counts),
             inline=False
         )
         emb.add_field(
             name=f"Spanish — {spanish_count} ({spanish_percentage}%)",
-            value=make_link_list(spanish_links),
+            value=make_daily_count_list(spanish_daily_counts),
             inline=False
         )
         await utils.safe_send(ctx, embed=emb)
