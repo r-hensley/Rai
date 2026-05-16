@@ -1908,7 +1908,8 @@ class Logger(commands.Cog):
                 guild.get_role(258819531193974784),   # server_helper
                 guild.get_role(243854949522472971),   # admin
             }
-            author_roles = set(author.roles)
+            author_member = guild.get_member(author.id)
+            author_roles = set(author_member.roles) if author_member else set()
 
             if helper_roles & author_roles:
                 if not elevated_staff_roles & author_roles:
