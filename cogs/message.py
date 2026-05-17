@@ -1287,7 +1287,7 @@ class Message(commands.Cog):
             eng_native = msg.guild.get_role(243853718758359040)
             oth_native = msg.guild.get_role(247020385730691073)
 
-            if eng_native or oth_native in msg.author.roles:
+            if eng_native in msg.author.roles or oth_native in msg.author.roles:
                 delete = 'english'
             else:
                 delete = 'spanish'
