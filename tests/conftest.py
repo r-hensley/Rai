@@ -2,6 +2,11 @@ from pathlib import Path
 
 
 def pytest_sessionstart(session):
+    """Create a minimal repo-root .env for tests when missing.
+
+    Bootstraps BOT_TOKEN, TRACEBACK_LOGGING_CHANNEL, BOT_TEST_CHANNEL,
+    OWNER_ID, and GCSE_API so importing Rai during collection does not exit.
+    """
     env_path = Path(__file__).resolve().parents[1] / ".env"
     if env_path.exists():
         return
