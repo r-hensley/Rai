@@ -10,6 +10,6 @@ def pytest_sessionstart(session):
         "TRACEBACK_LOGGING_CHANNEL=1\n"
         "BOT_TEST_CHANNEL=1\n"
         "OWNER_ID=1\n"
-        "GCSE_API=\n",
+        "GCSE_API=test-api-key\n",
         encoding="utf-8",
     )
