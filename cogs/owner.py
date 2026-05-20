@@ -51,7 +51,12 @@ class Owner(commands.Cog):
 
     @staticmethod
     async def send_segmented_output(ctx, text: str):
-        """Send text as codeblock segments and cap output to MAX_OUTPUT_SEGMENTS."""
+        """Send text as codeblock segments and cap output to MAX_OUTPUT_SEGMENTS.
+
+        Args:
+            ctx: The command context for sending messages.
+            text: The text content to segment and send.
+        """
         segments = utils.split_text_into_segments(text, MAX_DISCORD_OUTPUT_LENGTH)
         for segment in segments[:MAX_OUTPUT_SEGMENTS]:
             await ctx.send(f"```{segment}```")
