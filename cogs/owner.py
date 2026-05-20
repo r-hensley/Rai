@@ -1102,6 +1102,28 @@ class Owner(commands.Cog):
             result = result[:1900] + "\n...truncated"
         await ctx.send(f"```{result}```")
 
+    @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
+    async def upgrade_deps(self, ctx):
+        """Upgrade dependencies from requirements.txt on the running system."""
+        try:
+            result = run([sys.executable, "-m", "pip", "install", "--upgrade", "-r", "requirements.txt"],
+                         stdout=PIPE,
+                         stderr=PIPE,
+                         universal_newlines=True,
+                         cwd=dir_path,
+                         timeout=600,
+                         check=False)
+        except TimeoutExpired:
+            await ctx.send("**`ABORTED:`** Dependency upgrade timed out.")
+            return
+
+        output = f"{result.stdout}\n{result.stderr}".strip()
+        if not output:
+            output = "No output."
+        if len(output) > 1900:
+            output = output[:1900] + "\n...truncated"
+        await ctx.send(f"```{output}```")
+
 
 
 async def setup(bot):
