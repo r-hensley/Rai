@@ -29,6 +29,7 @@ from .database import store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 MAX_DISCORD_OUTPUT_LENGTH = 1900
+MAX_OUTPUT_SEGMENTS = 5
 
 RYRY_ID = 202995638860906496
 ABELIAN_ID = 414873201349361664  # Ryry alt
@@ -47,6 +48,14 @@ class Owner(commands.Cog):
         self.bot: commands.Bot = bot
         self._last_result = None
         self.sessions = set()
+
+    @staticmethod
+    async def send_segmented_output(ctx, text: str):
+        segments = utils.split_text_into_segments(text, MAX_DISCORD_OUTPUT_LENGTH)
+        for segment in segments[:MAX_OUTPUT_SEGMENTS]:
+            await ctx.send(f"```{segment}```")
+        if len(segments) > MAX_OUTPUT_SEGMENTS:
+            await ctx.send(f"Output truncated. Showing only the first {MAX_OUTPUT_SEGMENTS} messages.")
 
     async def cog_check(self, ctx):
         # If it's Ryry's Rai bot
@@ -1099,11 +1108,7 @@ class Owner(commands.Cog):
             await ctx.send(f"**`ABORTED:`** {exc}")
             return
 
-        segments = utils.split_text_into_segments(result, MAX_DISCORD_OUTPUT_LENGTH)
-        for segment in segments[:5]:
-            await ctx.send(f"```{segment}```")
-        if len(segments) > 5:
-            await ctx.send("Output truncated. Showing only the first 5 messages.")
+        await self.send_segmented_output(ctx, result)
 
     @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
     async def upgrade_deps(self, ctx):
@@ -1158,11 +1163,7 @@ class Owner(commands.Cog):
             output = "No output."
         status = "SUCCESS" if result.returncode == 0 else "FAILED"
         output = f"[{status}] Exit code: {result.returncode}\n{output}"
-        segments = utils.split_text_into_segments(output, MAX_DISCORD_OUTPUT_LENGTH)
-        for segment in segments[:5]:
-            await ctx.send(f"```{segment}```")
-        if len(segments) > 5:
-            await ctx.send("Output truncated. Showing only the first 5 messages.")
+        await self.send_segmented_output(ctx, output)
 
 
 
