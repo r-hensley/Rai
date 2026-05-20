@@ -424,7 +424,7 @@ class AI(commands.Cog):
         if len(content) > 350:
             content = content[:347] + "..."
         author_name = message.author.display_name.replace("\n", " ")
-        return f"[id={message.id}][author={author_name}] {content}"
+        return f"[id={message.id}][author_id={message.author.id}][author={author_name}] {content}"
 
     async def collect_summary_messages(
         self,
@@ -552,7 +552,8 @@ class AI(commands.Cog):
                     "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
                     "- Include only high-signal topics (decisions, disputes, policy/reporting/moderation changes, incidents, proposals, outcomes).\n"
                     "- Exclude low-signal chatter such as acknowledgements, jokes/reactions, back-and-forth on wording, or one-off casual remarks.\n"
-                    "- Reference all relevant user names.\n"
+                    "- Reference relevant users with Discord ID mentions only, using exact numeric format like <@123456789012345678>.\n"
+                    "- Do not write display-name mentions like <@Name>; use only IDs from transcript metadata such as author_id.\n"
                     "- Keep each summary very short and high-level: one brief sentence focused on topic, not detailed message-by-message retelling.\n"
                     "- If the window contains only low-signal chatter, return an empty topics list.\n"
                     "Return valid JSON only with this schema: "
