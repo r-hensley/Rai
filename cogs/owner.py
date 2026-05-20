@@ -1105,19 +1105,26 @@ class Owner(commands.Cog):
 
     @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
     async def upgrade_deps(self, ctx):
-        """Upgrade dependencies from requirements.txt on the running system."""
+        """Upgrade dependencies from requirements.txt on the running system (least-privileged account recommended)."""
         requirements_file = os.path.join(dir_path, "requirements.txt")
         if not os.path.isfile(requirements_file):
             await ctx.send("**`ABORTED:`** requirements.txt was not found.")
             return
 
-        file_status = run(["git", "status", "--porcelain", "--", "requirements.txt"],
-                          stdout=PIPE,
-                          stderr=PIPE,
-                          universal_newlines=True,
-                          cwd=dir_path,
-                          timeout=15,
-                          check=False)
+        try:
+            file_status = run(["git", "status", "--porcelain", "--", "requirements.txt"],
+                              stdout=PIPE,
+                              stderr=PIPE,
+                              universal_newlines=True,
+                              cwd=dir_path,
+                              timeout=15,
+                              check=False)
+        except FileNotFoundError:
+            await ctx.send("**`ABORTED:`** git is not available on this system.")
+            return
+        except TimeoutExpired:
+            await ctx.send("**`ABORTED:`** Timed out verifying requirements.txt state.")
+            return
         if file_status.returncode != 0:
             await ctx.send("**`ABORTED:`** Unable to verify requirements.txt state.")
             return
