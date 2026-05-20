@@ -42,13 +42,13 @@ jobs:
       - name: Pre-create .env for test imports
         run: |
           if [ ! -f .env ]; then
-            cat <<'EOF' > .env
-            BOT_TOKEN=dummy
-            TRACEBACK_LOGGING_CHANNEL=0
-            BOT_TEST_CHANNEL=0
-            OWNER_ID=0
-            GCSE_API=
-            EOF
+            {
+              echo "BOT_TOKEN=dummy"
+              echo "TRACEBACK_LOGGING_CHANNEL=0"
+              echo "BOT_TEST_CHANNEL=0"
+              echo "OWNER_ID=0"
+              echo "GCSE_API="
+            } > .env
           fi
 
       - name: Validate repository tests command
