@@ -43,12 +43,12 @@ jobs:
         run: |
           if [ ! -f .env ]; then
             cat <<'EOF' > .env
-BOT_TOKEN=dummy
-TRACEBACK_LOGGING_CHANNEL=0
-BOT_TEST_CHANNEL=0
-OWNER_ID=0
-GCSE_API=
-EOF
+            BOT_TOKEN=dummy
+            TRACEBACK_LOGGING_CHANNEL=0
+            BOT_TEST_CHANNEL=0
+            OWNER_ID=0
+            GCSE_API=
+            EOF
           fi
 
       - name: Validate repository tests command
