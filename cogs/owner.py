@@ -28,6 +28,7 @@ from .utils import helper_functions as hf
 from .database import store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+MAX_DISCORD_OUTPUT_LENGTH = 1900
 
 RYRY_ID = 202995638860906496
 ABELIAN_ID = 414873201349361664  # Ryry alt
@@ -1098,15 +1099,34 @@ class Owner(commands.Cog):
             await ctx.send(f"**`ABORTED:`** {exc}")
             return
 
-        if len(result) > 1900:
-            result = result[:1900] + "\n...truncated"
+        if len(result) > MAX_DISCORD_OUTPUT_LENGTH:
+            result = result[:MAX_DISCORD_OUTPUT_LENGTH] + "\n...truncated"
         await ctx.send(f"```{result}```")
 
     @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
     async def upgrade_deps(self, ctx):
         """Upgrade dependencies from requirements.txt on the running system."""
+        requirements_file = os.path.join(dir_path, "requirements.txt")
+        if not os.path.isfile(requirements_file):
+            await ctx.send("**`ABORTED:`** requirements.txt was not found.")
+            return
+
+        file_status = run(["git", "status", "--porcelain", "--", "requirements.txt"],
+                          stdout=PIPE,
+                          stderr=PIPE,
+                          universal_newlines=True,
+                          cwd=dir_path,
+                          timeout=15,
+                          check=False)
+        if file_status.returncode != 0:
+            await ctx.send("**`ABORTED:`** Unable to verify requirements.txt state.")
+            return
+        if file_status.stdout.strip():
+            await ctx.send("**`ABORTED:`** requirements.txt has local changes.")
+            return
+
         try:
-            result = run([sys.executable, "-m", "pip", "install", "--upgrade", "-r", "requirements.txt"],
+            result = run([sys.executable, "-m", "pip", "install", "--upgrade", "-r", requirements_file],
                          stdout=PIPE,
                          stderr=PIPE,
                          universal_newlines=True,
@@ -1120,8 +1140,10 @@ class Owner(commands.Cog):
         output = f"{result.stdout}\n{result.stderr}".strip()
         if not output:
             output = "No output."
-        if len(output) > 1900:
-            output = output[:1900] + "\n...truncated"
+        status = "SUCCESS" if result.returncode == 0 else "FAILED"
+        output = f"[{status}] Exit code: {result.returncode}\n{output}"
+        if len(output) > MAX_DISCORD_OUTPUT_LENGTH:
+            output = output[:MAX_DISCORD_OUTPUT_LENGTH] + "\n...truncated"
         await ctx.send(f"```{output}```")
 
 
