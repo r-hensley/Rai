@@ -22,6 +22,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          # Update this to point at all requirements files you want to cache on
+          cache-dependency-path: |
+            requirements.txt
+            requirements-test.txt
 
       - name: Configure submodule URL auth for Actions
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
@@ -37,14 +42,17 @@ jobs:
       - name: Pre-create .env for test imports
         run: |
           if [ ! -f .env ]; then
-            cat <<'EOF' > .env
-BOT_TOKEN=dummy
-TRACEBACK_LOGGING_CHANNEL=0
-BOT_TEST_CHANNEL=0
-OWNER_ID=0
-GCSE_API=
-EOF
+            {
+              echo "BOT_TOKEN=dummy"
+              echo "TRACEBACK_LOGGING_CHANNEL=0"
+              echo "BOT_TEST_CHANNEL=0"
+              echo "OWNER_ID=0"
+              echo "GCSE_API="
+            } > .env
           fi
 
       - name: Validate repository tests command
         run: python -m pytest tests
+
+      - name: Show pip cache info
+        run: pip cache dir
