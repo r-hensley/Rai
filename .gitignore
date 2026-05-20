@@ -30,6 +30,9 @@ API*
 
 # Ignore files starting with a dot
 .*
+!.github/
+!.github/workflows/
+!.github/workflows/copilot-setup-steps.yml
 
 # all text files except those specified below
 *.txt
