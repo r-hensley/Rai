@@ -1106,6 +1106,10 @@ class Owner(commands.Cog):
     @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
     async def upgrade_deps(self, ctx):
         """Upgrade dependencies from requirements.txt on the running system (least-privileged account recommended)."""
+        if not await self.cog_check(ctx):
+            await ctx.send("**`ABORTED:`** Unauthorized.")
+            return
+
         requirements_file = os.path.join(dir_path, "requirements.txt")
         if not os.path.isfile(requirements_file):
             await ctx.send("**`ABORTED:`** requirements.txt was not found.")
@@ -1145,7 +1149,9 @@ class Owner(commands.Cog):
             await ctx.send("**`ABORTED:`** Dependency upgrade timed out.")
             return
 
-        output = f"{result.stdout}\n{result.stderr}".strip()
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        output = f"STDOUT:\n{stdout or '[none]'}\n\nSTDERR:\n{stderr or '[none]'}"
         if not output:
             output = "No output."
         status = "SUCCESS" if result.returncode == 0 else "FAILED"
