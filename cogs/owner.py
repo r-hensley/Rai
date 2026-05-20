@@ -55,7 +55,7 @@ class Owner(commands.Cog):
         for segment in segments[:MAX_OUTPUT_SEGMENTS]:
             await ctx.send(f"```{segment}```")
         if len(segments) > MAX_OUTPUT_SEGMENTS:
-            await ctx.send(f"Output truncated. Showing only the first {MAX_OUTPUT_SEGMENTS} messages.")
+            await ctx.send(f"Output truncated. Showing only the first {MAX_OUTPUT_SEGMENTS} segments.")
 
     async def cog_check(self, ctx):
         # If it's Ryry's Rai bot
