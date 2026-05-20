@@ -28,6 +28,8 @@ from .utils import helper_functions as hf
 from .database import store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+MAX_DISCORD_OUTPUT_LENGTH = 1900
+MAX_OUTPUT_SEGMENTS = 5
 
 RYRY_ID = 202995638860906496
 ABELIAN_ID = 414873201349361664  # Ryry alt
@@ -46,6 +48,20 @@ class Owner(commands.Cog):
         self.bot: commands.Bot = bot
         self._last_result = None
         self.sessions = set()
+
+    @staticmethod
+    async def send_segmented_output(ctx, text: str):
+        """Send text as codeblock segments and cap output to MAX_OUTPUT_SEGMENTS.
+
+        Args:
+            ctx: The command context for sending messages.
+            text: The text content to segment and send.
+        """
+        segments = utils.split_text_into_segments(text, MAX_DISCORD_OUTPUT_LENGTH)
+        for segment in segments[:MAX_OUTPUT_SEGMENTS]:
+            await ctx.send(f"```{segment}```")
+        if len(segments) > MAX_OUTPUT_SEGMENTS:
+            await ctx.send(f"Output truncated. Showing only the first {MAX_OUTPUT_SEGMENTS} segments.")
 
     async def cog_check(self, ctx):
         # If it's Ryry's Rai bot
@@ -1098,9 +1114,62 @@ class Owner(commands.Cog):
             await ctx.send(f"**`ABORTED:`** {exc}")
             return
 
-        if len(result) > 1900:
-            result = result[:1900] + "\n...truncated"
-        await ctx.send(f"```{result}```")
+        await self.send_segmented_output(ctx, result)
+
+    @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
+    async def upgrade_deps(self, ctx):
+        """Upgrade dependencies from requirements.txt on the running system (least-privileged account recommended)."""
+        if not await self.cog_check(ctx):
+            await ctx.send("**`ABORTED:`** Unauthorized.")
+            return
+
+        requirements_file = os.path.join(dir_path, "requirements.txt")
+        if not os.path.isfile(requirements_file):
+            await ctx.send("**`ABORTED:`** requirements.txt was not found.")
+            return
+
+        try:
+            file_status = run(["git", "status", "--porcelain", "--", "requirements.txt"],
+                              stdout=PIPE,
+                              stderr=PIPE,
+                              universal_newlines=True,
+                              cwd=dir_path,
+                              timeout=15,
+                              check=False)
+        except FileNotFoundError:
+            await ctx.send("**`ABORTED:`** git is not available on this system.")
+            return
+        except TimeoutExpired:
+            await ctx.send("**`ABORTED:`** Timed out verifying requirements.txt state.")
+            return
+        if file_status.returncode != 0:
+            await ctx.send("**`ABORTED:`** Unable to verify requirements.txt state.")
+            return
+        if file_status.stdout.strip():
+            await ctx.send("**`ABORTED:`** requirements.txt has local changes.")
+            return
+
+        try:
+            result = run([sys.executable, "-m", "pip", "install", "--upgrade",
+                          "--upgrade-strategy", "only-if-needed", "-r", requirements_file],
+                         stdout=PIPE,
+                         stderr=PIPE,
+                         universal_newlines=True,
+                         cwd=dir_path,
+                         timeout=600,
+                         check=False)
+        except TimeoutExpired:
+            await ctx.send("**`ABORTED:`** Dependency upgrade timed out.")
+            return
+
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        output = f"STDOUT:\n{stdout or '[none]'}\n\nSTDERR:\n{stderr or '[none]'}"
+        if not output:
+            output = "No output."
+        status = "SUCCESS" if result.returncode == 0 else "FAILED"
+        output = f"[{status}] Exit code: {result.returncode}\n{output}"
+        await self.send_segmented_output(ctx, output)
 
 
 
