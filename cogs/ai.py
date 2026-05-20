@@ -167,10 +167,36 @@ def fake_jump_url_for_time(channel: discord.TextChannel, dt: datetime) -> str:
 
 def parse_json_block(text: str) -> dict[str, Any]:
     cleaned = text.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-    return json.loads(cleaned)
+    candidates: list[str] = []
+    candidates.extend(
+        match.strip()
+        for match in re.findall(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    )
+    candidates.append(cleaned)
+
+    decoder = json.JSONDecoder()
+    last_error: json.JSONDecodeError | None = None
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as e:
+            last_error = e
+
+        starts = [pos for pos in (candidate.find("{"), candidate.find("[")) if pos != -1]
+        if not starts:
+            continue
+        start = min(starts)
+        try:
+            payload, _ = decoder.raw_decode(candidate[start:])
+            return payload
+        except json.JSONDecodeError as e:
+            last_error = e
+
+    if last_error:
+        raise last_error
+    raise json.JSONDecodeError("Expecting value", cleaned, 0)
 
 
 class AI(commands.Cog):
@@ -577,6 +603,8 @@ class AI(commands.Cog):
             messages=messages,
         )
         payload = parse_json_block(response_text)
+        if not isinstance(payload, dict):
+            return None
         topics = payload.get("topics", [])
         if not isinstance(topics, list) or not topics:
             return None
