@@ -1099,9 +1099,11 @@ class Owner(commands.Cog):
             await ctx.send(f"**`ABORTED:`** {exc}")
             return
 
-        if len(result) > MAX_DISCORD_OUTPUT_LENGTH:
-            result = result[:MAX_DISCORD_OUTPUT_LENGTH] + "\n...truncated"
-        await ctx.send(f"```{result}```")
+        segments = utils.split_text_into_segments(result, MAX_DISCORD_OUTPUT_LENGTH)
+        for segment in segments[:5]:
+            await ctx.send(f"```{segment}```")
+        if len(segments) > 5:
+            await ctx.send("Output truncated. Showing only the first 5 messages.")
 
     @commands.command(name="upgradedeps", aliases=["upgrade_dependencies", "updeps"])
     async def upgrade_deps(self, ctx):
@@ -1156,9 +1158,11 @@ class Owner(commands.Cog):
             output = "No output."
         status = "SUCCESS" if result.returncode == 0 else "FAILED"
         output = f"[{status}] Exit code: {result.returncode}\n{output}"
-        if len(output) > MAX_DISCORD_OUTPUT_LENGTH:
-            output = output[:MAX_DISCORD_OUTPUT_LENGTH] + "\n...truncated"
-        await ctx.send(f"```{output}```")
+        segments = utils.split_text_into_segments(output, MAX_DISCORD_OUTPUT_LENGTH)
+        for segment in segments[:5]:
+            await ctx.send(f"```{segment}```")
+        if len(segments) > 5:
+            await ctx.send("Output truncated. Showing only the first 5 messages.")
 
 
 
