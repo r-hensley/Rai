@@ -1126,7 +1126,8 @@ class Owner(commands.Cog):
             return
 
         try:
-            result = run([sys.executable, "-m", "pip", "install", "--upgrade", "-r", requirements_file],
+            result = run([sys.executable, "-m", "pip", "install", "--upgrade",
+                          "--upgrade-strategy", "only-if-needed", "-r", requirements_file],
                          stdout=PIPE,
                          stderr=PIPE,
                          universal_newlines=True,
