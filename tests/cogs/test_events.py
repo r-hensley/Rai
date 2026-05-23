@@ -16,7 +16,7 @@ class FakeHTTPException(discord.HTTPException):
         self.args = (self.text,)
 
 
-def test_edit_message_with_old_message_fallback_resends_old_messages():
+def test_edit_message_with_old_message_fallback_deletes_and_resends_when_message_too_old():
     message = Mock()
     replacement = Mock()
     message.edit = AsyncMock(side_effect=FakeHTTPException(30046))

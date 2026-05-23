@@ -41,6 +41,7 @@ class Events(commands.Cog):
         try:
             return await message.edit(**kwargs)
         except discord.HTTPException as e:
+            # Discord returns error code 30046 when a message is too old to keep editing.
             if e.code != 30046:
                 raise
 
