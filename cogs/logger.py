@@ -317,21 +317,24 @@ class Logger(commands.Cog):
         emb.set_footer(text=footer_text,
                        icon_url=member.display_avatar.replace(static_format="png").url)
         
-        if after.channel:
+        voice_channel = after.channel or before.channel
+        if voice_channel:
             users_in_voice = ""
             needed_two_fields = False
 
-            if isinstance(after.channel, discord.StageChannel):
+            if before.channel and not after.channel:
+                name_text = "Users remaining in channel"
+            elif isinstance(voice_channel, discord.StageChannel):
                 name_text = "Current stage channel speakers"
             else:
                 name_text = "Users currently in joined voice channel"
 
-            for user in after.channel.members:
+            for user in voice_channel.members:
                 if user.voice.suppress:  # a listener in a stage channel
                     pass
-                text_to_add = f"\n- [{str(user)}"
-                if user.nick:
-                    text_to_add += f" ({user.nick})"
+                text_to_add = f"\n- [{user.display_name}"
+                if user.display_name != user.name:
+                    text_to_add += f" ({user.name})"
                 text_to_add += f"](https://rai/participant-id-is-P{user.id})"
 
                 # Check to make sure the total length of the embed isn't going over 6000, cut off if so
@@ -1908,7 +1911,8 @@ class Logger(commands.Cog):
                 guild.get_role(258819531193974784),   # server_helper
                 guild.get_role(243854949522472971),   # admin
             }
-            author_roles = set(author.roles)
+            author_member = guild.get_member(author.id)
+            author_roles = set(author_member.roles) if author_member else set()
 
             if helper_roles & author_roles:
                 if not elevated_staff_roles & author_roles:

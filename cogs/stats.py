@@ -277,8 +277,9 @@ class Stats(commands.Cog):
 
         # ### Collect all the data from the database ###
         total_activity = hf.count_activity(user_id, ctx.guild)
-        total_msgs_month, total_msgs_week, message_count, emoji_count, lang_count = \
+        total_msgs_month, total_msgs_week, message_count, emoji_count, _ = \
             hf.get_stats_per_channel(user_id, ctx.guild)
+        lang_count, lang_total, lang_percentages = hf.get_language_stats(user_id, ctx.guild)
 
         # ### Sort the data ###
         sorted_msgs = sorted(message_count.items(),
@@ -385,13 +386,12 @@ class Stats(commands.Cog):
         if sorted_langs:
             value = ''
             counter = 0
-            lang_total = sum(lang_count.values())
             for lang_tuple in sorted_langs:
                 if lang_tuple[0] not in self.lang_codes_dict:
                     continue
-                if lang_total == 0:
+                if lang_total <= 0:
                     continue
-                percentage = round((lang_tuple[1] / lang_total) * 100, 1)
+                percentage = lang_percentages.get(lang_tuple[0], 0.0)
                 if (counter in [0, 1] and percentage > 2.5) or (percentage > 5):
                     value += f"**{self.lang_codes_dict[lang_tuple[0]]}**: {percentage}%\n"
                 if counter == 5:
@@ -428,6 +428,62 @@ class Stats(commands.Cog):
                 except discord.Forbidden:
                     await utils.safe_send(ctx.author, "I lack the permission to send messages in that channel")
         return emb
+
+    @commands.command(aliases=['langpercent', 'langpct'])
+    @commands.guild_only()
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
+    async def language_percentage(self, ctx: commands.Context, *, member_in: str = None):
+        """Shows EN/ES language-marker totals and links to recent messages classified as each language."""
+        if not member_in:
+            user = ctx.author
+            user_id = ctx.author.id
+        else:
+            if re.findall(r"[JIMVN]\d{17,22}", member_in):
+                member_in = re.sub('[JIMVN]', '', member_in)
+            user = await utils.member_converter(ctx, member_in)
+            if not user:
+                user = await utils.user_converter(ctx, member_in)
+            if user:
+                user_id = user.id
+            else:
+                await utils.safe_send(ctx, "I couldn't find the user.")
+                return
+
+        lang_count, total_classified, lang_percentages = hf.get_language_stats(user_id, ctx.guild)
+        if not lang_count or total_classified <= 0:
+            await utils.safe_send(ctx, "I couldn't find any language-marker data for that user in the last 30 days.")
+            return
+
+        english_count = lang_count.get('en', 0)
+        spanish_count = lang_count.get('es', 0)
+        english_percentage = lang_percentages.get('en', 0.0)
+        spanish_percentage = lang_percentages.get('es', 0.0)
+        english_links = hf.get_recent_language_message_links(user_id, ctx.guild, 'en', 5)
+        spanish_links = hf.get_recent_language_message_links(user_id, ctx.guild, 'es', 5)
+
+        def make_link_list(links: list[str]) -> str:
+            if not links:
+                return "No recent message examples available for this language."
+            return "\n".join([f"• [Message {i + 1}]({url})" for i, url in enumerate(links)])
+
+        title_user = escape_markdown(str(user))
+        title = f"Language ratio for {title_user}"
+        emb = discord.Embed(
+            title=title,
+            description=f"Classified messages in the last 30 days: **{total_classified}**",
+            color=discord.Color(0x00CCFF)
+        )
+        emb.add_field(
+            name=f"English — {english_count} ({english_percentage}%)",
+            value=make_link_list(english_links),
+            inline=False
+        )
+        emb.add_field(
+            name=f"Spanish — {spanish_count} ({spanish_percentage}%)",
+            value=make_link_list(spanish_links),
+            inline=False
+        )
+        await utils.safe_send(ctx, embed=emb)
 
     @staticmethod
     def make_leaderboard_embed(ctx,

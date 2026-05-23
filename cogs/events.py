@@ -147,7 +147,7 @@ class Events(commands.Cog):
                         return True
 
             try:
-                await self.bot.wait_for('member_update', check=on_member_update_check, timeout=3 * 60 * 60)
+                await self.bot.wait_for('member_update', check=on_member_update_check, timeout=48 * 60 * 60)
             except asyncio.TimeoutError:
                 pass
             else:
