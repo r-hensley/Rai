@@ -37,20 +37,19 @@ class Events(commands.Cog):
         self.bot = bot
 
     @staticmethod
-    async def edit_message_with_old_message_fallback(message: discord.Message, **kwargs):
-        try:
-            return await message.edit(**kwargs)
-        except discord.HTTPException as e:
-            # Discord returns error code 30046 when a message is too old to keep editing.
-            if e.code != 30046:
-                raise
+    async def edit_or_delete_temporary_notification(message: discord.Message, **kwargs):
+        if getattr(message.channel, "last_message_id", None) == message.id:
+            try:
+                return await message.edit(**kwargs)
+            except discord.HTTPException as e:
+                # Discord returns error code 30046 when a message is too old to keep editing.
+                if e.code != 30046:
+                    raise
 
         try:
             await message.delete()
         except (discord.Forbidden, discord.NotFound, discord.HTTPException):
             pass
-
-        return await message.channel.send(**kwargs)
 
     # for debugging infinite loops/crashes etc
     #     @self.bot.event
@@ -172,7 +171,7 @@ class Events(commands.Cog):
                            f"~~User {refreshed_author.mention} has potentially sent a message with their native "
                            f"language and is still untagged~~:\n"
                            f">>> ~~[{msg_content}](<{reaction.message.jump_url}>)~~")
-                await self.edit_message_with_old_message_fallback(sent_msg, content=new_msg)
+                await self.edit_or_delete_temporary_notification(sent_msg, content=new_msg)
 
         utils.asyncio_task(check_untagged_jho_users)
 
