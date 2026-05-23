@@ -36,6 +36,21 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    @staticmethod
+    async def edit_message_with_old_message_fallback(message: discord.Message, **kwargs):
+        try:
+            return await message.edit(**kwargs)
+        except discord.HTTPException as e:
+            if e.code != 30046:
+                raise
+
+        try:
+            await message.delete()
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            pass
+
+        return await message.channel.send(**kwargs)
+
     # for debugging infinite loops/crashes etc
     #     @self.bot.event
     #     async def on_message(msg: discord.Message):
@@ -156,7 +171,7 @@ class Events(commands.Cog):
                            f"~~User {refreshed_author.mention} has potentially sent a message with their native "
                            f"language and is still untagged~~:\n"
                            f">>> ~~[{msg_content}](<{reaction.message.jump_url}>)~~")
-                await sent_msg.edit(content=new_msg)
+                await self.edit_message_with_old_message_fallback(sent_msg, content=new_msg)
 
         utils.asyncio_task(check_untagged_jho_users)
 
