@@ -156,7 +156,19 @@ class Events(commands.Cog):
                            f"~~User {refreshed_author.mention} has potentially sent a message with their native "
                            f"language and is still untagged~~:\n"
                            f">>> ~~[{msg_content}](<{reaction.message.jump_url}>)~~")
-                await sent_msg.edit(content=new_msg)
+                if getattr(sent_msg.channel, "last_message_id", None) == sent_msg.id:
+                    try:
+                        await sent_msg.edit(content=new_msg)
+                        return
+                    except discord.HTTPException as e:
+                        # Discord returns error code 30046 when a message is too old to keep editing.
+                        if e.code != 30046:
+                            raise
+
+                try:
+                    await sent_msg.delete()
+                except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                    pass
 
         utils.asyncio_task(check_untagged_jho_users)
 
