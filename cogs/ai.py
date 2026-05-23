@@ -475,7 +475,7 @@ class AI(commands.Cog):
         if len(content) > 350:
             content = content[:347] + "..."
         author_name = message.author.display_name.replace("\n", " ")
-        return f"[id={message.id}][author={author_name}] {content}"
+        return f"[id={message.id}][author_id={message.author.id}][author={author_name}] {content}"
 
     async def collect_summary_messages(
         self,
