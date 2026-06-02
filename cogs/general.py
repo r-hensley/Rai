@@ -345,14 +345,23 @@ class General(commands.Cog):
     async def inrole(self, ctx, *, role_name):
         """Type `;inrole <role_name>` to see a list of users in a role. Add `--count` to just see the number."""
         count_only = "--count" in role_name
-        role_name = role_name.replace("--count", "").strip().casefold()
-        role: Optional[discord.Role] = discord.utils.find(
-            lambda i: i.name.casefold() == role_name, ctx.guild.roles)
+        role_name = role_name.replace("--count", "").strip()
+        role: Optional[discord.Role] = None
+        if role_name:
+            role_mention_match = re.fullmatch(r"<@&(\d+)>", role_name)
+            if role_mention_match:
+                role = ctx.guild.get_role(int(role_mention_match.group(1)))
+            elif role_name.isdigit():
+                role = ctx.guild.get_role(int(role_name))
         if not role:
-            for i in ctx.guild.roles:
-                if i.name.casefold().startswith(role_name):
-                    role = i
-                    break
+            role_query = role_name.casefold()
+            role = discord.utils.find(
+                lambda i: i.name.casefold() == role_query, ctx.guild.roles)
+            if not role and role_query:
+                for i in ctx.guild.roles:
+                    if i.name.casefold().startswith(role_query):
+                        role = i
+                        break
         if not role:
             await utils.safe_send(ctx, "I couldn't find the role you specified.")
             return
