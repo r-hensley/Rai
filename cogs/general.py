@@ -6,7 +6,7 @@ import re
 from typing import Optional
 from inspect import cleandoc
 from random import choice
-from collections import Counter, OrderedDict
+from collections import Counter, defaultdict
 from dateparser import parse
 
 import discord
@@ -1885,64 +1885,86 @@ class General(commands.Cog):
         
         active_ids = {m.id for m in active_members}
         inactive_members = [m for m in interaction.guild.members if m.id not in active_ids]
-        active_names = OrderedDict((member.name.lower(), member)
-                                    for member in active_members)
-        inactive_names = OrderedDict((member.name.lower(), member)
-                                        for member in inactive_members)
-        active_dnames = OrderedDict((member.display_name.lower(), member)
-                                    for member in active_members)
-        inactive_dnames = OrderedDict((member.display_name.lower(), member)
-                                       for member in inactive_members)
         seen: set[int] = set()
         
         # define new exception for "suggestions list has reached 25 length"
         class ListFull(Exception):
             pass
         
-        def append_to_list(_member):
-            if _member in seen:
+        def with_optional_id(label: str, object_id: int) -> str:
+            """Append an object ID to an autocomplete label if it fits Discord's 100-char limit."""
+            with_id = f"{label} ({object_id})"
+            if len(with_id) <= 100:
+                return with_id
+            if len(label) <= 100:
+                return label
+            return label[:97] + "..."
+
+        def append_member_to_list(_member: discord.Member):
+            if _member.id in seen:
                 return
             if _member.display_name != _member.name:
                 display = f"{_member.display_name} ({_member.name})"
             else:
                 display = _member.name
-            seen.add(_member)
-            suggestions.append((f"Member: {display}", f'member-{_member.id}'))
+            seen.add(_member.id)
+            suggestions.append((with_optional_id(f"Member: {display}", _member.id), f'member-{_member.id}'))
             if len(suggestions) == 25:
                 raise ListFull
-        
-        def match_prefix(d: dict):
-            for name, m in d.items():
+
+        def append_role_to_list(_role: discord.Role):
+            suggestions.append((with_optional_id(f"Role: {_role.name}", _role.id), f'role-{_role.id}'))
+            if len(suggestions) == 25:
+                raise ListFull
+
+        def build_member_index(members: list[discord.Member]):
+            """Build exact/prefix indexes for member names and display names."""
+            name_exact: dict[str, list[discord.Member]] = defaultdict(list)
+            dname_exact: dict[str, list[discord.Member]] = defaultdict(list)
+            name_prefix: list[tuple[str, discord.Member]] = []
+            dname_prefix: list[tuple[str, discord.Member]] = []
+            for member in members:
+                member_name = member.name.lower()
+                display_name = member.display_name.lower()
+                name_exact[member_name].append(member)
+                dname_exact[display_name].append(member)
+                name_prefix.append((member_name, member))
+                dname_prefix.append((display_name, member))
+            return name_exact, dname_exact, name_prefix, dname_prefix
+
+        active_name_exact, active_dname_exact, active_name_prefix, active_dname_prefix = build_member_index(active_members)
+        inactive_name_exact, inactive_dname_exact, inactive_name_prefix, inactive_dname_prefix = build_member_index(inactive_members)
+
+        def match_exact(member_index: dict[str, list[discord.Member]]):
+            for member in member_index.get(current, []):
+                append_member_to_list(member)
+
+        def match_prefix(member_index: list[tuple[str, discord.Member]]):
+            for name, member in member_index:
                 if name.startswith(current):
-                    append_to_list(m)
+                    append_member_to_list(member)
 
         def populate_suggestions_list():
             # member names: full match
             # active members
-            if current in active_names:
-                append_to_list(active_names[current])
-            elif current in active_dnames:
-                append_to_list(active_dnames[current])
+            match_exact(active_name_exact)
+            match_exact(active_dname_exact)
             # inactive members
-            elif current in inactive_names:
-                append_to_list(inactive_names[current])
-            elif current in inactive_dnames:
-                append_to_list(inactive_dnames[current])
+            match_exact(inactive_name_exact)
+            match_exact(inactive_dname_exact)
                 
             # active member names: beginning match
-            match_prefix(active_names)
-            match_prefix(active_dnames)
+            match_prefix(active_name_prefix)
+            match_prefix(active_dname_prefix)
             
             # inactive members: beginning name match
-            match_prefix(inactive_names)
-            match_prefix(inactive_dnames)
+            match_prefix(inactive_name_prefix)
+            match_prefix(inactive_dname_prefix)
             
             # roles
             for role in interaction.guild.roles:
                 if current in role.name.lower():
-                    suggestions.append((f"Role: {role.name}", f'role-{role.id}'))
-                    if len(suggestions) == 25:
-                        raise ListFull
+                    append_role_to_list(role)
         
         try:
             populate_suggestions_list()
