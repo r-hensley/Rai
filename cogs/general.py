@@ -1892,6 +1892,7 @@ class General(commands.Cog):
             pass
         
         def with_optional_id(label: str, object_id: int) -> str:
+            """Append an object ID to an autocomplete label if it fits Discord's 100-char limit."""
             with_id = f"{label} ({object_id})"
             if len(with_id) <= 100:
                 return with_id
@@ -1917,6 +1918,7 @@ class General(commands.Cog):
                 raise ListFull
 
         def build_member_index(members: list[discord.Member]):
+            """Build exact/prefix indexes for member names and display names."""
             name_exact: dict[str, list[discord.Member]] = defaultdict(list)
             dname_exact: dict[str, list[discord.Member]] = defaultdict(list)
             name_prefix: list[tuple[str, discord.Member]] = []
