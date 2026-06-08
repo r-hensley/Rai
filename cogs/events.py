@@ -249,16 +249,34 @@ class Events(commands.Cog):
                             return
 
                         # Resolve staff ping embed and turn it green etc
-                        if target.embeds and str(reaction.emoji) in '✅👍':
+                        if target.embeds and str(reaction.emoji) == '✅':
                             embed = target.embeds[0]
                             if title := embed.title:
                                 if title.startswith("Staff Ping"):
+                                    if user.bot or not isinstance(user, discord.Member):
+                                        continue
+
+                                    guild = target.guild or reaction.message.guild
+                                    if not guild:
+                                        continue
+
+                                    guild_id = str(guild.id)
+                                    config = self.bot.db['staff_ping'].get(guild_id, {})
+                                    staff_role_id = config.get("role")
+                                    if not staff_role_id:
+                                        staff_role_id = self.bot.db['mod_role'].get(
+                                            guild_id, {}).get("id")
+                                        if isinstance(staff_role_id, list):
+                                            staff_role_id = staff_role_id[0] if staff_role_id else None
+
+                                    staff_role = guild.get_role(staff_role_id) if staff_role_id else None
+                                    if not staff_role or staff_role not in user.roles:
+                                        continue
+
                                     new_embed = target.embeds[0]
                                     new_embed.colour = 0x77B255  # green background color of the checkmark ✅
                                     new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
-                                    if not user.bot:
-                                        new_embed.set_footer(
-                                            text=f"Resolved by {str(user)}")
+                                    new_embed.set_footer(text=f"Resolved by {str(user)}")
                                     await target.edit(view=None, embed=new_embed)
 
         await synchronize_reactions()
