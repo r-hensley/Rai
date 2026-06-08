@@ -253,6 +253,24 @@ class Events(commands.Cog):
                             embed = target.embeds[0]
                             if title := embed.title:
                                 if title.startswith("Staff Ping"):
+                                    guild = target.guild
+                                    if not guild:
+                                        return
+
+                                    reacting_member = user if isinstance(user, discord.Member) else guild.get_member(user.id)
+                                    if not reacting_member:
+                                        try:
+                                            reacting_member = await guild.fetch_member(user.id)
+                                        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                                            reacting_member = None
+                                    if not reacting_member:
+                                        return
+
+                                    check_ctx = await self.bot.get_context(target)
+                                    check_ctx.author = reacting_member
+                                    if not hf.helper_check(check_ctx):
+                                        return
+
                                     new_embed = target.embeds[0]
                                     new_embed.colour = 0x77B255  # green background color of the checkmark ✅
                                     new_embed.title = "~~Staff Ping~~ RESOLVED ✅"
