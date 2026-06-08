@@ -259,6 +259,11 @@ class Events(commands.Cog):
 
                                     reacting_member = user if isinstance(user, discord.Member) else guild.get_member(user.id)
                                     if not reacting_member:
+                                        try:
+                                            reacting_member = await guild.fetch_member(user.id)
+                                        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                                            reacting_member = None
+                                    if not reacting_member:
                                         return
 
                                     check_ctx = await self.bot.get_context(target)
