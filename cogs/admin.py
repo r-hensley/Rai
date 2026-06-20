@@ -2239,6 +2239,15 @@ class Admin(commands.Cog):
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return
 
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Could not resolve your server permissions.", ephemeral=True)
+            return
+
+        if role >= interaction.user.top_role:
+            await interaction.response.send_message(
+                f"You cannot manage {role.mention} because it is at or above your highest role.", ephemeral=True)
+            return
+
         # Check that the bot can manage this role
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
