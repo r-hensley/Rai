@@ -2232,7 +2232,7 @@ class Admin(commands.Cog):
     @app_commands.default_permissions(manage_roles=True)
     async def addrole(self, interaction: discord.Interaction,
                       member: discord.Member,
-                      role: discord.Role,
+                      role: str,
                       time: Optional[str] = None):
         """Assign a role to a user, or remove it if they already have it. Optionally expires after the given duration."""
         if not interaction.guild:
@@ -2241,6 +2241,23 @@ class Admin(commands.Cog):
 
         if not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("Could not resolve your server permissions.", ephemeral=True)
+            return
+
+        try:
+            role_id = int(role)
+        except ValueError:
+            role_id = 0
+        resolved_role = interaction.guild.get_role(role_id)
+        if resolved_role is None:
+            await interaction.response.send_message(
+                "That role no longer exists or is not available to this command.", ephemeral=True)
+            return
+        role = resolved_role
+
+        if role.is_default() or role.managed:
+            await interaction.response.send_message(
+                f"{role.mention} is managed by Discord or an integration and cannot be assigned manually.",
+                ephemeral=True)
             return
 
         if role >= interaction.user.top_role:
@@ -2319,6 +2336,33 @@ class Admin(commands.Cog):
         else:
             await interaction.response.send_message(
                 f"✅ Assigned {role.mention} to {member.mention} indefinitely.")
+
+    @addrole.autocomplete("role")
+    async def addrole_role_autocomplete(
+            self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        """Only suggest roles that both the invoking member and the bot can manage."""
+        guild = interaction.guild
+        if guild is None or not isinstance(interaction.user, discord.Member) or guild.me is None:
+            return []
+
+        query = current.casefold().strip()
+        choices = []
+        for role in reversed(guild.roles):
+            if role.is_default() or role.managed:
+                continue
+            if role >= interaction.user.top_role or role >= guild.me.top_role:
+                continue
+            if query and query not in role.name.casefold() and query not in str(role.id):
+                continue
+
+            # IDs disambiguate duplicate role names while keeping labels within Discord's limit.
+            suffix = f" ({role.id})"
+            label = f"{role.name[:100 - len(suffix)]}{suffix}"
+            choices.append(app_commands.Choice(name=label, value=str(role.id)))
+            if len(choices) == 25:
+                break
+        return choices
 
 
 async def setup(bot):
