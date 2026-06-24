@@ -1456,7 +1456,7 @@ class Logger(commands.Cog):
                     await utils.safe_send(bans_channel, msg, embed=emb)
 
                 else:
-                    del (self.bot.db['banlogs'][str(member.id)])  # cleanup
+                    del (self.bot.db['banlog'][str(member.id)])  # cleanup
 
             # check if this modlog entry doesn't already exist in the user's modlog
             # only do hf.add_to_modlog if it wasn't already there with that emb.description
