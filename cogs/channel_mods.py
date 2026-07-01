@@ -1534,7 +1534,11 @@ class ChannelMods(commands.Cog):
             await utils.safe_send(ctx, "That user was not found in the modlog")
             return
         config = config[user_id]
-        log = config[index - 1]
+        try:
+            log = config[index - 1]
+        except (IndexError, TypeError):
+            await utils.safe_send(ctx, f"I couldn't find the mod log with the index {index}. Please check it and try again.")
+            return
         jump_url = log.get('jump_url', None)
 
         if not hf.admin_check(ctx):
@@ -1555,13 +1559,7 @@ class ChannelMods(commands.Cog):
                 await utils.safe_send(ctx, "Only admins can edit the reason for this entry.")
                 return
 
-        try:
-            old_reason = log['reason']
-        except IndexError:
-            await utils.safe_send(ctx, f"I couldn't find the mod log with the index {index - 1}. Please check it "
-                                  f"and try again.")
-            return
-
+        old_reason = log.get('reason', '')
         config[index - 1]['reason'] = reason
         await utils.safe_send(ctx, embed=utils.green_embed(f"Changed the reason for entry #{index} from "
                                                            f"```{old_reason}```to```{reason}```"))
