@@ -1029,7 +1029,13 @@ class AI(commands.Cog):
                 out += "\n- ⚠️ - Format a warning to send to the user"
                 out += "\n- ℹ️ - Format a friendlier modbot warning to send to the channel"
                 out += "\n- ❌ - Delete this log (it was a mistaken detection)"
-            sent_msg = await log_channel.send(out)
+            sent_msg = None
+            for segment in utils.split_text_into_segments(out, 2000):
+                segment_msg = await log_channel.send(segment)
+                if sent_msg is None:
+                    sent_msg = segment_msg
+            if sent_msg is None:
+                return
         else:
             return
 
