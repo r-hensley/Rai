@@ -1743,7 +1743,8 @@ class Message(commands.Cog):
         s += f"> {content.replace(nl, f'{nl}> ')}\n"
         s += f"> {translated.replace(nl, f'{nl}> ')}"
         try:
-            await other_language_log_channel.send(s)
+            for segment in utils.split_text_into_segments(s, 2000):
+                await other_language_log_channel.send(segment)
         except discord.Forbidden:
             pass
         
