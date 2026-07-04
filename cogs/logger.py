@@ -1523,17 +1523,7 @@ class Logger(commands.Cog):
         )
 
         if len(member.roles) > 1:  # all members have the @everyone role
-            role_strs = []
-            for role in member.roles[1:]:
-                if not role_strs:
-                    role_strs.append(role.name)
-                else:
-                    if len(role_strs[-1]) + len(role.name) < 1024:
-                        role_strs[-1] += f", {role.name}"
-                    else:
-                        role_strs.append(role.name)
-            
-            for role_str in role_strs:
+            for role_str in Logger.split_role_names_for_embed(member.roles[1:]):
                 emb.add_field(name="Roles:", value=role_str, inline=False)
 
         emb.set_footer(
