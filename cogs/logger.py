@@ -961,6 +961,22 @@ class Logger(commands.Cog):
                 await self.get_invites(ctx.guild)
 
     @staticmethod
+    def split_role_names_for_embed(roles: List[discord.Role]) -> List[str]:
+        role_fields: List[str] = []
+        for role in roles:
+            role_name = role.name[:1024]
+            if not role_fields:
+                role_fields.append(role_name)
+                continue
+
+            field_value = f"{role_fields[-1]}, {role_name}"
+            if len(field_value) <= 1024:
+                role_fields[-1] = field_value
+            else:
+                role_fields.append(role_name)
+        return role_fields
+
+    @staticmethod
     async def make_join_embed(member: discord.Member, used_invites, channel, config,
                               list_of_roles=None, failed_roles=None):
         minutes_ago_created = int(((discord.utils.utcnow() - member.created_at).total_seconds()) // 60)
@@ -1021,11 +1037,13 @@ class Logger(commands.Cog):
                 emb.add_field(name="Invite link used", value="Unable to be determined")
 
         if list_of_roles:
-            emb.add_field(name='Readded roles:',
-                          value=', '.join(reversed([role.name for role in list_of_roles])))
+            for index, role_str in enumerate(Logger.split_role_names_for_embed(list(reversed(list_of_roles)))):
+                field_name = 'Readded roles:' if index == 0 else 'Readded roles (cont.):'
+                emb.add_field(name=field_name, value=role_str)
         if failed_roles:
-            emb.add_field(name='Failed to add these roles:',
-                          value=', '.join(reversed([role.name for role in failed_roles])))
+            for index, role_str in enumerate(Logger.split_role_names_for_embed(list(reversed(failed_roles)))):
+                field_name = 'Failed to add these roles:' if index == 0 else 'Failed roles (cont.):'
+                emb.add_field(name=field_name, value=role_str)
         footer_text = f'User Join ({member.guild.member_count}) - {member.id}'
         emb.set_footer(text=footer_text, icon_url=member.display_avatar.replace(static_format="png").url)
 
