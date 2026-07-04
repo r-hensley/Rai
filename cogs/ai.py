@@ -602,7 +602,16 @@ class AI(commands.Cog):
         response_text = await self.chat_completion_text(
             messages=messages,
         )
-        payload = parse_json_block(response_text)
+        try:
+            payload = parse_json_block(response_text)
+        except json.JSONDecodeError as e:
+            traceback_channel_id = int(os.getenv("TRACEBACK_LOGGING_CHANNEL", "0"))
+            if traceback_channel_id:
+                await hf.segment_send(
+                    traceback_channel_id,
+                    f"Channel summary JSON parse failed: `{e}`\n```text\n{response_text}\n```",
+                )
+            return None
         if not isinstance(payload, dict):
             return None
         topics = payload.get("topics", [])
