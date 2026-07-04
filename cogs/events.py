@@ -812,6 +812,8 @@ class Events(commands.Cog):
                     await utils.safe_send(bot_channel, t)
                 except discord.Forbidden:
                     pass
+            except discord.HTTPException:
+                pass
 
             async def one_minute_voice_lock():
                 try:
