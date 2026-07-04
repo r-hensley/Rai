@@ -1428,6 +1428,9 @@ class Logger(commands.Cog):
 
             for entry in config:
                 banned_guild = self.bot.get_guild(entry[0])
+                if not banned_guild:
+                    config.remove(entry)
+                    continue
 
                 # check to see if actual ban still exists
                 try:
