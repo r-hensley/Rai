@@ -1355,11 +1355,21 @@ class Logger(commands.Cog):
 
                     # else, if they are a returning *tagged* user, take away "new user" if they have it for some reason
                     if new_user_role in member.roles:
-                        await member.remove_roles(new_user_role)
+                        try:
+                            await member.remove_roles(new_user_role)
+                        except discord.NotFound:
+                            return
+                        except (discord.Forbidden, discord.HTTPException):
+                            pass
 
                 # if the user has no language roles, give them the "new user" role
-                if (ne not in member.roles) and (ol not in member.roles) and (nj not in member.roles):
-                    await member.add_roles(new_user_role)
+                if new_user_role and (ne not in member.roles) and (ol not in member.roles) and (nj not in member.roles):
+                    try:
+                        await member.add_roles(new_user_role)
+                    except discord.NotFound:
+                        return
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
 
                 try:
                     await utils.safe_send(jpJHO, JHO_msg)
