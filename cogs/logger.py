@@ -33,6 +33,7 @@ class Logger(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
         self.bot.recently_removed_members = {}
+        self.channel_audit_log_cooldowns: dict[int, float] = {}
         # Per-channel queue of (channel, embed, optional_message) tuples for batched delete logging.
         self.delete_log_queue: dict[int, list[tuple]] = {}
         self.flush_delete_log_queue.start()
@@ -2541,40 +2542,44 @@ class Logger(commands.Cog):
                             if before_perms[perm] is False and after_perms[perm] is None:
                                 rai_removing_a_block = True
 
-        try:
-            audit_entry = None
-            async for entry in guild.audit_logs(limit=5, oldest_first=False,
-                                                action=action,
-                                                after=discord.utils.utcnow() - timedelta(seconds=10)):
-                if entry.target.id == channel.id:
-                    audit_entry = entry
-                    break
-
-            # if it can't find something for channel_update:
-            if action == discord.AuditLogAction.channel_update and not audit_entry:
-                for action in [discord.AuditLogAction.overwrite_create,
-                               discord.AuditLogAction.overwrite_delete,
-                               discord.AuditLogAction.overwrite_update]:
-                    if audit_entry:
-                        break
-                    async for entry in guild.audit_logs(limit=5, oldest_first=False,
-                                                        action=action,
-                                                        after=discord.utils.utcnow() - timedelta(seconds=30)):
-                        if entry.created_at > discord.utils.utcnow() - timedelta(seconds=30) and entry.target == after:
-                            audit_entry = entry
-                            break
-
-        except discord.Forbidden:
+        if time.monotonic() >= self.channel_audit_log_cooldowns.get(guild.id, 0):
             try:
-                await log_channel.send('I tried to check the audit log to see who performed the action, '
-                                       'but I lack the permission to view the audit log. ')
+                audit_entry = None
+                async for entry in guild.audit_logs(limit=5, oldest_first=False,
+                                                    action=action,
+                                                    after=discord.utils.utcnow() - timedelta(seconds=10)):
+                    if entry.target.id == channel.id:
+                        audit_entry = entry
+                        break
+
+                # if it can't find something for channel_update:
+                if action == discord.AuditLogAction.channel_update and not audit_entry:
+                    for action in [discord.AuditLogAction.overwrite_create,
+                                   discord.AuditLogAction.overwrite_delete,
+                                   discord.AuditLogAction.overwrite_update]:
+                        if audit_entry:
+                            break
+                        async for entry in guild.audit_logs(limit=5, oldest_first=False,
+                                                            action=action,
+                                                            after=discord.utils.utcnow() - timedelta(seconds=30)):
+                            if entry.created_at > discord.utils.utcnow() - timedelta(seconds=30) and entry.target == after:
+                                audit_entry = entry
+                                break
+
             except discord.Forbidden:
+                try:
+                    await log_channel.send('I tried to check the audit log to see who performed the action, '
+                                           'but I lack the permission to view the audit log. ')
+                except discord.Forbidden:
+                    pass
+                return
+            except discord.HTTPException as e:
+                if getattr(e, "status", None) == 429:
+                    self.channel_audit_log_cooldowns[guild.id] = time.monotonic() + 60
+            except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
+                # Transient Discord/API transport failures can occur while fetching audit logs.
+                # Continue without actor attribution instead of crashing the event listener.
                 pass
-            return
-        except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
-            # Transient Discord/API transport failures can occur while fetching audit logs.
-            # Continue without actor attribution instead of crashing the event listener.
-            pass
 
         canti = guild.get_member(309878089746219008)
         rai = guild.get_member(270366726737231884)
