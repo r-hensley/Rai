@@ -253,7 +253,10 @@ class ImageSpam(commands.Cog):
             for _, ch, _, att in self.image_spam[key]:
                 if ch == top_channel and att.filename not in seen:
                     seen.add(att.filename)
-                    data = await att.read()
+                    try:
+                        data = await att.read()
+                    except (discord.NotFound, discord.HTTPException):
+                        continue
                     files.append(discord.File(io.BytesIO(data), filename=att.filename))
 
             thread = await alert_msg.create_thread(name=f"Spam by {message.author.name} - {message.author.id}")
