@@ -42,6 +42,7 @@ RYRY_RAI_BOT_ID = 270366726737231884
 
 # Spanish server hardcore role IDs
 SP_HARDCORE_ROLE_IDS = (526089127611990046, 1475913986561278024, 1475914271610110014)
+ANTISPAM_EXEMPT_ROLE_ID = 591745589054668817
 MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
 
@@ -1545,6 +1546,12 @@ class Message(commands.Cog):
                 if matched_msg.channel.id not in seen_channel_ids:
                     seen_channel_ids.add(matched_msg.channel.id)
                     spam_count += 1
+
+        exempt_role = msg.guild.get_role(ANTISPAM_EXEMPT_ROLE_ID)
+        if exempt_role:
+            author_top_role = getattr(msg.author, "top_role", None)
+            if author_top_role and author_top_role.position >= exempt_role.position:
+                return
 
         reason = f"Antispam: \nSent the message `{msg.content[:400]}` {config['message_threshold']} " \
             f"times in {config['time_threshold']} seconds."
