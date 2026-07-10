@@ -68,7 +68,12 @@ Optional settings, shown with their defaults:
 ```env
 WEB_ADMIN_BIND_HOST=127.0.0.1
 WEB_ADMIN_PORT=8765
+WEB_ADMIN_OWNER_USERS=202995638860906496
 ```
+
+`WEB_ADMIN_OWNER_USERS` controls access to global process and database health.
+If omitted, the cog uses Rai's existing `OWNER_ID`. Other guild administrators
+see only activity and configuration for the guilds assigned to them.
 
 For local HTTP-only testing, you can temporarily set:
 
@@ -107,6 +112,8 @@ explicit per-guild user allowlist.
 - The dashboard is read-only.
 - The dashboard does not display raw `.env`, tokens, raw `db.json`, message
   contents, or full modlog bodies.
+- Last-hour charts aggregate only timestamps, guild IDs, channel IDs, and author
+  counts from the in-memory message queue. They never render message content.
 - OAuth uses a `state` cookie and the session cookie is signed.
 - The cog disables its HTTP access log because OAuth callback URLs contain a
   short-lived authorization code. Do not enable query-string logging for this

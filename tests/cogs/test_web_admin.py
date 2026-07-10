@@ -1,5 +1,7 @@
 import json
 import time as stdlib_time
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from aiohttp import web
@@ -16,6 +18,7 @@ WEB_ENV = {
     "WEB_ADMIN_SESSION_SECRET": "test-only-session-secret-with-at-least-32-bytes",
     "WEB_ADMIN_ALLOWED_GUILDS": "1,2",
     "WEB_ADMIN_GUILD_ADMINS": json.dumps({"1": [10], "2": [20]}),
+    "WEB_ADMIN_OWNER_USERS": "10",
     "WEB_ADMIN_COOKIE_SECURE": "true",
     "DISCORD_CLIENT_ID": "client-id",
     "DISCORD_CLIENT_SECRET": "client-secret",
@@ -31,15 +34,20 @@ class DummyBot:
         self.bg_tasks = []
         self.db = {}
         self.stats = {}
+        self.message_queue = []
         self.latency = 0.0
         self.live_latency = None
         self.t_start_monotonic = stdlib_time.monotonic()
+        self.database_tables_ready = True
+        self.owner_id = 10
+        self.owner_ids = None
+        self.guild_map = {}
 
     def is_ready(self):
         return self.ready
 
-    def get_guild(self, _guild_id):
-        return None
+    def get_guild(self, guild_id):
+        return self.guild_map.get(guild_id)
 
 
 def make_cog(monkeypatch, **overrides):
@@ -52,8 +60,8 @@ def make_cog(monkeypatch, **overrides):
     return web_admin.WebAdmin(DummyBot())
 
 
-def request_with_cookie(name, value):
-    return make_mocked_request("GET", "/", headers={"Cookie": f"{name}={value}"})
+def request_with_cookie(name, value, path="/"):
+    return make_mocked_request("GET", path, headers={"Cookie": f"{name}={value}"})
 
 
 def test_guild_scope_has_no_default_fallback(monkeypatch):
@@ -107,6 +115,105 @@ def test_authorization_is_scoped_per_guild(monkeypatch):
     assert cog._guild_rows({1}) == [("1", "not visible to bot")]
 
 
+def test_last_hour_activity_is_bucketed_and_guild_scoped(monkeypatch):
+    cog = make_cog(monkeypatch)
+    now = datetime(2026, 7, 10, 18, 0, tzinfo=timezone.utc)
+    channel = SimpleNamespace(name="general")
+    guild = SimpleNamespace(
+        id=1,
+        name="Allowed Guild",
+        get_channel_or_thread=lambda channel_id: channel if channel_id == 101 else None,
+    )
+    cog.bot.guild_map[1] = guild
+    cog.bot.message_queue = [
+        SimpleNamespace(
+            created_at=now - timedelta(minutes=61),
+            guild_id=1,
+            channel_id=101,
+            author_id=1,
+            content="too old",
+        ),
+        SimpleNamespace(
+            created_at=now - timedelta(minutes=60),
+            guild_id=1,
+            channel_id=101,
+            author_id=1,
+            content="private content at boundary",
+        ),
+        SimpleNamespace(
+            created_at=now - timedelta(minutes=4),
+            guild_id=2,
+            channel_id=202,
+            author_id=2,
+            content="unauthorized guild",
+        ),
+        SimpleNamespace(
+            created_at=now - timedelta(minutes=2),
+            guild_id=1,
+            channel_id=101,
+            author_id=3,
+            content="private recent content",
+        ),
+    ]
+
+    snapshot = cog._activity_snapshot({1}, now)
+
+    assert snapshot.total_messages == 2
+    assert snapshot.active_users == 2
+    assert snapshot.active_channels == 1
+    assert snapshot.coverage_minutes == 60
+    assert snapshot.bucket_counts[0] == 1
+    assert snapshot.bucket_counts[-1] == 1
+    assert snapshot.top_channels == (("#general", 2),)
+
+
+def test_activity_rendering_never_includes_message_content(monkeypatch):
+    cog = make_cog(monkeypatch)
+    now = datetime.now(timezone.utc)
+    channel = SimpleNamespace(name="<ops>")
+    guild = SimpleNamespace(
+        id=1,
+        name="Allowed Guild",
+        get_channel_or_thread=lambda _channel_id: channel,
+        member_count=1,
+        text_channels=[],
+        voice_channels=[],
+    )
+    cog.bot.guild_map[1] = guild
+    cog.bot.message_queue = [SimpleNamespace(
+        created_at=now - timedelta(minutes=1),
+        guild_id=1,
+        channel_id=101,
+        author_id=3,
+        content="DO-NOT-RENDER-THIS-CONTENT",
+    )]
+
+    rendered = cog._render_dashboard({"user_id": 10}, {1})
+
+    assert "DO-NOT-RENDER-THIS-CONTENT" not in rendered
+    assert "#&lt;ops&gt;" in rendered
+    assert "Queued message activity" in rendered
+
+
+def test_global_runtime_health_is_owner_only(monkeypatch):
+    cog = make_cog(monkeypatch)
+    cog.owner_users = set()
+    cog.bot.owner_id = None
+
+    rendered = cog._render_dashboard({"user_id": 10}, {1})
+
+    assert "Queued message activity" in rendered
+    assert "Background tasks" not in rendered
+    assert "Database &amp; configuration" not in rendered
+
+
+def test_optional_and_broken_config_severity():
+    assert web_admin.WebAdmin._reference_level("not configured") == "ok"
+    assert web_admin.WebAdmin._reference_level("disabled; channel 123 (missing)") == "warning"
+    assert web_admin.WebAdmin._reference_level("enabled; channel 123 (missing)") == "error"
+    assert web_admin.WebAdmin._reference_level("invalid config") == "error"
+
+
 @pytest.mark.asyncio
 async def test_dashboard_rechecks_authorization_for_existing_session(monkeypatch):
     cog = make_cog(monkeypatch)
@@ -121,6 +228,18 @@ async def test_dashboard_rechecks_authorization_for_existing_session(monkeypatch
     revoked_response = await cog.dashboard(request)
     assert "Log in with Discord" in revoked_response.text
     assert revoked_response.cookies[web_admin.SESSION_COOKIE]["max-age"] == "0"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_refresh_can_be_paused(monkeypatch):
+    cog = make_cog(monkeypatch)
+    session_cookie = cog._sign_payload({"user_id": 10, "username": "Admin", "iat": int(stdlib_time.time())})
+    request = request_with_cookie(web_admin.SESSION_COOKIE, session_cookie, "/?refresh=off")
+
+    response = await cog.dashboard(request)
+
+    assert "http-equiv=\"refresh\"" not in response.text
+    assert "Resume refresh" in response.text
 
 
 def test_signed_cookie_rejects_tampering_expiry_and_future_issue_time(monkeypatch):
@@ -222,6 +341,35 @@ def test_uptime_uses_monotonic_clock(monkeypatch):
 
     rows = dict(cog._bot_rows({1}))
     assert rows["Uptime"] == "0:01:30"
+
+
+def test_background_task_snapshot_reports_failure_and_schedule(monkeypatch):
+    cog = make_cog(monkeypatch)
+    now = datetime.now(timezone.utc)
+    running_task = SimpleNamespace(
+        coro=SimpleNamespace(__name__="save_db"),
+        is_running=lambda: True,
+        failed=lambda: False,
+        next_iteration=now + timedelta(minutes=4),
+        current_loop=7,
+    )
+    failed_task = SimpleNamespace(
+        coro=SimpleNamespace(__name__="live_latency"),
+        is_running=lambda: False,
+        failed=lambda: True,
+        next_iteration=None,
+        current_loop=2,
+    )
+    cog.bot.bg_tasks = [running_task, failed_task]
+
+    snapshots = {snapshot.name: snapshot for snapshot in cog._task_snapshots()}
+
+    assert snapshots["save_db"].state == "Running"
+    assert snapshots["save_db"].level == "ok"
+    assert snapshots["save_db"].iterations == 7
+    assert snapshots["save_db"].next_run.startswith("in 3m")
+    assert snapshots["live_latency"].state == "Failed"
+    assert snapshots["live_latency"].level == "error"
 
 
 def test_malformed_diagnostics_are_reported_instead_of_raising(monkeypatch):

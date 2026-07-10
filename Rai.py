@@ -98,6 +98,7 @@ class Rai(Bot):
         self.db: dict = {}
         self.stats: dict = {}
         self.language_detection: bool = False
+        self.database_tables_ready = False
         self.t_start = t_start
         self.t_start_monotonic = time.monotonic()
         print('starting loading of jsons')
@@ -165,6 +166,7 @@ class Rai(Bot):
                 raise
         
         await create_database_tables()
+        self.database_tables_ready = True
 
 
 def run_bot():
