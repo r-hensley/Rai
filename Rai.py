@@ -4,6 +4,7 @@ import sys
 import traceback
 import json
 import os
+import time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -13,9 +14,8 @@ from discord.ext.commands import Bot
 from openai import AsyncOpenAI
 
 # check Python version
-current_ver = sys.version_info
-if current_ver.major != 3 and current_ver.minor < 11:
-    raise Exception("Invalid version number, please use at least Python 3.11.")
+if sys.version_info < (3, 11):
+    raise RuntimeError("Invalid version number, please use at least Python 3.11.")
 
 # check to make sure this submodule is initialized
 try:
@@ -99,6 +99,7 @@ class Rai(Bot):
         self.stats: dict = {}
         self.language_detection: bool = False
         self.t_start = t_start
+        self.t_start_monotonic = time.monotonic()
         print('starting loading of jsons')
         # Create JSON files if they don't exist
         if not os.path.exists(f"{dir_path}/db.json"):
@@ -146,6 +147,7 @@ class Rai(Bot):
             'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
             'cogs.math', 'cogs.questions', 'cogs.stats', 'cogs.submod',
             'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
+            'cogs.user_interactions',
             'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
             'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes',
             'cogs.ai', 'cogs.web_admin',

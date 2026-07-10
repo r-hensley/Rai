@@ -13,6 +13,7 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATABASE_PATH = f"{dir_path}/database.db"
 SQLITE_BUSY_TIMEOUT_MS = 5000
 SQLITE_WRITE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0)
+SOCIAL_SQLITE_BUSY_TIMEOUT_MS = 100
 
 table_primary_keys = {
     'users': 'user_id',
@@ -391,6 +392,94 @@ async def purge_old_readd_role_entries(cutoff: str) -> int:
     return deleted or 0
 
 
+async def create_social_interaction_tables() -> None:
+    """Create the privacy-minimal event tables used for social-graph features."""
+    def create_tables() -> None:
+        with sqlite3.connect(DATABASE_PATH, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000) as db:
+            db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+            db.execute("PRAGMA journal_mode=WAL")
+            db.execute("PRAGMA foreign_keys=ON")
+            db.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS social_messages (
+                    message_id INTEGER PRIMARY KEY,
+                    guild_id INTEGER NOT NULL,
+                    channel_id INTEGER NOT NULL,
+                    source_user_id INTEGER NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    source_joined_at_ms INTEGER,
+                    source_account_created_at_ms INTEGER
+                );
+                CREATE TABLE IF NOT EXISTS social_interactions (
+                    message_id INTEGER NOT NULL,
+                    interaction_type TEXT NOT NULL CHECK (interaction_type IN ('reply', 'mention')),
+                    target_user_id INTEGER NOT NULL,
+                    target_joined_at_ms INTEGER,
+                    target_account_created_at_ms INTEGER,
+                    PRIMARY KEY (message_id, interaction_type, target_user_id),
+                    FOREIGN KEY (message_id) REFERENCES social_messages (message_id)
+                );
+                CREATE TABLE IF NOT EXISTS member_arrivals (
+                    guild_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    joined_at_ms INTEGER NOT NULL,
+                    account_created_at_ms INTEGER,
+                    recorded_at_ms INTEGER NOT NULL,
+                    PRIMARY KEY (guild_id, user_id, joined_at_ms)
+                );
+                CREATE INDEX IF NOT EXISTS idx_social_messages_source_time
+                    ON social_messages (guild_id, source_user_id, created_at_ms);
+                CREATE INDEX IF NOT EXISTS idx_social_interactions_target
+                    ON social_interactions (target_user_id);
+                """
+            )
+
+    create_tables()
+
+
+async def store_social_interaction_batch(
+        messages: list[tuple], interactions: list[tuple], arrivals: list[tuple]) -> None:
+    """Persist one batched social-event write while tolerating SQLite write contention."""
+    if not (messages or interactions or arrivals):
+        return
+
+    def write_batch() -> None:
+        with sqlite3.connect(DATABASE_PATH, timeout=SOCIAL_SQLITE_BUSY_TIMEOUT_MS / 1000) as db:
+            db.execute(f"PRAGMA busy_timeout = {SOCIAL_SQLITE_BUSY_TIMEOUT_MS}")
+            db.execute("PRAGMA foreign_keys=ON")
+            if arrivals:
+                db.executemany(
+                    "INSERT OR IGNORE INTO member_arrivals "
+                    "(guild_id, user_id, joined_at_ms, account_created_at_ms, recorded_at_ms) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    arrivals,
+                )
+            if messages:
+                db.executemany(
+                    "INSERT OR IGNORE INTO social_messages "
+                    "(message_id, guild_id, channel_id, source_user_id, created_at_ms, "
+                    "source_joined_at_ms, source_account_created_at_ms) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    messages,
+                )
+            if interactions:
+                db.executemany(
+                    "INSERT OR IGNORE INTO social_interactions "
+                    "(message_id, interaction_type, target_user_id, target_joined_at_ms, "
+                    "target_account_created_at_ms) VALUES (?, ?, ?, ?, ?)",
+                    interactions,
+                )
+
+    for delay in (*SQLITE_WRITE_RETRY_DELAYS, None):
+        try:
+            write_batch()
+            return
+        except sqlite3.OperationalError as error:
+            if delay is None or not _is_locked_database_error(error):
+                raise
+            await asyncio.sleep(delay)
+
+
 async def create_database_tables() -> None:
     """
     Setup the database when the bot starts
@@ -459,6 +548,8 @@ async def create_database_tables() -> None:
                               "PRIMARY KEY (guild_id, user_id))")
     await readd_roles.execute("CREATE INDEX IF NOT EXISTS idx_readd_roles_left_at "
                               "ON readd_roles (left_at)")
+
+    await create_social_interaction_tables()
 
     async with await connect_to_database() as db:
         await db.execute("PRAGMA journal_mode=WAL")
