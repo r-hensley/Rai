@@ -681,15 +681,20 @@ class Submod(commands.Cog):
     @discord.app_commands.command(name="banh",
                                   description="Ban a user as a hacked account (immediate, no confirmation).")
     @app_commands.describe(member="The user to ban", member_id="The ID of the user to ban")
-    @commands.bot_has_permissions(ban_members=True)
-    @commands.has_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
+    @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.default_permissions()
+    @app_commands.guilds(SP_SERV_ID)
     async def slash_cmd_banh(self,
                              interaction: discord.Interaction,
                              member: discord.Member = None,
                              member_id: str = None):
         """Slash command version of banh."""
         ctx = await commands.Context.from_interaction(interaction)
+        if not hf.submod_check(ctx):
+            await interaction.response.send_message("You must be a submod to use this command.",
+                                                    ephemeral=True)
+            return
         if not member and not member_id:
             await interaction.response.send_message("You must provide a user to ban.", ephemeral=True)
             return
@@ -712,13 +717,12 @@ class Submod(commands.Cog):
             await utils.safe_send(ctx, "Please provide at least one user ID to ban.")
             return
 
-        hacked_reason = (
-            "Hacked account. Please appeal AFTER you've:\n"
-            "1) Changed your account password\n"
-            "2) Enabled two-factor authentication on your account\n"
-            "3) Removed all authorized apps from your Discord profile settings\n\n"
-            "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
-        )
+        if args.reason:
+            await utils.safe_send(ctx, "`;banh` uses a fixed hacked-account reason and doesn't "
+                                       "accept extra text. Use `;ban` for a custom reason.")
+            return
+
+        hacked_reason = hf.HACKED_ACCOUNT_BAN_REASON
         author_tag = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** "
         ban_reason = f"{author_tag}{hacked_reason}"
 
@@ -736,11 +740,6 @@ class Submod(commands.Cog):
                     failures.append(str(user_id))
                     continue
 
-            if not target:
-                await utils.safe_send(ctx, f"Could not find user {user_id}.")
-                failures.append(str(user_id))
-                continue
-
             # Permission check: can't ban someone with a higher role than Rai
             if hasattr(target, "top_role"):
                 if target.top_role > ctx.guild.me.top_role:
@@ -749,7 +748,33 @@ class Submod(commands.Cog):
                     failures.append(str(target))
                     continue
 
-            # DM the user the hacked account instructions
+            # Same author permission rules as ;ban: admins can ban anyone;
+            # designated helper roles can only ban recently-joined accounts
+            if hasattr(target, "joined_at"):
+                joined_at = discord.utils.utcnow() - target.joined_at
+            else:
+                # arbitrarily bigger than 30 days to fail the conditional
+                joined_at = timedelta(days=31)
+
+            perms = False
+            if hf.admin_check(ctx):
+                perms = True
+            else:
+                if joined_at < timedelta(days=30):
+                    if ctx.guild.id == JP_SERVER_ID:
+                        jp_staff_role = 543721608506900480
+                        if ctx.guild.get_role(jp_staff_role) in ctx.author.roles:
+                            perms = True
+                    elif ctx.guild.id == SP_SERV_ID:
+                        sp_server_helper_role = 258819531193974784
+                        if ctx.guild.get_role(sp_server_helper_role) in ctx.author.roles:
+                            perms = True
+
+            if not perms:
+                raise commands.MissingPermissions(['ban_members'])
+
+            # DM the user the hacked account instructions before banning;
+            # after the ban, a DM is only deliverable if a mutual server remains
             silent = False
             embed = discord.Embed(
                 title=f"You've been banned from {ctx.guild.name}",
@@ -758,7 +783,7 @@ class Submod(commands.Cog):
             )
             try:
                 await target.send(embed=embed)
-            except (discord.Forbidden, discord.HTTPException):
+            except discord.HTTPException:
                 silent = True
 
             # Ban with 1 day message deletion
@@ -766,10 +791,19 @@ class Submod(commands.Cog):
                 await ctx.guild.ban(target, reason=ban_reason,
                                     delete_message_seconds=86400)
                 successes.append(target)
-            except (discord.Forbidden, discord.HTTPException) as e:
+            except discord.HTTPException as e:
                 await utils.safe_send(ctx, f"Failed to ban {target}: `{e}`")
                 failures.append(str(target))
                 continue
+
+            # If the user was scheduled to be unbanned at some point,
+            # delete the entry, making this a permanent ban
+            try:
+                g_id = str(ctx.guild.id)
+                if str(target.id) in self.bot.db['bans'][g_id]['timed_bans']:
+                    del self.bot.db['bans'][g_id]['timed_bans'][str(target.id)]
+            except KeyError:
+                pass
 
             # Add to modlog
             modlog_entry = hf.ModlogEntry(
@@ -777,7 +811,7 @@ class Submod(commands.Cog):
                 user=target,
                 guild=ctx.guild,
                 ctx=ctx,
-                reason="Hacked account",
+                reason=hacked_reason,
                 silent=silent
             )
             modlog_entry.add_to_modlog()
@@ -786,8 +820,8 @@ class Submod(commands.Cog):
         if successes:
             names = ", ".join(f"{u} ({u.id})" for u in successes)
             await utils.safe_send(ctx, f"✅ Banned as hacked: {names}")
-        if failures and not successes:
-            await utils.safe_send(ctx, "No users were banned.")
+        if failures:
+            await utils.safe_send(ctx, f"❌ Failed to ban: {', '.join(failures)}")
 
     # ==================== Submod Config ====================
 

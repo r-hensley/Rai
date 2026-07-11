@@ -49,6 +49,14 @@ CH_SERV_ID = 266695661670367232
 JP_SERVER_ID = 189571157446492161
 FEDE_GUILD = discord.Object(941155953682821201)
 
+HACKED_ACCOUNT_BAN_REASON = (
+    "Hacked account. Please appeal AFTER you've:\n"
+    "1) Changed your account password\n"
+    "2) Enabled two-factor authentication on your account\n"
+    "3) Removed all authorized apps from your Discord profile settings\n\n"
+    "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
+)
+
 
 def setup(bot, loop: asyncio.AbstractEventLoop):
     """This command is run in the setup_hook function in Rai.py"""
@@ -484,14 +492,7 @@ async def auto_ban(
         evidence_msg: Optional discord.Message containing the evidence for the modlog.
     """
 
-    default_reason = (
-        "Hacked account. Please appeal AFTER you've:\n"
-        "1) Changed your account password\n"
-        "2) Enabled two-factor authentication on your account\n"
-        "3) Removed all authorized apps from your Discord profile settings\n\n"
-        "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
-    )
-    dm_reason = reason or default_reason
+    dm_reason = reason or HACKED_ACCOUNT_BAN_REASON
     modlog_reason = dm_reason
     if evidence_msg:
         modlog_reason += f"\n- [Evidence](<{evidence_msg.jump_url}>)"
