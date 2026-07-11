@@ -1022,7 +1022,11 @@ class AI(commands.Cog):
             return
         if msg.channel.type == discord.ChannelType.voice:
             return
-        ignored_channel_ids = {817074401680818186, 1141761988012290179}
+        ignored_channel_ids = {
+            817074401680818186,
+            1141761988012290179,
+            1510268214762803430,
+        }
         if msg.channel.id in ignored_channel_ids:
             return
         parent_id = getattr(msg.channel, "parent_id", None)
