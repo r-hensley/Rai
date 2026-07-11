@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if refresh_seconds is not none %}
+  <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+  {% endif %}
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to diagnostics</a>
+  <header>
+    <h1>{{ title }}</h1>
+    <nav class="top-actions" aria-label="Account and refresh controls">
+      {% if user_label %}
+      <span>{{ user_label }}</span>
+      {% if refresh_seconds is not none %}
+      <a href="/?refresh=off">Pause refresh</a>
+      {% else %}
+      <a href="/">Resume refresh</a>
+      {% endif %}
+      <a href="/logout">Logout</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main id="main-content">{% block content %}{% endblock %}</main>
+</body>
+</html>

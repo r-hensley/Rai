@@ -7,7 +7,12 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 
-import cogs.web_admin as web_admin
+from cogs import web_admin as web_admin_cog
+from web_admin import auth as web_auth
+from web_admin import config as web_config
+from web_admin import diagnostics as web_diagnostics
+from web_admin import security as web_security
+from web_admin import site as web_admin
 
 
 WEB_ENV = {
@@ -57,7 +62,7 @@ def make_cog(monkeypatch, **overrides):
             monkeypatch.delenv(name, raising=False)
         else:
             monkeypatch.setenv(name, value)
-    return web_admin.WebAdmin(DummyBot())
+    return web_admin.WebAdminSite(DummyBot())
 
 
 def request_with_cookie(name, value, path="/"):
@@ -113,6 +118,47 @@ def test_authorization_is_scoped_per_guild(monkeypatch):
     assert cog._authorized_guild_ids(20) == {2}
     assert cog._authorized_guild_ids(30) == set()
     assert cog._guild_rows({1}) == [("1", "not visible to bot")]
+
+
+def test_spanish_staff_roles_grant_dashboard_access(monkeypatch):
+    guild_id = web_config.SPANISH_GUILD_ID
+    staff_members = {
+        user_id: SimpleNamespace(roles=[SimpleNamespace(id=role_id)])
+        for user_id, (role_id, _role_name) in enumerate(
+            web_config.SPANISH_STAFF_ROLES_LOW_TO_HIGH,
+            start=100,
+        )
+    }
+    guild = SimpleNamespace(get_member=staff_members.get)
+    cog = make_cog(
+        monkeypatch,
+        WEB_ADMIN_ALLOWED_GUILDS=str(guild_id),
+        WEB_ADMIN_GUILD_ADMINS=json.dumps({str(guild_id): [10]}),
+    )
+    cog.bot.guild_map[guild_id] = guild
+
+    for user_id in staff_members:
+        assert cog._authorized_guild_ids(user_id) == {guild_id}
+
+    staff_members[100].roles = []
+    assert cog._authorized_guild_ids(100) == set()
+    assert cog._authorized_guild_ids(999) == set()
+
+
+def test_spanish_staff_roles_do_not_grant_other_guild_access(monkeypatch):
+    role_id = web_config.SPANISH_STAFF_ROLES_LOW_TO_HIGH[0][0]
+    guild = SimpleNamespace(
+        get_member=lambda user_id: SimpleNamespace(roles=[SimpleNamespace(id=role_id)])
+        if user_id == 30 else None,
+    )
+    cog = make_cog(
+        monkeypatch,
+        WEB_ADMIN_ALLOWED_GUILDS="2",
+        WEB_ADMIN_GUILD_ADMINS=json.dumps({"2": [20]}),
+    )
+    cog.bot.guild_map[2] = guild
+
+    assert cog._authorized_guild_ids(30) == set()
 
 
 def test_last_hour_activity_is_bucketed_and_guild_scoped(monkeypatch):
@@ -208,17 +254,17 @@ def test_global_runtime_health_is_owner_only(monkeypatch):
 
 
 def test_optional_and_broken_config_severity():
-    assert web_admin.WebAdmin._reference_level("not configured") == "ok"
-    assert web_admin.WebAdmin._reference_level("disabled; channel 123 (missing)") == "warning"
-    assert web_admin.WebAdmin._reference_level("enabled; channel 123 (missing)") == "error"
-    assert web_admin.WebAdmin._reference_level("invalid config") == "error"
+    assert web_admin.WebAdminSite._reference_level("not configured") == "ok"
+    assert web_admin.WebAdminSite._reference_level("disabled; channel 123 (missing)") == "warning"
+    assert web_admin.WebAdminSite._reference_level("enabled; channel 123 (missing)") == "error"
+    assert web_admin.WebAdminSite._reference_level("invalid config") == "error"
 
 
 @pytest.mark.asyncio
 async def test_dashboard_rechecks_authorization_for_existing_session(monkeypatch):
     cog = make_cog(monkeypatch)
     session_cookie = cog._sign_payload({"user_id": 10, "username": "Admin", "iat": int(stdlib_time.time())})
-    request = request_with_cookie(web_admin.SESSION_COOKIE, session_cookie)
+    request = request_with_cookie(web_security.SESSION_COOKIE, session_cookie)
 
     authorized_response = await cog.dashboard(request)
     assert "Dashboard guild count" in authorized_response.text
@@ -227,14 +273,14 @@ async def test_dashboard_rechecks_authorization_for_existing_session(monkeypatch
     cog.guild_admins[1].remove(10)
     revoked_response = await cog.dashboard(request)
     assert "Log in with Discord" in revoked_response.text
-    assert revoked_response.cookies[web_admin.SESSION_COOKIE]["max-age"] == "0"
+    assert revoked_response.cookies[web_security.SESSION_COOKIE]["max-age"] == "0"
 
 
 @pytest.mark.asyncio
 async def test_dashboard_refresh_can_be_paused(monkeypatch):
     cog = make_cog(monkeypatch)
     session_cookie = cog._sign_payload({"user_id": 10, "username": "Admin", "iat": int(stdlib_time.time())})
-    request = request_with_cookie(web_admin.SESSION_COOKIE, session_cookie, "/?refresh=off")
+    request = request_with_cookie(web_security.SESSION_COOKIE, session_cookie, "/?refresh=off")
 
     response = await cog.dashboard(request)
 
@@ -244,7 +290,7 @@ async def test_dashboard_refresh_can_be_paused(monkeypatch):
 
 def test_signed_cookie_rejects_tampering_expiry_and_future_issue_time(monkeypatch):
     cog = make_cog(monkeypatch)
-    monkeypatch.setattr(web_admin.time, "time", lambda: 1_000)
+    monkeypatch.setattr(web_auth.time, "time", lambda: 1_000)
 
     valid = cog._sign_payload({"iat": 900, "user_id": 10})
     assert cog._read_signed_cookie(request_with_cookie("test", valid), "test", 200)["user_id"] == 10
@@ -262,12 +308,46 @@ def test_signed_cookie_rejects_tampering_expiry_and_future_issue_time(monkeypatc
 def test_refresh_is_only_present_when_requested(monkeypatch):
     cog = make_cog(monkeypatch)
 
-    assert "http-equiv=\"refresh\"" not in cog._page("Login Failed", "<p>failed</p>")
-    assert '<meta http-equiv="refresh" content="30">' in cog._page(
-        "Rai Admin",
-        "<p>ready</p>",
+    page = cog.renderer.render(
+        "login.html",
+        title="Login Failed",
+        user_label="<Admin>",
+        refresh_seconds=None,
+    )
+    assert "http-equiv=\"refresh\"" not in page
+    assert '<link rel="stylesheet" href="/static/admin.css">' in page
+    assert "<style>" not in page
+    assert "&lt;Admin&gt;" in page
+    assert '<meta http-equiv="refresh" content="30">' in cog.renderer.render(
+        "login.html",
+        title="Rai Admin",
+        user_label=None,
         refresh_seconds=30,
     )
+
+
+@pytest.mark.asyncio
+async def test_discord_cog_only_delegates_site_lifecycle(monkeypatch):
+    events = []
+
+    class FakeSite:
+        def __init__(self, bot):
+            events.append(("init", bot))
+
+        async def start(self):
+            events.append(("start", None))
+
+        async def stop(self):
+            events.append(("stop", None))
+
+    bot = DummyBot()
+    monkeypatch.setattr(web_admin_cog, "WebAdminSite", FakeSite)
+    cog = web_admin_cog.WebAdmin(bot)
+
+    await cog.cog_load()
+    await cog.cog_unload()
+
+    assert events == [("init", bot), ("start", None), ("stop", None)]
 
 
 @pytest.mark.asyncio
@@ -277,12 +357,12 @@ async def test_security_headers_apply_to_responses(monkeypatch):
     async def handler(_request):
         return web.Response(text="ok")
 
-    response = await web_admin._security_headers_middleware(
+    response = await web_security.security_headers_middleware(
         make_mocked_request("GET", "/"),
         handler,
     )
 
-    for name, value in web_admin.SECURITY_HEADERS.items():
+    for name, value in web_security.SECURITY_HEADERS.items():
         assert response.headers[name] == value
 
 
@@ -293,14 +373,14 @@ async def test_security_headers_apply_to_internal_errors(monkeypatch):
     async def handler(_request):
         raise RuntimeError("diagnostic failure")
 
-    response = await web_admin._security_headers_middleware(
+    response = await web_security.security_headers_middleware(
         make_mocked_request("GET", "/"),
         handler,
     )
 
     assert response.status == 500
     assert response.text == "Internal server error."
-    for name, value in web_admin.SECURITY_HEADERS.items():
+    for name, value in web_security.SECURITY_HEADERS.items():
         assert response.headers[name] == value
 
 
@@ -327,7 +407,7 @@ async def test_startup_failure_does_not_escape_cog(monkeypatch):
         raise OSError("address unavailable")
 
     monkeypatch.setattr(web.TCPSite, "start", fail_start)
-    await cog.cog_load()
+    await cog.start()
 
     assert cog.web_ready is False
     assert cog.runner is None
@@ -337,7 +417,7 @@ async def test_startup_failure_does_not_escape_cog(monkeypatch):
 def test_uptime_uses_monotonic_clock(monkeypatch):
     cog = make_cog(monkeypatch)
     cog.bot.t_start_monotonic = 100.0
-    monkeypatch.setattr(web_admin.time, "monotonic", lambda: 190.0)
+    monkeypatch.setattr(web_diagnostics.time, "monotonic", lambda: 190.0)
 
     rows = dict(cog._bot_rows({1}))
     assert rows["Uptime"] == "0:01:30"

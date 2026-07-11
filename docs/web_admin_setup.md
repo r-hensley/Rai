@@ -1,8 +1,9 @@
 # Rai Web Admin Setup
 
-This is a read-only proof-of-concept dashboard served by Rai itself through
-`cogs.web_admin`. It is disabled unless the remote runtime opts in with
-environment variables.
+This is a read-only dashboard served by Rai itself. The small `cogs.web_admin`
+adapter starts and stops the website with the bot; the implementation lives in
+the top-level `web_admin` package. It is disabled unless the remote runtime opts
+in with environment variables.
 
 ## Architecture
 
@@ -16,6 +17,27 @@ Rai should bind only to `127.0.0.1`. Cloudflare handles the public HTTPS URL.
 Run `cloudflared` on the same host as Rai so that this loopback address refers
 to the machine serving the dashboard. Do not open port `8765` in the host
 firewall or point public DNS directly at it.
+
+The website is server-rendered with Python, aiohttp, and Jinja. It does not use
+JavaScript or require Node.js, npm, or a frontend build step. Source is grouped
+by responsibility:
+
+```text
+cogs/web_admin.py             Discord cog lifecycle adapter
+web_admin/site.py             aiohttp application and routes
+web_admin/auth.py             OAuth, sessions, and authorization
+web_admin/config.py           settings parsing and access-role IDs
+web_admin/diagnostics.py      cached bot and guild diagnostic collectors
+web_admin/models.py           read-only view data structures
+web_admin/rendering.py        Jinja template loader
+web_admin/views.py            dashboard template context assembly
+web_admin/templates/          HTML templates
+web_admin/static/admin.css    responsive dashboard styling
+```
+
+This layout does not change deployment: Cloudflare still targets Rai on
+`127.0.0.1:8765`, and updating the website still requires only deploying the
+Python repository and restarting Rai.
 
 ## Discord Developer Portal
 
@@ -62,6 +84,22 @@ An authenticated user sees only the guilds where their ID appears. The cog
 rechecks this authorization on every dashboard request. Restart Rai after
 changing these values so the cog reloads its configuration. The old
 `WEB_ADMIN_ALLOWED_USERS` setting is no longer used.
+
+The Spanish server also grants dashboard access to members with any of these
+staff roles, which are defined directly in `web_admin/config.py`:
+
+| Staff tier | Role ID |
+| --- | --- |
+| Trial Staff Helper | `591745589054668817` |
+| Server Staff | `258819531193974784` |
+| Moderator | `1483184760804347966` |
+| Administrator | `243854949522472971` |
+
+Role access applies only to guild `243838819743432704`, and that guild must
+still appear in `WEB_ADMIN_ALLOWED_GUILDS`. Rai checks its Discord member cache
+on every request, so removing all four roles revokes access without issuing a
+new dashboard session. The explicit `WEB_ADMIN_GUILD_ADMINS` allowlist remains
+available alongside role access.
 
 Optional settings, shown with their defaults:
 

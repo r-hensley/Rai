@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% macro metric_card(metric) -%}
+<article class="metric metric-{{ metric.level }}">
+  <span class="metric-label">{{ metric.label }}</span>
+  <strong>{{ metric.value }}</strong>
+  <span class="metric-detail">{{ metric.detail }}</span>
+</article>
+{%- endmacro %}
+
+{% macro value_table(rows) -%}
+<div class="table-scroll">
+  <table>
+    <tbody>
+      {% for label, value in rows %}
+      <tr><th scope="row">{{ label }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+{% block content %}
+<section class="status-band status-{{ status_level }}">
+  <div class="status-copy">
+    <span class="status-label"><span class="status-dot"></span>{{ status_title }}</span>
+    <h2>{{ status_detail }}</h2>
+  </div>
+  {% if owner_view %}
+  <dl class="status-meta">
+    <div>
+      <dt>Server time</dt>
+      <dd><time datetime="{{ server_now_iso }}">{{ server_now_display }}</time></dd>
+    </div>
+    <div><dt>Timezone</dt><dd>{{ timezone_label }}</dd></div>
+  </dl>
+  {% endif %}
+</section>
+
+<section class="metric-grid{% if not owner_view %} metric-grid-compact{% endif %}"
+         aria-label="{% if owner_view %}Current operational metrics{% else %}Current guild metrics{% endif %}">
+  {% for metric in metrics %}{{ metric_card(metric) }}{% endfor %}
+</section>
+
+<section class="chart-grid">
+  <section class="panel activity-panel">
+    <div class="section-heading">
+      <div><span class="eyebrow">{{ coverage_label }}</span><h2>Queued message activity</h2></div>
+      <strong class="section-value">{{ activity_rate }}</strong>
+    </div>
+    <div class="chart-scroll">
+      <div class="activity-chart" role="img"
+           aria-label="Messages observed in each five-minute interval">
+        {% for bar in activity_bars %}
+        <div class="activity-column">
+          <span class="bar-value">{{ "{:,}".format(bar.count) }}</span>
+          <div class="bar-track">
+            <span class="bar-fill" style="height:{{ bar.height }}%"
+                  title="{{ "{:,}".format(bar.count) }} messages"></span>
+          </div>
+          <span class="bar-label">{{ bar.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel channel-panel">
+    <div class="section-heading">
+      <div><span class="eyebrow">Last 60 minutes</span><h2>Most active channels</h2></div>
+    </div>
+    <div class="channel-chart">
+      {% if channel_bars %}
+      {% for bar in channel_bars %}
+      <div class="channel-row">
+        <span class="channel-label" title="{{ bar.label }}">{{ bar.label }}</span>
+        <span class="channel-track">
+          <span class="channel-fill" style="width:{{ bar.width }}%"></span>
+        </span>
+        <strong>{{ "{:,}".format(bar.count) }}</strong>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="empty-state">No messages observed in the last 60 minutes.</p>
+      {% endif %}
+    </div>
+  </section>
+</section>
+
+{% if owner_view %}
+<section class="detail-grid">
+  <section class="panel task-panel">
+    <div class="section-heading">
+      <div><span class="eyebrow">Process health</span><h2>Background tasks</h2></div>
+      <strong class="section-value">{{ running_tasks }}/{{ tasks | length }}</strong>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Task</th><th>State</th><th>Next run</th><th>Runs</th></tr></thead>
+        <tbody>
+          {% if tasks %}
+          {% for task in tasks %}
+          <tr>
+            <th>{{ task.name }}</th>
+            <td><span class="state-badge state-{{ task.level }}">{{ task.state }}</span></td>
+            <td>{{ task.next_run }}</td>
+            <td>{{ "{:,}".format(task.iterations) }}</td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr><td colspan="4" class="empty-state">Background tasks are not loaded.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel health-panel">
+    <div class="section-heading">
+      <div><span class="eyebrow">Data health</span><h2>Database &amp; configuration</h2></div>
+      <strong class="section-value">{{ passing_checks }}/{{ health_rows | length }}</strong>
+    </div>
+    <ul class="health-list">
+      {% for check in health_rows %}
+      <li class="health-row">
+        <span class="health-indicator health-{{ check.level }}"></span>
+        <div><strong>{{ check.label }}</strong><span>{{ check.detail }}</span></div>
+        <span class="state-badge state-{{ check.level }}">{{ check.state }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</section>
+
+<section class="panel runtime-panel">
+  <div class="section-heading"><h2>Runtime details</h2></div>
+  {{ value_table(runtime_rows) }}
+</section>
+{% else %}
+<section class="panel runtime-panel">
+  <div class="section-heading"><h2>Guilds</h2></div>
+  {{ value_table(guild_rows) }}
+</section>
+{% endif %}
+
+<details class="panel disclosure">
+  <summary>
+    <span>Configuration inventory</span>
+    <span class="summary-count">{{ config_rows | length }} checks</span>
+  </summary>
+  {{ value_table(config_rows) }}
+</details>
+{% endblock %}
