@@ -1902,6 +1902,7 @@ class Admin(commands.Cog):
                                                                         'message_threshold': None,
                                                                         'time_threshold': None,
                                                                         'ignored': [],
+                                                                        'exempt_roles': [],
                                                                         'ban_override': None})
         if config['enable']:
             settings = f"**The current settings are as follows:\n" \

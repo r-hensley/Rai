@@ -6,16 +6,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
 
+from .config import LOGGING_MODULES
 from .models import ActivitySnapshot, HealthCheck, TaskSnapshot
 
 
 INVALID_CONFIG = object()
 ACTIVITY_WINDOW_MINUTES = 60
 ACTIVITY_BUCKET_MINUTES = 5
-LOG_MODULES = (
-    "deletes", "edits", "joins", "leaves", "kicks", "bans",
-    "nicknames", "reactions", "voice", "channels",
-)
+LOG_MODULES = tuple(module for module, _label in LOGGING_MODULES)
 CORE_DB_SECTIONS = (
     "mod_channel", "mod_role", "submod_role", "deletes", "edits",
     "joins", "leaves", "kicks", "bans", "nicknames", "reactions",
@@ -501,7 +499,8 @@ class DiagnosticsMixin:
                 self._safe_text(
                     f"{_format_bool(antispam.get('enable'))}; "
                     f"action {antispam.get('action') or 'unset'}; "
-                    f"ignored channels {self._item_count(antispam.get('ignored', []))}"
+                    f"ignored channels {self._item_count(antispam.get('ignored', []))}; "
+                    f"exempt roles {self._item_count(antispam.get('exempt_roles', []))}"
                 ),
             ))
         else:

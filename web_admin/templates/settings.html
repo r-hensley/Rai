@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% macro channel_select(name, options, selected_id, disabled=false) -%}
+<select name="{{ name }}" id="{{ name }}"{% if disabled %} disabled{% endif %}>
+  <option value="0">Not configured</option>
+  {% for option in options %}
+  <option value="{{ option.id }}"{% if option.id == selected_id %} selected{% endif %}>
+    {{ option.label }}{% if option.missing %} (remove or replace){% endif %}
+  </option>
+  {% endfor %}
+</select>
+{%- endmacro %}
+
+{% macro choice_list(name, options, disabled=false) -%}
+<div class="choice-list">
+  {% for option in options %}
+  <label{% if option.missing %} class="choice-missing"{% endif %}>
+    <input type="checkbox" name="{{ name }}" value="{{ option.id }}"
+           {% if option.selected %}checked{% endif %}{% if disabled %} disabled{% endif %}>
+    <span>{{ option.label }}</span>
+  </label>
+  {% else %}
+  <span class="empty-state">No options available.</span>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<section class="status-band status-{{ 'ok' if can_edit else 'warning' }}">
+  <div class="status-copy">
+    <span class="status-label"><span class="status-dot"></span>
+      {{ "Configuration access" if can_edit else "Read-only access" }}
+    </span>
+    <h2>{{ guild.name }} ({{ guild.id }})</h2>
+  </div>
+  <span class="state-badge state-{{ 'ok' if can_edit else 'warning' }}">
+    {{ "Editor" if can_edit else "Viewer" }}
+  </span>
+</section>
+
+{% if success_message %}<div class="notice notice-success" role="status">{{ success_message }}</div>{% endif %}
+{% if error_message %}<div class="notice notice-error" role="alert">{{ error_message }}</div>{% endif %}
+
+<div class="settings-stack">
+  <form class="panel settings-form" method="post" action="/settings/{{ guild.id }}/staff">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="section-heading">
+      <div><span class="eyebrow">Core moderation</span><h2>Staff routing and roles</h2></div>
+    </div>
+    <fieldset{% if not can_edit %} disabled{% endif %}>
+      <div class="form-grid form-grid-three">
+        <label class="control">
+          <span>Moderation channel</span>
+          {{ channel_select("mod_channel", mod_channel_options, mod_channel_id, not can_edit) }}
+        </label>
+        <div class="control">
+          <span>Moderator roles</span>
+          {{ choice_list("mod_roles", mod_role_options, not can_edit) }}
+        </div>
+        <div class="control">
+          <span>Submoderator roles</span>
+          {{ choice_list("submod_roles", submod_role_options, not can_edit) }}
+        </div>
+      </div>
+    </fieldset>
+    {% if can_edit %}<div class="form-actions"><button type="submit">Save staff settings</button></div>{% endif %}
+  </form>
+
+  <form class="panel settings-form" method="post" action="/settings/{{ guild.id }}/logging">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="section-heading">
+      <div><span class="eyebrow">Event records</span><h2>Logging modules</h2></div>
+    </div>
+    <fieldset{% if not can_edit %} disabled{% endif %}>
+      <div class="table-scroll">
+        <table class="settings-table">
+          <thead><tr><th>Module</th><th>Enabled</th><th>Destination</th></tr></thead>
+          <tbody>
+            {% for module in logging_modules %}
+            <tr>
+              <th scope="row">{{ module.label }}</th>
+              <td>
+                <label class="toggle-control">
+                  <input type="checkbox" id="{{ module.key }}_enabled" name="{{ module.key }}_enabled"
+                         {% if module.enabled %}checked{% endif %}{% if not can_edit %} disabled{% endif %}>
+                  <span>{{ "On" if module.enabled else "Off" }}</span>
+                </label>
+              </td>
+              <td>
+                {{ channel_select(module.key ~ "_channel", module.channel_options,
+                                  module.channel_id or 0, not can_edit) }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </fieldset>
+    {% if can_edit %}<div class="form-actions"><button type="submit">Save logging settings</button></div>{% endif %}
+  </form>
+
+  <form class="panel settings-form" method="post" action="/settings/{{ guild.id }}/antispam">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="section-heading">
+      <div><span class="eyebrow">Message safety</span><h2>Antispam</h2></div>
+    </div>
+    <fieldset{% if not can_edit %} disabled{% endif %}>
+      <div class="form-grid form-grid-four">
+        <label class="toggle-control control-toggle">
+          <input type="checkbox" name="enabled"{% if antispam.enabled %} checked{% endif %}>
+          <span>Enabled</span>
+        </label>
+        <label class="control">
+          <span>Action</span>
+          <select name="action">
+            {% for action in antispam_actions %}
+            <option value="{{ action }}"{% if action == antispam.action %} selected{% endif %}>
+              {{ action | title }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="control">
+          <span>Repeated messages</span>
+          <input type="number" name="message_threshold" min="2" max="50"
+                 value="{{ antispam.message_threshold }}" required>
+        </label>
+        <label class="control">
+          <span>Window in seconds</span>
+          <input type="number" name="time_threshold" min="1" max="300"
+                 value="{{ antispam.time_threshold }}" required>
+        </label>
+        <label class="control">
+          <span>New-member ban window in minutes</span>
+          <input type="number" name="ban_override" min="0" max="10080"
+                 value="{{ antispam.ban_override }}" required>
+        </label>
+      </div>
+      <div class="form-grid form-grid-two settings-choices">
+        <div class="control">
+          <span>Ignored channels</span>
+          {{ choice_list("ignored_channels", antispam.ignored_channel_options, not can_edit) }}
+        </div>
+        <div class="control">
+          <span>Exempt roles</span>
+          {{ choice_list("exempt_roles", antispam.exempt_role_options, not can_edit) }}
+        </div>
+      </div>
+    </fieldset>
+    {% if can_edit %}<div class="form-actions"><button type="submit">Save antispam settings</button></div>{% endif %}
+  </form>
+</div>
+{% endblock %}

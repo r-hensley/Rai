@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -19,17 +20,17 @@ from .diagnostics import DiagnosticsMixin
 from .rendering import STATIC_DIR, TemplateRenderer
 from .security import (
     SESSION_COOKIE,
-    SESSION_MAX_AGE_SECONDS,
     security_headers_middleware,
 )
+from .settings import SettingsMixin
 from .views import DashboardViewMixin
 
 
 log = logging.getLogger(__name__)
 
 
-class WebAdminSite(AuthMixin, DashboardViewMixin, DiagnosticsMixin):
-    """Read-only web dashboard for Rai diagnostics."""
+class WebAdminSite(AuthMixin, DashboardViewMixin, SettingsMixin, DiagnosticsMixin):
+    """Authenticated web dashboard for Rai diagnostics and controlled configuration."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -68,6 +69,7 @@ class WebAdminSite(AuthMixin, DashboardViewMixin, DiagnosticsMixin):
                 "WEB_ADMIN_OWNER_USERS or OWNER_ID must contain positive integer IDs"
             )
         self.cookie_secure = env_bool("WEB_ADMIN_COOKIE_SECURE", True)
+        self.config_write_lock = asyncio.Lock()
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
         self.web_ready = False
@@ -83,13 +85,21 @@ class WebAdminSite(AuthMixin, DashboardViewMixin, DiagnosticsMixin):
             return
 
         try:
-            app = web.Application(middlewares=[security_headers_middleware])
+            app = web.Application(
+                middlewares=[security_headers_middleware],
+                client_max_size=64 * 1024,
+            )
             app.add_routes([
                 web.get("/", self.dashboard),
                 web.get("/login", self.login),
                 web.get("/oauth/callback", self.oauth_callback),
                 web.get("/logout", self.logout),
                 web.get("/healthz", self.healthz),
+                web.get("/settings", self.settings_index),
+                web.get(r"/settings/{guild_id:\d+}", self.settings_detail),
+                web.post(r"/settings/{guild_id:\d+}/staff", self.update_staff_settings),
+                web.post(r"/settings/{guild_id:\d+}/logging", self.update_logging_settings),
+                web.post(r"/settings/{guild_id:\d+}/antispam", self.update_antispam_settings),
             ])
             app.router.add_static("/static/", STATIC_DIR, show_index=False)
 
@@ -184,13 +194,7 @@ class WebAdminSite(AuthMixin, DashboardViewMixin, DiagnosticsMixin):
         return web.json_response({"ok": ready}, status=200 if ready else 503)
 
     async def dashboard(self, request: web.Request) -> web.Response:
-        session = self._read_signed_cookie(request, SESSION_COOKIE, max_age=SESSION_MAX_AGE_SECONDS)
-        authorized_guild_ids: set[int] = set()
-        if session:
-            try:
-                authorized_guild_ids = self._authorized_guild_ids(int(session["user_id"]))
-            except (KeyError, TypeError, ValueError):
-                session = None
+        session, authorized_guild_ids = self._authorized_session(request)
 
         if not session or not authorized_guild_ids:
             body = self.renderer.render(

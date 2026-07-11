@@ -12,7 +12,11 @@ from urllib.parse import urlencode
 import aiohttp
 from aiohttp import web
 
-from .config import DISCORD_API_BASE_URL, GUILD_ACCESS_ROLE_IDS
+from .config import (
+    DISCORD_API_BASE_URL,
+    GUILD_ACCESS_ROLE_IDS,
+    GUILD_CONFIG_EDITOR_ROLE_IDS,
+)
 from .security import (
     SESSION_COOKIE,
     SESSION_MAX_AGE_SECONDS,
@@ -179,7 +183,21 @@ class AuthMixin:
 
     def _has_guild_access_role(self, guild_id: int, user_id: int) -> bool:
         access_role_ids = GUILD_ACCESS_ROLE_IDS.get(guild_id)
-        if not access_role_ids:
+        return self._member_has_any_role(guild_id, user_id, access_role_ids)
+
+    def _can_manage_guild(self, guild_id: int, user_id: int) -> bool:
+        if self._is_owner_user(user_id):
+            return True
+        editor_role_ids = GUILD_CONFIG_EDITOR_ROLE_IDS.get(guild_id)
+        return self._member_has_any_role(guild_id, user_id, editor_role_ids)
+
+    def _member_has_any_role(
+        self,
+        guild_id: int,
+        user_id: int,
+        role_ids: Optional[set[int] | frozenset[int]],
+    ) -> bool:
+        if not role_ids:
             return False
 
         guild = self.bot.get_guild(guild_id)
@@ -191,8 +209,53 @@ class AuthMixin:
         if member is None:
             return False
         return any(
-            getattr(role, "id", None) in access_role_ids
+            getattr(role, "id", None) in role_ids
             for role in getattr(member, "roles", ())
+        )
+
+    def _authorized_session(
+        self,
+        request: web.Request,
+    ) -> tuple[Optional[dict[str, Any]], set[int]]:
+        session = self._read_signed_cookie(
+            request,
+            SESSION_COOKIE,
+            max_age=SESSION_MAX_AGE_SECONDS,
+        )
+        if not session:
+            return None, set()
+
+        try:
+            user_id = int(session["user_id"])
+        except (KeyError, TypeError, ValueError):
+            return None, set()
+
+        authorized_guild_ids = self._authorized_guild_ids(user_id)
+        if not authorized_guild_ids:
+            return None, set()
+        return session, authorized_guild_ids
+
+    def _csrf_token(self, session: dict[str, Any], guild_id: int) -> str:
+        try:
+            user_id = int(session["user_id"])
+            issued_at = int(session["iat"])
+        except (KeyError, TypeError, ValueError):
+            return ""
+        payload = f"rai-web-admin-csrf:{user_id}:{issued_at}:{guild_id}".encode("ascii")
+        digest = hmac.new(self.session_secret.encode("utf-8"), payload, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+    def _valid_csrf_token(
+        self,
+        session: dict[str, Any],
+        guild_id: int,
+        candidate: Any,
+    ) -> bool:
+        expected = self._csrf_token(session, guild_id)
+        return bool(
+            expected
+            and isinstance(candidate, str)
+            and hmac.compare_digest(candidate, expected)
         )
 
     def _is_owner_user(self, user_id: int) -> bool:

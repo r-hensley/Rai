@@ -1,9 +1,10 @@
 # Rai Web Admin Setup
 
-This is a read-only dashboard served by Rai itself. The small `cogs.web_admin`
-adapter starts and stops the website with the bot; the implementation lives in
-the top-level `web_admin` package. It is disabled unless the remote runtime opts
-in with environment variables.
+This is an authenticated administration dashboard served by Rai itself. The
+small `cogs.web_admin` adapter starts and stops the website with the bot; the
+implementation lives in the top-level `web_admin` package. Diagnostics are
+read-only, while a narrowly scoped settings area permits authorized writes. It
+is disabled unless the remote runtime opts in with environment variables.
 
 ## Architecture
 
@@ -30,6 +31,7 @@ web_admin/config.py           settings parsing and access-role IDs
 web_admin/diagnostics.py      cached bot and guild diagnostic collectors
 web_admin/models.py           read-only view data structures
 web_admin/rendering.py        Jinja template loader
+web_admin/settings.py         validated configuration forms and persistence
 web_admin/views.py            dashboard template context assembly
 web_admin/templates/          HTML templates
 web_admin/static/admin.css    responsive dashboard styling
@@ -104,6 +106,11 @@ on every request, so removing all four roles revokes access without issuing a
 new dashboard session. The explicit `WEB_ADMIN_GUILD_ADMINS` allowlist remains
 available alongside role access.
 
+All four staff roles can view the settings pages. Only Rai's configured owner
+and members with the Spanish `Administrator` role (`243854949522472971`) can
+submit changes. Being listed in `WEB_ADMIN_GUILD_ADMINS` grants dashboard
+access but does not independently grant configuration-write access.
+
 Optional settings, shown with their defaults:
 
 ```env
@@ -115,6 +122,27 @@ WEB_ADMIN_OWNER_USERS=202995638860906496
 `WEB_ADMIN_OWNER_USERS` controls access to global process and database health.
 If omitted, the cog uses Rai's existing `OWNER_ID`. Other guild administrators
 see only activity and configuration for the guilds assigned to them.
+
+## Configuration Controls
+
+The first settings surface covers established Rai configuration shapes:
+
+- Moderation channel, moderator roles, and submoderator roles.
+- Enable state and destination channel for each event-logging module.
+- Antispam action, thresholds, new-member ban override, ignored channels, and
+  exact-match exempt roles.
+
+The forms only accept channels and roles that belong to the selected Discord
+server. They do not expose arbitrary JSON editing. Each successful update uses
+Rai's existing atomic `dump_json("db")` path and short-term database backups. A
+failed dump restores the affected in-memory guild entries. Successful writes
+emit an audit log entry containing the actor user ID, guild ID, and settings
+area without recording cookies, CSRF tokens, or secrets.
+
+Configuration changes use POST requests with a session-and-guild-bound CSRF
+token. Authorization and current Discord role membership are rechecked for
+every POST, so a user who loses the Administrator role cannot continue editing
+with an older open page.
 
 For local HTTP-only testing, you can temporarily set:
 
@@ -150,7 +178,8 @@ explicit per-guild user allowlist.
 
 ## Security Notes
 
-- The dashboard is read-only.
+- Diagnostics remain read-only; configuration writes are limited to the bot
+  owner and the Spanish Administrator role.
 - The dashboard does not display raw `.env`, tokens, raw `db.json`, message
   contents, or full modlog bodies.
 - Last-hour charts aggregate only timestamps, guild IDs, channel IDs, and author
@@ -161,5 +190,7 @@ explicit per-guild user allowlist.
   route in another proxy.
 - Session and OAuth cookies are `Secure`, `HttpOnly`, and `SameSite=Lax` in
   public HTTPS deployments.
+- Settings forms use CSRF protection, bounded request bodies, allowlisted
+  fields, Discord guild-resource validation, and POST-redirect-GET responses.
 - Responses disable caching and include restrictive browser security headers.
 - Keep production secrets outside repo-managed files when possible.

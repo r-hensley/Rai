@@ -1547,6 +1547,17 @@ class Message(commands.Cog):
                     seen_channel_ids.add(matched_msg.channel.id)
                     spam_count += 1
 
+        configured_exempt_roles = config.get('exempt_roles', [])
+        if isinstance(configured_exempt_roles, (list, tuple, set)):
+            exempt_role_ids = set()
+            for role_id in configured_exempt_roles:
+                try:
+                    exempt_role_ids.add(int(role_id))
+                except (TypeError, ValueError):
+                    continue
+            if any(role.id in exempt_role_ids for role in getattr(msg.author, 'roles', [])):
+                return
+
         exempt_role = msg.guild.get_role(ANTISPAM_EXEMPT_ROLE_ID)
         if exempt_role:
             author_top_role = getattr(msg.author, "top_role", None)

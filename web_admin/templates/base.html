@@ -10,16 +10,20 @@
   <link rel="stylesheet" href="/static/admin.css">
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to diagnostics</a>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header>
     <h1>{{ title }}</h1>
-    <nav class="top-actions" aria-label="Account and refresh controls">
+    <nav class="top-actions" aria-label="Site controls">
       {% if user_label %}
       <span>{{ user_label }}</span>
+      <a href="/">Dashboard</a>
+      <a href="/settings">Settings</a>
+      {% if show_refresh_controls %}
       {% if refresh_seconds is not none %}
       <a href="/?refresh=off">Pause refresh</a>
       {% else %}
       <a href="/">Resume refresh</a>
+      {% endif %}
       {% endif %}
       <a href="/logout">Logout</a>
       {% endif %}

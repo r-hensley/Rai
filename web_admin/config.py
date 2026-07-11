@@ -22,9 +22,25 @@ SPANISH_STAFF_ROLES_LOW_TO_HIGH = (
     (1483184760804347966, "Moderator"),
     (243854949522472971, "Administrator"),
 )
+SPANISH_ADMINISTRATOR_ROLE_ID = 243854949522472971
 GUILD_ACCESS_ROLE_IDS = {
     SPANISH_GUILD_ID: frozenset(role_id for role_id, _ in SPANISH_STAFF_ROLES_LOW_TO_HIGH),
 }
+GUILD_CONFIG_EDITOR_ROLE_IDS = {
+    SPANISH_GUILD_ID: frozenset({SPANISH_ADMINISTRATOR_ROLE_ID}),
+}
+LOGGING_MODULES = (
+    ("deletes", "Deleted messages"),
+    ("edits", "Edited messages"),
+    ("joins", "Member joins"),
+    ("leaves", "Member leaves"),
+    ("kicks", "Member kicks"),
+    ("bans", "Member bans"),
+    ("nicknames", "Nickname changes"),
+    ("reactions", "Reaction changes"),
+    ("voice", "Voice activity"),
+    ("channels", "Channel changes"),
+)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
