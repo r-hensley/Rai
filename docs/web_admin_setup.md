@@ -37,7 +37,10 @@ web_admin/static/admin.css    responsive dashboard styling
 
 This layout does not change deployment: Cloudflare still targets Rai on
 `127.0.0.1:8765`, and updating the website still requires only deploying the
-Python repository and restarting Rai.
+Python repository. Rai's owner-only `;reload web_admin` command clears the
+top-level `web_admin` package before reloading the cog, so Python module changes
+take effect without restarting the full bot. A process restart remains the
+fallback if the reload reports an error.
 
 ## Discord Developer Portal
 

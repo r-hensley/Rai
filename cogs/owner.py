@@ -40,6 +40,15 @@ RYRY_RAI_BOT_ID = 270366726737231884
 RAI_TEST_BOT_ID = 536170400871219222
 
 
+def _clear_imported_package(package_name: str, module_cache: dict | None = None) -> None:
+    module_cache = sys.modules if module_cache is None else module_cache
+    package_prefix = f'{package_name}.'
+    for module_name in tuple(module_cache):
+        if module_name == package_name or module_name.startswith(package_prefix):
+            module_cache.pop(module_name, None)
+    importlib.invalidate_caches()
+
+
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
     SQL_MAX_ROWS = 20
@@ -458,6 +467,9 @@ class Owner(commands.Cog):
 
             else:
                 try:
+                    if cog == 'web_admin':
+                        # reload_extension does not clear the separate top-level support package.
+                        _clear_imported_package('web_admin')
                     await self.bot.reload_extension(f'cogs.{cog}')
                     if cog == 'interactions':
                         sync = self.bot.get_command('sync')
