@@ -676,6 +676,121 @@ class Submod(commands.Cog):
         except discord.NotFound:
             pass
     
+    # ==================== Ban Hacked ====================
+
+    @discord.app_commands.command(name="banh",
+                                  description="Ban a user as a hacked account (immediate, no confirmation).")
+    @app_commands.describe(member="The user to ban", member_id="The ID of the user to ban")
+    @commands.bot_has_permissions(ban_members=True)
+    @commands.has_permissions(ban_members=True)
+    @app_commands.default_permissions()
+    async def slash_cmd_banh(self,
+                             interaction: discord.Interaction,
+                             member: discord.Member = None,
+                             member_id: str = None):
+        """Slash command version of banh."""
+        ctx = await commands.Context.from_interaction(interaction)
+        if not member and not member_id:
+            await interaction.response.send_message("You must provide a user to ban.", ephemeral=True)
+            return
+        args = member.mention if member else member_id
+        await interaction.response.send_message("Banning as hacked account...", ephemeral=True)
+        await self.prefix_cmd_banh(ctx, args_in=args)
+
+    @commands.command(name="banh")
+    @commands.bot_has_permissions(ban_members=True)
+    @hf.is_submod()
+    async def prefix_cmd_banh(self, ctx: commands.Context, *, args_in: str):
+        """Bans a user as a hacked account. Sends them instructions to secure their account,
+        bans immediately (no confirmation), and deletes 1 day of messages.
+
+        Usage: `;banh <user or ID>`"""
+        args = hf.args_discriminator(args_in)
+        user_ids = args.user_ids
+
+        if not user_ids:
+            await utils.safe_send(ctx, "Please provide at least one user ID to ban.")
+            return
+
+        hacked_reason = (
+            "Hacked account. Please appeal AFTER you've:\n"
+            "1) Changed your account password\n"
+            "2) Enabled two-factor authentication on your account\n"
+            "3) Removed all authorized apps from your Discord profile settings\n\n"
+            "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
+        )
+        author_tag = f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** "
+        ban_reason = f"{author_tag}{hacked_reason}"
+
+        successes = []
+        failures = []
+
+        for user_id in user_ids:
+            # Resolve the user
+            target = await utils.member_converter(ctx, user_id)
+            if not target:
+                try:
+                    target = await self.bot.fetch_user(user_id)
+                except (discord.NotFound, ValueError):
+                    await utils.safe_send(ctx, f"Could not find user {user_id}.")
+                    failures.append(str(user_id))
+                    continue
+
+            if not target:
+                await utils.safe_send(ctx, f"Could not find user {user_id}.")
+                failures.append(str(user_id))
+                continue
+
+            # Permission check: can't ban someone with a higher role than Rai
+            if hasattr(target, "top_role"):
+                if target.top_role > ctx.guild.me.top_role:
+                    await utils.safe_send(ctx,
+                                          f"I can't ban {target} — their top role is higher than mine.")
+                    failures.append(str(target))
+                    continue
+
+            # DM the user the hacked account instructions
+            silent = False
+            embed = discord.Embed(
+                title=f"You've been banned from {ctx.guild.name}",
+                description=hacked_reason,
+                color=discord.Color.blue()
+            )
+            try:
+                await target.send(embed=embed)
+            except (discord.Forbidden, discord.HTTPException):
+                silent = True
+
+            # Ban with 1 day message deletion
+            try:
+                await ctx.guild.ban(target, reason=ban_reason,
+                                    delete_message_seconds=86400)
+                successes.append(target)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                await utils.safe_send(ctx, f"Failed to ban {target}: `{e}`")
+                failures.append(str(target))
+                continue
+
+            # Add to modlog
+            modlog_entry = hf.ModlogEntry(
+                event="Ban",
+                user=target,
+                guild=ctx.guild,
+                ctx=ctx,
+                reason="Hacked account",
+                silent=silent
+            )
+            modlog_entry.add_to_modlog()
+
+        # Send summary
+        if successes:
+            names = ", ".join(f"{u} ({u.id})" for u in successes)
+            await utils.safe_send(ctx, f"✅ Banned as hacked: {names}")
+        if failures and not successes:
+            await utils.safe_send(ctx, "No users were banned.")
+
+    # ==================== Submod Config ====================
+
     submod = app_commands.Group(name="submod", description="Commands to configure server submods",
                                 guild_ids=[SP_SERV_ID, CH_SERV_ID, 275146036178059265,
                                            JP_SERVER_ID])
