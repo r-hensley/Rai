@@ -15,7 +15,7 @@ cycler>=0.11.0
 dateparser
 decorator>=5.1.1
 deep-translator
-discord.py
+discord.py>=2.7.0
 emoji
 flatbuffers>=22.12.6
 fonttools

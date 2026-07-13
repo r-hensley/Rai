@@ -185,6 +185,18 @@ Si tu cuenta ha sido hackeada, por favor sigue los siguientes pasos antes de ape
 
 **__ Appeal link: https://discord.gg/pnHEGPah8X __**"""
 
+BAN_APPEAL_LINK = "https://discord.gg/pnHEGPah8X"
+
+
+def incident_ban_dm_embed(guild: discord.Guild, reason: str) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"You're being banned from {guild.name}",
+        color=discord.Color.blue(),
+    )
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Appeal", value=BAN_APPEAL_LINK, inline=False)
+    return embed
+
 
 def scam_ban_reason(content: str) -> str:
     sanitized_content = sanitize_scam_content(content)
@@ -195,14 +207,13 @@ class ScamBanPromptView(utils.RaiView):
     def __init__(self,
                  bot: Rai,
                  target: discord.Member,
-                 ban_reason: str,
                  content: str):
         super().__init__(timeout=24 * 60 * 60)
         self.bot = bot
         self.target = target
-        self.ban_reason = ban_reason
         self.content = content
         self.message: Optional[discord.Message] = None
+        self.ban_in_progress = False
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if hf.trial_helper_check(interaction):
@@ -226,43 +237,85 @@ class ScamBanPromptView(utils.RaiView):
 
     @discord.ui.button(label="Ban User", style=discord.ButtonStyle.danger)
     async def ban_user(self, interaction: discord.Interaction, _: discord.ui.Button):
-        silent = True
-        try:
-            await self.target.send(SCAM_APPEAL_INSTRUCTIONS)
-            silent = False
-        except (discord.Forbidden, discord.HTTPException):
-            pass
+        await interaction.response.send_modal(ScamBanReasonModal(self))
+
+    async def submit_ban(self, interaction: discord.Interaction, reason: str, silent: bool) -> None:
+        if not hf.trial_helper_check(interaction):
+            await interaction.response.send_message(
+                "Only Spanish server trial staff or above can use this button.",
+                ephemeral=True,
+            )
+            return
+
+        if self.ban_in_progress or self.is_finished():
+            await interaction.response.send_message(
+                "This incident is already being handled.",
+                ephemeral=True,
+            )
+            return
+
+        self.ban_in_progress = True
+        await interaction.response.defer()
+
+        actual_silent = silent
+        dm_sent = False
+        if silent:
+            notification_status = "Silent (no DM sent)"
+        else:
+            try:
+                await self.target.send(embed=incident_ban_dm_embed(interaction.guild, reason))
+                dm_sent = True
+                actual_silent = False
+                notification_status = "DM sent with the reason and appeal link"
+            except (discord.Forbidden, discord.HTTPException):
+                actual_silent = True
+                notification_status = "DM could not be delivered; ban completed silently"
 
         try:
-            await interaction.guild.ban(self.target, reason=self.ban_reason)
+            await interaction.guild.ban(self.target, reason=reason)
         except (discord.Forbidden, discord.HTTPException) as e:
-            await interaction.response.send_message(
-                f"I couldn't ban {self.target.mention}: `{e}`",
+            self.ban_in_progress = False
+            dm_notice = " The user was already sent the ban notification." if dm_sent else ""
+            await interaction.followup.send(
+                f"I couldn't ban {self.target.mention}: `{e}`{dm_notice}",
                 ephemeral=True
             )
             return
 
-        hf.add_to_modlog(None, [self.target, interaction.guild], 'Ban', self.ban_reason, silent, None)
+        hf.add_to_modlog(None, [self.target, interaction.guild], 'Ban', reason, actual_silent, None)
 
         for item in self.children:
             item.disabled = True
 
-        await interaction.response.edit_message(
-            content=(f"Banned {self.target.mention}.\n"
-                     f"Reason: `{self.ban_reason[:400]}`\n"
-                     f"-# Incident handled by {interaction.user.mention}"),
-            view=self
-        )
         self.stop()
+        result_content = (
+            f"Banned {self.target.mention}.\n"
+            f"Reason: {discord.utils.escape_mentions(reason)}\n"
+            f"Notification: {notification_status}\n"
+            f"-# Incident handled by {interaction.user.mention}"
+        )
+        if self.message:
+            await self.message.edit(content=result_content, view=self)
+        else:
+            await interaction.edit_original_response(content=result_content, view=self)
 
     @discord.ui.button(label="False Alarm", style=discord.ButtonStyle.secondary)
     async def false_alarm(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if self.ban_in_progress or self.is_finished():
+            await interaction.response.send_message(
+                "This incident is already being handled.",
+                ephemeral=True,
+            )
+            return
+
+        self.ban_in_progress = True
         try:
             await self.target.edit(
                 timed_out_until=None,
                 reason="False alarm on AutoMod scam timeout"
             )
         except (discord.Forbidden, discord.HTTPException) as e:
+            self.ban_in_progress = False
             await interaction.response.send_message(
                 f"I couldn't remove the timeout from {self.target.mention}: `{e}`",
                 ephemeral=True
@@ -294,17 +347,70 @@ class ScamBanPromptView(utils.RaiView):
         self.stop()
 
 
-async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str, ban_reason: str,
+class ScamBanReasonModal(utils.RaiModal, title="Ban User"):
+    def __init__(self, prompt_view: ScamBanPromptView):
+        super().__init__(timeout=5 * 60)
+        self.prompt_view = prompt_view
+        self.reason = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph,
+            placeholder="Why should this user be banned?",
+            default="Hacked account",
+            required=True,
+            min_length=3,
+            max_length=400,
+        )
+        self.notification = discord.ui.RadioGroup(
+            required=True,
+            options=[
+                discord.RadioGroupOption(
+                    label="Send DM",
+                    value="dm",
+                    description="Send the reason and appeal link before banning.",
+                ),
+                discord.RadioGroupOption(
+                    label="Silent",
+                    value="silent",
+                    description="Ban without sending the user a DM.",
+                ),
+            ],
+        )
+        self.add_item(discord.ui.Label(
+            text="Ban reason",
+            description="Saved to the modlog and shown to the user unless the ban is silent.",
+            component=self.reason,
+        ))
+        self.add_item(discord.ui.Label(
+            text="Notification",
+            description="Choose whether Rai should contact the user before banning.",
+            component=self.notification,
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        reason = self.reason.value.strip()
+        if not reason:
+            await interaction.response.send_message(
+                "Please enter a ban reason.",
+                ephemeral=True,
+            )
+            return
+
+        await self.prompt_view.submit_ban(
+            interaction,
+            reason,
+            silent=self.notification.value == "silent",
+        )
+
+
+async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str,
                                        timeout_duration: timedelta) -> None:
     if timeout_duration <= timedelta(minutes=5):
         return
 
     prompt_text = (
-        "Shall I ban the above user with the following ban reason?\n"
-        f"`{ban_reason[:400]}`\n"
-        f"-# I'll send instructions on how to appeal the ban as well."
+        "Shall I ban the above user?\n"
+        "-# Open the ban form to enter a reason and choose whether to notify the user."
     )
-    view = ScamBanPromptView(bot, msg.author, ban_reason, content)
+    view = ScamBanPromptView(bot, msg.author, content)
     prompt_msg = await msg.reply(prompt_text, view=view, mention_author=False)
     view.message = prompt_msg
 
@@ -1456,8 +1562,7 @@ class Message(commands.Cog):
 
         if not found_bad_url:
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
-                                                   timeout_duration)
+                await handle_scam_timeout_followup(self.bot, msg, content, timeout_duration)
             else:
                 print(f"no bad url found in {content}")
             return
@@ -1467,8 +1572,7 @@ class Message(commands.Cog):
         if recent_messages_count > 4 and msg.author.id != 414873201349361664:
             print(f"more than 4 messages: {recent_messages_count}")
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
-                                                   timeout_duration)
+                await handle_scam_timeout_followup(self.bot, msg, content, timeout_duration)
             return
 
         try:
@@ -1485,8 +1589,7 @@ class Message(commands.Cog):
             await incidents_channel.send(f"Failed to ban {msg.author} for spam message: `{e}`")
             await incidents_channel.send(f";ban {msg.author.id} Hacked account: {content[:150]}...")
             if timeout_duration > timedelta(minutes=5):
-                await handle_scam_timeout_followup(self.bot, msg, content, ban_reason,
-                                                   timeout_duration)
+                await handle_scam_timeout_followup(self.bot, msg, content, timeout_duration)
 
     @on_message_function(time_threshold=10.5, expected_sleep=20)
     async def antispam_check(self, msg: hf.RaiMessage):
