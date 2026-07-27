@@ -47,6 +47,44 @@ MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
 
 
+def forced_hardcore_applies(msg: discord.Message, config: object) -> bool:
+    """Return whether a legacy or role-scoped forced-hardcore rule matches a message.
+
+    Legacy integer entries continue to force hardcore for everyone in a channel.
+    Dictionary entries may additionally scope the channel to a guild and role:
+    {"guild_id": 123, "channel_id": 456, "role_id": 789}.
+    """
+    if not isinstance(config, list) or not msg.guild:
+        return False
+
+    channel_id = msg.channel.id
+    author_role_ids = {role.id for role in getattr(msg.author, 'roles', [])}
+
+    for rule in config:
+        if isinstance(rule, int):
+            if rule == channel_id:
+                return True
+            continue
+
+        if not isinstance(rule, dict):
+            continue
+
+        try:
+            rule_channel_id = int(rule['channel_id'])
+            rule_guild_id = int(rule.get('guild_id', msg.guild.id))
+            role_id = rule.get('role_id')
+            rule_role_id = int(role_id) if role_id is not None else None
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        if rule_channel_id != channel_id or rule_guild_id != msg.guild.id:
+            continue
+        if rule_role_id is None or rule_role_id in author_role_ids:
+            return True
+
+    return False
+
+
 def should_execute_task(allow_bots, allow_self, allow_message_types, self, msg):
     """
     Determines if the task should execute based on message properties.
@@ -483,8 +521,11 @@ class Message(commands.Cog):
         stripped_msg = utils.rem_emoji_url(msg)
         check_lang = False
 
-        if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
-            if stripped_msg[0] not in '=;>' and len(stripped_msg) > 15:
+        if msg.guild.id == SP_SERVER_ID and len(stripped_msg):
+            forced_hardcore = forced_hardcore_applies(
+                msg, self.bot.db.get('forcehardcore', []))
+            if (forced_hardcore or '*' not in msg.content) \
+                    and stripped_msg[0] not in '=;>' and len(stripped_msg) > 15:
                 if isinstance(msg.channel, discord.Thread):
                     channel_id = msg.channel.parent.id  # pyright: ignore[reportOptionalMemberAccess]
                 elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
@@ -492,16 +533,23 @@ class Message(commands.Cog):
                 else:
                     return None, False
 
+                hardcore_config = self.bot.db.get('hardcore', {}).get(str(SP_SERVER_ID))
+
+                # Forced channels bypass the normal role and ignored-channel checks.
+                if forced_hardcore:
+                    check_lang = True
+                    hardcore = True
+
                 # check for unregistered DB
-                if str(SP_SERVER_ID) not in self.bot.db['hardcore']:
+                elif not isinstance(hardcore_config, dict):
                     return None, False
 
                 # check if ignored channel
-                if channel_id in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                elif channel_id in hardcore_config.get('ignore', []):
                     pass
 
                 # check if ignored category
-                elif getattr(msg.channel.category, 'id', 0) in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore']:
+                elif getattr(msg.channel.category, 'id', 0) in hardcore_config.get('ignore', []):
                     pass
 
                 # else, process hardcore roles
