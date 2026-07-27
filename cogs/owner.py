@@ -25,6 +25,7 @@ from matplotlib.colors import Normalize
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils import catchup as catchup_utils
 from .database import store_readd_role_entry
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -1115,6 +1116,222 @@ class Owner(commands.Cog):
             plot_buffer.seek(0)
             await ctx.send(file=discord.File(plot_buffer, "bans_plot.png"))
         plt.close()
+
+    async def _resolve_catchup_channel(
+        self,
+        guild: discord.Guild,
+        channel_id: int,
+        member: discord.Member | None = None,
+    ):
+        channel = guild.get_channel_or_thread(channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(channel_id)
+        channel_guild = getattr(channel, 'guild', None)
+        if channel_guild is None or channel_guild.id != guild.id:
+            raise ValueError(f'Channel {channel_id} is not in {guild.name}.')
+        if not hasattr(channel, 'history'):
+            raise ValueError(f'{getattr(channel, "mention", channel_id)} does not have message history.')
+
+        if hasattr(channel, 'permissions_for'):
+            channel_label = getattr(channel, 'mention', channel_id)
+            for subject_label, subject in (('Rai', getattr(guild, 'me', None)), ('You', member)):
+                if subject is None:
+                    continue
+                permissions = channel.permissions_for(subject)
+                missing = []
+                if not permissions.view_channel:
+                    missing.append('View Channel')
+                if not permissions.read_message_history:
+                    missing.append('Read Message History')
+                if missing:
+                    raise ValueError(f'{subject_label} lacks {" and ".join(missing)} in {channel_label}.')
+        return channel
+
+    @commands.command(name='catchup', aliases=['missed'], hidden=True)
+    @commands.guild_only()
+    @commands.max_concurrency(1, per=commands.BucketType.user, wait=False)
+    async def catchup(self, ctx: commands.Context, days: int = 14, *, spec: str = ''):
+        """Export owner mentions and name matches with surrounding context.
+
+        Usage:
+          ;catchup 14 #channel-one #channel-two
+          ;catchup 14 #channel-one #channel-two | Ryan, Ryry
+
+        If no channel is supplied, the current channel is searched. The attachment is
+        always delivered by DM because its context can include private-channel content.
+        """
+        if not 1 <= days <= 90:
+            await ctx.send('Choose a date range from 1 to 90 days.')
+            return
+
+        try:
+            channel_ids, explicit_aliases = catchup_utils.parse_channel_spec(spec)
+        except ValueError as exc:
+            await ctx.send(
+                f'{exc}\nUsage: `;catchup 14 #channel-one #channel-two | Ryan, Ryry`'
+            )
+            return
+        if not channel_ids:
+            channel_ids = [ctx.channel.id]
+        if len(channel_ids) > 50:
+            await ctx.send('Choose no more than 50 channels per catch-up export.')
+            return
+
+        channels = {}
+        try:
+            for channel_id in channel_ids:
+                channel = await self._resolve_catchup_channel(ctx.guild, channel_id, ctx.author)
+                channels[channel.id] = channel
+        except (ValueError, discord.Forbidden, discord.NotFound) as exc:
+            await ctx.send(f'Unable to use one of those channels: {exc}')
+            return
+
+        default_aliases = [
+            getattr(ctx.author, 'display_name', ''),
+            getattr(ctx.author, 'global_name', ''),
+            getattr(ctx.author, 'name', ''),
+        ]
+        try:
+            aliases = catchup_utils.validate_aliases([*default_aliases, *explicit_aliases])
+        except ValueError as exc:
+            await ctx.send(str(exc))
+            return
+
+        started_at = discord.utils.utcnow()
+        since = started_at - timedelta(days=days)
+        min_id = discord.utils.time_snowflake(since, high=False)
+        max_id = discord.utils.time_snowflake(started_at, high=True)
+        status = await ctx.send(
+            f'Searching {len(channels)} channel(s) for the last {days} day(s). '
+            'The finished export will be sent to you by DM.'
+        )
+
+        search = catchup_utils.DiscordGuildSearch(self.bot.http)
+        try:
+            search_collection = await catchup_utils.collect_search_hits(
+                search,
+                guild_id=ctx.guild.id,
+                channel_ids=list(channels),
+                user_id=ctx.author.id,
+                aliases=aliases,
+                min_id=min_id,
+                max_id=max_id,
+            )
+        except catchup_utils.SearchIndexNotReady as exc:
+            await status.edit(
+                content=f"Discord is still preparing this server's search index. "
+                        f'Try again in at least {exc.retry_after:g} seconds.'
+            )
+            return
+        except discord.Forbidden:
+            await status.edit(
+                content='Discord rejected message search. Check Rai\'s Read Message History permission '
+                        'and privileged Message Content intent.'
+            )
+            return
+        except discord.HTTPException as exc:
+            await status.edit(content=f'Discord message search failed with HTTP {exc.status}: {exc.text}')
+            return
+        except RuntimeError as exc:
+            await status.edit(content=f'Discord message search returned an unexpected response: {exc}')
+            return
+
+        if len(search_collection.hits) > catchup_utils.MAX_CATCHUP_HITS:
+            await status.edit(
+                content=f'Found {len(search_collection.hits)} matching messages. For safety, Rai will process '
+                        f'at most {catchup_utils.MAX_CATCHUP_HITS} at once; choose fewer channels or more '
+                        'specific aliases and rerun.'
+            )
+            return
+
+        context_resolution_warnings = []
+
+        async def fetch_context(hit: catchup_utils.SearchHit):
+            channel = channels.get(hit.channel_id)
+            if channel is None:
+                try:
+                    channel = await self._resolve_catchup_channel(ctx.guild, hit.channel_id, ctx.author)
+                except (ValueError, discord.Forbidden, discord.NotFound) as exc:
+                    context_resolution_warnings.append(
+                        f'Could not resolve context channel {hit.channel_id}: {type(exc).__name__}.'
+                    )
+                    return (), ()
+                channels[channel.id] = channel
+
+            return await catchup_utils.fetch_discord_context(channel, hit)
+
+        context_processed = 0
+
+        async def fetch_context_with_progress(hit: catchup_utils.SearchHit):
+            nonlocal context_processed
+            try:
+                return await fetch_context(hit)
+            finally:
+                context_processed += 1
+                if context_processed % 25 == 0 and context_processed < len(search_collection.hits):
+                    try:
+                        await status.edit(
+                            content=f'Collecting message context: {context_processed}/'
+                                    f'{len(search_collection.hits)} matches processed...'
+                        )
+                    except discord.HTTPException:
+                        pass
+
+        await status.edit(
+            content=f'Found {len(search_collection.hits)} matching message(s). '
+                    'Collecting 20 messages before and after each match...'
+        )
+        context_collection = await catchup_utils.collect_context_windows(
+            search_collection.hits,
+            fetch_context_with_progress,
+        )
+        warnings = [
+            *search_collection.warnings,
+            *context_collection.warnings,
+            *context_resolution_warnings,
+        ]
+        channel_names = {
+            channel_id: f'#{getattr(channel, "name", channel_id)} ({channel_id})'
+            for channel_id, channel in channels.items()
+        }
+        markdown = catchup_utils.render_markdown(
+            guild_name=ctx.guild.name,
+            guild_id=ctx.guild.id,
+            started_at=started_at,
+            since=since,
+            channel_names=channel_names,
+            aliases=aliases,
+            hits=search_collection.hits,
+            windows=context_collection.windows,
+            warnings=warnings,
+        )
+        parts = catchup_utils.split_markdown_utf8(markdown, max_bytes=7_500_000)
+        date_label = started_at.astimezone(timezone.utc).strftime('%Y%m%d')
+
+        try:
+            for index, part in enumerate(parts, start=1):
+                suffix = f'_part{index}' if len(parts) > 1 else ''
+                filename = f'discord_catchup_{date_label}{suffix}.md'
+                file = discord.File(io.BytesIO(part.encode('utf-8')), filename=filename)
+                content = (
+                    f'Catch-up export for {ctx.guild.name}: {len(search_collection.hits)} match(es) '
+                    f'in {len(context_collection.windows)} conversation window(s).'
+                    if index == 1 else None
+                )
+                await ctx.author.send(
+                    content=content,
+                    file=file,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+        except discord.HTTPException as exc:
+            await status.edit(content=f'I could not DM you (HTTP {exc.status}). No transcript was posted here.')
+            return
+
+        warning_note = f' The export contains {len(warnings)} completeness warning(s).' if warnings else ''
+        await status.edit(
+            content=f'Sent {len(parts)} Markdown file(s) by DM with {len(search_collection.hits)} match(es) '
+                    f'across {len(context_collection.windows)} conversation window(s).{warning_note}'
+        )
 
     @commands.command()
     async def pull(self, ctx, mode: str = ""):
