@@ -168,6 +168,14 @@ class SafeGitPullTests(unittest.TestCase):
             git(self.world.child_worktree, "rev-parse", "HEAD"),
             self.world.child_a,
         )
+        self.assertEqual(
+            git(
+                self.world.child_worktree,
+                "rev-parse",
+                f"safe-pull-backup/{self.world.child_b}",
+            ),
+            self.world.child_b,
+        )
         self.assertEqual(git(self.world.worktree, "status", "--porcelain"), "")
 
     def test_clean_submodule_at_incoming_commit_does_not_block_pull(self) -> None:
@@ -199,7 +207,7 @@ class SafeGitPullTests(unittest.TestCase):
     def test_force_preserves_and_rejects_dirty_submodule_content(self) -> None:
         self._assert_dirty_submodule_is_preserved(force=True)
 
-    def test_unreferenced_detached_submodule_commit_is_preserved_and_rejected(
+    def test_unreferenced_detached_submodule_commit_is_backed_up_and_reconciled(
             self) -> None:
         git(self.world.child_worktree, "config", "user.email", "tests@example.com")
         git(self.world.child_worktree, "config", "user.name", "Rai Tests")
@@ -222,13 +230,74 @@ class SafeGitPullTests(unittest.TestCase):
             "",
         )
 
-        with self.assertRaisesRegex(RuntimeError, "uncommitted or untracked changes"):
-            asyncio.run(safe_git_pull(cwd=str(self.world.worktree)))
+        result = asyncio.run(safe_git_pull(cwd=str(self.world.worktree)))
 
         self.assertEqual(
             git(self.world.child_worktree, "rev-parse", "HEAD"),
+            self.world.child_a,
+        )
+        self.assertEqual(
+            git(
+                self.world.child_worktree,
+                "rev-parse",
+                f"safe-pull-backup/{detached_commit}",
+            ),
             detached_commit,
         )
+        self.assertIn(
+            f"Protected submodule commit {detached_commit}",
+            result,
+        )
+        self.assertEqual(git(self.world.worktree, "status", "--porcelain"), "")
+
+    def test_submodule_commit_is_backed_up_before_remote_ref_moves(self) -> None:
+        containing_refs = git(
+            self.world.child_worktree,
+            "for-each-ref",
+            "--format=%(refname)",
+            "--contains",
+            self.world.child_a,
+        )
+        self.assertIn("refs/remotes/origin/main", containing_refs)
+
+        git(self.world.child_source, "checkout", "--orphan", "rewritten-main")
+        (self.world.child_source / "lib.py").write_text(
+            "VERSION = 'rewritten'\n",
+            encoding="utf-8",
+        )
+        git(self.world.child_source, "add", "--all")
+        git(self.world.child_source, "commit", "-m", "rewrite child history")
+        rewritten_commit = git(self.world.child_source, "rev-parse", "HEAD")
+        git(
+            self.world.child_source,
+            "push",
+            "--force",
+            "origin",
+            f"{rewritten_commit}:main",
+        )
+
+        parent_child = self.world.parent_source / "deps" / "child"
+        git(parent_child, "fetch", "origin")
+        git(parent_child, "checkout", "--detach", rewritten_commit)
+        git(self.world.parent_source, "add", "deps/child")
+        git(self.world.parent_source, "commit", "-m", "pin rewritten child")
+        git(self.world.parent_source, "push", "origin", "main")
+
+        asyncio.run(safe_git_pull(cwd=str(self.world.worktree)))
+
+        self.assertEqual(
+            git(self.world.child_worktree, "rev-parse", "HEAD"),
+            rewritten_commit,
+        )
+        self.assertEqual(
+            git(
+                self.world.child_worktree,
+                "rev-parse",
+                f"safe-pull-backup/{self.world.child_a}",
+            ),
+            self.world.child_a,
+        )
+        self.assertEqual(git(self.world.worktree, "status", "--porcelain"), "")
 
     def test_staged_nested_submodule_gitlink_is_preserved_and_rejected(self) -> None:
         root = Path(self._temporary_directory.name)
