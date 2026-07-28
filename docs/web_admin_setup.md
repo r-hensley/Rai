@@ -131,11 +131,13 @@ The first settings surface covers established Rai configuration shapes:
 - Enable state and destination channel for each event-logging module.
 - Antispam action, thresholds, new-member ban override, ignored channels, and
   exact-match exempt roles.
+- Permanent hardcore channel rules, either channel-wide or limited to one role.
 
 The forms only accept channels and roles that belong to the selected Discord
 server. They do not expose arbitrary JSON editing. Each successful update uses
 Rai's existing atomic `dump_json("db")` path and short-term database backups. A
-failed dump restores the affected in-memory guild entries. Successful writes
+failed dump restores the affected in-memory guild entries or the complete shared
+forced-hardcore rule list. Successful writes
 emit an audit log entry containing the actor user ID, guild ID, and settings
 area without recording cookies, CSRF tokens, or secrets.
 

@@ -6,7 +6,7 @@ from aiohttp import web
 
 from cogs.utils.BotUtils import bot_utils as utils
 
-from .config import LOGGING_MODULES
+from .config import FORCED_HARDCORE_GUILD_IDS, LOGGING_MODULES
 from .security import SESSION_COOKIE
 
 
@@ -26,6 +26,7 @@ SAVED_MESSAGES = {
     "staff": "Staff settings saved.",
     "logging": "Logging settings saved.",
     "antispam": "Antispam settings saved.",
+    "forcehardcore": "Forced-hardcore rule updated.",
 }
 
 
@@ -112,6 +113,17 @@ class SettingsMixin:
             apply=self._apply_antispam_settings,
         )
 
+    async def update_forcehardcore_settings(self, request: web.Request) -> web.Response:
+        return await self._handle_settings_update(
+            request,
+            area="forcehardcore",
+            section_names=("forcehardcore",),
+            parse=self._parse_forcehardcore_settings,
+            apply=self._apply_forcehardcore_settings,
+            section_type=list,
+            persist=self._persist_forcehardcore_update,
+        )
+
     async def _handle_settings_update(
         self,
         request: web.Request,
@@ -120,6 +132,8 @@ class SettingsMixin:
         section_names: tuple[str, ...],
         parse: Callable[[Mapping[str, Any], Any], dict[str, Any]],
         apply: Callable[[int, dict[str, Any]], None],
+        section_type: type = dict,
+        persist: Optional[Callable[..., Any]] = None,
     ) -> web.Response:
         scope = self._settings_scope(request)
         if isinstance(scope, web.StreamResponse):
@@ -144,9 +158,10 @@ class SettingsMixin:
             )
 
         try:
-            self._require_configuration_sections(section_names)
+            self._require_configuration_sections(section_names, section_type)
             payload = parse(form, guild)
-            await self._persist_guild_update(
+            persist_update = persist or self._persist_guild_update
+            await persist_update(
                 guild.id,
                 section_names,
                 lambda: apply(guild.id, payload),
@@ -291,6 +306,11 @@ class SettingsMixin:
         if action not in ANTISPAM_ACTIONS:
             action = ANTISPAM_DEFAULTS["action"]
 
+        forcehardcore_rules = self._forcehardcore_rule_views(
+            guild,
+            db.get("forcehardcore"),
+        )
+
         antispam = {
             "enabled": bool(antispam_config.get("enable")),
             "action": action,
@@ -329,6 +349,10 @@ class SettingsMixin:
             "logging_modules": tuple(logging_modules),
             "antispam": antispam,
             "antispam_actions": ANTISPAM_ACTIONS,
+            "forcehardcore_supported": guild.id in FORCED_HARDCORE_GUILD_IDS,
+            "forcehardcore_rules": forcehardcore_rules,
+            "forcehardcore_channel_options": base_channels,
+            "forcehardcore_role_options": base_roles,
         }
 
     @staticmethod
@@ -368,6 +392,85 @@ class SettingsMixin:
             for item_id in sorted(selected_ids - available_ids)
         )
         return tuple(rendered)
+
+    @staticmethod
+    def _forcehardcore_rule_key(channel_id: int, role_id: Optional[int]) -> str:
+        return f"{channel_id}:{role_id or 0}"
+
+    @classmethod
+    def _forcehardcore_rule_identity(
+        cls,
+        rule: Any,
+        guild_id: int,
+        guild_channel_ids: set[int],
+    ) -> Optional[tuple[int, Optional[int]]]:
+        if isinstance(rule, int):
+            channel_id = cls._positive_int(rule)
+            return (channel_id, None) if channel_id in guild_channel_ids else None
+        if not isinstance(rule, dict):
+            return None
+
+        channel_id = cls._positive_int(rule.get("channel_id"))
+        if channel_id is None:
+            return None
+        if "guild_id" in rule:
+            rule_guild_id = cls._positive_int(rule.get("guild_id"))
+            if rule_guild_id != guild_id:
+                return None
+        elif channel_id not in guild_channel_ids:
+            return None
+
+        role_id = None
+        if rule.get("role_id") is not None:
+            role_id = cls._positive_int(rule.get("role_id"))
+            if role_id is None:
+                return None
+        return channel_id, role_id
+
+    def _forcehardcore_rule_views(
+        self,
+        guild: Any,
+        config: Any,
+    ) -> tuple[dict[str, Any], ...]:
+        if not isinstance(config, list):
+            return ()
+
+        channel_options = self._base_channel_options(guild)
+        role_options = self._base_role_options(guild)
+        channel_labels = {option["id"]: option["label"] for option in channel_options}
+        role_labels = {option["id"]: option["label"] for option in role_options}
+        guild_channel_ids = set(channel_labels)
+        rules: dict[str, dict[str, Any]] = {}
+
+        for rule in config:
+            identity = self._forcehardcore_rule_identity(rule, guild.id, guild_channel_ids)
+            if identity is None:
+                continue
+            channel_id, role_id = identity
+            key = self._forcehardcore_rule_key(channel_id, role_id)
+            rules.setdefault(key, {
+                "key": key,
+                "channel_id": channel_id,
+                "channel_label": channel_labels.get(
+                    channel_id,
+                    f"Missing channel ({channel_id})",
+                ),
+                "role_id": role_id or 0,
+                "role_label": (
+                    role_labels.get(role_id, f"Missing role ({role_id})")
+                    if role_id is not None
+                    else "Everyone in channel"
+                ),
+            })
+
+        return tuple(sorted(
+            rules.values(),
+            key=lambda rule: (
+                rule["channel_label"].casefold(),
+                rule["role_label"].casefold(),
+                rule["key"],
+            ),
+        ))
 
     @staticmethod
     def _mapping_value(db: dict[str, Any], section: str, guild_key: str) -> Any:
@@ -490,6 +593,57 @@ class SettingsMixin:
             ),
         }
 
+    def _parse_forcehardcore_settings(
+        self,
+        form: Mapping[str, Any],
+        guild: Any,
+    ) -> dict[str, Any]:
+        if guild.id not in FORCED_HARDCORE_GUILD_IDS:
+            raise SettingsValidationError("Forced hardcore is not supported in this server.")
+
+        action = str(form.get("action", "")).casefold()
+        if action == "add":
+            valid_channels = {option["id"] for option in self._base_channel_options(guild)}
+            valid_roles = {option["id"] for option in self._base_role_options(guild)}
+            channel_id = self._form_single_id(
+                form,
+                "channel_id",
+                valid_channels,
+                "Forced-hardcore channel",
+            )
+            if channel_id is None:
+                raise SettingsValidationError("Choose a channel for the forced-hardcore rule.")
+            if "role_id" not in form:
+                raise SettingsValidationError("Choose whether the rule applies to everyone or to a role.")
+            role_id = self._form_single_id(
+                form,
+                "role_id",
+                valid_roles,
+                "Forced-hardcore role",
+            )
+            return {"action": action, "channel_id": channel_id, "role_id": role_id}
+
+        if action == "remove":
+            channel_id = self._positive_int(form.get("channel_id"))
+            raw_role_id = form.get("role_id", "0")
+            role_id = None if raw_role_id in (None, "", 0, "0") else self._positive_int(raw_role_id)
+            if channel_id is None or (raw_role_id not in (None, "", 0, "0") and role_id is None):
+                raise SettingsValidationError("The forced-hardcore rule identifier is invalid.")
+
+            rule_key = self._forcehardcore_rule_key(channel_id, role_id)
+            existing_keys = {
+                rule["key"]
+                for rule in self._forcehardcore_rule_views(
+                    guild,
+                    self.bot.db.get("forcehardcore"),
+                )
+            }
+            if rule_key not in existing_keys:
+                raise SettingsValidationError("That forced-hardcore rule no longer exists.")
+            return {"action": action, "channel_id": channel_id, "role_id": role_id}
+
+        raise SettingsValidationError("Forced-hardcore action must be add or remove.")
+
     @classmethod
     def _form_single_id(
         cls,
@@ -552,10 +706,18 @@ class SettingsMixin:
             raise SettingsValidationError(f"{label} must be between {minimum} and {maximum}.")
         return value
 
-    def _require_configuration_sections(self, section_names: tuple[str, ...]) -> None:
+    def _require_configuration_sections(
+        self,
+        section_names: tuple[str, ...],
+        expected_type: type = dict,
+    ) -> None:
         if not isinstance(self.bot.db, dict):
             raise SettingsValidationError("Rai's configuration database is unavailable.")
-        invalid = [name for name in section_names if not isinstance(self.bot.db.get(name), dict)]
+        invalid = [
+            name
+            for name in section_names
+            if not isinstance(self.bot.db.get(name), expected_type)
+        ]
         if invalid:
             noun = "section is" if len(invalid) == 1 else "sections are"
             raise SettingsValidationError(
@@ -599,6 +761,36 @@ class SettingsMixin:
                     "configuration_update_failed guild_id=%s sections=%s",
                     guild_id,
                     ",".join(section_names),
+                )
+                raise SettingsPersistenceError from exc
+
+    async def _persist_forcehardcore_update(
+        self,
+        guild_id: int,
+        _section_names: tuple[str, ...],
+        update: Callable[[], None],
+    ) -> None:
+        async with self.config_write_lock:
+            snapshot = deepcopy(self.bot.db["forcehardcore"])
+
+            def restore() -> None:
+                current = self.bot.db.get("forcehardcore")
+                if isinstance(current, list):
+                    current[:] = snapshot
+                else:
+                    self.bot.db["forcehardcore"] = snapshot
+
+            try:
+                update()
+                await utils.dump_json("db")
+            except SettingsValidationError:
+                restore()
+                raise
+            except Exception as exc:
+                restore()
+                log.exception(
+                    "configuration_update_failed guild_id=%s sections=forcehardcore",
+                    guild_id,
                 )
                 raise SettingsPersistenceError from exc
 
@@ -652,3 +844,36 @@ class SettingsMixin:
         config = dict(existing or {})
         config.update(payload)
         mapping[guild_key] = config
+
+    def _apply_forcehardcore_settings(self, guild_id: int, payload: dict[str, Any]) -> None:
+        config = self.bot.db["forcehardcore"]
+        guild = self.bot.get_guild(guild_id)
+        guild_channel_ids = {
+            option["id"]
+            for option in self._base_channel_options(guild)
+        }
+        target = (payload["channel_id"], payload["role_id"])
+
+        if payload["action"] == "remove":
+            config[:] = [
+                rule
+                for rule in config
+                if self._forcehardcore_rule_identity(rule, guild_id, guild_channel_ids) != target
+            ]
+            return
+
+        if any(
+            self._forcehardcore_rule_identity(rule, guild_id, guild_channel_ids) == target
+            for rule in config
+        ):
+            return
+
+        channel_id, role_id = target
+        if role_id is None:
+            config.append(channel_id)
+        else:
+            config.append({
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "role_id": role_id,
+            })

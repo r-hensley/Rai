@@ -100,6 +100,10 @@ class WebAdminSite(AuthMixin, DashboardViewMixin, SettingsMixin, DiagnosticsMixi
                 web.post(r"/settings/{guild_id:\d+}/staff", self.update_staff_settings),
                 web.post(r"/settings/{guild_id:\d+}/logging", self.update_logging_settings),
                 web.post(r"/settings/{guild_id:\d+}/antispam", self.update_antispam_settings),
+                web.post(
+                    r"/settings/{guild_id:\d+}/forcehardcore",
+                    self.update_forcehardcore_settings,
+                ),
             ])
             app.router.add_static("/static/", STATIC_DIR, show_index=False)
 
