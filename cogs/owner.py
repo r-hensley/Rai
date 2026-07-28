@@ -456,8 +456,13 @@ class Owner(commands.Cog):
                     await self.reload_success(ctx, cog)
 
             elif cog == 'utils':
-                # reload file in cogs/utils/BotUtils/bot_utils.py
+                # Reload the Git helper first so bot_utils binds its latest
+                # safe_git_pull implementation.
                 try:
+                    git_utils_module = sys.modules.get(
+                        'cogs.utils.BotUtils.git_utils')
+                    if git_utils_module is not None:
+                        importlib.reload(git_utils_module)
                     importlib.reload(
                         sys.modules['cogs.utils.BotUtils.bot_utils'])
                     utils.setup(bot=self.bot, loop=asyncio.get_event_loop())

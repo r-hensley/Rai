@@ -51,6 +51,9 @@ API*
 *.cfg
 *.toml
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sublime*
 *.pyc
 *workspace
