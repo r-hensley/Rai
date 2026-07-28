@@ -65,6 +65,88 @@
     {% if can_edit %}<div class="form-actions"><button type="submit">Save staff settings</button></div>{% endif %}
   </form>
 
+  {% if forcehardcore_supported %}
+  <section class="panel settings-form">
+    <div class="section-heading">
+      <div><span class="eyebrow">Language enforcement</span><h2>Permanent hardcore channels</h2></div>
+    </div>
+    <p class="settings-help">
+      Active rules require members to use their target language in the selected channel.
+      Choose “Everyone in channel” for a channel-wide rule, or select one role to limit enforcement.
+    </p>
+
+    {% if forcehardcore_rules %}
+    <div class="table-scroll">
+      <table class="settings-table forcehardcore-table">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Applies to</th>
+            <th>Status</th>
+            {% if can_edit %}<th><span class="visually-hidden">Actions</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for rule in forcehardcore_rules %}
+          <tr>
+            <th scope="row">{{ rule.channel_label }}</th>
+            <td>{{ rule.role_label }}</td>
+            <td><span class="state-badge state-ok">Active</span></td>
+            {% if can_edit %}
+            <td class="rule-action">
+              <form class="inline-form" method="post" action="/settings/{{ guild.id }}/forcehardcore">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="channel_id" value="{{ rule.channel_id }}">
+                <input type="hidden" name="role_id" value="{{ rule.role_id }}">
+                <button class="button-danger button-compact" type="submit"
+                        aria-label="Disable forced hardcore for {{ rule.channel_label }}, {{ rule.role_label }}">
+                  Disable
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-state">No permanent hardcore rules are enabled for this server.</p>
+    {% endif %}
+
+    {% if can_edit %}
+    <form class="forcehardcore-add" method="post" action="/settings/{{ guild.id }}/forcehardcore">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="add">
+      <fieldset>
+        <div class="form-grid form-grid-two">
+          <label class="control">
+            <span>Channel</span>
+            <select name="channel_id" required>
+              <option value="">Choose a channel</option>
+              {% for option in forcehardcore_channel_options %}
+              <option value="{{ option.id }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="control">
+            <span>Who must follow the rule</span>
+            <select name="role_id">
+              <option value="0">Everyone in channel</option>
+              {% for option in forcehardcore_role_options %}
+              <option value="{{ option.id }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+      </fieldset>
+      <div class="form-actions"><button type="submit">Enable forced-hardcore rule</button></div>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <form class="panel settings-form" method="post" action="/settings/{{ guild.id }}/logging">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="section-heading">

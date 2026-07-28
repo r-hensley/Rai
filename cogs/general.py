@@ -18,6 +18,13 @@ from cogs.utils.helper_functions import format_interval
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.hardcore import (
+    SP_HARDCORE_ROLE_ID,
+    SP_HARDCORE_ROLE_IDS,
+    SP_NIGHTMARE_HARDCORE_ROLE_ID,
+    SP_SUPER_HARDCORE_ROLE_ID,
+    SP_ULTRA_HARDCORE_ROLE_ID,
+)
 from .utils.views import PaginationView
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -41,13 +48,6 @@ ENG_ROLE = {
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
 RYRY_RAI_BOT_ID = 270366726737231884
-
-# Spanish server hardcore role IDs
-SP_HARDCORE_ROLE_ID = 526089127611990046        # below 50%
-SP_SUPER_HARDCORE_ROLE_ID = 1475913986561278024  # 50 - 90%
-SP_ULTRA_HARDCORE_ROLE_ID = 1475914271610110014  # above 90%
-SP_HARDCORE_ROLE_IDS = (SP_HARDCORE_ROLE_ID, SP_SUPER_HARDCORE_ROLE_ID, SP_ULTRA_HARDCORE_ROLE_ID)
-
 
 def doneq_check(ctx):
     if not ctx.guild:
@@ -405,6 +405,7 @@ class General(commands.Cog):
         hardcore_role = ctx.guild.get_role(SP_HARDCORE_ROLE_ID)
         super_hardcore_role = ctx.guild.get_role(SP_SUPER_HARDCORE_ROLE_ID)
         ultra_hardcore_role = ctx.guild.get_role(SP_ULTRA_HARDCORE_ROLE_ID)
+        nightmare_hardcore_role = ctx.guild.get_role(SP_NIGHTMARE_HARDCORE_ROLE_ID)
         learning_eng = ctx.guild.get_role(247021017740869632)
         learning_sp = ctx.guild.get_role(297415063302832128)
 
@@ -428,7 +429,7 @@ class General(commands.Cog):
         users_config: dict = hc_config.setdefault('users', {})
         current_user_config: dict = users_config.get(str(ctx.author.id), {})
 
-        all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role]
+        all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role, nightmare_hardcore_role]
         currently_has_hardcore = False
         current_role = None
         for r in all_roles:

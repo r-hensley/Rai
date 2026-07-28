@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import discord
 from discord.ext import commands
-from .message import Message, on_message_function
+from .message import Message, forced_hardcore_applies, on_message_function
 
 from .utils import helper_functions as hf
 from cogs.utils.BotUtils import bot_utils as utils
@@ -127,23 +127,24 @@ class Cnserver(Message):
         
         async def chinese_server_hardcore_mode():
             if msg.guild.id in [CH_SERVER_ID, CL_SERVER_ID]:
-                try:
-                    if msg.channel.id in self.bot.db['forcehardcore']:
-                        await self.cn_lang_check(msg, check_hardcore_role=False)
-    
+                forcehardcore_config = self.bot.db.get('forcehardcore', [])
+                if forced_hardcore_applies(msg, forcehardcore_config):
+                    await self.cn_lang_check(msg, check_hardcore_role=False)
+
+                else:
+                    if isinstance(msg.channel, discord.Thread):
+                        channel_id = msg.channel.parent.id
+                    elif isinstance(msg.channel, discord.TextChannel):
+                        channel_id = msg.channel.id
                     else:
-                        if isinstance(msg.channel, discord.Thread):
-                            channel_id = msg.channel.parent.id
-                        elif isinstance(msg.channel, discord.TextChannel):
-                            channel_id = msg.channel.id
-                        else:
-                            return
+                        return
+                    try:
                         config = self.bot.db['hardcore'][str(
                             CH_SERVER_ID)]['ignore']
-                        if '*' not in msg.content and channel_id not in config:
-                            await self.cn_lang_check(msg)
-                except KeyError:
-                    self.bot.db['forcehardcore'] = []
+                    except (KeyError, TypeError):
+                        return
+                    if '*' not in msg.content and channel_id not in config:
+                        await self.cn_lang_check(msg)
         await chinese_server_hardcore_mode()
 
 

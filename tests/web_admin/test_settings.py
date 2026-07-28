@@ -69,6 +69,7 @@ class DummyBot:
             "mod_role": {},
             "submod_role": {},
             "antispam": {},
+            "forcehardcore": [],
             **{module: {} for module, _label in web_config.LOGGING_MODULES},
         }
 
@@ -380,6 +381,266 @@ async def test_malformed_existing_configuration_is_not_overwritten(settings_site
 
 
 @pytest.mark.asyncio
+async def test_forcehardcore_panel_renders_current_and_missing_rules(settings_site):
+    settings_site.bot.db["forcehardcore"] = [
+        101,
+        {"guild_id": GUILD_ID, "channel_id": 102, "role_id": 777},
+        {"guild_id": GUILD_ID, "channel_id": 999, "role_id": 888},
+        {"guild_id": 999_999, "channel_id": 103, "role_id": 777},
+        {"malformed": "preserved"},
+    ]
+    request, _session = session_request(settings_site, OWNER_ID)
+
+    response = await settings_site.settings_detail(request)
+
+    assert response.status == 200
+    assert "Permanent hardcore channels" in response.text
+    assert "#mod-room" in response.text
+    assert "@Trusted Member" in response.text
+    assert "Everyone in channel" in response.text
+    assert "Missing channel (999)" in response.text
+    assert "Missing role (888)" in response.text
+    assert "Enable forced-hardcore rule" in response.text
+    views = settings_site._forcehardcore_rule_views(
+        settings_site.bot.guild,
+        settings_site.bot.db["forcehardcore"],
+    )
+    assert {view["key"] for view in views} == {"101:0", "102:777", "999:888"}
+
+
+@pytest.mark.asyncio
+async def test_moderator_sees_forcehardcore_rules_without_write_controls(settings_site):
+    settings_site.bot.db["forcehardcore"] = [101]
+    request, _session = session_request(settings_site, MODERATOR_ID)
+
+    response = await settings_site.settings_detail(request)
+
+    assert response.status == 200
+    assert "Permanent hardcore channels" in response.text
+    assert "Everyone in channel" in response.text
+    assert "Enable forced-hardcore rule" not in response.text
+    assert ">Disable<" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_forcehardcore_role_rule_adds_once_and_audits(settings_site, monkeypatch, caplog):
+    calls = []
+
+    async def dump(name):
+        calls.append(name)
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", dump)
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "103"),
+        ("role_id", "777"),
+    ])
+    request, _session = session_request(settings_site, ADMIN_ID, form=form)
+
+    with caplog.at_level("WARNING", logger="rai.web_admin.audit"):
+        response = await settings_site.update_forcehardcore_settings(request)
+
+    expected = {"guild_id": GUILD_ID, "channel_id": 103, "role_id": 777}
+    assert response.status == 303
+    assert response.headers["Location"] == f"/settings/{GUILD_ID}?saved=forcehardcore"
+    assert settings_site.bot.db["forcehardcore"] == [expected]
+    assert calls == ["db"]
+    assert f"actor_user_id={ADMIN_ID}" in caplog.text
+    assert f"guild_id={GUILD_ID}" in caplog.text
+    assert "area=forcehardcore" in caplog.text
+
+    repeated_form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "103"),
+        ("role_id", "777"),
+    ])
+    repeated_request, _session = session_request(settings_site, ADMIN_ID, form=repeated_form)
+    repeated_response = await settings_site.update_forcehardcore_settings(repeated_request)
+
+    assert repeated_response.status == 303
+    assert settings_site.bot.db["forcehardcore"] == [expected]
+    assert calls == ["db", "db"]
+
+
+@pytest.mark.asyncio
+async def test_forcehardcore_channel_wide_rule_uses_legacy_shape(settings_site, monkeypatch):
+    monkeypatch.setattr(web_settings.utils, "dump_json", successful_dump)
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "101"),
+        ("role_id", "0"),
+    ])
+    request, _session = session_request(settings_site, OWNER_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 303
+    assert settings_site.bot.db["forcehardcore"] == [101]
+
+
+@pytest.mark.asyncio
+async def test_forcehardcore_remove_preserves_other_rules_and_opaque_entries(settings_site, monkeypatch):
+    monkeypatch.setattr(web_settings.utils, "dump_json", successful_dump)
+    other_role_rule = {
+        "guild_id": GUILD_ID,
+        "channel_id": 102,
+        "role_id": ADMIN_ROLE_ID,
+    }
+    foreign_rule = {"guild_id": 999_999, "channel_id": 102, "role_id": 777}
+    malformed_rule = {"malformed": "preserved"}
+    settings_site.bot.db["forcehardcore"] = [
+        101,
+        {"guild_id": GUILD_ID, "channel_id": 102, "role_id": 777},
+        other_role_rule,
+        foreign_rule,
+        999_999,
+        malformed_rule,
+    ]
+    form = MultiDict([
+        ("action", "remove"),
+        ("channel_id", "102"),
+        ("role_id", "777"),
+    ])
+    request, _session = session_request(settings_site, ADMIN_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 303
+    assert settings_site.bot.db["forcehardcore"] == [
+        101,
+        other_role_rule,
+        foreign_rule,
+        999_999,
+        malformed_rule,
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "form",
+    [
+        MultiDict([("action", "add"), ("channel_id", "999"), ("role_id", "0")]),
+        MultiDict([("action", "add"), ("channel_id", "101"), ("role_id", "999")]),
+        MultiDict([("action", "add"), ("channel_id", "101")]),
+        MultiDict([("action", "invalid"), ("channel_id", "101"), ("role_id", "0")]),
+    ],
+)
+async def test_invalid_forcehardcore_updates_do_not_save(settings_site, monkeypatch, form):
+    called = False
+
+    async def dump(_name):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", dump)
+    request, _session = session_request(settings_site, OWNER_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 400
+    assert called is False
+    assert settings_site.bot.db["forcehardcore"] == []
+
+
+@pytest.mark.asyncio
+async def test_moderator_cannot_update_forcehardcore(settings_site, monkeypatch):
+    called = False
+
+    async def dump(_name):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", dump)
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "101"),
+        ("role_id", "0"),
+    ])
+    request, _session = session_request(settings_site, MODERATOR_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 403
+    assert called is False
+    assert settings_site.bot.db["forcehardcore"] == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_csrf_rejects_forcehardcore_update(settings_site, monkeypatch):
+    called = False
+
+    async def dump(_name):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", dump)
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "101"),
+        ("role_id", "0"),
+        ("csrf_token", "invalid"),
+    ])
+    request, _session = session_request(settings_site, ADMIN_ID, form=form, csrf=False)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 403
+    assert called is False
+    assert settings_site.bot.db["forcehardcore"] == []
+
+
+@pytest.mark.asyncio
+async def test_forcehardcore_persistence_failure_restores_entire_list(settings_site, monkeypatch):
+    original = [
+        101,
+        {"guild_id": 999_999, "channel_id": 555, "role_id": 666},
+        {"malformed": "preserved"},
+    ]
+    settings_site.bot.db["forcehardcore"] = deepcopy(original)
+
+    async def fail_dump(_name):
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", fail_dump)
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "102"),
+        ("role_id", "777"),
+    ])
+    request, _session = session_request(settings_site, OWNER_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 503
+    assert settings_site.bot.db["forcehardcore"] == original
+
+
+@pytest.mark.asyncio
+async def test_malformed_forcehardcore_section_is_not_overwritten(settings_site, monkeypatch):
+    called = False
+
+    async def dump(_name):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(web_settings.utils, "dump_json", dump)
+    settings_site.bot.db["forcehardcore"] = {"malformed": True}
+    form = MultiDict([
+        ("action", "add"),
+        ("channel_id", "101"),
+        ("role_id", "0"),
+    ])
+    request, _session = session_request(settings_site, OWNER_ID, form=form)
+
+    response = await settings_site.update_forcehardcore_settings(request)
+
+    assert response.status == 400
+    assert "unavailable or malformed" in response.text
+    assert called is False
+    assert settings_site.bot.db["forcehardcore"] == {"malformed": True}
+
+
+@pytest.mark.asyncio
 async def test_settings_template_escapes_discord_names(settings_site):
     settings_site.bot.guild.text_channels[0].name = '<script>alert("channel")</script>'
     settings_site.bot.guild.roles[-1].name = '<script>alert("role")</script>'
@@ -409,6 +670,7 @@ async def test_settings_routes_are_registered_with_bounded_request_body(settings
         assert ("POST", "/settings/{guild_id}/staff") in routes
         assert ("POST", "/settings/{guild_id}/logging") in routes
         assert ("POST", "/settings/{guild_id}/antispam") in routes
+        assert ("POST", "/settings/{guild_id}/forcehardcore") in routes
         assert settings_site.runner.app._client_max_size == 64 * 1024
     finally:
         await settings_site.stop()

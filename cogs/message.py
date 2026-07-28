@@ -24,6 +24,7 @@ from socket import gaierror
 from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.hardcore import SP_HARDCORE_ROLE_IDS, SP_NIGHTMARE_HARDCORE_ROLE_ID
 
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
@@ -40,11 +41,47 @@ ENG_ROLE = {
 }
 RYRY_RAI_BOT_ID = 270366726737231884
 
-# Spanish server hardcore role IDs
-SP_HARDCORE_ROLE_IDS = (526089127611990046, 1475913986561278024, 1475914271610110014, 1529552707231416380)
 ANTISPAM_EXEMPT_ROLE_ID = 591745589054668817
 MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
+
+
+def forced_hardcore_applies(msg: discord.Message, config: object) -> bool:
+    """Return whether a legacy or role-scoped forced-hardcore rule matches a message.
+
+    Legacy integer entries continue to force hardcore for everyone in a channel.
+    Dictionary entries may additionally scope the channel to a guild and role:
+    {"guild_id": 123, "channel_id": 456, "role_id": 789}.
+    """
+    if not isinstance(config, list) or not msg.guild:
+        return False
+
+    channel_id = msg.channel.id
+    author_role_ids = {role.id for role in getattr(msg.author, 'roles', [])}
+
+    for rule in config:
+        if isinstance(rule, int):
+            if rule == channel_id:
+                return True
+            continue
+
+        if not isinstance(rule, dict):
+            continue
+
+        try:
+            rule_channel_id = int(rule['channel_id'])
+            rule_guild_id = int(rule.get('guild_id', msg.guild.id))
+            role_id = rule.get('role_id')
+            rule_role_id = int(role_id) if role_id is not None else None
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        if rule_channel_id != channel_id or rule_guild_id != msg.guild.id:
+            continue
+        if rule_role_id is None or rule_role_id in author_role_ids:
+            return True
+
+    return False
 
 
 def should_execute_task(allow_bots, allow_self, allow_message_types, self, msg):
@@ -483,8 +520,11 @@ class Message(commands.Cog):
         stripped_msg = utils.rem_emoji_url(msg)
         check_lang = False
 
-        if msg.guild.id == SP_SERVER_ID and '*' not in msg.content and len(stripped_msg):
-            if stripped_msg[0] not in '=;>' and len(stripped_msg) > 15:
+        if msg.guild.id == SP_SERVER_ID and len(stripped_msg):
+            forced_hardcore = forced_hardcore_applies(
+                msg, self.bot.db.get('forcehardcore', []))
+            if (forced_hardcore or '*' not in msg.content) \
+                    and stripped_msg[0] not in '=;>' and len(stripped_msg) > 15:
                 if isinstance(msg.channel, discord.Thread):
                     channel_id = msg.channel.parent.id  # pyright: ignore[reportOptionalMemberAccess]
                 elif isinstance(msg.channel, (discord.TextChannel, discord.VoiceChannel)):
@@ -492,32 +532,41 @@ class Message(commands.Cog):
                 else:
                     return None, False
 
+                hardcore_config = self.bot.db.get('hardcore', {}).get(str(SP_SERVER_ID))
+
+                # Forced channels bypass the normal role and ignored-channel checks.
+                if forced_hardcore:
+                    check_lang = True
+                    hardcore = True
+
                 # check for unregistered DB
-                if str(SP_SERVER_ID) not in self.bot.db['hardcore']:
+                elif not isinstance(hardcore_config, dict):
                     return None, False
 
-                nightmare_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[3])
-                has_nightmare = nightmare_hardcore_role in msg.author.roles if nightmare_hardcore_role else False
-
-                # check if ignored channel
-                if channel_id in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore'] and not has_nightmare:
-                    pass
-
-                # check if ignored category
-                elif getattr(msg.channel.category, 'id', 0) in self.bot.db['hardcore'][str(SP_SERVER_ID)]['ignore'] and not has_nightmare:
-                    pass
-
-                # else, process hardcore roles
                 else:
-                    hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[0])
-                    super_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[1])
-                    ultra_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[2])
-                    all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role, nightmare_hardcore_role]
-                    for r in all_roles:
-                        if r in msg.author.roles:
-                            check_lang = True
-                            hardcore = True
-                            break
+                    nightmare_hardcore_role = msg.guild.get_role(SP_NIGHTMARE_HARDCORE_ROLE_ID)
+                    has_nightmare = (
+                        nightmare_hardcore_role in msg.author.roles
+                        if nightmare_hardcore_role else False
+                    )
+                    ignored_channels = hardcore_config.get('ignore', [])
+
+                    # check if ignored channel
+                    if channel_id in ignored_channels and not has_nightmare:
+                        pass
+
+                    # check if ignored category
+                    elif getattr(msg.channel.category, 'id', 0) in ignored_channels and not has_nightmare:
+                        pass
+
+                    # else, process hardcore roles
+                    else:
+                        all_roles = [msg.guild.get_role(role_id) for role_id in SP_HARDCORE_ROLE_IDS]
+                        for role in all_roles:
+                            if role and role in msg.author.roles:
+                                check_lang = True
+                                hardcore = True
+                                break
 
         if str(msg.guild.id) in self.bot.stats:
             if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):

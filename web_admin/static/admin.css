@@ -521,6 +521,41 @@ fieldset:disabled { opacity: 0.78; }
 .settings-table th:first-child { width: 28%; }
 .settings-table td:nth-child(2) { width: 110px; }
 .settings-table select { min-width: 220px; }
+.settings-help {
+  max-width: 780px;
+  margin: -2px 0 14px;
+  color: var(--muted);
+}
+.forcehardcore-table th:first-child { width: 30%; }
+.forcehardcore-table td:nth-child(2) { width: auto; }
+.forcehardcore-table td:nth-child(3) { width: 90px; }
+.rule-action { width: 94px; text-align: right; }
+.inline-form { margin: 0; }
+.forcehardcore-add {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.button-danger {
+  color: var(--error);
+  background: var(--error-soft);
+  border-color: var(--error);
+}
+.button-compact {
+  min-height: 32px;
+  padding: 5px 9px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .settings-server-list { display: grid; gap: 1px; }
 .settings-server-list a {
   display: flex;

@@ -51,9 +51,17 @@ API*
 *.cfg
 *.toml
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sublime*
 *.pyc
 *workspace
+*:Zone.Identifier
+
+# Local diagnostic and archive utilities
+/archive_messages.py
+/cogs/memory_profile.py
 
 # Levenshtein module files
 COPYING
