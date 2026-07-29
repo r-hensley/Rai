@@ -37,6 +37,8 @@ STAFF_PING_AI_COOLDOWN_SECONDS = 10 * 60
 STAFF_PING_HISTORY_LIMIT = 50
 STAFF_PING_MESSAGE_CHAR_LIMIT = 750
 STAFF_PING_NO_SUMMARY = "No summary available."
+STAFF_PING_SUMMARY_CHANNEL_ID = 913886469809115206
+STAFF_PING_AI_FOOTER = "-# This summary of the incident was made by AI. It could be wrong."
 MAX_GRAMMAR_EXPLANATION_LENGTH = 200
 CHANNEL_SUMMARY_DEVELOPER_PROMPT = (
     "You summarize a Discord channel every 4 hours for people who want a quick index of worthwhile topics, "
@@ -994,18 +996,22 @@ class AI(commands.Cog):
         response_text = (response_text or "").strip()
         if not response_text or response_text.lower().startswith(STAFF_PING_NO_SUMMARY.lower()):
             return
-        test_message = (
-            f"**AI staff-ping summary:** {response_text}\n"
-            f"-# Source ping: {msg.jump_url}\n"
-            f"-# Replied message: {replied_message.jump_url}"
-        )
+        summary_message = f"{response_text}\n{STAFF_PING_AI_FOOTER}"
         try:
-            for segment in utils.split_text_into_segments(test_message, 2000):
-                await hf.segment_send(
-                    int(os.getenv("BOT_TEST_CHANNEL") or 0),
-                    segment,
-                    allowed_mentions=discord.AllowedMentions.none(),
+            summary_channel = self.bot.get_channel(STAFF_PING_SUMMARY_CHANNEL_ID)
+            if not summary_channel:
+                raise ValueError(
+                    f"Staff-ping summary channel with ID {STAFF_PING_SUMMARY_CHANNEL_ID} not found."
                 )
+
+            send_kwargs = {"allowed_mentions": discord.AllowedMentions.none()}
+            if notif.channel.id == STAFF_PING_SUMMARY_CHANNEL_ID:
+                try:
+                    await notif.reply(summary_message, mention_author=False, **send_kwargs)
+                except discord.HTTPException:
+                    await utils.safe_send(summary_channel, summary_message, **send_kwargs)
+            else:
+                await utils.safe_send(summary_channel, summary_message, **send_kwargs)
         except Exception:
             cooldowns.pop(msg.channel.id, None)
             raise
