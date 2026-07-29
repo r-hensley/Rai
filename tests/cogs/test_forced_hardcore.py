@@ -29,6 +29,8 @@ finally:
 SP_SERVER_ID = message_module.SP_SERVER_ID
 TARGET_CHANNEL_ID = 1488588234471772230
 TARGET_ROLE_ID = 1531353542084923572
+STANDARD_HARDCORE_ROLE_ID = message_module.SP_HARDCORE_ROLE_IDS[0]
+NIGHTMARE_HARDCORE_ROLE_ID = message_module.SP_NIGHTMARE_HARDCORE_ROLE_ID
 
 
 def make_message(
@@ -42,10 +44,14 @@ def make_message(
     channel = Mock(spec=discord.TextChannel)
     channel.id = channel_id
     channel.category = SimpleNamespace(id=category_id)
-    guild = SimpleNamespace(id=guild_id, get_role=Mock(return_value=None))
+    roles = {
+        role_id: SimpleNamespace(id=role_id)
+        for role_id in role_ids
+    }
+    guild = SimpleNamespace(id=guild_id, get_role=Mock(side_effect=roles.get))
     author = SimpleNamespace(
         bot=False,
-        roles=[SimpleNamespace(id=role_id) for role_id in role_ids],
+        roles=list(roles.values()),
     )
     msg = Mock(spec=discord.Message)
     msg.guild = guild
@@ -142,6 +148,47 @@ async def test_spanish_forced_rule_bypasses_ignore_list_and_asterisk(monkeypatch
         forcehardcore=[structured_rule()],
         ignored=[TARGET_CHANNEL_ID, 888],
     )
+    monkeypatch.setattr(message_module.hf, "detect_language", lambda _: "en")
+
+    assert await message_module.Message.lang_check(cog, msg) == ("en", True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ignored", [(TARGET_CHANNEL_ID,), (888,)])
+async def test_spanish_nightmare_hardcore_bypasses_ignored_channels_and_categories(
+        monkeypatch, ignored):
+    msg = make_message(
+        role_ids=[NIGHTMARE_HARDCORE_ROLE_ID],
+        category_id=888,
+    )
+    cog = make_message_cog(forcehardcore=[], ignored=ignored)
+    monkeypatch.setattr(message_module.hf, "detect_language", lambda _: "en")
+
+    assert await message_module.Message.lang_check(cog, msg) == ("en", True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ignored", [(TARGET_CHANNEL_ID,), (888,)])
+async def test_spanish_standard_hardcore_still_respects_ignored_channels_and_categories(
+        monkeypatch, ignored):
+    msg = make_message(
+        role_ids=[STANDARD_HARDCORE_ROLE_ID],
+        category_id=888,
+    )
+    cog = make_message_cog(forcehardcore=[], ignored=ignored)
+    monkeypatch.setattr(message_module.hf, "detect_language", lambda _: "en")
+
+    assert await message_module.Message.lang_check(cog, msg) == (None, False)
+
+
+@pytest.mark.asyncio
+async def test_spanish_forced_rule_still_bypasses_missing_hardcore_config(monkeypatch):
+    msg = make_message(
+        role_ids=[TARGET_ROLE_ID],
+        content="*This is a sufficiently long English message.",
+    )
+    cog = make_message_cog(forcehardcore=[structured_rule()])
+    cog.bot.db["hardcore"] = {}
     monkeypatch.setattr(message_module.hf, "detect_language", lambda _: "en")
 
     assert await message_module.Message.lang_check(cog, msg) == ("en", True)

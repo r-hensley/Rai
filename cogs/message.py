@@ -24,6 +24,7 @@ from socket import gaierror
 from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.hardcore import SP_HARDCORE_ROLE_IDS, SP_NIGHTMARE_HARDCORE_ROLE_ID
 
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
@@ -40,8 +41,6 @@ ENG_ROLE = {
 }
 RYRY_RAI_BOT_ID = 270366726737231884
 
-# Spanish server hardcore role IDs
-SP_HARDCORE_ROLE_IDS = (526089127611990046, 1475913986561278024, 1475914271610110014)
 ANTISPAM_EXEMPT_ROLE_ID = 591745589054668817
 MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
@@ -544,25 +543,30 @@ class Message(commands.Cog):
                 elif not isinstance(hardcore_config, dict):
                     return None, False
 
-                # check if ignored channel
-                elif channel_id in hardcore_config.get('ignore', []):
-                    pass
-
-                # check if ignored category
-                elif getattr(msg.channel.category, 'id', 0) in hardcore_config.get('ignore', []):
-                    pass
-
-                # else, process hardcore roles
                 else:
-                    hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[0])
-                    super_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[1])
-                    ultra_hardcore_role = msg.guild.get_role(SP_HARDCORE_ROLE_IDS[2])
-                    all_roles = [hardcore_role, super_hardcore_role, ultra_hardcore_role]
-                    for r in all_roles:
-                        if r in msg.author.roles:
-                            check_lang = True
-                            hardcore = True
-                            break
+                    nightmare_hardcore_role = msg.guild.get_role(SP_NIGHTMARE_HARDCORE_ROLE_ID)
+                    has_nightmare = (
+                        nightmare_hardcore_role in msg.author.roles
+                        if nightmare_hardcore_role else False
+                    )
+                    ignored_channels = hardcore_config.get('ignore', [])
+
+                    # check if ignored channel
+                    if channel_id in ignored_channels and not has_nightmare:
+                        pass
+
+                    # check if ignored category
+                    elif getattr(msg.channel.category, 'id', 0) in ignored_channels and not has_nightmare:
+                        pass
+
+                    # else, process hardcore roles
+                    else:
+                        all_roles = [msg.guild.get_role(role_id) for role_id in SP_HARDCORE_ROLE_IDS]
+                        for role in all_roles:
+                            if role and role in msg.author.roles:
+                                check_lang = True
+                                hardcore = True
+                                break
 
         if str(msg.guild.id) in self.bot.stats:
             if len(stripped_msg) > 15 and self.bot.stats[str(msg.guild.id)].get('enable', None):
