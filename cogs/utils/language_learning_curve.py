@@ -41,7 +41,7 @@ from cogs.utils import language_benchmark_detectors as detector_adapters
 
 
 DEFAULT_FRACTIONS: tuple[float, ...] = (0.1, 0.2, 0.4, 0.6, 0.8, 1.0)
-DEFAULT_DETECTORS: tuple[str, ...] = ("sklearn_nb", "rai_current_nb")
+DEFAULT_DETECTORS: tuple[str, ...] = ("rai_current_nb", "rai_legacy_nb")
 DEFAULT_NGRAM_RANGES: tuple[tuple[int, int], ...] = ((2, 5),)
 AGGREGATE_METRICS: tuple[str, ...] = (
     "examples",

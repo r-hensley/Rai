@@ -315,8 +315,8 @@ def test_standard_plan_has_expected_matrix_and_specialized_runs(tmp_path: Path):
 
     assert len(plan) == 64
     assert Counter(spec.detector for spec in plan) == {
-        "sklearn_nb": 24,
         "rai_current_nb": 40,
+        "rai_legacy_nb": 24,
     }
     assert Counter(spec.training_corpus for spec in plan) == {
         "raw": 24,

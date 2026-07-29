@@ -23,6 +23,13 @@ input/output SHA-256 hashes.
 The builder refuses to replace an existing output directory unless
 `--overwrite` is explicitly supplied.
 
+Production prefers the four files in
+`cogs/utils/corpus/audit_cleaned_2026_07_27`. Until all four are deployed
+there, it falls back as a unit to the existing files in `cogs/utils`; it never
+mixes cleaned and original files. A partially deployed cleaned directory emits
+a warning. Corpus files are ignored by Git and therefore require a separate,
+deliberate deployment.
+
 ## Run the benchmark
 
 Run it with the Python interpreter whose installed language packages should
@@ -43,8 +50,8 @@ python3 -m cogs.utils.language_benchmark list-detectors
 
 The default local matrix compares:
 
-- single-pass character n-gram Multinomial Naive Bayes;
-- Rai's current three-stage, two-self-filter implementation;
+- Rai's current single-pass character n-gram Multinomial Naive Bayes;
+- Rai's legacy three-stage, two-self-filter implementation;
 - raw and audit-cleaned training corpora;
 - beginner, advanced, and combined corpus views;
 - `(2,2)`, `(3,3)`, `(2,4)`, and `(2,5)` character n-grams;
@@ -69,7 +76,7 @@ Custom n-gram ranges and detector subsets can be supplied:
 ```bash
 python3 -m cogs.utils.language_benchmark run \
   --ngrams 2:2 3:3 2:5 \
-  --local-detectors rai_current_nb \
+  --local-detectors rai_current_nb rai_legacy_nb \
   --package-detectors langdetect lingua_binary lingua_10
 ```
 
@@ -95,7 +102,8 @@ By default it:
 - balances English and Spanish at the smaller available pool;
 - trains nested 10%, 20%, 40%, 60%, 80%, and 100% samples;
 - repeats each nested curve five times with fixed detector randomness;
-- compares `(2,5)` single-pass and Rai-current Naive Bayes; and
+- compares Rai's current single-pass and legacy three-stage Naive Bayes at
+  `(2,5)`; and
 - reports both all-message and production-oriented `16+` curves.
 
 The 100% point means all balanced, unique, conflict-free representatives. It

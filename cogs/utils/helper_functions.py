@@ -20,10 +20,8 @@ from unittest.mock import Mock
 from urllib.parse import urlparse
 
 import discord
-import numpy as np
 from discord.ext import commands
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
@@ -851,14 +849,71 @@ async def uhc_check(msg):
         pass
         
 
+LANGUAGE_CORPUS_FILENAMES = (
+    'principiante.csv',
+    'avanzado.csv',
+    'beginner.csv',
+    'advanced.csv',
+)
+LANGUAGE_CORPUS_CLEANED_DIRECTORY = (
+    'cogs',
+    'utils',
+    'corpus',
+    'audit_cleaned_2026_07_27',
+)
+LANGUAGE_CORPUS_LEGACY_DIRECTORY = ('cogs', 'utils')
+LANGUAGE_DETECTION_NGRAM_RANGE = (2, 5)
+
+
+def _language_corpus_directory() -> Optional[str]:
+    """Return the preferred complete corpus, falling back as one unit."""
+
+    cleaned_directory = os.path.join(
+        dir_path,
+        *LANGUAGE_CORPUS_CLEANED_DIRECTORY,
+    )
+    legacy_directory = os.path.join(
+        dir_path,
+        *LANGUAGE_CORPUS_LEGACY_DIRECTORY,
+    )
+
+    def missing_files(directory):
+        return [
+            filename
+            for filename in LANGUAGE_CORPUS_FILENAMES
+            if not os.path.isfile(os.path.join(directory, filename))
+        ]
+
+    cleaned_missing = missing_files(cleaned_directory)
+    if not cleaned_missing:
+        return cleaned_directory
+    if os.path.isdir(cleaned_directory):
+        logging.warning(
+            "Cleaned language corpus is incomplete; falling back to the "
+            "legacy corpus. Missing: %s",
+            ", ".join(cleaned_missing),
+        )
+
+    if not missing_files(legacy_directory):
+        return legacy_directory
+    return None
+
+
 def _pre_load_language_detection_model():
     english = []
     spanish = []
-    if not os.path.exists(f'{dir_path}/cogs/utils/principiante.csv'):
+    corpus_directory = _language_corpus_directory()
+    if corpus_directory is None:
         logging.error("Language detection model not loaded, missing csv files")
         return  # Ask Ryry013 for the language files needed to make this work
-    for csv_name in ['principiante.csv', 'avanzado.csv', 'beginner.csv', 'advanced.csv']:
-        with open(f"{dir_path}/cogs/utils/{csv_name}", newline='', encoding='utf-8') as csvfile:
+    logging.info("Loading language detection corpus from %s", corpus_directory)
+
+    for csv_name in LANGUAGE_CORPUS_FILENAMES:
+        with open(
+            os.path.join(corpus_directory, csv_name),
+            newline='',
+            encoding='utf-8',
+        ) as csvfile:
             reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
             if csv_name in ['principiante.csv', 'avanzado.csv']:
                 for row in reader:
@@ -867,38 +922,20 @@ def _pre_load_language_detection_model():
                 for row in reader:
                     english.append(row[2])
 
-    def make_set(_english, _spanish, pipeline=None):
-        if pipeline:
-            eng_pred = pipeline.predict(_english)
-            sp_pred = pipeline.predict(_spanish)
-            new_english = []
-            new_spanish = []
-            for i in range(len(_english)):
-                if eng_pred[i] == 'en':
-                    new_english.append(_english[i])
-            for i in range(len(_spanish)):
-                if sp_pred[i] == 'sp':
-                    new_spanish.append(_spanish[i])
-            _spanish = new_spanish
-            _english = new_english
-
-        x = np.array(_english + _spanish)
-        y = np.array(['en'] * len(_english) + ['sp'] * len(_spanish))
-
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.05, random_state=42)
-        cnt = CountVectorizer(analyzer='char', ngram_range=(2, 2))
-
-        pipeline = Pipeline([
-            ('vectorizer', cnt),
-            ('model', MultinomialNB())
-        ])
-
-        pipeline.fit(x_train, y_train)
-        # y_pred = pipeline.predict(x_test)
-
-        return pipeline
-
-    here.bot.langdetect = make_set(english, spanish, make_set(english, spanish, make_set(english, spanish)))
+    training_messages = english + spanish
+    training_labels = ['en'] * len(english) + ['sp'] * len(spanish)
+    pipeline = Pipeline([
+        (
+            'vectorizer',
+            CountVectorizer(
+                analyzer='char',
+                ngram_range=LANGUAGE_DETECTION_NGRAM_RANGE,
+            ),
+        ),
+        ('model', MultinomialNB()),
+    ])
+    pipeline.fit(training_messages, training_labels)
+    here.bot.langdetect = pipeline
 
 
 def detect_language(text) -> Optional[str]:

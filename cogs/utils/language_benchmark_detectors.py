@@ -838,10 +838,16 @@ class SklearnNaiveBayesAdapter(_BinaryNaiveBayesAdapter):
         return self
 
 
-class RaiCurrentNaiveBayesAdapter(_BinaryNaiveBayesAdapter):
-    """Exact structure of Rai's current three-stage/two-filter model."""
+class RaiCurrentNaiveBayesAdapter(SklearnNaiveBayesAdapter):
+    """Rai's production single-pass character n-gram model."""
 
     name = "rai_current_nb"
+
+
+class RaiLegacyNaiveBayesAdapter(_BinaryNaiveBayesAdapter):
+    """Rai's former three-stage/two-filter production model."""
+
+    name = "rai_legacy_nb"
     test_size = 0.05
 
     def _fit_stage(
@@ -850,7 +856,7 @@ class RaiCurrentNaiveBayesAdapter(_BinaryNaiveBayesAdapter):
         labels: list[str],
     ) -> tuple[Any, int]:
         if set(labels) != {ENGLISH, "sp"}:
-            raise ValueError("each production-parity stage needs both languages")
+            raise ValueError("each legacy production stage needs both languages")
         _, _, _, train_test_split = self._sklearn_components()
         train_texts, _, train_labels, _ = train_test_split(
             texts,
@@ -884,7 +890,7 @@ class RaiCurrentNaiveBayesAdapter(_BinaryNaiveBayesAdapter):
         self,
         texts: Iterable[str],
         labels: Iterable[str],
-    ) -> "RaiCurrentNaiveBayesAdapter":
+    ) -> "RaiLegacyNaiveBayesAdapter":
         original_texts, original_labels = self._training_data(texts, labels)
 
         first, first_fit_rows = self._fit_stage(original_texts, original_labels)
@@ -990,8 +996,21 @@ _DETECTOR_SPECS: dict[str, DetectorSpec] = {
         distributions=("scikit-learn",),
         pretrained=False,
         scope="English and Spanish",
-        description="Rai production-parity three-stage, two-filter character NB.",
+        description="Rai production single-pass character n-gram MultinomialNB.",
         factory=lambda ngram_range, seed: RaiCurrentNaiveBayesAdapter(
+            ngram_range=ngram_range,
+            seed=seed,
+        ),
+    ),
+    "rai_legacy_nb": DetectorSpec(
+        name="rai_legacy_nb",
+        module_name="sklearn",
+        package="scikit-learn",
+        distributions=("scikit-learn",),
+        pretrained=False,
+        scope="English and Spanish",
+        description="Rai legacy three-stage, two-filter character NB.",
+        factory=lambda ngram_range, seed: RaiLegacyNaiveBayesAdapter(
             ngram_range=ngram_range,
             seed=seed,
         ),
@@ -1151,6 +1170,7 @@ __all__ = [
     "OTHER",
     "Pycld2Adapter",
     "RaiCurrentNaiveBayesAdapter",
+    "RaiLegacyNaiveBayesAdapter",
     "SPANISH",
     "SklearnNaiveBayesAdapter",
     "available_detector_specs",

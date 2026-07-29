@@ -127,7 +127,7 @@ class BenchmarkConfig:
     evaluation_per_language: int = 1500
     latency_sample_size: int = 100
     ngram_ranges: tuple[tuple[int, int], ...] = DEFAULT_NGRAM_RANGES
-    local_detectors: tuple[str, ...] = ("sklearn_nb", "rai_current_nb")
+    local_detectors: tuple[str, ...] = ("rai_current_nb", "rai_legacy_nb")
     package_detectors: tuple[str, ...] = DEFAULT_PACKAGE_DETECTORS
     include_lingua_all: bool = False
     max_error_examples_per_run: int = 8
@@ -1198,7 +1198,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--local-detectors",
         nargs="+",
-        default=["sklearn_nb", "rai_current_nb"],
+        default=["rai_current_nb", "rai_legacy_nb"],
     )
     run_parser.add_argument(
         "--package-detectors",
@@ -1271,10 +1271,10 @@ def build_parser() -> argparse.ArgumentParser:
     curve_parser.add_argument(
         "--detectors",
         nargs="+",
-        default=["sklearn_nb", "rai_current_nb"],
+        default=["rai_current_nb", "rai_legacy_nb"],
         help=(
             "Trainable offline detector adapters; "
-            "default: sklearn_nb rai_current_nb."
+            "default: rai_current_nb rai_legacy_nb."
         ),
     )
     curve_parser.add_argument(

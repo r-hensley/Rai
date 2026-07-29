@@ -24,6 +24,7 @@ def test_discovery_exposes_all_stable_names():
     assert {
         "sklearn_nb",
         "rai_current_nb",
+        "rai_legacy_nb",
         "langdetect",
         "langdetect_binary",
         "lingua_binary",
@@ -326,9 +327,25 @@ def test_sklearn_serialized_size_requires_a_fitted_pipeline():
 
 
 @pytest.mark.skipif(not SKLEARN_AVAILABLE, reason="scikit-learn is optional")
-def test_rai_current_nb_runs_three_production_style_stages():
+def test_rai_current_nb_runs_one_production_stage():
     texts, labels = _clear_binary_training_data()
-    adapter = detectors.create_detector("rai_current_nb", ngram_range=(2, 2), seed=42)
+    adapter = detectors.create_detector("rai_current_nb", ngram_range=(2, 5), seed=42)
+    adapter.fit(texts, labels)
+
+    summary = adapter.metadata["training_summary"]
+    assert summary["stages"] == 1
+    assert summary["self_filter_rounds"] == 0
+    assert summary["fit_rows"] == len(texts)
+    assert adapter.metadata["ngram_range"] == (2, 5)
+    assert adapter.predict(
+        ["hello this is clearly english", "hola esta frase es claramente española"]
+    ) == ["en", "es"]
+
+
+@pytest.mark.skipif(not SKLEARN_AVAILABLE, reason="scikit-learn is optional")
+def test_rai_legacy_nb_runs_three_production_style_stages():
+    texts, labels = _clear_binary_training_data()
+    adapter = detectors.create_detector("rai_legacy_nb", ngram_range=(2, 2), seed=42)
     adapter.fit(texts, labels)
 
     summary = adapter.metadata["training_summary"]
