@@ -871,6 +871,8 @@ class AI(commands.Cog):
         else:
             self.bot.synced_reactions = [(notif, msg)]
 
+        if not notif or notif.channel.id != STAFF_PING_SUMMARY_CHANNEL_ID:
+            return
         if not self.bot.openai:
             return
         if msg.guild.id != SP_SERVER_ID:
@@ -998,20 +1000,10 @@ class AI(commands.Cog):
             return
         summary_message = f"{response_text}\n{STAFF_PING_AI_FOOTER}"
         try:
-            summary_channel = self.bot.get_channel(STAFF_PING_SUMMARY_CHANNEL_ID)
-            if not summary_channel:
-                raise ValueError(
-                    f"Staff-ping summary channel with ID {STAFF_PING_SUMMARY_CHANNEL_ID} not found."
-                )
-
-            send_kwargs = {"allowed_mentions": discord.AllowedMentions.none()}
-            if notif.channel.id == STAFF_PING_SUMMARY_CHANNEL_ID:
-                try:
-                    await notif.reply(summary_message, mention_author=False, **send_kwargs)
-                except discord.HTTPException:
-                    await utils.safe_send(summary_channel, summary_message, **send_kwargs)
-            else:
-                await utils.safe_send(summary_channel, summary_message, **send_kwargs)
+            await notif.edit(
+                content=summary_message,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         except Exception:
             cooldowns.pop(msg.channel.id, None)
             raise
