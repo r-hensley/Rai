@@ -61,6 +61,14 @@ def doneq_check(ctx):
     return True
 
 
+def done_check(ctx):
+    if not isinstance(ctx.channel, discord.Thread):
+        return False
+    if not isinstance(ctx.channel.parent, discord.ForumChannel):
+        return False
+    return ctx.author.id == ctx.channel.owner_id or bool(hf.helper_check(ctx))
+
+
 def fe_check(ctx):
     """Checks if a user has the correct combination of roles for the fe() command"""
     if not ctx.guild:
@@ -1735,6 +1743,7 @@ class General(commands.Cog):
         await itx.followup.send(f"`{date_str}`", ephemeral=True)
 
     @commands.command(hidden=True)
+    @commands.check(done_check)
     async def done(self, ctx: commands.Context):
         """Marks a post as done"""
         if not isinstance(ctx.channel, discord.Thread):
