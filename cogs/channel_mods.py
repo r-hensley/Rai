@@ -1357,11 +1357,19 @@ class ChannelMods(commands.Cog):
         config: dict = config[user_id]
         can_delete_any_entry = hf.submod_check(ctx)
 
-        async def entry_belongs_to_caller(index: int) -> bool:
+        async def trial_staff_can_delete_entry(index: int) -> bool:
             try:
                 entry = config[index]
             except (IndexError, AttributeError):
                 return False
+
+            # AutoMod entries are created by Discord rather than a staff member, so they
+            # have no staff author for the normal ownership check. Allow Trial Staff to
+            # remove any AutoMod-family entry, such as the "AutoMod Timeout" type.
+            if "AutoMod" in entry.get('type', ''):
+                return True
+
+            # For staff-created entries, Trial Staff may only remove their own logs.
             author_id = entry.get('author_id')
             if author_id is not None:
                 return author_id == ctx.author.id
@@ -1387,10 +1395,10 @@ class ChannelMods(commands.Cog):
             if not can_delete_any_entry:
                 unauthorized_entries = []
                 for i in range(len(config)):
-                    if not await entry_belongs_to_caller(i):
+                    if not await trial_staff_can_delete_entry(i):
                         unauthorized_entries.append(config[i])
                 if unauthorized_entries:
-                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs propios o de AutoMod.")
                     return
             # clear the modlog...
             del ctx.bot.db['modlog'][str(ctx.guild.id)][user_id]
@@ -1400,8 +1408,8 @@ class ChannelMods(commands.Cog):
 
         elif len(indices) == 1:  # If there is a single argument given, then:
             try:
-                if not can_delete_any_entry and not await entry_belongs_to_caller(int(indices[0]) - 1):
-                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                if not can_delete_any_entry and not await trial_staff_can_delete_entry(int(indices[0]) - 1):
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs propios o de AutoMod.")
                     return
                 del config[int(indices[0]) - 1]  # delete it from modlog...
             except IndexError:  # except if the index given is not found in config...
@@ -1453,10 +1461,10 @@ class ChannelMods(commands.Cog):
             if not can_delete_any_entry:
                 unauthorized_indices = []
                 for i in valid_indices:
-                    if not await entry_belongs_to_caller(int(i) - 1):
+                    if not await trial_staff_can_delete_entry(int(i) - 1):
                         unauthorized_indices.append(i)
                 if unauthorized_indices:
-                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs creados por si mismo.")
+                    await utils.safe_send(ctx, "Trial Staff solo puede borrar logs propios o de AutoMod.")
                     return
 
             n = 1
