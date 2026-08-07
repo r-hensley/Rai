@@ -953,10 +953,13 @@ class Events(commands.Cog):
 
             # give time for discord to process thread starter message
             await asyncio.sleep(2)
-            if thread.starter_message:
-                await thread.starter_message.reply(instructions)
-            else:
-                await utils.safe_send(thread, instructions)
+            try:
+                if thread.starter_message:
+                    await thread.starter_message.reply(instructions)
+                else:
+                    await utils.safe_send(thread, instructions)
+            except discord.NotFound:
+                return
 
         await new_post_info()
 
