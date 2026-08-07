@@ -25,6 +25,7 @@ SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
 BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
+VOICE_LOG_RATE_LIMIT_COOLDOWN_SECONDS = 60
 
 
 class Logger(commands.Cog):
@@ -34,6 +35,7 @@ class Logger(commands.Cog):
         self.bot: commands.Bot = bot
         self.bot.recently_removed_members = {}
         self.channel_audit_log_cooldowns: dict[int, float] = {}
+        self.voice_log_cooldowns: dict[int, float] = {}
         # Per-channel queue of (channel, embed, optional_message) tuples for batched delete logging.
         self.delete_log_queue: dict[int, list[tuple]] = {}
         self.flush_delete_log_queue.start()
@@ -47,6 +49,19 @@ class Logger(commands.Cog):
         if str(ctx.guild.id) not in self.bot.db['mod_channel'] and ctx.command.name != 'set_mod_channel':
             return
         return hf.admin_check(ctx)
+
+    async def _send_voice_log(self, channel: Optional[discord.abc.Messageable], embed: discord.Embed):
+        if not channel:
+            return
+        if time.monotonic() < self.voice_log_cooldowns.get(channel.id, 0):
+            return
+
+        try:
+            await utils.safe_send(channel, embed=embed)
+        except discord.HTTPException as error:
+            if getattr(error, "status", None) != 429:
+                raise
+            self.voice_log_cooldowns[channel.id] = time.monotonic() + VOICE_LOG_RATE_LIMIT_COOLDOWN_SECONDS
 
     # ############### general functions #####################
 
@@ -359,12 +374,13 @@ class Logger(commands.Cog):
                 
         """Voice logging"""
         if guild_config:
+            log_channel = self.bot.get_channel(guild_config['channel'])
             try:
-                await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                await self._send_voice_log(log_channel, emb)
             except (discord.DiscordServerError, aiohttp.client_exceptions.ClientOSError):
                 await hf.sleep("voice_state_update", 3, add=True)
                 try:
-                    await utils.safe_send(self.bot.get_channel(guild_config['channel']), embed=emb)
+                    await self._send_voice_log(log_channel, emb)
                 except discord.DiscordServerError:
                     pass
             except discord.Forbidden:

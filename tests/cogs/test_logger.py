@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import discord
 
@@ -44,6 +45,21 @@ class _FakeBot:
 
 
 class TestLogger(unittest.IsolatedAsyncioTestCase):
+    async def test_voice_log_rate_limit_starts_channel_cooldown(self):
+        logger = Logger.__new__(Logger)
+        logger.voice_log_cooldowns = {}
+        channel = SimpleNamespace(id=345678901234567890)
+        response = SimpleNamespace(status=429, reason="Too Many Requests")
+        error = discord.HTTPException(response, {"code": 0, "message": "You are being rate limited."})
+        safe_send = AsyncMock(side_effect=error)
+
+        with patch("cogs.logger.utils.safe_send", safe_send):
+            await logger._send_voice_log(channel, discord.Embed())
+            await logger._send_voice_log(channel, discord.Embed())
+
+        self.assertEqual(safe_send.await_count, 1)
+        self.assertIn(channel.id, logger.voice_log_cooldowns)
+
     async def test_raw_delete_skips_queue_scan_for_messages_older_than_queue_window(self):
         guild_id = 123456789012345678
         source_channel_id = 234567890123456789
