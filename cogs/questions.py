@@ -226,13 +226,16 @@ class Questions(commands.Cog):
             thread_id = None
 
         # begin filling in the database entry
-        config['questions'][str(question_number)] = {}
-        config['questions'][str(question_number)]['title'] = title
-        config['questions'][str(question_number)]['question_message'] = target_message.id
-        config['questions'][str(question_number)]['author'] = target_message.author.id
-        config['questions'][str(question_number)]['command_caller'] = ctx.author.id
-        config['questions'][str(question_number)]['date'] = date.today().strftime("%Y/%m/%d")
-        config['questions'][str(question_number)]['thread'] = thread_id
+        question_key = str(question_number)
+        question = {
+            'title': title,
+            'question_message': target_message.id,
+            'author': target_message.author.id,
+            'command_caller': ctx.author.id,
+            'date': date.today().strftime("%Y/%m/%d"),
+            'thread': thread_id,
+        }
+        config['questions'][question_key] = question
 
         # assign a unique color to questions from each channel for logs with multiple channels
         color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every channel
@@ -290,13 +293,14 @@ class Questions(commands.Cog):
         try:
             log_message = await utils.safe_send(log_channel, embed=emb)
         except discord.Forbidden:
+            config['questions'].pop(question_key, None)
             await utils.safe_send(ctx, "I lack the ability to send messages in the log channel.")
             return
 
+        question['log_message'] = log_message.id
         try:
             await self._delete_log(ctx)
             await self._post_log(ctx)
-            config['questions'][str(question_number)]['log_message'] = log_message.id
         except discord.HTTPException as err:
             if err.status == 400:
                 await utils.safe_send(ctx, "The question was too long, or the embed is too big.")
@@ -304,7 +308,10 @@ class Questions(commands.Cog):
                 await utils.safe_send(ctx, "I didn't have permissions to post in that channel")
             else:
                 raise
-            del (config['questions'][str(question_number)])
+            config['questions'].pop(question_key, None)
+            return
+
+        if config['questions'].get(question_key) is not question:
             return
 
         # react with question ID on user message if ID is less than 10
