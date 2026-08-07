@@ -15,6 +15,7 @@ from .utils import helper_functions as hf
 
 RYAN_TEST_SERV_ID = 275146036178059265
 SP_SERV_ID = 243838819743432704
+NO_MENTIONS = discord.AllowedMentions.none()
 
 
 class Quotes(commands.Cog):
@@ -274,7 +275,7 @@ class Quotes(commands.Cog):
             overflow_count=overflow_count,
             extra_lines=extra_lines,
         ):
-            await utils.safe_send(ctx, page)
+            await utils.safe_send(ctx, page, allowed_mentions=NO_MENTIONS)
 
     async def _send_quote_pages_interaction(
         self,
@@ -294,9 +295,17 @@ class Quotes(commands.Cog):
         )
         for index, page in enumerate(pages):
             if index == 0:
-                await interaction.response.send_message(page, ephemeral=ephemeral)
+                await interaction.response.send_message(
+                    page,
+                    ephemeral=ephemeral,
+                    allowed_mentions=NO_MENTIONS,
+                )
             else:
-                await interaction.followup.send(page, ephemeral=ephemeral)
+                await interaction.followup.send(
+                    page,
+                    ephemeral=ephemeral,
+                    allowed_mentions=NO_MENTIONS,
+                )
 
     @staticmethod
     def _extract_attachment_source(ctx: commands.Context) -> Optional[discord.Message]:
@@ -319,7 +328,7 @@ class Quotes(commands.Cog):
                           entry: dict[str, Any]):
         await destination.send(
             f"`#{entry['id']}` {author.mention} 📣\n{entry['body']}",
-            allowed_mentions=discord.AllowedMentions.none(),
+            allowed_mentions=NO_MENTIONS,
         )
 
     def _build_quote_log_embed(
@@ -363,7 +372,7 @@ class Quotes(commands.Cog):
             return
 
         try:
-            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            await channel.send(embed=embed, allowed_mentions=NO_MENTIONS)
         except (discord.Forbidden, discord.HTTPException):
             pass
 
@@ -386,10 +395,7 @@ class Quotes(commands.Cog):
             source_message_id=message.id,
         )  # pyright: ignore[reportArgumentType]
         if not entry:
-            await message.channel.send(
-                "That quote already exists.",
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            await message.channel.send("That quote already exists.")
             return
         await self._log_quote_event(message.guild, self._build_quote_log_embed(
             entry,
@@ -402,7 +408,7 @@ class Quotes(commands.Cog):
             f"Saved quote ID `{entry['id']}` under `{entry['name']}`.\n"
             f"-# Type `... {entry['name']}` to call this quote, "
             f"or `;qdel {entry['id']}` to delete it.",
-            allowed_mentions=discord.AllowedMentions.none(),
+            allowed_mentions=NO_MENTIONS,
         )
 
     async def _handle_quote_print(self, message: discord.Message, payload: str):
@@ -458,7 +464,11 @@ class Quotes(commands.Cog):
             color=0x7BA600,
             action_message_url=self._message_jump_url(ctx.guild.id, ctx.channel.id, ctx.message.id),
         ))
-        await utils.safe_send(ctx, f"Saved quote #{entry['id']} under `{entry['name']}`.")
+        await utils.safe_send(
+            ctx,
+            f"Saved quote #{entry['id']} under `{entry['name']}`.",
+            allowed_mentions=NO_MENTIONS,
+        )
 
     @commands.guild_only()
     @commands.command(aliases=["qp"])
@@ -466,7 +476,11 @@ class Quotes(commands.Cog):
         """Print a random quote with the specified name."""
         matches = self._find_by_name(ctx.guild.id, name)  # pyright: ignore[reportOptionalMemberAccess]
         if not matches:
-            await utils.safe_send(ctx, f"No quotes found for `{name.strip()}`.")
+            await utils.safe_send(
+                ctx,
+                f"No quotes found for `{name.strip()}`.",
+                allowed_mentions=NO_MENTIONS,
+            )
             return
 
         selected = random.choice(matches)
@@ -523,7 +537,7 @@ class Quotes(commands.Cog):
         if jump_url:
             embed.add_field(name="Source Message", value=f"[Jump to message]({jump_url})", inline=False)
 
-        await utils.safe_send(ctx, embed=embed)
+        await utils.safe_send(ctx, embed=embed, allowed_mentions=NO_MENTIONS)
 
     @commands.guild_only()
     @commands.command(aliases=["liqu"])
@@ -680,7 +694,7 @@ class Quotes(commands.Cog):
         if denied_ids:
             result_lines.append(f"No permission: {', '.join(f'`#{quote_id}`' for quote_id in denied_ids)}")
 
-        await utils.safe_send(ctx, "\n".join(result_lines))
+        await utils.safe_send(ctx, "\n".join(result_lines), allowed_mentions=NO_MENTIONS)
 
     @commands.guild_only()
     @hf.is_admin()
@@ -756,7 +770,7 @@ class Quotes(commands.Cog):
             await utils.safe_send(ctx, "That file is not valid UTF-8 YAML.")
             return
         except yaml.YAMLError as exc:
-            await utils.safe_send(ctx, f"YAML parse error: `{exc}`")
+            await utils.safe_send(ctx, f"YAML parse error: `{exc}`", allowed_mentions=NO_MENTIONS)
             return
 
         if not isinstance(parsed, dict):
@@ -840,6 +854,7 @@ class Quotes(commands.Cog):
             f"Imported {imported} quotes from `{attachment.filename}`." +
             (f" Skipped {duplicate_count} duplicates." if duplicate_count else "") +
             (f" Skipped {skipped} invalid entries." if skipped else ""),
+            allowed_mentions=NO_MENTIONS,
         )
 
     @app_commands.command(name="quotestats", description="Show quote usage totals and used/unused percentages.")
