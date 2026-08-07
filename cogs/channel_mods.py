@@ -1257,7 +1257,7 @@ class ChannelMods(commands.Cog):
                         # try searching for a thread (including archived threads)
                         try:
                             channel = await ctx.guild.fetch_channel(channel_id)
-                        except discord.Forbidden:
+                        except (discord.Forbidden, discord.NotFound):
                             continue
                         if not channel:
                             continue
