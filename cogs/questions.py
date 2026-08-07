@@ -813,18 +813,21 @@ class Questions(commands.Cog):
                     value_text = value_text.replace("⁣⁣⁣⁣", question_text[:text_splice]).replace(";q ", "")
                     emb.add_field(name=f"Question `{question}`", value=value_text)
                 except discord.NotFound:
-                    deleted_questions.append(question)
+                    deleted_questions.append((channel_config, question, q_config))
                     continue
-                    # await ctx.invoke(self.answer, args=question)
-                    # # del(channel_config[question])
-                    # continue
-                    # emb.add_field(name=f"Question `{question}`",
-                    #               value="original message not found")
         await utils.safe_send(target_channel, embed=emb)
 
-        for question in deleted_questions:
-            # author = ctx.guild.get_member(question_data[1]['author'])
-            await ctx.invoke(self.answer, args=question)
+        log_channel = ctx.guild.get_channel_or_thread(log_channel_id)
+        for questions, question_number, question in deleted_questions:
+            if questions.get(question_number) is not question:
+                continue
+            if log_channel and question.get('log_message'):
+                try:
+                    log_message = await log_channel.fetch_message(question['log_message'])
+                    await log_message.delete()
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+            questions.pop(question_number, None)
 
     @question.command()
     @hf.is_admin()
