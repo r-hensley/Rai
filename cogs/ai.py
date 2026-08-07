@@ -1170,7 +1170,7 @@ class AI(commands.Cog):
         if over_80:
             watch_log_channel = self.bot.get_channel(704323978596188180)
             try:
-                await utils.safe_send(watch_log_channel, out)  # pyright: ignore[reportArgumentType]
+                await hf.segment_send(watch_log_channel, out)  # pyright: ignore[reportArgumentType]
             except discord.Forbidden:
                 pass
 
