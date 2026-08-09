@@ -1,17 +1,14 @@
 import asyncio
 import os
-import sys
 import time
 
 from datetime import datetime, timezone, timedelta
-import traceback
 import discord
 from discord.ext import commands, tasks
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import purge_old_readd_role_entries
 
 RYRY_SPAM_CHAN = 275879535977955330
-TRACEBACK_LOGGING_CHANNEL_ID = int(os.getenv("TRACEBACK_LOGGING_CHANNEL"))
 
 
 def rai_task(*loop_args, **loop_kwargs):
@@ -79,20 +76,7 @@ class Background(commands.Cog):
 
     async def handle_error(self, error):
         error = getattr(error, 'original', error)
-        print('Error in background task:', file=sys.stderr)
-        traceback.print_tb(error.__traceback__)
-        print(f'{error.__class__.__name__}: {error}', file=sys.stderr)
-        # get traceback channel ID from env
-        channel = self.bot.get_channel(TRACEBACK_LOGGING_CHANNEL_ID)
-        exc = ''.join(traceback.format_exception(
-            type(error), error, error.__traceback__, chain=False))
-        traceback_text = f'```py\n{exc}\n```'
-        message = f'<@202995638860906496> Error in background task:\n{traceback_text}'
-        if len(message) < 2000:
-            await channel.send(message)
-        else:
-            await channel.send(message[:2000])
-            await channel.send(message[2000:4000])
+        await utils.send_error_embed(self.bot, "Background task", error)
 
     @commands.command()
     @commands.is_owner()
