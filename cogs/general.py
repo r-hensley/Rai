@@ -1508,10 +1508,6 @@ class General(commands.Cog):
             return
         delta_obj = timedelta(
             days=length[0], hours=length[1], minutes=length[2], seconds=length[3])
-        if neg:
-            unmute_time = discord.utils.utcnow() - delta_obj
-        else:
-            unmute_time = discord.utils.utcnow() + delta_obj
         if not neg and delta_obj.total_seconds() > 28 * 24 * 60 * 60:  # if length is longer than 28d
             await utils.safe_send(ctx, "Please choose a time less than 28d")
             return
@@ -1538,20 +1534,46 @@ class General(commands.Cog):
                 config = self.bot.db['selfmute'].setdefault(
                     str(ctx.guild.id), {})
                 if neg:
-                    # unmute after 3 seconds
+                    # unmute after half a second
                     delta_obj = timedelta(seconds=0.5)
-                timestamp = int(unmute_time.timestamp())
 
+                timeout_started_at = discord.utils.utcnow()
+                manual_fallback = False
                 try:
                     await ctx.author.timeout(delta_obj, reason="RAI_SELFMUTE")
-                    # log even if using a Discord timeout
-                    config[str(ctx.author.id)] = {'enable': False, 'time': timestamp}
                 except (discord.Forbidden, discord.HTTPException):
-                    # someone who Rai couldn't timeout
-                    config[str(ctx.author.id)] = {'enable': True, 'time': timestamp}
+                    manual_fallback = True
+
+                if manual_fallback:
+                    # The fallback begins only after Discord rejects the native timeout.
+                    unmute_time = discord.utils.utcnow() + delta_obj
+                else:
+                    unmute_time = timeout_started_at + delta_obj
+                timestamp = int(unmute_time.timestamp())
+
+                selfmute_entry = {'enable': manual_fallback, 'time': timestamp}
+                config[str(ctx.author.id)] = selfmute_entry
 
                 await conf.reply(f"Muted {ctx.author.display_name} for {delta_str}. This is irreversible.\n"
                                  f"Unmute time: <t:{timestamp}> (<t:{timestamp}:R>)")
+
+                if manual_fallback and delta_obj < timedelta(minutes=5):
+                    # Awaiting here keeps only this command task alive; it does not
+                    # block Rai's event loop. The background sweep remains a fallback
+                    # if this task is cancelled by a restart or reload.
+                    remaining_seconds = max(
+                        0.0,
+                        (unmute_time - discord.utils.utcnow()).total_seconds(),
+                    )
+                    await asyncio.sleep(remaining_seconds)
+
+                    user_id = str(ctx.author.id)
+                    if config.get(user_id) is selfmute_entry:
+                        del config[user_id]
+                        try:
+                            await utils.safe_send(ctx.author, "Your selfmute has expired.")
+                        except discord.Forbidden:
+                            pass
 
             elif msg.content.casefold() in ['no', 'cancel']:
                 raise asyncio.TimeoutError
