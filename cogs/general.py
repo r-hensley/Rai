@@ -42,12 +42,32 @@ RY_SERVER_ID = 275146036178059265
 FEDE_TESTER_SERVER_ID = 941155953682821201
 FRENCH_SERVER_ID = 254463427949494292
 DM_MODBOT_ID = 713245294657273856
+SP_TRIAL_STAFF_ROLE_ID = 591745589054668817
+SP_SERVER_STAFF_ROLE_ID = 258819531193974784
+SP_HARDCORE_STAFF_ROLE_IDS = frozenset({
+    SP_TRIAL_STAFF_ROLE_ID,
+    SP_SERVER_STAFF_ROLE_ID,
+})
 
 ENG_ROLE = {
     266695661670367232: 266778623631949826,  # C-E Learning English Role
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
 RYRY_RAI_BOT_ID = 270366726737231884
+
+
+def hardcore_staff_check(ctx: commands.Context) -> bool:
+    """Allow admins everywhere and Spanish Trial/Server Staff for HC overrides."""
+    if not ctx.guild:
+        return False
+    if hf.admin_check(ctx):
+        return True
+    if ctx.guild.id != SP_SERVER_ID:
+        return False
+
+    author_role_ids = {role.id for role in getattr(ctx.author, "roles", ())}
+    return bool(author_role_ids & SP_HARDCORE_STAFF_ROLE_IDS)
+
 
 def doneq_check(ctx):
     if not ctx.guild:
@@ -604,7 +624,7 @@ class General(commands.Cog):
 
     @hardcore.command(name="remove")
     @commands.guild_only()
-    @hf.is_admin()
+    @commands.check(hardcore_staff_check)
     async def hardcore_remove(self, ctx: commands.Context, member: discord.Member):
         """Admin override to forcibly remove hardcore from a user and clear any threshold lock."""
         if ctx.guild.id == SP_SERVER_ID:
@@ -669,7 +689,7 @@ class General(commands.Cog):
             await utils.safe_reply(ctx, f"Removed {channel.name} from list of ignored channels for hardcore mode")
 
     @hardcore.command(name="list")
-    @hf.is_admin()
+    @commands.check(hardcore_staff_check)
     async def list_channels(self, ctx):
         """Lists the channels in hardcore mode."""
         channels = []

@@ -9,6 +9,8 @@ from tests.discord_fakes import make_bot, make_context, make_guild, make_member,
 SP_SERVER_ID = general_module.SP_SERVER_ID
 LEARNING_ENGLISH_ROLE_ID = 247021017740869632
 NIGHTMARE_HARDCORE_ROLE_ID = general_module.SP_NIGHTMARE_HARDCORE_ROLE_ID
+TRIAL_STAFF_ROLE_ID = general_module.SP_TRIAL_STAFF_ROLE_ID
+SERVER_STAFF_ROLE_ID = general_module.SP_SERVER_STAFF_ROLE_ID
 
 
 def make_role_map(*role_ids):
@@ -16,6 +18,46 @@ def make_role_map(*role_ids):
         role_id: make_role(role_id=role_id)
         for role_id in role_ids
     }
+
+
+@pytest.mark.parametrize("staff_role_id", [TRIAL_STAFF_ROLE_ID, SERVER_STAFF_ROLE_ID])
+def test_hardcore_staff_check_allows_spanish_trial_and_server_staff(monkeypatch, staff_role_id):
+    staff_role = make_role(role_id=staff_role_id)
+    guild = make_guild(guild_id=SP_SERVER_ID, roles=[staff_role])
+    author = make_member(member_id=42, guild=guild, roles=[staff_role])
+    ctx = make_context(author=author, guild=guild)
+    monkeypatch.setattr(general_module.hf, "admin_check", lambda _: False)
+
+    assert general_module.hardcore_staff_check(ctx) is True
+
+
+def test_hardcore_staff_check_preserves_admin_access_in_other_guilds(monkeypatch):
+    guild = make_guild(guild_id=general_module.CH_SERVER_ID)
+    author = make_member(member_id=42, guild=guild)
+    ctx = make_context(author=author, guild=guild)
+    monkeypatch.setattr(general_module.hf, "admin_check", lambda _: True)
+
+    assert general_module.hardcore_staff_check(ctx) is True
+
+
+def test_hardcore_staff_check_rejects_nonstaff_and_nonspanish_staff_role(monkeypatch):
+    monkeypatch.setattr(general_module.hf, "admin_check", lambda _: False)
+
+    spanish_guild = make_guild(guild_id=SP_SERVER_ID)
+    ordinary_member = make_member(member_id=42, guild=spanish_guild)
+    ordinary_ctx = make_context(author=ordinary_member, guild=spanish_guild)
+    assert general_module.hardcore_staff_check(ordinary_ctx) is False
+
+    trial_role = make_role(role_id=TRIAL_STAFF_ROLE_ID)
+    other_guild = make_guild(guild_id=general_module.CH_SERVER_ID, roles=[trial_role])
+    other_member = make_member(member_id=43, guild=other_guild, roles=[trial_role])
+    other_ctx = make_context(author=other_member, guild=other_guild)
+    assert general_module.hardcore_staff_check(other_ctx) is False
+
+
+def test_hardcore_staff_check_is_applied_to_remove_and_list_commands():
+    assert general_module.hardcore_staff_check in general_module.General.hardcore_remove.checks
+    assert general_module.hardcore_staff_check in general_module.General.list_channels.checks
 
 
 @pytest.mark.asyncio
