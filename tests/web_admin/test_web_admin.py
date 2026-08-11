@@ -13,6 +13,7 @@ from web_admin import config as web_config
 from web_admin import diagnostics as web_diagnostics
 from web_admin import security as web_security
 from web_admin import site as web_admin
+from tests.discord_fakes import make_channel, make_guild, make_member, make_role
 
 
 WEB_ENV = {
@@ -123,13 +124,16 @@ def test_authorization_is_scoped_per_guild(monkeypatch):
 def test_spanish_staff_roles_grant_dashboard_access(monkeypatch):
     guild_id = web_config.SPANISH_GUILD_ID
     staff_members = {
-        user_id: SimpleNamespace(roles=[SimpleNamespace(id=role_id)])
+        user_id: make_member(
+            member_id=user_id,
+            roles=[make_role(role_id=role_id)],
+        )
         for user_id, (role_id, _role_name) in enumerate(
             web_config.SPANISH_STAFF_ROLES_LOW_TO_HIGH,
             start=100,
         )
     }
-    guild = SimpleNamespace(get_member=staff_members.get)
+    guild = make_guild(guild_id=guild_id, members=staff_members.values())
     cog = make_cog(
         monkeypatch,
         WEB_ADMIN_ALLOWED_GUILDS=str(guild_id),
@@ -147,10 +151,11 @@ def test_spanish_staff_roles_grant_dashboard_access(monkeypatch):
 
 def test_spanish_staff_roles_do_not_grant_other_guild_access(monkeypatch):
     role_id = web_config.SPANISH_STAFF_ROLES_LOW_TO_HIGH[0][0]
-    guild = SimpleNamespace(
-        get_member=lambda user_id: SimpleNamespace(roles=[SimpleNamespace(id=role_id)])
-        if user_id == 30 else None,
+    member = make_member(
+        member_id=30,
+        roles=[make_role(role_id=role_id)],
     )
+    guild = make_guild(guild_id=2, members=[member])
     cog = make_cog(
         monkeypatch,
         WEB_ADMIN_ALLOWED_GUILDS="2",
@@ -164,11 +169,11 @@ def test_spanish_staff_roles_do_not_grant_other_guild_access(monkeypatch):
 def test_last_hour_activity_is_bucketed_and_guild_scoped(monkeypatch):
     cog = make_cog(monkeypatch)
     now = datetime(2026, 7, 10, 18, 0, tzinfo=timezone.utc)
-    channel = SimpleNamespace(name="general")
-    guild = SimpleNamespace(
-        id=1,
+    channel = make_channel(channel_id=101, name="general")
+    guild = make_guild(
+        guild_id=1,
         name="Allowed Guild",
-        get_channel_or_thread=lambda channel_id: channel if channel_id == 101 else None,
+        channels=[channel],
     )
     cog.bot.guild_map[1] = guild
     cog.bot.message_queue = [
@@ -216,13 +221,13 @@ def test_last_hour_activity_is_bucketed_and_guild_scoped(monkeypatch):
 def test_activity_rendering_never_includes_message_content(monkeypatch):
     cog = make_cog(monkeypatch)
     now = datetime.now(timezone.utc)
-    channel = SimpleNamespace(name="<ops>")
-    guild = SimpleNamespace(
-        id=1,
+    channel = make_channel(channel_id=101, name="<ops>")
+    guild = make_guild(
+        guild_id=1,
         name="Allowed Guild",
-        get_channel_or_thread=lambda _channel_id: channel,
-        member_count=1,
+        channels=[channel],
         text_channels=[],
+        member_count=1,
         voice_channels=[],
     )
     cog.bot.guild_map[1] = guild

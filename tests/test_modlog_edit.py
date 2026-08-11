@@ -1,8 +1,15 @@
 import pytest
-from types import SimpleNamespace
 
 import cogs.channel_mods as channel_mods
 import cogs.utils.BotUtils.bot_utils as utils
+from tests.discord_fakes import (
+    make_bot,
+    make_channel,
+    make_context,
+    make_guild,
+    make_member,
+    make_message,
+)
 
 
 @pytest.mark.asyncio
@@ -15,11 +22,19 @@ async def test_modlog_edit_out_of_range(monkeypatch):
     monkeypatch.setattr(utils, 'safe_send', fake_safe_send)
 
     # Prepare minimal objects
-    guild = SimpleNamespace(id=1, members=[])
-    bot = SimpleNamespace(db={'modlog': {str(guild.id): {'42': []}},
-                              'mod_channel': {}, 'voicemod': {}})
-    ctx = SimpleNamespace(guild=guild, bot=bot, author=SimpleNamespace(id=2),
-                          channel=SimpleNamespace(name='chan'), message=SimpleNamespace(content=''))
+    guild = make_guild(guild_id=1)
+    bot = make_bot(db={'modlog': {str(guild.id): {'42': []}},
+                       'mod_channel': {}, 'voicemod': {}})
+    author = make_member(member_id=2, guild=guild)
+    channel = make_channel(guild=guild, name='chan')
+    message = make_message(guild=guild, channel=channel, author=author)
+    ctx = make_context(
+        guild=guild,
+        bot=bot,
+        author=author,
+        channel=channel,
+        message=message,
+    )
 
     cog = channel_mods.ChannelMods(bot)
 
@@ -39,12 +54,20 @@ async def test_modlog_edit_success_changes_reason(monkeypatch):
 
     monkeypatch.setattr(utils, 'safe_send', fake_safe_send)
 
-    guild = SimpleNamespace(id=1, members=[])
+    guild = make_guild(guild_id=1)
     bot_db = {'modlog': {str(guild.id): {'42': [{'reason': 'old reason'}]}},
               'mod_channel': {}, 'voicemod': {}}
-    bot = SimpleNamespace(db=bot_db)
-    ctx = SimpleNamespace(guild=guild, bot=bot, author=SimpleNamespace(id=2),
-                          channel=SimpleNamespace(name='chan'), message=SimpleNamespace(content=''))
+    bot = make_bot(db=bot_db)
+    author = make_member(member_id=2, guild=guild)
+    channel = make_channel(guild=guild, name='chan')
+    message = make_message(guild=guild, channel=channel, author=author)
+    ctx = make_context(
+        guild=guild,
+        bot=bot,
+        author=author,
+        channel=channel,
+        message=message,
+    )
 
     cog = channel_mods.ChannelMods(bot)
 

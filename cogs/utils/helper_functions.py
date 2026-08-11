@@ -15,7 +15,7 @@ from collections import deque, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Optional, List, Union, Tuple, Iterable, Callable, Any
+from typing import Optional, List, Union, Tuple, Iterable, Callable, Any, TYPE_CHECKING
 from unittest.mock import Mock
 from urllib.parse import urlparse
 
@@ -27,6 +27,9 @@ from sklearn.pipeline import Pipeline
 
 from cogs.utils.BotUtils import bot_utils as utils
 
+if TYPE_CHECKING:
+    from Rai import Rai
+
 dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # here = sys.modules[__name__]
@@ -35,11 +38,24 @@ dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fi
 
 class Here:
     def __init__(self):
-        from Rai import Rai
-        self.bot: Optional[Rai] = None
+        self.bot: Optional["Rai"] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
 
 here = Here()
+
+_profiling_decorator_modules: set[str] = set()
+
+
+def _register_profiling_decorator(func: Callable[..., Any]) -> None:
+    module = func.__module__
+    _profiling_decorator_modules.add(module)
+
+    if here.bot is None:
+        return
+
+    if not hasattr(here.bot, 'profiling_decorators'):
+        here.bot.profiling_decorators = set()
+    here.bot.profiling_decorators.add(module)
 
 BANS_CHANNEL_ID = 329576845949534208
 SP_SERV_ID = 243838819743432704
@@ -68,6 +84,10 @@ def setup(bot, loop: asyncio.AbstractEventLoop):
         here.loop = loop
     else:
         pass
+
+    if not hasattr(here.bot, 'profiling_decorators'):
+        here.bot.profiling_decorators = set()
+    here.bot.profiling_decorators.update(_profiling_decorator_modules)
 
     # # currently commented out because there are no tests to run
     # test_module = importlib.import_module("cogs.utils.tests.test_helper_functions")
@@ -1824,9 +1844,8 @@ async def mock_to_file(to_use_url, spoiler: bool = False) -> Optional[discord.Fi
 
 def profileit(sleep_time: float = 0.0):
     def decorator(func):
-        if not hasattr(here.bot, 'profiling_decorators'):
-            here.bot.profiling_decorators = set()
-        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
+        _register_profiling_decorator(func)
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             prof = cProfile.Profile()
@@ -1872,9 +1891,7 @@ def profileit(sleep_time: float = 0.0):
 
 def basic_timer(time_allowance: float = 0):
     def decorator(func):
-        if not hasattr(here.bot, 'profiling_decorators'):
-            here.bot.profiling_decorators = set()
-        here.bot.profiling_decorators.add(func.__module__)  # add cogs that have profiling decorators
+        _register_profiling_decorator(func)
         
         @wraps(func)
         async def async_wrapper(*args, **kwargs):

@@ -1,10 +1,19 @@
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from cogs import quotes as quotes_module
 from cogs.quotes import Quotes
+from tests.discord_fakes import (
+    make_attachment,
+    make_bot,
+    make_channel,
+    make_context,
+    make_guild,
+    make_interaction,
+    make_member,
+    make_message,
+)
 
 
 GUILD_ID = 243838819743432704
@@ -29,7 +38,7 @@ def _quote_entry(**overrides):
 
 
 def _quotes_cog(*entries):
-    bot = SimpleNamespace(
+    bot = make_bot(
         db={
             "quotes": {
                 str(GUILD_ID): {
@@ -52,7 +61,7 @@ async def test_qsearch_suppresses_mentions_in_user_written_preview(monkeypatch):
     safe_send = AsyncMock()
     monkeypatch.setattr(quotes_module.utils, "safe_send", safe_send)
     cog = _quotes_cog(_quote_entry())
-    ctx = SimpleNamespace(guild=SimpleNamespace(id=GUILD_ID))
+    ctx = make_context(guild=make_guild(guild_id=GUILD_ID))
 
     await Quotes.qsearch.callback(cog, ctx, text="stored")
 
@@ -67,7 +76,7 @@ async def test_qinfo_suppresses_mentions_in_user_written_embed(monkeypatch):
     safe_send = AsyncMock()
     monkeypatch.setattr(quotes_module.utils, "safe_send", safe_send)
     cog = _quotes_cog(_quote_entry())
-    ctx = SimpleNamespace(guild=SimpleNamespace(id=GUILD_ID))
+    ctx = make_context(guild=make_guild(guild_id=GUILD_ID))
 
     await Quotes.qinfo.callback(cog, ctx, quote_id=1)
 
@@ -79,10 +88,7 @@ async def test_qinfo_suppresses_mentions_in_user_written_embed(monkeypatch):
 @pytest.mark.asyncio
 async def test_interaction_quote_pages_suppress_mentions_on_every_page():
     cog = _quotes_cog()
-    interaction = SimpleNamespace(
-        response=SimpleNamespace(send_message=AsyncMock()),
-        followup=SimpleNamespace(send=AsyncMock()),
-    )
+    interaction = make_interaction()
     lines = [f"quote {index} @everyone" for index in range(Quotes.LIST_PAGE_SIZE + 1)]
 
     await cog._send_quote_pages_interaction(interaction, "User quotes", lines)
@@ -97,8 +103,8 @@ async def test_interaction_quote_pages_suppress_mentions_on_every_page():
 
 @pytest.mark.asyncio
 async def test_direct_quote_display_suppresses_mentions():
-    destination = SimpleNamespace(send=AsyncMock())
-    author = SimpleNamespace(mention="<@456>")
+    destination = make_channel(send=AsyncMock())
+    author = make_member(member_id=456)
 
     await Quotes._send_quote(destination, author, _quote_entry())
 
@@ -110,11 +116,12 @@ async def test_direct_quote_display_suppresses_mentions():
 async def test_yaml_parse_error_suppresses_mentions_reflected_from_user_file(monkeypatch):
     safe_send = AsyncMock()
     monkeypatch.setattr(quotes_module.utils, "safe_send", safe_send)
-    attachment = SimpleNamespace(
+    attachment = make_attachment(
         filename="quotes.yaml",
-        read=AsyncMock(return_value=b"quote: [@everyone"),
+        data=b"quote: [@everyone",
     )
-    ctx = SimpleNamespace(message=SimpleNamespace(attachments=[attachment]))
+    message = make_message(attachments=[attachment])
+    ctx = make_context(message=message)
     cog = _quotes_cog()
 
     await Quotes.quotesimport.callback(cog, ctx)

@@ -6,6 +6,14 @@ from unittest.mock import AsyncMock, Mock
 import discord
 import pytest
 
+from tests.discord_fakes import (
+    make_bot,
+    make_guild,
+    make_interaction,
+    make_member,
+    make_message,
+)
+
 
 # cogs.message imports Rai for a type annotation, while Rai imports helper_functions.
 # Supply the type during collection so this focused module can be tested in isolation.
@@ -15,40 +23,28 @@ if _previous_rai_module is None:
     rai_stub.Rai = type("Rai", (), {})
     sys.modules["Rai"] = rai_stub
 
-from cogs.utils import helper_functions as hf  # noqa: E402
-
-_previous_bot = hf.here.bot
-hf.here.bot = SimpleNamespace(profiling_decorators=set())
 try:
     from cogs import message as message_module  # noqa: E402
 finally:
-    hf.here.bot = _previous_bot
     if _previous_rai_module is None:
         sys.modules.pop("Rai", None)
 
 
 def make_target():
-    return SimpleNamespace(id=42, mention="<@42>", send=AsyncMock(), edit=AsyncMock())
+    return make_member(member_id=42, send=AsyncMock(), edit=AsyncMock())
 
 
-def make_interaction():
-    guild = SimpleNamespace(
-        id=1,
+def make_scam_interaction():
+    guild = make_guild(
+        guild_id=1,
         name="Spanish-English Language Exchange",
         ban=AsyncMock(),
     )
-    interaction = SimpleNamespace(
+    user = make_member(member_id=99, guild=guild)
+    return make_interaction(
         guild=guild,
-        user=SimpleNamespace(mention="<@99>"),
-        response=SimpleNamespace(
-            defer=AsyncMock(),
-            send_message=AsyncMock(),
-            send_modal=AsyncMock(),
-        ),
-        followup=SimpleNamespace(send=AsyncMock()),
-        edit_original_response=AsyncMock(),
+        user=user,
     )
-    return interaction
 
 
 @pytest.fixture(autouse=True)
@@ -58,8 +54,8 @@ def allow_trial_helper(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ban_button_opens_modal_with_required_reason_and_notification_choice():
-    view = message_module.ScamBanPromptView(SimpleNamespace(), make_target(), "reported content")
-    interaction = make_interaction()
+    view = message_module.ScamBanPromptView(make_bot(), make_target(), "reported content")
+    interaction = make_scam_interaction()
 
     await view.ban_user.callback(interaction)
 
@@ -83,7 +79,7 @@ async def test_modal_trims_reason_and_passes_notification_choice_to_prompt_view(
     modal = message_module.ScamBanReasonModal(prompt_view)
     modal.reason._value = "  repeated harassment  "
     modal.notification._value = notification
-    interaction = make_interaction()
+    interaction = make_scam_interaction()
 
     await modal.on_submit(interaction)
 
@@ -97,9 +93,9 @@ async def test_modal_trims_reason_and_passes_notification_choice_to_prompt_view(
 @pytest.mark.asyncio
 async def test_silent_incident_ban_skips_dm_and_records_silent(monkeypatch):
     target = make_target()
-    interaction = make_interaction()
-    prompt_message = SimpleNamespace(edit=AsyncMock())
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    interaction = make_scam_interaction()
+    prompt_message = make_message(edit=AsyncMock())
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
     view.message = prompt_message
     add_to_modlog = Mock()
     monkeypatch.setattr(message_module.hf, "add_to_modlog", add_to_modlog)
@@ -125,9 +121,9 @@ async def test_silent_incident_ban_skips_dm_and_records_silent(monkeypatch):
 @pytest.mark.asyncio
 async def test_non_silent_incident_ban_sends_generic_reason_dm(monkeypatch):
     target = make_target()
-    interaction = make_interaction()
-    prompt_message = SimpleNamespace(edit=AsyncMock())
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    interaction = make_scam_interaction()
+    prompt_message = make_message(edit=AsyncMock())
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
     view.message = prompt_message
     add_to_modlog = Mock()
     monkeypatch.setattr(message_module.hf, "add_to_modlog", add_to_modlog)
@@ -152,9 +148,9 @@ async def test_failed_dm_falls_back_to_silent_ban(monkeypatch):
         SimpleNamespace(status=403, reason="Forbidden"),
         {"code": 50007, "message": "Cannot send messages to this user"},
     )
-    interaction = make_interaction()
-    prompt_message = SimpleNamespace(edit=AsyncMock())
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    interaction = make_scam_interaction()
+    prompt_message = make_message(edit=AsyncMock())
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
     view.message = prompt_message
     add_to_modlog = Mock()
     monkeypatch.setattr(message_module.hf, "add_to_modlog", add_to_modlog)
@@ -170,13 +166,13 @@ async def test_failed_dm_falls_back_to_silent_ban(monkeypatch):
 @pytest.mark.asyncio
 async def test_failed_ban_resets_guard_and_leaves_prompt_available(monkeypatch):
     target = make_target()
-    interaction = make_interaction()
+    interaction = make_scam_interaction()
     interaction.guild.ban.side_effect = discord.Forbidden(
         SimpleNamespace(status=403, reason="Forbidden"),
         {"code": 50013, "message": "Missing Permissions"},
     )
-    prompt_message = SimpleNamespace(edit=AsyncMock())
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    prompt_message = make_message(edit=AsyncMock())
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
     view.message = prompt_message
     add_to_modlog = Mock()
     monkeypatch.setattr(message_module.hf, "add_to_modlog", add_to_modlog)
@@ -195,8 +191,8 @@ async def test_failed_ban_resets_guard_and_leaves_prompt_available(monkeypatch):
 async def test_modal_submission_rechecks_staff_permission(monkeypatch):
     monkeypatch.setattr(message_module.hf, "trial_helper_check", lambda _: False)
     target = make_target()
-    interaction = make_interaction()
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    interaction = make_scam_interaction()
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
 
     await view.submit_ban(interaction, "Ban evasion", silent=True)
 
@@ -211,8 +207,8 @@ async def test_modal_submission_rechecks_staff_permission(monkeypatch):
 @pytest.mark.asyncio
 async def test_false_alarm_cannot_run_while_ban_is_in_progress():
     target = make_target()
-    interaction = make_interaction()
-    view = message_module.ScamBanPromptView(SimpleNamespace(), target, "reported content")
+    interaction = make_scam_interaction()
+    view = message_module.ScamBanPromptView(make_bot(), target, "reported content")
     view.ban_in_progress = True
 
     await view.false_alarm.callback(interaction)
@@ -226,14 +222,14 @@ async def test_false_alarm_cannot_run_while_ban_is_in_progress():
 
 @pytest.mark.asyncio
 async def test_timeout_followup_prompt_has_no_hacked_account_default():
-    prompt_message = SimpleNamespace()
-    msg = SimpleNamespace(
+    prompt_message = make_message()
+    msg = make_message(
         author=make_target(),
         reply=AsyncMock(return_value=prompt_message),
     )
 
     await message_module.handle_scam_timeout_followup(
-        SimpleNamespace(),
+        make_bot(),
         msg,
         "reported content",
         message_module.timedelta(minutes=10),

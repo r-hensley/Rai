@@ -96,6 +96,30 @@ class ChannelMods(commands.Cog):
         self.bot.db['helper_channel'][str(itx.guild.id)] = channel.id
         await itx.response.send_message(f"Set the helper channel for this server as {channel.mention}.")
 
+    async def _fetch_message_from_queue(self, ctx, message_id: int) -> Optional[discord.Message]:
+        """Fetch a message from the channel recorded in the recent-message queue."""
+        message_queue = getattr(self.bot, "message_queue", None)
+        queue_find = getattr(message_queue, "find", None)
+        if not message_queue or not callable(queue_find):
+            return None
+
+        queued_messages = queue_find(message_id=message_id, guild_id=ctx.guild.id)
+        for queued_message in reversed(queued_messages):
+            channel = ctx.guild.get_channel_or_thread(queued_message.channel_id)
+            if not channel:
+                try:
+                    channel = await ctx.guild.fetch_channel(queued_message.channel_id)
+                except (discord.NotFound, discord.Forbidden, discord.InvalidData):
+                    continue
+            if getattr(getattr(channel, "guild", None), "id", None) != ctx.guild.id:
+                continue
+
+            try:
+                return await channel.fetch_message(message_id)
+            except (discord.NotFound, discord.Forbidden):
+                continue
+        return None
+
     @commands.command(name="delete", aliases=['del'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True, manage_messages=True)
     async def msg_delete(self, ctx, *ids):
@@ -128,13 +152,16 @@ class ChannelMods(commands.Cog):
                     await utils.safe_send(ctx, "This is a command to delete a certain message by specifying its "
                                                f"message ID. \n\nMaybe you meant to use `;clear {ids[0]}`?")
 
-        # search ctx.channel for the ids
+        # Search the recent-message queue first, then fall back to ctx.channel.
         for msg_id in ids:
             try:
                 msg_id = int(msg_id)
                 if not 17 < len(str(msg_id)) < 22:
                     raise ValueError
-                msg = await ctx.channel.fetch_message(msg_id)
+                found_msg = await self._fetch_message_from_queue(ctx, msg_id)
+                if found_msg is None:
+                    found_msg = await ctx.channel.fetch_message(msg_id)
+                msg = found_msg
                 msgs.append(msg)
             except discord.NotFound:
                 failed_ids.append(msg_id)

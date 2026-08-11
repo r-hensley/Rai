@@ -1,11 +1,11 @@
 import csv
 import logging
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from cogs.utils import helper_functions as hf
+from tests.discord_fakes import make_bot
 
 
 SPANISH_FILES = {"principiante.csv", "avanzado.csv"}
@@ -113,7 +113,7 @@ def test_language_model_loader_uses_all_cleaned_rows_in_one_25gram_fit(
         marker="cleaned",
         rows_per_file=2,
     )
-    bot = SimpleNamespace()
+    bot = make_bot()
     monkeypatch.setattr(hf, "dir_path", str(tmp_path))
     monkeypatch.setattr(hf.here, "bot", bot)
     fit_calls = []
@@ -159,7 +159,7 @@ def test_language_model_loader_fits_only_legacy_rows_after_partial_upload(
         rows_per_file=5,
         filenames=("principiante.csv",),
     )
-    bot = SimpleNamespace()
+    bot = make_bot()
     monkeypatch.setattr(hf, "dir_path", str(tmp_path))
     monkeypatch.setattr(hf.here, "bot", bot)
 
@@ -186,7 +186,7 @@ def test_language_model_loader_leaves_model_unset_when_no_corpus_is_complete(
         marker="partial-cleaned",
         filenames=("principiante.csv",),
     )
-    bot = SimpleNamespace()
+    bot = make_bot()
     monkeypatch.setattr(hf, "dir_path", str(tmp_path))
     monkeypatch.setattr(hf.here, "bot", bot)
 

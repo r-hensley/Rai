@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
 
 from cogs.utils import catchup
+from tests.discord_fakes import make_channel, make_guild, make_member, make_message
 
 
 pytestmark = pytest.mark.catchup
@@ -67,15 +68,21 @@ def transcript(
 
 def discord_message(second: int, *, content: str = '') -> SimpleNamespace:
     current_id = message_id(second)
-    return SimpleNamespace(
-        id=current_id,
-        channel=SimpleNamespace(id=CHANNEL_ID),
+    guild = make_guild(guild_id=GUILD_ID)
+    channel = make_channel(channel_id=CHANNEL_ID, guild=guild)
+    author = make_member(
+        member_id=555555555555555555,
+        display_name='Example User',
+        guild=guild,
+    )
+    message_content = content or f'message {second}'
+    return make_message(
+        message_id=current_id,
+        channel=channel,
         created_at=BASE_TIME + timedelta(seconds=second),
-        author=SimpleNamespace(id=555555555555555555, display_name='Example User'),
-        clean_content=content or f'message {second}',
-        jump_url=f'https://discord.com/channels/{GUILD_ID}/{CHANNEL_ID}/{current_id}',
-        attachments=[],
-        embeds=[],
+        author=author,
+        content=message_content,
+        clean_content=message_content,
         stickers=[],
     )
 
@@ -306,36 +313,33 @@ async def test_fetch_discord_context_uses_exact_nearest_before_and_after():
     before = [discord_message(3), discord_message(2), discord_message(1)]
     after = [discord_message(5), discord_message(6)]
 
-    class FakeChannel:
-        def __init__(self):
-            self.calls = []
+    def history(**kwargs):
+        values = before if 'before' in kwargs else after
 
-        def history(self, **kwargs):
-            self.calls.append(kwargs)
-            values = before if 'before' in kwargs else after
+        async def iterator():
+            for value in values:
+                yield value
 
-            async def iterator():
-                for value in values:
-                    yield value
+        return iterator()
 
-            return iterator()
-
-    channel = FakeChannel()
+    channel = make_channel(history=Mock(side_effect=history))
     hit = catchup.SearchHit(message=transcript(4), reasons={'direct mention'})
 
     before_result, after_result = await catchup.fetch_discord_context(channel, hit)
 
     assert [message.id for message in before_result] == [message_id(1), message_id(2), message_id(3)]
     assert [message.id for message in after_result] == [message_id(5), message_id(6)]
-    assert channel.calls[0]['limit'] == 20
-    assert channel.calls[0]['before'].id == hit.id
-    assert 'oldest_first' not in channel.calls[0]
-    assert channel.calls[1] == {
+    first_call = channel.history.call_args_list[0].kwargs
+    second_call = channel.history.call_args_list[1].kwargs
+    assert first_call['limit'] == 20
+    assert first_call['before'].id == hit.id
+    assert 'oldest_first' not in first_call
+    assert second_call == {
         'limit': 20,
-        'after': channel.calls[1]['after'],
+        'after': second_call['after'],
         'oldest_first': True,
     }
-    assert channel.calls[1]['after'].id == hit.id
+    assert second_call['after'].id == hit.id
 
 
 def test_merge_context_window_merges_transitive_overlaps_only_within_channel():

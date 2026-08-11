@@ -5,6 +5,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 import cogs.owner as owner_module
+from tests.discord_fakes import (
+    make_bot,
+    make_channel,
+    make_context,
+    make_guild,
+    make_member,
+    make_message,
+)
 
 
 pytestmark = pytest.mark.catchup
@@ -23,23 +31,24 @@ def allow_history(_member):
 
 @pytest.mark.asyncio
 async def test_resolve_catchup_channel_preflights_bot_permissions():
-    bot_member = object()
-    owner_member = object()
+    bot_member = make_member()
+    owner_member = make_member(member_id=OWNER_ID)
     permissions = {
-        bot_member: SimpleNamespace(view_channel=True, read_message_history=False),
-        owner_member: SimpleNamespace(view_channel=True, read_message_history=True),
+        bot_member.id: SimpleNamespace(view_channel=True, read_message_history=False),
+        owner_member.id: SimpleNamespace(view_channel=True, read_message_history=True),
     }
-    guild = SimpleNamespace(id=GUILD_ID, name='Test Guild', me=bot_member)
-    channel = SimpleNamespace(
-        id=CHANNEL_ID,
-        name='general',
-        mention='<#222222222222222222>',
-        guild=guild,
-        history=object(),
-        permissions_for=lambda member: permissions[member],
+    guild = make_guild(
+        guild_id=GUILD_ID,
+        members=[bot_member, owner_member],
+        me=bot_member,
     )
-    guild.get_channel_or_thread = lambda channel_id: channel if channel_id == CHANNEL_ID else None
-    cog = owner_module.Owner(SimpleNamespace(fetch_channel=AsyncMock()))
+    make_channel(
+        channel_id=CHANNEL_ID,
+        name='general',
+        guild=guild,
+        permissions_for=lambda member: permissions[member.id],
+    )
+    cog = owner_module.Owner(make_bot())
 
     with pytest.raises(ValueError, match='Rai lacks Read Message History'):
         await cog._resolve_catchup_channel(guild, CHANNEL_ID, owner_member)
@@ -47,33 +56,38 @@ async def test_resolve_catchup_channel_preflights_bot_permissions():
 
 @pytest.mark.asyncio
 async def test_catchup_command_searches_and_sends_private_markdown(monkeypatch):
-    bot_member = object()
-    guild = SimpleNamespace(id=GUILD_ID, name='Test Guild', me=bot_member)
-    channel = SimpleNamespace(
-        id=CHANNEL_ID,
-        name='general',
-        mention='<#222222222222222222>',
-        guild=guild,
-        history=object(),
-        permissions_for=allow_history,
-    )
-    guild.get_channel_or_thread = lambda channel_id: channel if channel_id == CHANNEL_ID else None
-
-    author = SimpleNamespace(
-        id=OWNER_ID,
+    bot_member = make_member()
+    author = make_member(
+        member_id=OWNER_ID,
         display_name='Ryan, Jr.',
         global_name='Ryan',
         name='ryry013',
         send=AsyncMock(),
     )
-    status = SimpleNamespace(edit=AsyncMock())
-    ctx = SimpleNamespace(
+    guild = make_guild(
+        guild_id=GUILD_ID,
+        members=[bot_member, author],
+        me=bot_member,
+    )
+    channel = make_channel(
+        channel_id=CHANNEL_ID,
+        name='general',
+        guild=guild,
+        permissions_for=allow_history,
+    )
+    status = make_message(
+        author=bot_member,
+        channel=channel,
+        edit=AsyncMock(),
+    )
+    bot = make_bot(http=object())
+    ctx = make_context(
         guild=guild,
         channel=channel,
         author=author,
+        bot=bot,
         send=AsyncMock(return_value=status),
     )
-    bot = SimpleNamespace(http=object(), fetch_channel=AsyncMock())
     cog = owner_module.Owner(bot)
 
     message = owner_module.catchup_utils.TranscriptMessage(

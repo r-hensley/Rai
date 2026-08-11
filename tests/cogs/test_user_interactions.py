@@ -5,6 +5,7 @@ import pytest
 
 from cogs import database
 from cogs.user_interactions import direct_mention_ids, reply_target, timestamp_ms
+from tests.discord_fakes import make_member, make_message, make_message_reference
 
 
 def test_direct_mention_ids_excludes_roles_and_deduplicates_users():
@@ -14,20 +15,19 @@ def test_direct_mention_ids_excludes_roles_and_deduplicates_users():
 
 
 def test_reply_target_uses_resolved_message_before_cache():
-    resolved_author = SimpleNamespace(id=2)
-    message = SimpleNamespace(reference=SimpleNamespace(
-        resolved=SimpleNamespace(author=resolved_author), cached_message=None, message_id=3
-    ))
+    resolved_author = make_member(member_id=2)
+    resolved_message = make_message(message_id=3, author=resolved_author)
+    message = make_message(
+        reference=make_message_reference(resolved=resolved_message),
+    )
 
     assert reply_target(message, []) is resolved_author
 
 
 def test_reply_target_falls_back_to_cached_message():
-    cached_author = SimpleNamespace(id=4)
-    message = SimpleNamespace(reference=SimpleNamespace(
-        resolved=None, cached_message=None, message_id=3
-    ))
-    cached_messages = [SimpleNamespace(id=3, author=cached_author)]
+    cached_author = make_member(member_id=4)
+    message = make_message(reference=make_message_reference(message_id=3))
+    cached_messages = [make_message(message_id=3, author=cached_author)]
 
     assert reply_target(message, cached_messages) is cached_author
 

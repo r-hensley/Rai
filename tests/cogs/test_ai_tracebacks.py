@@ -15,6 +15,15 @@ from cogs import ai as ai_module
 from cogs.ai import AI
 from cogs.background import Background
 from cogs.utils.BotUtils import bot_utils as utils
+from tests.discord_fakes import (
+    make_attachment,
+    make_bot,
+    make_channel,
+    make_guild,
+    make_member,
+    make_message,
+    make_thread,
+)
 
 
 SOURCE_CHANNEL_ID = 123456789012345678
@@ -38,8 +47,10 @@ def _http_error() -> discord.HTTPException:
 
 
 def _forum_with_thread(*, thread_send: AsyncMock | None = None):
-    thread = MagicMock(spec=discord.Thread)
-    thread.send = thread_send or AsyncMock()
+    thread = make_thread(
+        send=thread_send or AsyncMock(),
+        delete=AsyncMock(),
+    )
     forum = MagicMock(spec=discord.ForumChannel)
     forum.id = FORUM_CHANNEL_ID
     forum.create_thread = AsyncMock(return_value=SimpleNamespace(thread=thread))
@@ -47,8 +58,9 @@ def _forum_with_thread(*, thread_send: AsyncMock | None = None):
 
 
 def _cog(*, forum=None):
-    bot_user = SimpleNamespace(id=999, bot=True)
-    bot = SimpleNamespace(
+    guild = make_guild(guild_id=1)
+    bot_user = make_member(member_id=999, bot=True, guild=guild)
+    bot = make_bot(
         user=bot_user,
         db={"ai_features": {"enabled": True}},
         openai=object(),
@@ -62,11 +74,22 @@ def _cog(*, forum=None):
     return cog, bot
 
 
-def _message(bot, body="Traceback\nRuntimeError: boom", *, embeds=None, attachments=None):
-    return SimpleNamespace(
-        guild=SimpleNamespace(id=1),
+def _message(
+        bot,
+        body="Traceback\nRuntimeError: boom",
+        *,
+        channel_id=SOURCE_CHANNEL_ID,
+        embeds=None,
+        attachments=None,
+):
+    guild = bot.user.guild
+    channel = guild.get_channel(channel_id)
+    if channel is None:
+        channel = make_channel(channel_id=channel_id, guild=guild)
+    return make_message(
+        guild=guild,
         author=bot.user,
-        channel=SimpleNamespace(id=SOURCE_CHANNEL_ID),
+        channel=channel,
         content=f"```py\n{body}\n```",
         embeds=[MagicMock(spec=discord.Embed)] if embeds is None else embeds,
         attachments=[] if attachments is None else attachments,
@@ -110,8 +133,7 @@ async def test_self_authored_traceback_is_dispatched_before_general_bot_filter(m
 async def test_self_authored_message_outside_traceback_channel_is_ignored(monkeypatch):
     _configure_source_channel(monkeypatch)
     cog, bot = _cog()
-    msg = _message(bot)
-    msg.channel = SimpleNamespace(id=SOURCE_CHANNEL_ID + 1)
+    msg = _message(bot, channel_id=SOURCE_CHANNEL_ID + 1)
     cog.log_rai_tracebacks = AsyncMock()
     cog.mods_ping = AsyncMock()
     cog.sp_serv_other_language_detection = AsyncMock()
@@ -155,12 +177,11 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
             )
         )
 
-    source_channel = MagicMock(spec=discord.TextChannel)
-    source_channel.send = AsyncMock(side_effect=capture_source_send)
-    producer_bot = SimpleNamespace(
-        get_channel=MagicMock(return_value=source_channel),
-        get_guild=MagicMock(return_value=None),
+    source_channel = make_channel(
+        channel_id=SOURCE_CHANNEL_ID,
+        send=AsyncMock(side_effect=capture_source_send),
     )
+    producer_bot = make_bot(channels=[source_channel])
     long_error_text = "TRACEBACK-START-雪🚨-" + ("detail-line\n" * 450) + "TRACEBACK-END"
 
     try:
@@ -206,9 +227,9 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
         attachments = []
         if source_message.attachment_bytes is not None:
             attachments = [
-                SimpleNamespace(
+                make_attachment(
                     filename=source_message.attachment_name,
-                    read=AsyncMock(return_value=source_message.attachment_bytes),
+                    data=source_message.attachment_bytes,
                 )
             ]
         msg = _message(
@@ -371,9 +392,7 @@ async def test_lossy_legacy_chain_fingerprint_does_not_suppress_new_outer_error(
 async def test_transient_discord_failure_is_retried_in_place(monkeypatch, failure_stage):
     _configure_source_channel(monkeypatch)
     monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
-    thread = MagicMock(spec=discord.Thread)
-    thread.send = AsyncMock()
-    thread.delete = AsyncMock()
+    thread = make_thread(send=AsyncMock(), delete=AsyncMock())
     forum = MagicMock(spec=discord.ForumChannel)
     forum.id = FORUM_CHANNEL_ID
 
@@ -403,11 +422,8 @@ async def test_transient_discord_failure_is_retried_in_place(monkeypatch, failur
 async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeypatch, failure_stage):
     _configure_source_channel(monkeypatch)
     monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
-    failed_thread = MagicMock(spec=discord.Thread)
-    failed_thread.send = AsyncMock()
-    failed_thread.delete = AsyncMock()
-    successful_thread = MagicMock(spec=discord.Thread)
-    successful_thread.send = AsyncMock()
+    failed_thread = make_thread(send=AsyncMock(), delete=AsyncMock())
+    successful_thread = make_thread(send=AsyncMock(), delete=AsyncMock())
     forum = MagicMock(spec=discord.ForumChannel)
     forum.id = FORUM_CHANNEL_ID
 
@@ -454,7 +470,7 @@ async def test_missing_or_wrong_type_traceback_forum_is_quietly_ignored(monkeypa
 
 @pytest.mark.asyncio
 async def test_background_error_uses_shared_traceback_sender(monkeypatch):
-    bot = SimpleNamespace()
+    bot = make_bot()
     cog = Background.__new__(Background)
     cog.bot = bot
     send_error_embed = AsyncMock()

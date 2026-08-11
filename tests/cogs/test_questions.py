@@ -1,45 +1,56 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import discord
-
 from cogs.questions import Questions
+from tests.discord_fakes import (
+    discord_not_found,
+    make_bot,
+    make_channel,
+    make_context,
+    make_guild,
+    make_member,
+    make_message,
+)
 
 
 class TestQuestions(unittest.IsolatedAsyncioTestCase):
     async def test_list_removes_stale_question_from_its_own_channel(self):
-        response = SimpleNamespace(status=404, reason="Not Found")
-        not_found = discord.NotFound(response, {"code": 10008, "message": "Unknown Message"})
-        author = SimpleNamespace(id=20, mention="<@20>", name="asker")
-        current_channel = SimpleNamespace(id=30, name="current", mention="<#30>")
-        stale_channel = SimpleNamespace(id=31, name="stale", mention="<#31>")
-        current_message = SimpleNamespace(
-            id=40,
+        not_found = discord_not_found()
+        current_channel = make_channel(channel_id=30, name="current")
+        stale_channel = make_channel(
+            channel_id=31,
+            name="stale",
+            fetch_message=AsyncMock(side_effect=not_found),
+        )
+        log_channel = make_channel(channel_id=50)
+        guild = make_guild(
+            guild_id=10,
+            channels=[current_channel, stale_channel, log_channel],
+        )
+        author = make_member(member_id=20, name="asker", guild=guild)
+        current_message = make_message(
+            message_id=40,
             content="Current question",
             author=author,
             channel=current_channel,
-            jump_url="https://discord.com/channels/10/30/40",
-            attachments=[],
+            guild=guild,
         )
         current_channel.fetch_message = AsyncMock(return_value=current_message)
-        stale_channel.fetch_message = AsyncMock(side_effect=not_found)
-        stale_log_message = SimpleNamespace(delete=AsyncMock())
-        log_channel = SimpleNamespace(id=50, fetch_message=AsyncMock(return_value=stale_log_message))
+        stale_log_message = make_message(
+            message_id=61,
+            channel=log_channel,
+            guild=guild,
+        )
+        log_channel.fetch_message = AsyncMock(return_value=stale_log_message)
         current_question = {"question_message": 40, "log_message": 60, "thread": None}
         stale_question = {"question_message": 41, "log_message": 61, "thread": None}
         config = {
             "30": {"questions": {"1": current_question}, "log_channel": 50},
             "31": {"questions": {"1": stale_question}, "log_channel": 50},
         }
-        channels = {30: current_channel, 31: stale_channel, 50: log_channel}
-        guild = SimpleNamespace(
-            id=10,
-            get_channel_or_thread=lambda channel_id: channels.get(channel_id),
-        )
-        ctx = SimpleNamespace(guild=guild, channel=current_channel)
+        ctx = make_context(guild=guild, channel=current_channel, author=author)
         questions = Questions.__new__(Questions)
-        questions.bot = SimpleNamespace(db={"questions": {"10": config}})
+        questions.bot = make_bot(db={"questions": {"10": config}})
 
         with patch("cogs.questions.utils.safe_send", AsyncMock()):
             await Questions.question_list.callback(questions, ctx, target_channel=log_channel)
@@ -50,29 +61,34 @@ class TestQuestions(unittest.IsolatedAsyncioTestCase):
 
     async def test_add_question_tolerates_cleanup_during_log_refresh(self):
         config = {"questions": {}, "log_channel": 50, "threads": False}
-        log_channel = SimpleNamespace(id=50)
-        guild = SimpleNamespace(
-            id=10,
-            get_channel_or_thread=lambda channel_id: log_channel if channel_id == 50 else None,
+        log_channel = make_channel(channel_id=50)
+        channel = make_channel(channel_id=30)
+        guild = make_guild(
+            guild_id=10,
+            channels=[channel, log_channel],
         )
-        author = SimpleNamespace(id=20, mention="<@20>", name="asker")
-        channel = SimpleNamespace(id=30, guild=guild, mention="<#30>")
-        target_message = SimpleNamespace(
-            id=40,
+        author = make_member(member_id=20, name="asker", guild=guild)
+        target_message = make_message(
+            message_id=40,
             content="A question",
             author=author,
             channel=channel,
-            jump_url="https://discord.com/channels/10/30/40",
-            add_reaction=AsyncMock(),
+            guild=guild,
         )
-        ctx = SimpleNamespace(
+        command_message = make_message(
+            message_id=41,
+            author=author,
+            channel=channel,
+            guild=guild,
+        )
+        ctx = make_context(
             guild=guild,
             channel=channel,
             author=author,
-            message=SimpleNamespace(attachments=[]),
+            message=command_message,
         )
         questions = Questions.__new__(Questions)
-        questions.bot = SimpleNamespace(db={"questions": {"10": {"30": config}}})
+        questions.bot = make_bot(db={"questions": {"10": {"30": config}}})
         questions.get_color_from_name = lambda _ctx: 0x123456
         questions._delete_log = AsyncMock()
 
@@ -80,7 +96,12 @@ class TestQuestions(unittest.IsolatedAsyncioTestCase):
             config["questions"].pop("1")
 
         questions._post_log = remove_question
-        safe_send = AsyncMock(return_value=SimpleNamespace(id=60))
+        log_message = make_message(
+            message_id=60,
+            channel=log_channel,
+            guild=guild,
+        )
+        safe_send = AsyncMock(return_value=log_message)
 
         with patch("cogs.questions.utils.safe_send", safe_send):
             await questions.add_question(ctx, target_message)

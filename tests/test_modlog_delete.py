@@ -1,42 +1,27 @@
-import sys
-import types
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
 import pytest
 
-
-# Keep this focused unit test independent from Rai's runtime startup checks and
-# credentials; channel_mods only needs the Rai class for a type annotation here.
-_previous_rai_module = sys.modules.get("Rai")
-if _previous_rai_module is None:
-    rai_stub = types.ModuleType("Rai")
-    rai_stub.Rai = type("Rai", (), {})
-    sys.modules["Rai"] = rai_stub
-
-from cogs.utils import helper_functions as hf  # noqa: E402
-
-_previous_bot = hf.here.bot
-hf.here.bot = SimpleNamespace(profiling_decorators=set())
-try:
-    import cogs.channel_mods as channel_mods  # noqa: E402
-finally:
-    hf.here.bot = _previous_bot
-    if _previous_rai_module is None:
-        sys.modules.pop("Rai", None)
+import cogs.channel_mods as channel_mods
+from tests.discord_fakes import (
+    make_bot,
+    make_context,
+    make_guild,
+    make_member,
+    make_message,
+)
 
 
-def make_context(entries):
-    guild = SimpleNamespace(id=1)
-    bot = SimpleNamespace(
+def make_modlog_context(entries):
+    guild = make_guild(guild_id=1)
+    bot = make_bot(
         db={'modlog': {str(guild.id): {'42': entries}}},
-        get_channel=lambda _channel_id: None,
     )
-    ctx = SimpleNamespace(
+    author = make_member(member_id=2, guild=guild)
+    message = make_message(author=author, guild=guild)
+    ctx = make_context(
         guild=guild,
         bot=bot,
-        author=SimpleNamespace(id=2),
-        message=SimpleNamespace(add_reaction=AsyncMock()),
+        author=author,
+        message=message,
     )
     return bot, ctx
 
@@ -63,7 +48,7 @@ async def test_trial_staff_can_delete_automod_timeout():
         'author_id': None,
         'jump_url': None,
     }]
-    bot, ctx = make_context(entries)
+    bot, ctx = make_modlog_context(entries)
     cog = channel_mods.ChannelMods(bot)
 
     await cog.modlog_delete.callback(cog, ctx, '42', indices='1')
@@ -85,7 +70,7 @@ async def test_trial_staff_cannot_delete_someone_elses_non_automod_log(monkeypat
         'author_id': 999,
         'jump_url': None,
     }]
-    bot, ctx = make_context(entries)
+    bot, ctx = make_modlog_context(entries)
     cog = channel_mods.ChannelMods(bot)
 
     await cog.modlog_delete.callback(cog, ctx, '42', indices='1')
@@ -101,7 +86,7 @@ async def test_trial_staff_can_delete_all_own_and_automod_logs():
         {'type': 'Warning', 'author_id': 2, 'jump_url': None},
         {'type': 'AutoMod Timeout', 'author_id': None, 'jump_url': None},
     ]
-    bot, ctx = make_context(entries)
+    bot, ctx = make_modlog_context(entries)
     cog = channel_mods.ChannelMods(bot)
 
     await cog.modlog_delete.callback(cog, ctx, '42', indices='-all')

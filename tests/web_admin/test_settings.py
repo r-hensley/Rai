@@ -1,7 +1,6 @@
 import json
 import time
 from copy import deepcopy
-from types import SimpleNamespace
 
 import pytest
 from aiohttp import web
@@ -11,6 +10,7 @@ from web_admin import config as web_config
 from web_admin import security as web_security
 from web_admin import settings as web_settings
 from web_admin.site import WebAdminSite
+from tests.discord_fakes import make_bot, make_channel, make_guild, make_member, make_role
 
 
 GUILD_ID = web_config.SPANISH_GUILD_ID
@@ -21,60 +21,32 @@ ADMIN_ROLE_ID = web_config.SPANISH_ADMINISTRATOR_ROLE_ID
 MODERATOR_ROLE_ID = 1483184760804347966
 
 
-class DummyGuild:
-    def __init__(self):
-        self.id = GUILD_ID
-        self.name = "Spanish Server"
-        self.text_channels = [
-            SimpleNamespace(id=101, name="mod-room"),
-            SimpleNamespace(id=102, name="logs"),
-            SimpleNamespace(id=103, name="general"),
-        ]
-        self.roles = [
-            SimpleNamespace(id=GUILD_ID, name="@everyone"),
-            SimpleNamespace(id=591745589054668817, name="Trial Staff Helper"),
-            SimpleNamespace(id=MODERATOR_ROLE_ID, name="Moderator"),
-            SimpleNamespace(id=ADMIN_ROLE_ID, name="Administrator"),
-            SimpleNamespace(id=777, name="Trusted Member"),
-        ]
-        self.members = {
-            OWNER_ID: SimpleNamespace(id=OWNER_ID, roles=[]),
-            ADMIN_ID: SimpleNamespace(
-                id=ADMIN_ID,
-                roles=[self.get_role(ADMIN_ROLE_ID)],
-            ),
-            MODERATOR_ID: SimpleNamespace(
-                id=MODERATOR_ID,
-                roles=[self.get_role(MODERATOR_ROLE_ID)],
-            ),
-        }
-
-    def get_member(self, user_id):
-        return self.members.get(user_id)
-
-    def get_role(self, role_id):
-        return next((role for role in self.roles if role.id == role_id), None)
-
-    def get_channel_or_thread(self, channel_id):
-        return next((channel for channel in self.text_channels if channel.id == channel_id), None)
-
-
-class DummyBot:
-    def __init__(self, guild):
-        self.guild = guild
-        self.owner_id = OWNER_ID
-        self.owner_ids = None
-        self.db = {
-            "mod_channel": {},
-            "mod_role": {},
-            "submod_role": {},
-            "antispam": {},
-            "forcehardcore": [],
-            **{module: {} for module, _label in web_config.LOGGING_MODULES},
-        }
-
-    def get_guild(self, guild_id):
-        return self.guild if guild_id == self.guild.id else None
+def make_settings_guild():
+    channels = [
+        make_channel(channel_id=101, name="mod-room"),
+        make_channel(channel_id=102, name="logs"),
+        make_channel(channel_id=103, name="general"),
+    ]
+    roles = [
+        make_role(role_id=GUILD_ID, name="@everyone"),
+        make_role(role_id=591745589054668817, name="Trial Staff Helper"),
+        make_role(role_id=MODERATOR_ROLE_ID, name="Moderator"),
+        make_role(role_id=ADMIN_ROLE_ID, name="Administrator"),
+        make_role(role_id=777, name="Trusted Member"),
+    ]
+    roles_by_id = {role.id: role for role in roles}
+    members = [
+        make_member(member_id=OWNER_ID),
+        make_member(member_id=ADMIN_ID, roles=[roles_by_id[ADMIN_ROLE_ID]]),
+        make_member(member_id=MODERATOR_ID, roles=[roles_by_id[MODERATOR_ROLE_ID]]),
+    ]
+    return make_guild(
+        guild_id=GUILD_ID,
+        name="Spanish Server",
+        channels=channels,
+        roles=roles,
+        members=members,
+    )
 
 
 class FakeRequest:
@@ -105,8 +77,22 @@ def settings_site(monkeypatch):
     }
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
-    guild = DummyGuild()
-    return WebAdminSite(DummyBot(guild))
+    guild = make_settings_guild()
+    bot = make_bot(
+        guilds=[guild],
+        guild=guild,
+        owner_id=OWNER_ID,
+        owner_ids=None,
+        db={
+            "mod_channel": {},
+            "mod_role": {},
+            "submod_role": {},
+            "antispam": {},
+            "forcehardcore": [],
+            **{module: {} for module, _label in web_config.LOGGING_MODULES},
+        },
+    )
+    return WebAdminSite(bot)
 
 
 def session_request(site, user_id, *, form=None, query=None, csrf=True):
@@ -177,7 +163,7 @@ async def test_administrator_role_is_rechecked_before_each_write(settings_site, 
     monkeypatch.setattr(web_settings.utils, "dump_json", successful_dump)
     form = MultiDict({"mod_channel": "101"})
     request, _session = session_request(settings_site, ADMIN_ID, form=form)
-    settings_site.bot.guild.members[ADMIN_ID].roles = [
+    settings_site.bot.guild.get_member(ADMIN_ID).roles = [
         settings_site.bot.guild.get_role(MODERATOR_ROLE_ID),
     ]
 

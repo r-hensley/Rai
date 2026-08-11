@@ -1,11 +1,10 @@
-from types import SimpleNamespace
-
 from cogs.utils import helper_functions as hf
+from tests.discord_fakes import make_bot, make_guild
 
 
 def test_get_recent_language_message_links_returns_newest_cached_links_first():
     old_bot = hf.here.bot
-    hf.here.bot = SimpleNamespace(
+    hf.here.bot = make_bot(
         stats={
             "123": {
                 "messages": {
@@ -31,7 +30,7 @@ def test_get_recent_language_message_links_returns_newest_cached_links_first():
     )
 
     try:
-        guild = SimpleNamespace(id=123)
+        guild = make_guild(guild_id=123)
 
         assert hf.get_recent_language_message_links(456, guild, "en", 3) == [
             "newer-en-2",
@@ -49,7 +48,7 @@ def test_get_recent_language_message_links_returns_newest_cached_links_first():
 
 def test_get_recent_language_message_links_handles_missing_cache():
     old_bot = hf.here.bot
-    hf.here.bot = SimpleNamespace(
+    hf.here.bot = make_bot(
         stats={
             "123": {
                 "messages": {
@@ -62,7 +61,7 @@ def test_get_recent_language_message_links_handles_missing_cache():
     )
 
     try:
-        guild = SimpleNamespace(id=123)
+        guild = make_guild(guild_id=123)
 
         assert hf.get_recent_language_message_links(456, guild, "en", 5) == []
         assert hf.get_recent_language_message_links(456, guild, "es", 5) == []

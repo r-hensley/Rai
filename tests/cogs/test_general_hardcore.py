@@ -1,21 +1,9 @@
-import sys
-import types
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
-
-_previous_rai_module = sys.modules.get("Rai")
-if _previous_rai_module is None:
-    rai_stub = types.ModuleType("Rai")
-    rai_stub.Rai = type("Rai", (), {})
-    sys.modules["Rai"] = rai_stub
-
-from cogs import general as general_module  # noqa: E402
-
-if _previous_rai_module is None:
-    sys.modules.pop("Rai", None)
+from cogs import general as general_module
+from tests.discord_fakes import make_bot, make_context, make_guild, make_member, make_role
 
 
 SP_SERVER_ID = general_module.SP_SERVER_ID
@@ -25,7 +13,7 @@ NIGHTMARE_HARDCORE_ROLE_ID = general_module.SP_NIGHTMARE_HARDCORE_ROLE_ID
 
 def make_role_map(*role_ids):
     return {
-        role_id: SimpleNamespace(id=role_id)
+        role_id: make_role(role_id=role_id)
         for role_id in role_ids
     }
 
@@ -34,24 +22,25 @@ def make_role_map(*role_ids):
 async def test_admin_remove_recognizes_nightmare_hardcore(monkeypatch):
     roles = make_role_map(*general_module.SP_HARDCORE_ROLE_IDS)
     nightmare_role = roles[NIGHTMARE_HARDCORE_ROLE_ID]
-    guild = SimpleNamespace(
-        id=SP_SERVER_ID,
+    guild = make_guild(
+        guild_id=SP_SERVER_ID,
         name="Spanish-English Language Exchange",
-        get_role=Mock(side_effect=roles.get),
+        roles=roles.values(),
     )
-    member = SimpleNamespace(
-        id=42,
-        mention="<@42>",
+    member = make_member(
+        member_id=42,
+        guild=guild,
         roles=[nightmare_role],
         remove_roles=AsyncMock(),
         send=AsyncMock(),
     )
-    ctx = SimpleNamespace(
-        author=SimpleNamespace(id=99),
+    moderator = make_member(member_id=99, guild=guild)
+    ctx = make_context(
+        author=moderator,
         guild=guild,
     )
     cog = object.__new__(general_module.General)
-    cog.bot = SimpleNamespace(
+    cog.bot = make_bot(
         db={
             "hardcore": {
                 str(SP_SERVER_ID): {
@@ -86,19 +75,20 @@ async def test_self_service_hardcore_removes_nightmare_without_adding_standard_r
     )
     nightmare_role = roles[NIGHTMARE_HARDCORE_ROLE_ID]
     learning_role = roles[LEARNING_ENGLISH_ROLE_ID]
-    guild = SimpleNamespace(
-        id=SP_SERVER_ID,
-        get_role=Mock(side_effect=roles.get),
+    guild = make_guild(
+        guild_id=SP_SERVER_ID,
+        roles=roles.values(),
     )
-    author = SimpleNamespace(
-        id=42,
+    author = make_member(
+        member_id=42,
+        guild=guild,
         roles=[nightmare_role, learning_role],
         add_roles=AsyncMock(),
         remove_roles=AsyncMock(),
     )
-    ctx = SimpleNamespace(author=author, guild=guild)
+    ctx = make_context(author=author, guild=guild)
     cog = object.__new__(general_module.General)
-    cog.bot = SimpleNamespace(
+    cog.bot = make_bot(
         db={
             "hardcore": {
                 str(SP_SERVER_ID): {

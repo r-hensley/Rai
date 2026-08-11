@@ -1,8 +1,8 @@
-from types import SimpleNamespace
-
 import pytest
+from unittest.mock import AsyncMock
 
 import cogs.owner as owner_module
+from tests.discord_fakes import make_bot, make_context, make_message
 
 
 def test_clear_imported_package_only_removes_requested_tree(monkeypatch):
@@ -29,14 +29,6 @@ def test_clear_imported_package_only_removes_requested_tree(monkeypatch):
 async def test_reload_web_admin_clears_package_before_extension(monkeypatch):
     events = []
 
-    class FakeBot:
-        async def reload_extension(self, extension_name):
-            events.append(("reload", extension_name))
-
-    class FakeMessage:
-        async def delete(self):
-            events.append(("delete", None))
-
     async def reload_success(_ctx, cog):
         events.append(("success", cog))
 
@@ -45,9 +37,19 @@ async def test_reload_web_admin_clears_package_before_extension(monkeypatch):
         "_clear_imported_package",
         lambda package_name: events.append(("clear", package_name)),
     )
-    owner = owner_module.Owner(FakeBot())
+    bot = make_bot(
+        reload_extension=AsyncMock(
+            side_effect=lambda extension_name: events.append(
+                ("reload", extension_name)
+            ),
+        ),
+    )
+    message = make_message(
+        delete=AsyncMock(side_effect=lambda: events.append(("delete", None))),
+    )
+    owner = owner_module.Owner(bot)
     monkeypatch.setattr(owner, "reload_success", reload_success)
-    ctx = SimpleNamespace(message=FakeMessage())
+    ctx = make_context(message=message)
 
     await owner_module.Owner.reload.callback(owner, ctx, cogs="web_admin")
 

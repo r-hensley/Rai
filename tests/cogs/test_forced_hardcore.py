@@ -1,10 +1,12 @@
 import sys
 import types
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
+
+from tests.discord_fakes import make_guild, make_member, make_message, make_role
+from tests.discord_fakes import make_bot, make_category
 
 
 _previous_rai_module = sys.modules.get("Rai")
@@ -13,15 +15,10 @@ if _previous_rai_module is None:
     rai_stub.Rai = type("Rai", (), {})
     sys.modules["Rai"] = rai_stub
 
-from cogs.utils import helper_functions as hf  # noqa: E402
-
-_previous_bot = hf.here.bot
-hf.here.bot = SimpleNamespace(profiling_decorators=set())
 try:
     from cogs import cnserver as cnserver_module  # noqa: E402
     from cogs import message as message_module  # noqa: E402
 finally:
-    hf.here.bot = _previous_bot
     if _previous_rai_module is None:
         sys.modules.pop("Rai", None)
 
@@ -33,7 +30,7 @@ STANDARD_HARDCORE_ROLE_ID = message_module.SP_HARDCORE_ROLE_IDS[0]
 NIGHTMARE_HARDCORE_ROLE_ID = message_module.SP_NIGHTMARE_HARDCORE_ROLE_ID
 
 
-def make_message(
+def make_hardcore_message(
         *,
         guild_id=SP_SERVER_ID,
         channel_id=TARGET_CHANNEL_ID,
@@ -41,16 +38,22 @@ def make_message(
         content="This is a sufficiently long test message.",
         category_id=999,
 ):
-    channel = Mock(spec=discord.TextChannel)
-    channel.id = channel_id
-    channel.category = SimpleNamespace(id=category_id)
     roles = {
-        role_id: SimpleNamespace(id=role_id)
+        role_id: make_role(role_id=role_id)
         for role_id in role_ids
     }
-    guild = SimpleNamespace(id=guild_id, get_role=Mock(side_effect=roles.get))
-    author = SimpleNamespace(
-        bot=False,
+    category = make_category(category_id=category_id)
+    guild = make_guild(
+        guild_id=guild_id,
+        categories=[category],
+        roles=roles.values(),
+    )
+    channel = Mock(spec=discord.TextChannel)
+    channel.id = channel_id
+    channel.category = category
+    channel.guild = guild
+    author = make_member(
+        guild=guild,
         roles=list(roles.values()),
     )
     msg = Mock(spec=discord.Message)
@@ -74,7 +77,7 @@ def structured_rule(**overrides):
 
 def make_message_cog(*, forcehardcore, ignored=()):
     cog = object.__new__(message_module.Message)
-    cog.bot = SimpleNamespace(
+    cog.bot = make_bot(
         db={
             "forcehardcore": forcehardcore,
             "hardcore": {str(SP_SERVER_ID): {"ignore": list(ignored)}},
@@ -86,13 +89,13 @@ def make_message_cog(*, forcehardcore, ignored=()):
 
 
 def test_legacy_channel_id_still_forces_everyone():
-    msg = make_message(role_ids=())
+    msg = make_hardcore_message(role_ids=())
 
     assert message_module.forced_hardcore_applies(msg, [TARGET_CHANNEL_ID]) is True
 
 
 def test_structured_rule_requires_matching_guild_channel_and_role():
-    msg = make_message(role_ids=[TARGET_ROLE_ID])
+    msg = make_hardcore_message(role_ids=[TARGET_ROLE_ID])
 
     assert message_module.forced_hardcore_applies(msg, [structured_rule()]) is True
 
@@ -110,14 +113,14 @@ def test_structured_rule_requires_matching_guild_channel_and_role():
 )
 def test_structured_rule_rejects_scope_mismatches(message_overrides, rule_overrides):
     message_options = {"role_ids": [TARGET_ROLE_ID], **message_overrides}
-    msg = make_message(**message_options)
+    msg = make_hardcore_message(**message_options)
 
     assert message_module.forced_hardcore_applies(
         msg, [structured_rule(**rule_overrides)]) is False
 
 
 def test_malformed_rules_are_skipped_without_hiding_later_valid_rule():
-    msg = make_message(role_ids=[TARGET_ROLE_ID])
+    msg = make_hardcore_message(role_ids=[TARGET_ROLE_ID])
     rules = [
         None,
         "not-a-legacy-rule",
@@ -130,7 +133,7 @@ def test_malformed_rules_are_skipped_without_hiding_later_valid_rule():
 
 
 def test_structured_rule_without_role_is_channel_wide():
-    msg = make_message(role_ids=())
+    msg = make_hardcore_message(role_ids=())
     rule = structured_rule()
     rule.pop("role_id")
 
@@ -139,7 +142,7 @@ def test_structured_rule_without_role_is_channel_wide():
 
 @pytest.mark.asyncio
 async def test_spanish_forced_rule_bypasses_ignore_list_and_asterisk(monkeypatch):
-    msg = make_message(
+    msg = make_hardcore_message(
         role_ids=[TARGET_ROLE_ID],
         content="*This is a sufficiently long English message.",
         category_id=888,
@@ -157,7 +160,7 @@ async def test_spanish_forced_rule_bypasses_ignore_list_and_asterisk(monkeypatch
 @pytest.mark.parametrize("ignored", [(TARGET_CHANNEL_ID,), (888,)])
 async def test_spanish_nightmare_hardcore_bypasses_ignored_channels_and_categories(
         monkeypatch, ignored):
-    msg = make_message(
+    msg = make_hardcore_message(
         role_ids=[NIGHTMARE_HARDCORE_ROLE_ID],
         category_id=888,
     )
@@ -171,7 +174,7 @@ async def test_spanish_nightmare_hardcore_bypasses_ignored_channels_and_categori
 @pytest.mark.parametrize("ignored", [(TARGET_CHANNEL_ID,), (888,)])
 async def test_spanish_standard_hardcore_still_respects_ignored_channels_and_categories(
         monkeypatch, ignored):
-    msg = make_message(
+    msg = make_hardcore_message(
         role_ids=[STANDARD_HARDCORE_ROLE_ID],
         category_id=888,
     )
@@ -183,7 +186,7 @@ async def test_spanish_standard_hardcore_still_respects_ignored_channels_and_cat
 
 @pytest.mark.asyncio
 async def test_spanish_forced_rule_still_bypasses_missing_hardcore_config(monkeypatch):
-    msg = make_message(
+    msg = make_hardcore_message(
         role_ids=[TARGET_ROLE_ID],
         content="*This is a sufficiently long English message.",
     )
@@ -198,8 +201,8 @@ async def test_spanish_forced_rule_still_bypasses_missing_hardcore_config(monkey
 @pytest.mark.parametrize(
     "msg",
     [
-        make_message(role_ids=()),
-        make_message(channel_id=123, role_ids=[TARGET_ROLE_ID]),
+        make_hardcore_message(role_ids=()),
+        make_hardcore_message(channel_id=123, role_ids=[TARGET_ROLE_ID]),
     ],
 )
 async def test_spanish_forced_rule_does_not_apply_without_full_scope(monkeypatch, msg):
@@ -211,13 +214,13 @@ async def test_spanish_forced_rule_does_not_apply_without_full_scope(monkeypatch
 
 @pytest.mark.asyncio
 async def test_chinese_legacy_forcehardcore_still_bypasses_normal_role():
-    msg = make_message(
+    msg = make_hardcore_message(
         guild_id=cnserver_module.CH_SERVER_ID,
         channel_id=123,
         content="test message",
     )
     cog = object.__new__(cnserver_module.Cnserver)
-    cog.bot = SimpleNamespace(db={"forcehardcore": [123], "hardcore": {}})
+    cog.bot = make_bot(db={"forcehardcore": [123], "hardcore": {}})
     cog.cn_lang_check = AsyncMock()
 
     await cnserver_module.Cnserver.on_message(cog, msg)
@@ -228,13 +231,13 @@ async def test_chinese_legacy_forcehardcore_still_bypasses_normal_role():
 @pytest.mark.asyncio
 async def test_missing_chinese_hardcore_config_does_not_erase_forced_rules():
     rule = structured_rule()
-    msg = make_message(
+    msg = make_hardcore_message(
         guild_id=cnserver_module.CH_SERVER_ID,
         channel_id=456,
         content="test message",
     )
     cog = object.__new__(cnserver_module.Cnserver)
-    cog.bot = SimpleNamespace(db={"forcehardcore": [rule], "hardcore": {}})
+    cog.bot = make_bot(db={"forcehardcore": [rule], "hardcore": {}})
     cog.cn_lang_check = AsyncMock()
 
     await cnserver_module.Cnserver.on_message(cog, msg)
@@ -254,7 +257,7 @@ async def test_missing_chinese_hardcore_config_does_not_erase_forced_rules():
 async def test_spanish_hardcore_deletes_the_non_target_language(
         learning_role_id, detected_lang, content):
     roles = {
-        role_id: SimpleNamespace(id=role_id)
+        role_id: make_role(role_id=role_id)
         for role_id in (
             247021017740869632,
             297415063302832128,
@@ -262,13 +265,14 @@ async def test_spanish_hardcore_deletes_the_non_target_language(
             247020385730691073,
         )
     }
-    msg = SimpleNamespace(
+    guild = make_guild(roles=roles.values())
+    author = make_member(guild=guild, roles=[roles[learning_role_id]])
+    msg = make_message(
         hardcore=True,
-        guild=SimpleNamespace(get_role=lambda role_id: roles[role_id]),
-        author=SimpleNamespace(roles=[roles[learning_role_id]]),
+        guild=guild,
+        author=author,
         detected_lang=detected_lang,
         content=content,
-        delete=AsyncMock(),
     )
     cog = object.__new__(message_module.Message)
 
