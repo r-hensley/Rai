@@ -10,6 +10,7 @@ from discord import app_commands, Interaction
 from discord.ext import commands
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.views import is_public_notification_channel, offer_public_notification_fallback
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -968,13 +969,7 @@ class Submod(commands.Cog):
                     await utils.safe_send(user, content, embed=emb)
                 # if bot fails to send message to user, offer to send warning to a public channel
                 except discord.Forbidden:
-                    try:
-                        # This will attempt to warn the user in a public channel if possible on your server
-                        await self.attempt_public_warn(ctx, user, emb)
-                    except discord.Forbidden:
-                        continue  # failure in above command
-                    except asyncio.TimeoutError:
-                        return
+                    await offer_public_notification_fallback(ctx, user, emb, "warning")
                 except discord.HTTPException:
                     await utils.safe_send(ctx, f"I cannot send messages to {user.mention}.")
                     continue
@@ -1019,88 +1014,38 @@ class Submod(commands.Cog):
             else:
                 await utils.safe_send(ctx, embed=emb)
     
-    async def attempt_public_warn(self, ctx, user, emb):
-        if notif_channel_id := self.bot.db['modlog'] \
-                .get(str(ctx.guild.id), {}) \
-                .get("warn_notification_channel", None):
-            notif_channel = self.bot.get_channel(notif_channel_id)
-        else:
-            await utils.safe_send(ctx, "I was unable to send the warning to this user. "
-                                       "In the future you can type `;warn set` in a text channel in your "
-                                       "server and I will offer to send a public warning to the user in "
-                                       "these cases.")
-            raise PermissionError
-        
-        if notif_channel:
-            question = await utils.safe_send(ctx, f"I could not send a message to {user.mention}. "
-                                                  f"Would you like to send a public warning to "
-                                                  f"{notif_channel.mention}?")
-            await question.add_reaction('✅')
-            await question.add_reaction('❌')
-            
-            def reaction_check(r, u):
-                return u == ctx.author and str(r) in '✅❌'
-            
-            try:
-                reaction_added, _user_react = await self.bot.wait_for("reaction_add",
-                                                                      check=reaction_check,
-                                                                      timeout=10)
-            except asyncio.TimeoutError:
-                await utils.safe_send(ctx,
-                                      f"Action timed out, I will not warn the user {user.mention}.")
-                raise
-            else:
-                if str(reaction_added) == '✅':
-                    try:
-                        await utils.safe_send(notif_channel,
-                                              f"{user.mention}: Due to your privacy settings "
-                                              f"disabling messages from bots, we are "
-                                              f"delivering this warning in a "
-                                              f"public channel. If you believe this to be an "
-                                              f"error, please contact a mod.",
-                                              embed=emb)
-                    except discord.Forbidden:
-                        await utils.safe_send(ctx,
-                                              "I can't send messages to the channel you have marked "
-                                              "in this server as the warn notifications channel. Please "
-                                              "go to a new channel and type `;warns set`.")
-                        raise
-                elif str(reaction_added) == '❌':
-                    await utils.safe_send(ctx, f"I will not warn the user {user.mention}.")
-                else:
-                    raise ValueError(
-                        f"The reaction I detected was not ✅❌, I got {reaction_added}")
-    
     @warn.command(name="set")
     @hf.is_submod()
     async def set_warn_notification_channel(self, ctx, channel_id: Optional[str] = None):
         """
-        For the case where you wish to warn a user, but they have their DMs closed,
-        you can choose to send the notification of the ban to the channel set
-        by this command.
+        When a warning or mute DM fails, staff can choose to send the notification
+        publicly in the channel set by this command.
 
         Either go to the channel and type `;warn set` or specify a channel like `;warn set #channel_name` (or an ID)
         """
-        if str(ctx.guild.id) not in self.bot.db['modlog']:
-            return
-        config: dict = self.bot.db['modlog'][str(ctx.guild.id)]
+        config: dict = self.bot.db['modlog'].setdefault(str(ctx.guild.id), {'channel': None})
         
         if channel_id:
             if regex_result := re.search(r"^<?#?(\d{17,22})>?$", channel_id):
-                channel = self.bot.get_channel(int(regex_result.group(1)))
+                channel = ctx.guild.get_channel_or_thread(int(regex_result.group(1)))
             else:
                 channel = None
             
-            if not channel:
+            if not is_public_notification_channel(channel):
                 await utils.safe_send(ctx,
-                                      "I failed to find the channel you mentioned. Please try again.")
+                                      "I failed to find a usable text channel or thread. Please try again.")
                 return
         else:
             channel = ctx.channel
+
+        if not is_public_notification_channel(channel):
+            await utils.safe_send(ctx,
+                                  "Please run this command in a text channel or thread.")
+            return
         
         config['warn_notification_channel'] = channel.id
         await utils.safe_send(ctx,
-                              f"Set warning channel for users with DMs disabled to {channel.mention}.")
+                              f"Set the public warning/mute fallback channel to {channel.mention}.")
     
     @commands.command(aliases=["cleanup", "bclr", "bc"])
     @commands.bot_has_permissions(manage_messages=True)
