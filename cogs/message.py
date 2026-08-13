@@ -42,6 +42,11 @@ ENG_ROLE = {
 RYRY_RAI_BOT_ID = 270366726737231884
 
 ANTISPAM_EXEMPT_ROLE_ID = 591745589054668817
+SP_TRIAL_ROLE_ID = ANTISPAM_EXEMPT_ROLE_ID
+SP_SERVER_STAFF_ROLE_ID = 258819531193974784
+SP_INCIDENTS_CHANNEL_ID = 808077477703712788
+ANTISPAM_REVIEW_TIMEOUT_SECONDS = 60 * 60
+ANTISPAM_TIMEOUT_MATCH_TOLERANCE_SECONDS = 5
 MAX_LANGUAGE_LINKS_PER_DAY = 25
 on_message_functions = []
 
@@ -438,6 +443,335 @@ class ScamBanReasonModal(utils.RaiModal, title="Ban User"):
         )
 
 
+def spanish_antispam_staff_check(ctx: commands.Context | discord.Interaction) -> bool:
+    """Allow Spanish Trial, Server Staff, and existing higher moderation tiers."""
+    guild = getattr(ctx, 'guild', None)
+    if not guild or guild.id != SP_SERVER_ID:
+        return False
+
+    author = getattr(ctx, 'user', None) or getattr(ctx, 'author', None)
+    author_role_ids = {role.id for role in getattr(author, 'roles', [])}
+    if author_role_ids.intersection({SP_TRIAL_ROLE_ID, SP_SERVER_STAFF_ROLE_ID}):
+        return True
+
+    return bool(hf.trial_helper_check(ctx))
+
+
+def antispam_review_claims(bot: Rai) -> dict[tuple[int, int], object]:
+    """Return the in-memory claims that prevent duplicate antispam incidents."""
+    claims = getattr(bot, 'antispam_review_claims', None)
+    if not isinstance(claims, dict):
+        claims = {}
+        bot.antispam_review_claims = claims
+    return claims
+
+
+def release_antispam_claim(bot: Rai,
+                           claim_key: tuple[int, int],
+                           claim_token: object) -> None:
+    claims = antispam_review_claims(bot)
+    if claims.get(claim_key) is claim_token:
+        del claims[claim_key]
+
+
+def schedule_antispam_claim_release(bot: Rai,
+                                    claim_key: tuple[int, int],
+                                    claim_token: object,
+                                    release_at: datetime) -> None:
+    delay = max((release_at - discord.utils.utcnow()).total_seconds(), 0)
+    asyncio.get_running_loop().call_later(
+        delay,
+        release_antispam_claim,
+        bot,
+        claim_key,
+        claim_token,
+    )
+
+
+def antispam_timeout_matches(current: Optional[datetime], expected: datetime) -> bool:
+    if current is None:
+        return False
+    return abs((current - expected).total_seconds()) <= ANTISPAM_TIMEOUT_MATCH_TOLERANCE_SECONDS
+
+
+async def current_antispam_member(guild: discord.Guild,
+                                  target: discord.Member) -> Optional[discord.Member]:
+    """Fetch fresh timeout state so review buttons cannot undo a newer sanction."""
+    try:
+        return await guild.fetch_member(target.id)
+    except Exception:
+        return None
+
+
+async def clear_matching_antispam_timeout(guild: discord.Guild,
+                                          target: discord.Member,
+                                          expected_timeout: datetime,
+                                          reason: str) -> tuple[bool, str]:
+    member = await current_antispam_member(guild, target)
+    if member is None:
+        return False, "I couldn't verify the user's current timeout, so I left it unchanged."
+
+    current_timeout = getattr(member, 'timed_out_until', None)
+    if current_timeout is None:
+        return True, "The antispam timeout had already expired."
+    if not antispam_timeout_matches(current_timeout, expected_timeout):
+        return False, (
+            "The user's timeout has changed since this alert, so I did not remove the newer sanction."
+        )
+
+    try:
+        await member.edit(timed_out_until=None, reason=reason)
+    except Exception as exc:
+        return False, f"I couldn't remove the antispam timeout: `{exc}`"
+    return True, "Removed the antispam timeout."
+
+
+class AntispamReviewView(utils.RaiView):
+    """Let Spanish moderation staff confirm or undo a general antispam mute."""
+
+    def __init__(self,
+                 bot: Rai,
+                 target: discord.Member,
+                 reason: str,
+                 incident_id: str,
+                 expected_timeout: datetime,
+                 claim_key: tuple[int, int],
+                 claim_token: object):
+        super().__init__(timeout=ANTISPAM_REVIEW_TIMEOUT_SECONDS)
+        self.bot = bot
+        self.target = target
+        self.reason = reason
+        self.incident_id = incident_id
+        self.expected_timeout = expected_timeout
+        self.claim_key = claim_key
+        self.claim_token = claim_token
+        self.message: Optional[discord.Message] = None
+        self.action_in_progress = False
+
+    def disable_items(self) -> None:
+        for item in self.children:
+            item.disabled = True
+
+    def release_claim(self) -> None:
+        release_antispam_claim(self.bot, self.claim_key, self.claim_token)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if spanish_antispam_staff_check(interaction):
+            return True
+        await interaction.response.send_message(
+            "Only Spanish server Trial or Server Staff and above can handle this incident.",
+            ephemeral=True,
+        )
+        return False
+
+    async def reject_unavailable_action(self, interaction: discord.Interaction) -> bool:
+        if not spanish_antispam_staff_check(interaction):
+            await interaction.response.send_message(
+                "Only Spanish server Trial or Server Staff and above can handle this incident.",
+                ephemeral=True,
+            )
+            return True
+        if self.action_in_progress or self.is_finished():
+            await interaction.response.send_message(
+                "This antispam incident is already being handled.",
+                ephemeral=True,
+            )
+            return True
+        return False
+
+    async def on_timeout(self) -> None:
+        self.action_in_progress = True
+        self.disable_items()
+        self.release_claim()
+        if self.message:
+            try:
+                await self.message.edit(
+                    content=(f"Antispam review expired for {self.target.mention}; "
+                             "Rai made no automatic change to the user's current timeout."),
+                    view=self,
+                )
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                pass
+        self.stop()
+
+    @discord.ui.button(label="Ban User", style=discord.ButtonStyle.danger)
+    async def ban_user(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_unavailable_action(interaction):
+            return
+        await interaction.response.send_modal(AntispamBanReasonModal(self))
+
+    async def submit_ban(self, interaction: discord.Interaction, reason: str, silent: bool) -> None:
+        if await self.reject_unavailable_action(interaction):
+            return
+
+        self.action_in_progress = True
+        await interaction.response.defer()
+
+        actual_silent = silent
+        dm_sent = False
+        if silent:
+            notification_status = "Silent (no DM sent)"
+        else:
+            try:
+                await self.target.send(embed=incident_ban_dm_embed(interaction.guild, reason))
+                dm_sent = True
+                actual_silent = False
+                notification_status = "DM sent with the reason and appeal link"
+            except (discord.Forbidden, discord.HTTPException):
+                actual_silent = True
+                notification_status = "DM could not be delivered; ban completed silently"
+
+        try:
+            await interaction.guild.ban(self.target, reason=reason)
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            self.action_in_progress = False
+            dm_notice = " The user was already sent the ban notification." if dm_sent else ""
+            await interaction.followup.send(
+                f"I couldn't ban {self.target.mention}: `{exc}`{dm_notice}",
+                ephemeral=True,
+            )
+            return
+
+        modlog_warning = ""
+        try:
+            modlog_result = hf.add_to_modlog(
+                None,
+                [self.target, interaction.guild],
+                'Ban',
+                reason,
+                actual_silent,
+                None,
+            )
+            if modlog_result is None:
+                modlog_warning = "Warning: the ban succeeded, but no modlog configuration was available.\n"
+        except Exception as exc:
+            modlog_warning = f"Warning: the ban succeeded, but its modlog entry failed: `{exc}`\n"
+
+        self.disable_items()
+        self.stop()
+        self.release_claim()
+
+        result_content = (
+            f"Banned {self.target.mention} after the antispam alert.\n"
+            f"Reason: {discord.utils.escape_mentions(reason)}\n"
+            f"Notification: {notification_status}\n"
+            f"{modlog_warning}"
+            f"-# Incident handled by {interaction.user.mention}"
+        )
+        try:
+            if self.message:
+                await self.message.edit(content=result_content, view=self)
+            else:
+                await interaction.edit_original_response(content=result_content, view=self)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            pass
+
+    @discord.ui.button(label="False Alarm", style=discord.ButtonStyle.secondary)
+    async def false_alarm(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_unavailable_action(interaction):
+            return
+
+        self.action_in_progress = True
+        await interaction.response.defer()
+        cleared, timeout_status = await clear_matching_antispam_timeout(
+            interaction.guild,
+            self.target,
+            self.expected_timeout,
+            reason=f"Antispam false alarm handled by {interaction.user} ({interaction.user.id})",
+        )
+        if not cleared:
+            self.action_in_progress = False
+            await interaction.followup.send(
+                timeout_status,
+                ephemeral=True,
+            )
+            return
+
+        guild_modlog = self.bot.db.get('modlog', {}).get(str(interaction.guild.id), {})
+        user_modlog = guild_modlog.get(str(self.target.id), [])
+        removed_modlog = False
+        for index, entry in enumerate(user_modlog):
+            if (entry.get('type') == 'Mute'
+                    and entry.get('antispam_incident_id') == self.incident_id):
+                del user_modlog[index]
+                removed_modlog = True
+                break
+
+        self.disable_items()
+        self.stop()
+        self.release_claim()
+        log_status = (
+            "Deleted its exact mute modlog entry."
+            if removed_modlog
+            else "Its tagged mute modlog entry was already absent."
+        )
+        result_content = (
+            f"Marked as a false alarm for {self.target.mention}. {timeout_status} "
+            f"{log_status}\n"
+            f"-# Incident handled by {interaction.user.mention}"
+        )
+        try:
+            if self.message:
+                await self.message.edit(content=result_content, view=self)
+            else:
+                await interaction.edit_original_response(content=result_content, view=self)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            pass
+
+
+class AntispamBanReasonModal(utils.RaiModal, title="Ban User"):
+    def __init__(self, prompt_view: AntispamReviewView):
+        super().__init__(timeout=5 * 60)
+        self.prompt_view = prompt_view
+        self.reason = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph,
+            placeholder="Why should this user be banned?",
+            default=prompt_view.reason[:400],
+            required=True,
+            min_length=3,
+            max_length=400,
+        )
+        self.notification = discord.ui.RadioGroup(
+            required=True,
+            options=[
+                discord.RadioGroupOption(
+                    label="Send DM",
+                    value="dm",
+                    description="Send the reason and appeal link before banning.",
+                ),
+                discord.RadioGroupOption(
+                    label="Silent",
+                    value="silent",
+                    description="Ban without sending the user a DM.",
+                ),
+            ],
+        )
+        self.add_item(discord.ui.Label(
+            text="Ban reason",
+            description="Saved to the modlog and shown to the user unless the ban is silent.",
+            component=self.reason,
+        ))
+        self.add_item(discord.ui.Label(
+            text="Notification",
+            description="Choose whether Rai should contact the user before banning.",
+            component=self.notification,
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        reason = self.reason.value.strip()
+        if not reason:
+            await interaction.response.send_message(
+                "Please enter a ban reason.",
+                ephemeral=True,
+            )
+            return
+        await self.prompt_view.submit_ban(
+            interaction,
+            reason,
+            silent=self.notification.value == "silent",
+        )
+
+
 async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str,
                                        timeout_duration: timedelta) -> None:
     if timeout_duration <= timedelta(minutes=5):
@@ -450,6 +784,310 @@ async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: st
     view = ScamBanPromptView(bot, msg.author, content)
     prompt_msg = await msg.reply(prompt_text, view=view, mention_author=False)
     view.message = prompt_msg
+
+
+async def delete_antispam_messages(messages: list[hf.RaiMessage]) -> None:
+    for message in messages:
+        try:
+            await message.delete()
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            pass
+
+
+async def rollback_unposted_antispam_review(bot: Rai,
+                                            target: discord.Member,
+                                            incident_entry: dict,
+                                            expected_timeout: datetime,
+                                            claim_key: tuple[int, int],
+                                            claim_token: object) -> tuple[bool, str]:
+    """Undo only the exact antispam timeout when its review cannot be posted."""
+    cleared, status = await clear_matching_antispam_timeout(
+        target.guild,
+        target,
+        expected_timeout,
+        reason="Antispam review prompt could not be posted",
+    )
+    if cleared:
+        guild_modlog = bot.db.get('modlog', {}).get(str(target.guild.id), {})
+        user_modlog = guild_modlog.get(str(target.id), [])
+        for index, entry in enumerate(user_modlog):
+            if entry is incident_entry:
+                del user_modlog[index]
+                break
+        release_antispam_claim(bot, claim_key, claim_token)
+        return True, status
+
+    # No review exists to release this claim later, so keep it until the
+    # original timeout should expire instead of allowing duplicate sanctions.
+    schedule_antispam_claim_release(
+        bot,
+        claim_key,
+        claim_token,
+        expected_timeout,
+    )
+    return False, status
+
+
+async def send_antispam_timeout_dm(guild: discord.Guild,
+                                   target: discord.Member,
+                                   reason: str,
+                                   expected_timeout: datetime) -> None:
+    embed = utils.red_embed("")
+    embed.title = f"You have been muted on {guild.name}"
+    embed.color = discord.Color(int('ff8800', 16))
+    timestamp = int(expected_timeout.timestamp())
+    embed.add_field(
+        name="Length",
+        value=f"1h (will be unmuted on <t:{timestamp}> - <t:{timestamp}:R>)",
+        inline=False,
+    )
+    embed.add_field(name="Reason", value=reason[:1024], inline=False)
+    modbot = guild.get_member(MODBOT_ID)
+    content = ""
+    if modbot:
+        embed.add_field(
+            name="Questions about this mute?",
+            value=f"Please send a message to {modbot.mention}.",
+            inline=False,
+        )
+        content = f"Questions → {modbot.mention}"
+    try:
+        await utils.safe_send(target, content, embed=embed)
+    except (discord.Forbidden, discord.HTTPException):
+        pass
+
+
+async def report_antispam_review_failure(bot: Rai,
+                                         msg: hf.RaiMessage,
+                                         failed_channel,
+                                         detail: str) -> None:
+    text = (
+        f"Antispam timed out {msg.author.mention}, but Rai could not create or roll back "
+        f"the review prompt. {detail} Please review user ID `{msg.author.id}` manually."
+    )
+    fallback_id = bot.db.get('mod_channel', {}).get(str(msg.guild.id))
+    try:
+        fallback_id = int(fallback_id) if fallback_id else None
+    except (TypeError, ValueError):
+        fallback_id = None
+    fallback_channel = bot.get_channel(fallback_id) if fallback_id else None
+    if (fallback_channel
+            and fallback_channel != failed_channel
+            and getattr(getattr(fallback_channel, 'guild', None), 'id', None) == msg.guild.id):
+        try:
+            await utils.safe_send(fallback_channel, text)
+            return
+        except Exception:
+            pass
+    print(text)
+
+
+async def create_spanish_antispam_review(bot: Rai,
+                                         msg: hf.RaiMessage,
+                                         reason: str,
+                                         incidents_channel,
+                                         claim_key: tuple[int, int],
+                                         claim_token: object) -> Optional[AntispamReviewView]:
+    """Apply a reversible timeout and post its Spanish-server staff review."""
+    try:
+        await msg.get_ctx()
+        msg.ctx.author = msg.guild.me
+    except (discord.Forbidden, discord.HTTPException, AttributeError):
+        release_antispam_claim(bot, claim_key, claim_token)
+        return None
+
+    current_member = await current_antispam_member(msg.guild, msg.author)
+    if current_member is None:
+        release_antispam_claim(bot, claim_key, claim_token)
+        try:
+            await utils.safe_send(
+                incidents_channel,
+                f"Antispam matched {msg.author.mention}, but Rai could not verify their current "
+                "timeout state, so no new sanction was applied.",
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        return None
+
+    existing_timeout = getattr(current_member, 'timed_out_until', None)
+    if existing_timeout and existing_timeout > discord.utils.utcnow():
+        release_antispam_claim(bot, claim_key, claim_token)
+        try:
+            await utils.safe_send(
+                incidents_channel,
+                f"Antispam matched {msg.author.mention}, but they already have an active timeout. "
+                "Rai left that sanction unchanged.",
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        return None
+
+    expected_timeout = discord.utils.utcnow() + timedelta(hours=1)
+    try:
+        await msg.author.timeout(expected_timeout, reason=reason)
+    except (discord.Forbidden, discord.HTTPException) as exc:
+        release_antispam_claim(bot, claim_key, claim_token)
+        try:
+            await utils.safe_send(
+                incidents_channel,
+                f"Antispam matched {msg.author.mention}, but Rai could not apply the timeout: `{exc}`",
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        return None
+
+    confirmed_member = await current_antispam_member(msg.guild, msg.author)
+    confirmed_timeout = (
+        getattr(confirmed_member, 'timed_out_until', None)
+        if confirmed_member
+        else None
+    )
+    if not antispam_timeout_matches(confirmed_timeout, expected_timeout):
+        cleared, status = await rollback_unposted_antispam_review(
+            bot,
+            msg.author,
+            {},
+            expected_timeout,
+            claim_key,
+            claim_token,
+        )
+        if not cleared:
+            await report_antispam_review_failure(
+                bot,
+                msg,
+                incidents_channel,
+                f"Rai could not verify the new timeout expiry. {status}",
+            )
+        return None
+
+    try:
+        modlog_config = hf.add_to_modlog(
+            msg.ctx,
+            msg.author,
+            'Mute',
+            reason,
+            False,
+            '1h',
+        )
+        user_modlog = modlog_config.get(str(msg.author.id), [])
+        incident_entry = user_modlog[-1]
+        if not isinstance(incident_entry, dict):
+            raise TypeError("The antispam mute modlog entry was not a dictionary")
+    except Exception as exc:
+        cleared, status = await rollback_unposted_antispam_review(
+            bot,
+            msg.author,
+            {},
+            expected_timeout,
+            claim_key,
+            claim_token,
+        )
+        if not cleared:
+            await report_antispam_review_failure(
+                bot,
+                msg,
+                incidents_channel,
+                f"Modlog setup failed (`{exc}`). {status}",
+            )
+        return None
+
+    view = None
+    try:
+        incident_id = str(msg.id)
+        incident_entry['antispam_incident_id'] = incident_id
+        incident_entry['antispam_timeout_until'] = expected_timeout.isoformat()
+        await send_antispam_timeout_dm(
+            msg.guild,
+            msg.author,
+            reason,
+            expected_timeout,
+        )
+        view = AntispamReviewView(
+            bot,
+            msg.author,
+            reason,
+            incident_id,
+            expected_timeout,
+            claim_key,
+            claim_token,
+        )
+        embed = utils.red_embed(reason)
+        embed.title = "General antispam review"
+        embed.add_field(name="User", value=f"{msg.author} ({msg.author.id})", inline=False)
+        embed.add_field(name="Initial action", value="Timed out for one hour", inline=False)
+        embed.add_field(name="Source", value=f"[Jump to message]({msg.jump_url})", inline=False)
+        prompt_text = (
+            f"Review the antispam timeout for {msg.author.mention}. "
+            "Ban the user or mark this as a false alarm."
+        )
+        view.message = await utils.safe_send(
+            incidents_channel,
+            prompt_text,
+            embed=embed,
+            view=view,
+        )
+    except Exception as exc:
+        if view:
+            view.stop()
+        cleared, status = await rollback_unposted_antispam_review(
+            bot,
+            msg.author,
+            incident_entry,
+            expected_timeout,
+            claim_key,
+            claim_token,
+        )
+        if not cleared:
+            await report_antispam_review_failure(
+                bot,
+                msg,
+                incidents_channel,
+                f"Review setup failed (`{exc}`). {status}",
+            )
+        return None
+
+    if view.message is None:
+        cleared, status = await rollback_unposted_antispam_review(
+            bot,
+            msg.author,
+            incident_entry,
+            expected_timeout,
+            claim_key,
+            claim_token,
+        )
+        if not cleared:
+            await report_antispam_review_failure(
+                bot,
+                msg,
+                incidents_channel,
+                status,
+            )
+        view.stop()
+        return None
+    return view
+
+
+async def resolve_spanish_antispam_review_channel(bot: Rai, guild: discord.Guild):
+    channel = guild.get_channel_or_thread(SP_INCIDENTS_CHANNEL_ID)
+    if not channel:
+        try:
+            channel = await guild.fetch_channel(SP_INCIDENTS_CHANNEL_ID)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            channel = None
+    if channel and callable(getattr(channel, 'send', None)):
+        return channel
+
+    fallback_id = bot.db.get('mod_channel', {}).get(str(guild.id))
+    try:
+        fallback_id = int(fallback_id) if fallback_id else None
+    except (TypeError, ValueError):
+        fallback_id = None
+    fallback_channel = bot.get_channel(fallback_id) if fallback_id else None
+    if (fallback_channel
+            and getattr(getattr(fallback_channel, 'guild', None), 'id', None) == guild.id
+            and callable(getattr(fallback_channel, 'send', None))):
+        return fallback_channel
+    return None
 
 
 class Message(commands.Cog):
@@ -1728,8 +2366,46 @@ class Message(commands.Cog):
         if ban_threshold := config.get('ban_override', 0):
             if time_ago < timedelta(minutes=ban_threshold):
                 action = 'ban'
-                mins_ago = int(time_ago.total_seconds())
+                mins_ago = int(time_ago.total_seconds() / 60)
                 reason = reason[:-1] + f" (joined {mins_ago} minutes ago)."
+
+        if msg.guild.id == SP_SERVER_ID:
+            incidents_channel = await resolve_spanish_antispam_review_channel(
+                self.bot,
+                msg.guild,
+            )
+            if not incidents_channel:
+                print(
+                    f"Spanish antispam matched user {msg.author.id}, but neither the incidents "
+                    "channel nor a configured mod channel was available; no sanction was applied."
+                )
+                await delete_antispam_messages(matched_messages)
+                return
+
+            claim_key = (msg.guild.id, msg.author.id)
+            claims = antispam_review_claims(self.bot)
+            if claim_key in claims:
+                await delete_antispam_messages(matched_messages)
+                return
+
+            claim_token = object()
+            claims[claim_key] = claim_token
+            try:
+                await create_spanish_antispam_review(
+                    self.bot,
+                    msg,
+                    reason,
+                    incidents_channel,
+                    claim_key,
+                    claim_token,
+                )
+            except Exception:
+                if claims.get(claim_key) is claim_token:
+                    del claims[claim_key]
+                raise
+            finally:
+                await delete_antispam_messages(matched_messages)
+            return
 
         if action == 'ban':
             try:
@@ -1768,9 +2444,6 @@ class Message(commands.Cog):
                 if str(msg.guild.id) in self.bot.db['mod_channel']:
                     mod_channel = self.bot.get_channel(
                         self.bot.db['mod_channel'][str(msg.ctx.guild.id)])
-                    if msg.guild.id == SP_SERVER_ID:
-                        mod_channel = msg.guild.get_channel_or_thread(
-                            808077477703712788)  # incidents channel
                     if mod_channel:
                         await utils.safe_send(mod_channel, msg.author.id,
                                               embed=utils.red_embed(
@@ -1780,15 +2453,12 @@ class Message(commands.Cog):
             # skip if something went wrong
             except (discord.Forbidden, discord.HTTPException):
                 pass
+            finally:
+                # remove from temporary list after all actions done
+                if spammer_mute_entry in self.bot.spammer_mute:
+                    self.bot.spammer_mute.remove(spammer_mute_entry)
 
-            # remove from temporary list after all actions done
-            self.bot.spammer_mute.remove(spammer_mute_entry)
-
-        for matched_msg in matched_messages:
-            try:
-                await matched_msg.delete()
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
-                pass
+        await delete_antispam_messages(matched_messages)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
