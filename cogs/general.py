@@ -25,7 +25,7 @@ from .utils.hardcore import (
     SP_SUPER_HARDCORE_ROLE_ID,
     SP_ULTRA_HARDCORE_ROLE_ID,
 )
-from .utils.views import PaginationView
+from .utils import views as view_utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -411,7 +411,7 @@ class General(commands.Cog):
         if len(embeds) == 1:
             await utils.safe_send(ctx, embed=embeds[0])
         else:
-            view = PaginationView(embeds, ctx.author)
+            view = view_utils.PaginationView(embeds, ctx.author)
             msg = await utils.safe_send(ctx, embed=embeds[0], view=view)
             view.message = msg
 

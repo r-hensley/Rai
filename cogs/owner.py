@@ -456,8 +456,9 @@ class Owner(commands.Cog):
                     await self.reload_success(ctx, cog)
 
             elif cog == 'utils':
-                # Reload the Git helper first so bot_utils binds its latest
-                # safe_git_pull implementation.
+                # Reload support modules in dependency order. Consumers keep
+                # module references, so future view construction sees the new
+                # classes without reloading every cog that uses them.
                 try:
                     git_utils_module = sys.modules.get(
                         'cogs.utils.BotUtils.git_utils')
@@ -466,6 +467,8 @@ class Owner(commands.Cog):
                     importlib.reload(
                         sys.modules['cogs.utils.BotUtils.bot_utils'])
                     utils.setup(bot=self.bot, loop=asyncio.get_event_loop())
+                    views_module = importlib.import_module('cogs.utils.views')
+                    importlib.reload(views_module)
                 except Exception as e:
                     await self.reload_error(ctx, cog, e)
                 else:

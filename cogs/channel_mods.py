@@ -10,7 +10,7 @@ from discord.ext import commands
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 from .utils.helper_functions import format_interval
-from .utils.views import offer_public_notification_fallback
+from .utils import views as view_utils
 
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -1731,7 +1731,7 @@ class ChannelMods(commands.Cog):
                     # Automatic antispam mutes use the bot as the context author, so no human
                     # could operate a fallback prompt posted in the source spam channel.
                     if ctx.author != ctx.guild.me:
-                        await offer_public_notification_fallback(
+                        await view_utils.offer_public_notification_fallback(
                             ctx, target, emb, "mute notification")
 
             # Prepare confirmation message to be sent to ctx channel of mute command

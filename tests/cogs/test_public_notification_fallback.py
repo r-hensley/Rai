@@ -7,6 +7,7 @@ import pytest
 
 from cogs.utils import views
 from cogs import channel_mods as channel_mods_module
+from cogs import general as general_module
 from cogs import submod as submod_module
 from tests.discord_fakes import (
     make_bot,
@@ -24,6 +25,20 @@ def make_forbidden() -> discord.Forbidden:
         SimpleNamespace(status=403, reason="Forbidden"),
         {"code": 50278, "message": "Cannot send messages to this user due to having no mutual guilds"},
     )
+
+
+def test_view_consumers_resolve_symbols_through_reloaded_module(monkeypatch):
+    pagination_view = object()
+    offer_fallback = object()
+    channel_check = object()
+    monkeypatch.setattr(views, 'PaginationView', pagination_view)
+    monkeypatch.setattr(views, 'offer_public_notification_fallback', offer_fallback)
+    monkeypatch.setattr(views, 'is_public_notification_channel', channel_check)
+
+    assert general_module.view_utils.PaginationView is pagination_view
+    assert submod_module.view_utils.offer_public_notification_fallback is offer_fallback
+    assert submod_module.view_utils.is_public_notification_channel is channel_check
+    assert channel_mods_module.view_utils.offer_public_notification_fallback is offer_fallback
 
 
 def make_fallback_case(*, configured_channel_id=None, guild_id=views.SP_SERVER_ID):
@@ -312,7 +327,11 @@ async def test_warn_dm_failure_offers_fallback_and_still_logs(monkeypatch):
     )
     monkeypatch.setattr(submod_module.hf, 'ModlogEntry', lambda **_: modlog_entry)
     offer_fallback = AsyncMock()
-    monkeypatch.setattr(submod_module, 'offer_public_notification_fallback', offer_fallback)
+    monkeypatch.setattr(
+        submod_module.view_utils,
+        'offer_public_notification_fallback',
+        offer_fallback,
+    )
 
     async def safe_send(destination, *args, **kwargs):
         if destination is target:
@@ -372,7 +391,11 @@ async def test_mute_dm_failure_only_offers_human_invoker_fallback(monkeypatch, a
         Mock(return_value={'channel': None}),
     )
     offer_fallback = AsyncMock()
-    monkeypatch.setattr(channel_mods_module, 'offer_public_notification_fallback', offer_fallback)
+    monkeypatch.setattr(
+        channel_mods_module.view_utils,
+        'offer_public_notification_fallback',
+        offer_fallback,
+    )
 
     async def safe_send(destination, *args, **kwargs):
         if destination is target:

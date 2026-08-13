@@ -10,7 +10,7 @@ from discord import app_commands, Interaction
 from discord.ext import commands
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
-from .utils.views import is_public_notification_channel, offer_public_notification_fallback
+from .utils import views as view_utils
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -969,7 +969,8 @@ class Submod(commands.Cog):
                     await utils.safe_send(user, content, embed=emb)
                 # if bot fails to send message to user, offer to send warning to a public channel
                 except discord.Forbidden:
-                    await offer_public_notification_fallback(ctx, user, emb, "warning")
+                    await view_utils.offer_public_notification_fallback(
+                        ctx, user, emb, "warning")
                 except discord.HTTPException:
                     await utils.safe_send(ctx, f"I cannot send messages to {user.mention}.")
                     continue
@@ -1031,14 +1032,14 @@ class Submod(commands.Cog):
             else:
                 channel = None
             
-            if not is_public_notification_channel(channel):
+            if not view_utils.is_public_notification_channel(channel):
                 await utils.safe_send(ctx,
                                       "I failed to find a usable text channel or thread. Please try again.")
                 return
         else:
             channel = ctx.channel
 
-        if not is_public_notification_channel(channel):
+        if not view_utils.is_public_notification_channel(channel):
             await utils.safe_send(ctx,
                                   "Please run this command in a text channel or thread.")
             return
