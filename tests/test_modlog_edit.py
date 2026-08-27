@@ -12,6 +12,15 @@ from tests.discord_fakes import (
 )
 
 
+@pytest.fixture(autouse=True)
+def modlog_edit_context(monkeypatch):
+    async def member_not_found(_ctx, _user):
+        return None
+
+    monkeypatch.setattr(channel_mods.utils, 'member_converter', member_not_found)
+    monkeypatch.setattr(channel_mods.hf, 'admin_check', lambda _ctx: True)
+
+
 @pytest.mark.asyncio
 async def test_modlog_edit_out_of_range(monkeypatch):
     called = {}
@@ -39,7 +48,7 @@ async def test_modlog_edit_out_of_range(monkeypatch):
     cog = channel_mods.ChannelMods(bot)
 
     # Index 5 is out of range for an empty list
-    await cog.modlog_edit(ctx, '42', 5, reason='new')
+    await cog.modlog_edit.callback(cog, ctx, '42', 5, reason='new')
 
     assert called.get('content') is not None
     assert "couldn't find the mod log" in called['content']
@@ -71,7 +80,7 @@ async def test_modlog_edit_success_changes_reason(monkeypatch):
 
     cog = channel_mods.ChannelMods(bot)
 
-    await cog.modlog_edit(ctx, '42', 1, reason='new reason')
+    await cog.modlog_edit.callback(cog, ctx, '42', 1, reason='new reason')
 
-    assert bot_db[str(guild.id)]['42'][0]['reason'] == 'new reason'
+    assert bot_db['modlog'][str(guild.id)]['42'][0]['reason'] == 'new reason'
     assert 'embed' in called
