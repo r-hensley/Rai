@@ -1280,12 +1280,13 @@ class ChannelMods(commands.Cog):
                 # re_result looks like [('channel_id', 'attachment_id'), ('channel_id', 'attachment_id')]
                 for attachment in re_result:
                     channel_id = int(attachment[0])
-                    channel = ctx.guild.get_channel(channel_id)
+                    # Ban evidence may originate in another guild shared with Rai.
+                    channel = self.bot.get_channel(channel_id)
                     if not channel:
-                        # try searching for a thread (including archived threads)
+                        # Try uncached channels and archived threads across Rai's guilds.
                         try:
-                            channel = await ctx.guild.fetch_channel(channel_id)
-                        except (discord.Forbidden, discord.NotFound):
+                            channel = await self.bot.fetch_channel(channel_id)
+                        except (discord.HTTPException, discord.InvalidData):
                             continue
                         if not channel:
                             continue
