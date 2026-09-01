@@ -28,6 +28,16 @@ ABELIAN_ID = 414873201349361664
 VOICE_LOG_RATE_LIMIT_COOLDOWN_SECONDS = 60
 
 
+def _audit_entry_starts_active_timeout(entry: discord.AuditLogEntry, now: datetime) -> bool:
+    """Return whether an audit entry changes an inactive timeout into an active one."""
+    before_timeout = getattr(entry.before, 'timed_out_until', None)
+    after_timeout = getattr(entry.after, 'timed_out_until', None)
+
+    before_is_active = before_timeout is not None and before_timeout > now
+    after_is_active = after_timeout is not None and after_timeout > now
+    return not before_is_active and after_is_active
+
+
 class Logger(commands.Cog):
     """Logs stuff"""
 
@@ -1839,9 +1849,10 @@ class Logger(commands.Cog):
                         # make sure this log entry is about the same user
                         continue
                     
-                    if entry.before.timed_out_until or (not entry.after.timed_out_until):
-                        # 1. user was already muted before: ignore this log
-                        # 2. user is not muted: user was probably UNMUTED by admin, ignore
+                    if not _audit_entry_starts_active_timeout(entry, discord.utils.utcnow()):
+                        # Ignore timeout extensions, removals, and unrelated member updates.
+                        # Discord can retain an expired timeout timestamp, so a non-null
+                        # before value does not necessarily mean the user is still timed out.
                         continue
                         
                     if entry.user == guild.me:

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import discord
 
-from cogs.logger import Logger
+from cogs.logger import Logger, _audit_entry_starts_active_timeout
 from tests.discord_fakes import make_bot, make_channel, make_guild
 
 
@@ -28,6 +28,49 @@ class _GuardedQueue:
 
 
 class TestLogger(unittest.IsolatedAsyncioTestCase):
+    def test_timeout_audit_entry_accepts_expired_previous_timeout(self):
+        now = datetime(2026, 9, 1, 1, 59, 32, tzinfo=timezone.utc)
+        entry = SimpleNamespace(
+            before=SimpleNamespace(
+                timed_out_until=datetime(2026, 8, 17, 20, 42, 47, tzinfo=timezone.utc),
+            ),
+            after=SimpleNamespace(
+                timed_out_until=datetime(2026, 9, 1, 2, 9, 32, tzinfo=timezone.utc),
+            ),
+        )
+
+        self.assertTrue(_audit_entry_starts_active_timeout(entry, now))
+
+    def test_timeout_audit_entry_rejects_active_previous_timeout(self):
+        now = datetime(2026, 9, 1, 1, 59, 32, tzinfo=timezone.utc)
+        entry = SimpleNamespace(
+            before=SimpleNamespace(
+                timed_out_until=datetime(2026, 9, 1, 2, 4, 32, tzinfo=timezone.utc),
+            ),
+            after=SimpleNamespace(
+                timed_out_until=datetime(2026, 9, 1, 2, 9, 32, tzinfo=timezone.utc),
+            ),
+        )
+
+        self.assertFalse(_audit_entry_starts_active_timeout(entry, now))
+
+    def test_timeout_audit_entry_rejects_timeout_removal(self):
+        now = datetime(2026, 9, 1, 1, 59, 32, tzinfo=timezone.utc)
+        entry = SimpleNamespace(
+            before=SimpleNamespace(
+                timed_out_until=datetime(2026, 9, 1, 2, 4, 32, tzinfo=timezone.utc),
+            ),
+            after=SimpleNamespace(timed_out_until=None),
+        )
+
+        self.assertFalse(_audit_entry_starts_active_timeout(entry, now))
+
+    def test_timeout_audit_entry_rejects_unrelated_member_update(self):
+        now = datetime(2026, 9, 1, 1, 59, 32, tzinfo=timezone.utc)
+        entry = SimpleNamespace(before=SimpleNamespace(), after=SimpleNamespace())
+
+        self.assertFalse(_audit_entry_starts_active_timeout(entry, now))
+
     async def test_voice_log_rate_limit_starts_channel_cooldown(self):
         logger = Logger.__new__(Logger)
         logger.voice_log_cooldowns = {}
