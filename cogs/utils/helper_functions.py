@@ -1004,15 +1004,26 @@ class ModlogEntry:
             # don't log bans not with Rai from servers without modlog set up
 
         member_modlog = config.setdefault(str(self.user.id), [])
-        member_modlog.append({'type': self.event,
-                              'reason': self.reason,
-                              'date': discord.utils.utcnow().strftime(
-                                  "%Y/%m/%d %H:%M UTC"),
-                              'silent': self.silent,
-                              'length': self.length,
-                              'author_id': self.ctx.author.id if self.ctx else None,
-                              'jump_url': jump_url})
+        entry = {'type': self.event,
+                 'reason': self.reason,
+                 'date': discord.utils.utcnow().strftime(
+                     "%Y/%m/%d %H:%M UTC"),
+                 'silent': self.silent,
+                 'length': self.length,
+                 'author_id': self.ctx.author.id if self.ctx else None,
+                 'jump_url': jump_url}
+        member_modlog.append(entry)
+        # Keep a reference to this exact entry dict so update_reason() can edit
+        # the persisted modlog data later, not just this Python object.
+        self._entry = entry
         return config
+
+    def update_reason(self, new_reason: str):
+        """Update the reason of this modlog entry in place, in self.bot.db['modlog']."""
+        if not hasattr(self, "_entry"):
+            return  # add_to_modlog() was never called (or failed) for this entry
+        self._entry['reason'] = new_reason
+        self.reason = new_reason
 
 
 @dataclass
