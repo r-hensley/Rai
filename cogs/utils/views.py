@@ -164,6 +164,166 @@ async def offer_public_notification_fallback(
     return view
 
 
+class ModlogDictEntryRef:
+    """
+    Adapter so LogEditView can update a raw modlog dict entry (as returned by
+    the module-level hf.add_to_modlog function, e.g. used by mute()) the same
+    way it updates an object that already has an update_reason() method
+    (e.g. hf.ModlogEntry, used by warn()).
+    """
+
+    def __init__(self, entry_dict: dict):
+        self._entry = entry_dict
+
+    def update_reason(self, new_reason: str):
+        if self._entry is None:
+            return
+        self._entry['reason'] = new_reason
+
+
+class EditReasonModal(discord.ui.Modal):
+    """Modal shown when a moderator clicks the Edit button on a modlog message."""
+
+    def __init__(self, log_view: "LogEditView", *,
+                modal_title: str = "Edit Reason", field_label: str = "Reason"):
+        super().__init__(title=modal_title)
+        self.log_view = log_view
+        self.field_label = field_label
+
+        self.new_reason = discord.ui.TextInput(
+            label=field_label,
+            style=discord.TextStyle.paragraph,
+            default=log_view.current_reason,
+            max_length=2000,
+            required=True,
+        )
+        self.add_item(self.new_reason)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        new_reason_value = str(self.new_reason.value)
+
+        preview_embed = discord.Embed(
+            title=f"Confirm Edited {self.field_label}",
+            description="Review the change below. Nothing has been updated yet.",
+            color=0x5865F2,
+        )
+        old_display = self.log_view.current_reason if self.log_view.current_reason else "—"
+        new_display = new_reason_value if new_reason_value else "—"
+        preview_embed.add_field(name="Current Message", value=old_display[:1024], inline=False)
+        preview_embed.add_field(name="New Message", value=new_display[:1024], inline=False)
+
+        confirm_view = ConfirmEditView(log_view=self.log_view, new_reason=new_reason_value)
+
+        await interaction.response.send_message(
+            embed=preview_embed,
+            view=confirm_view,
+            ephemeral=True,
+        )
+
+
+class ConfirmEditView(discord.ui.View):
+    """Shown after the modal is submitted; nothing is changed until Confirm is pressed."""
+
+    def __init__(self, log_view: "LogEditView", new_reason: str):
+        super().__init__(timeout=300)
+        self.log_view = log_view
+        self.new_reason = new_reason
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green, custom_id="modlog_edit_confirm")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.log_view.apply_edit(interaction, self.new_reason)
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey, custom_id="modlog_edit_cancel")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Edit cancelled — the log was not changed.",
+                                                  embed=None, view=None)
+        self.stop()
+
+
+class LogEditView(discord.ui.View):
+    """
+    Attached below a sent modlog embed (warn, mute, or any future command that
+    builds an embed with a "Reason" field). Lets a moderator open a modal to
+    edit the reason, preview the change, and only apply it on explicit Confirm.
+
+    - modlog_entry: anything with an update_reason(new_reason) method, e.g.
+      hf.ModlogEntry or a ModlogDictEntryRef wrapping a raw modlog dict.
+    - field_label: the embed field name to treat as the editable reason
+      (defaults to "Reason"; a "<field_label> (cont.)" field is handled too).
+    - modal_title: the title shown on the edit modal.
+    """
+
+    def __init__(self, *, modlog_entry, message: discord.Message,
+                base_embed: discord.Embed, current_reason: str,
+                field_label: str = "Reason", modal_title: str = "Edit Reason"):
+        super().__init__(timeout=None)
+        self.modlog_entry = modlog_entry
+        self.message = message
+        self.base_embed = base_embed
+        self.current_reason = current_reason
+        self.field_label = field_label
+        self.modal_title = modal_title
+
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.blurple, custom_id="modlog_log_edit_button")
+    async def edit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            EditReasonModal(self, modal_title=self.modal_title, field_label=self.field_label)
+        )
+
+    async def apply_edit(self, interaction: discord.Interaction, new_reason: str):
+        """Called only after the moderator clicks Confirm on the preview."""
+        # Remove old "<field_label>" / "<field_label> (cont.)" fields, then insert
+        # the new one(s) back in the same position.
+        insert_at = None
+        fields_to_keep = []
+        for i, field in enumerate(self.base_embed.fields):
+            if field.name and field.name.startswith(self.field_label):
+                if insert_at is None:
+                    insert_at = i
+            else:
+                fields_to_keep.append(field)
+        if insert_at is None:
+            insert_at = len(fields_to_keep)
+
+        rebuilt = discord.Embed.from_dict(self.base_embed.to_dict())
+        rebuilt.clear_fields()
+        for field in fields_to_keep[:insert_at]:
+            rebuilt.add_field(name=field.name, value=field.value, inline=field.inline)
+
+        if len(new_reason) <= 1024:
+            rebuilt.add_field(name=self.field_label, value=new_reason, inline=False)
+        elif len(new_reason) <= 2048:
+            rebuilt.add_field(name=self.field_label, value=new_reason[:1024], inline=False)
+            rebuilt.add_field(name=f"{self.field_label} (cont.)", value=new_reason[1024:2048], inline=False)
+        else:
+            await interaction.response.edit_message(
+                content=f"That {self.field_label.lower()} is too long ({len(new_reason)} characters). "
+                        f"Please edit again with a message under 2048 characters.",
+                embed=None, view=None,
+            )
+            return
+
+        for field in fields_to_keep[insert_at:]:
+            rebuilt.add_field(name=field.name, value=field.value, inline=field.inline)
+
+        # Persist the new reason to the modlog storage, if the entry supports it.
+        if hasattr(self.modlog_entry, "update_reason"):
+            self.modlog_entry.update_reason(new_reason)
+
+        self.current_reason = new_reason
+        self.base_embed = rebuilt
+
+        try:
+            await self.message.edit(embed=rebuilt, view=self)
+        except discord.HTTPException:
+            pass
+
+        await interaction.response.edit_message(
+            content="✅ The log has been updated.", embed=None, view=None
+        )
+
+
 class PaginationView(discord.ui.View):
     """Generic paginated embed view with ◄/►/✖ buttons."""
 
