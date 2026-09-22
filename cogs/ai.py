@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from random import choice
 from textwrap import dedent
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import discord
 import openai
@@ -17,9 +17,11 @@ from lingua import Language
 from openai.types.chat import ChatCompletion
 from openai.types.responses import Response
 
-from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+
+if TYPE_CHECKING:
+    from Rai import Rai
 
 SP_SERVER_ID = 243838819743432704
 JP_SERVER_ID = 189571157446492161
@@ -211,7 +213,7 @@ def parse_json_block(text: str) -> dict[str, Any]:
 
 
 class AI(commands.Cog):
-    def __init__(self, bot: Rai):
+    def __init__(self, bot: "Rai"):
         self.previous_response_id = None
         self.bot = bot
         self.channel_summary_loop.start()

@@ -6,7 +6,7 @@ import traceback
 import urllib
 from datetime import timedelta, datetime, timezone
 from functools import wraps
-from typing import Optional, Callable
+from typing import TYPE_CHECKING, Optional, Callable
 from urllib.error import HTTPError
 
 import discord
@@ -21,10 +21,12 @@ from deep_translator.exceptions import RequestError, TranslationNotFound
 import requests
 from socket import gaierror
 
-from Rai import Rai
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 from .utils.hardcore import SP_HARDCORE_ROLE_IDS, SP_NIGHTMARE_HARDCORE_ROLE_ID
+
+if TYPE_CHECKING:
+    from Rai import Rai
 
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
@@ -247,7 +249,7 @@ def scam_ban_reason(content: str) -> str:
 
 class ScamBanPromptView(utils.RaiView):
     def __init__(self,
-                 bot: Rai,
+                 bot: "Rai",
                  target: discord.Member,
                  content: str):
         super().__init__(timeout=24 * 60 * 60)
@@ -457,7 +459,7 @@ def spanish_antispam_staff_check(ctx: commands.Context | discord.Interaction) ->
     return bool(hf.trial_helper_check(ctx))
 
 
-def antispam_review_claims(bot: Rai) -> dict[tuple[int, int], object]:
+def antispam_review_claims(bot: "Rai") -> dict[tuple[int, int], object]:
     """Return the in-memory claims that prevent duplicate antispam incidents."""
     claims = getattr(bot, 'antispam_review_claims', None)
     if not isinstance(claims, dict):
@@ -466,7 +468,7 @@ def antispam_review_claims(bot: Rai) -> dict[tuple[int, int], object]:
     return claims
 
 
-def release_antispam_claim(bot: Rai,
+def release_antispam_claim(bot: "Rai",
                            claim_key: tuple[int, int],
                            claim_token: object) -> None:
     claims = antispam_review_claims(bot)
@@ -474,7 +476,7 @@ def release_antispam_claim(bot: Rai,
         del claims[claim_key]
 
 
-def schedule_antispam_claim_release(bot: Rai,
+def schedule_antispam_claim_release(bot: "Rai",
                                     claim_key: tuple[int, int],
                                     claim_token: object,
                                     release_at: datetime) -> None:
@@ -530,7 +532,7 @@ class AntispamReviewView(utils.RaiView):
     """Let Spanish moderation staff confirm or undo a general antispam mute."""
 
     def __init__(self,
-                 bot: Rai,
+                 bot: "Rai",
                  target: discord.Member,
                  reason: str,
                  incident_id: str,
@@ -772,7 +774,7 @@ class AntispamBanReasonModal(utils.RaiModal, title="Ban User"):
         )
 
 
-async def handle_scam_timeout_followup(bot: Rai, msg: hf.RaiMessage, content: str,
+async def handle_scam_timeout_followup(bot: "Rai", msg: hf.RaiMessage, content: str,
                                        timeout_duration: timedelta) -> None:
     if timeout_duration <= timedelta(minutes=5):
         return
@@ -794,7 +796,7 @@ async def delete_antispam_messages(messages: list[hf.RaiMessage]) -> None:
             pass
 
 
-async def rollback_unposted_antispam_review(bot: Rai,
+async def rollback_unposted_antispam_review(bot: "Rai",
                                             target: discord.Member,
                                             incident_entry: dict,
                                             expected_timeout: datetime,
@@ -857,7 +859,7 @@ async def send_antispam_timeout_dm(guild: discord.Guild,
         pass
 
 
-async def report_antispam_review_failure(bot: Rai,
+async def report_antispam_review_failure(bot: "Rai",
                                          msg: hf.RaiMessage,
                                          failed_channel,
                                          detail: str) -> None:
@@ -882,7 +884,7 @@ async def report_antispam_review_failure(bot: Rai,
     print(text)
 
 
-async def create_spanish_antispam_review(bot: Rai,
+async def create_spanish_antispam_review(bot: "Rai",
                                          msg: hf.RaiMessage,
                                          reason: str,
                                          incidents_channel,
@@ -1067,7 +1069,7 @@ async def create_spanish_antispam_review(bot: Rai,
     return view
 
 
-async def resolve_spanish_antispam_review_channel(bot: Rai, guild: discord.Guild):
+async def resolve_spanish_antispam_review_channel(bot: "Rai", guild: discord.Guild):
     channel = guild.get_channel_or_thread(SP_INCIDENTS_CHANNEL_ID)
     if not channel:
         try:
@@ -1091,7 +1093,7 @@ async def resolve_spanish_antispam_review_channel(bot: Rai, guild: discord.Guild
 
 
 class Message(commands.Cog):
-    def __init__(self, bot: Rai):
+    def __init__(self, bot: "Rai"):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
