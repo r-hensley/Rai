@@ -16,8 +16,6 @@ from lingua import Language, LanguageDetectorBuilder
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from Levenshtein import distance as LDist
-from deep_translator import GoogleTranslator
-from deep_translator.exceptions import RequestError, TranslationNotFound
 import requests
 from socket import gaierror
 
@@ -50,7 +48,56 @@ SP_INCIDENTS_CHANNEL_ID = 808077477703712788
 ANTISPAM_REVIEW_TIMEOUT_SECONDS = 60 * 60
 ANTISPAM_TIMEOUT_MATCH_TOLERANCE_SECONDS = 5
 MAX_LANGUAGE_LINKS_PER_DAY = 25
+GOOGLE_TRANSLATE_ENDPOINT = "https://clients5.google.com/translate_a/t"
 on_message_functions = []
+
+
+def translate_text(text: str, target: str) -> str:
+    """Translate text with Google's compact JSON endpoint.
+
+    deep-translator scrapes the mobile HTML page, which can return an HTTP 200
+    response containing Google's Error 500 page. The scraper mistakes that page
+    for translated text, so use the JSON response consumed by Google's Chrome
+    extension and validate its shape before returning anything.
+    """
+    response = requests.get(
+        GOOGLE_TRANSLATE_ENDPOINT,
+        params={
+            "client": "dict-chrome-ex",
+            "sl": "auto",
+            "tl": target,
+            "q": text,
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ValueError("Google Translate returned an invalid response") from exc
+
+    if (
+        not isinstance(payload, list)
+        or not payload
+        or not isinstance(payload[0], list)
+        or not payload[0]
+        or not isinstance(payload[0][0], str)
+    ):
+        raise ValueError("Google Translate returned an invalid response")
+    translated = payload[0][0]
+    if not translated.strip():
+        raise ValueError("Google Translate returned an empty response")
+
+    normalized = translated.casefold().replace("’", "'")
+    if (
+        "error 500" in normalized
+        and "please try again later" in normalized
+        and "that's all we know" in normalized
+    ):
+        raise ValueError("Google Translate returned an error page")
+
+    return translated.strip()
 
 
 def forced_hardcore_applies(msg: discord.Message, config: object) -> bool:
@@ -2564,14 +2611,12 @@ class Message(commands.Cog):
         is_staff_member = other_language_log_channel.permissions_for(
             msg.author).read_messages
 
-        trans_task = utils.asyncio_task(lambda: GoogleTranslator(
-            source='auto', target='en').translate(content))
-        trans_task_2 = utils.asyncio_task(lambda: GoogleTranslator(
-            source='auto', target='es').translate(content))
         try:
-            translated = await trans_task
-            translated_2 = await trans_task_2
-        except (gaierror, requests.exceptions.RequestException, RequestError, TranslationNotFound):
+            translated, translated_2 = await asyncio.gather(
+                utils.asyncio_task(translate_text, content, 'en'),
+                utils.asyncio_task(translate_text, content, 'es'),
+            )
+        except (gaierror, requests.exceptions.RequestException, ValueError):
             return
         if not translated or not translated_2:
             return
