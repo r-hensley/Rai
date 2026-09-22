@@ -280,7 +280,8 @@ class ImageSpam(commands.Cog):
                 if evidence:
                     evidence_msg = await alert_channel.send(
                         content="-# Evidence",
-                        file=discord.File(evidence, filename=f"{message.author.id}_evidence_spam.png")
+                        file=discord.File(evidence, filename=f"{message.author.id}_evidence_spam.png"),
+                        spoiler=True,
                     )
             except Exception as e:
                 print("Evidence generation failed:", e)
