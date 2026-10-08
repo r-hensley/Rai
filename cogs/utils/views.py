@@ -423,6 +423,47 @@ class LogEditView(discord.ui.View):
         )
 
 
+class BanLogEditState(LogEditState):
+    """A single-user ban, awaiting its saved record and ban-event summary."""
+
+    def __init__(self, *, base_embed, current_reason, helper_role_id=None):
+        super().__init__(modlog_entry=None, base_embed=base_embed, current_reason=current_reason)
+        self.helper_role_id = helper_role_id
+
+
+def register_pending_ban_edit(bot, guild_id: int, user_id: int, state: BanLogEditState):
+    pending = getattr(bot, "pending_ban_edits", None)
+    if pending is None:
+        pending = bot.pending_ban_edits = {}
+    key = (guild_id, user_id)
+    pending[key] = state
+
+    def expire():
+        if pending.get(key) is state:
+            pending.pop(key)
+
+    # The event normally arrives immediately; do not retain failed/missing events.
+    asyncio.get_running_loop().call_later(90, expire)
+    return expire
+
+
+class BanLogEditView(LogEditView):
+    async def check_edit_permission(self, interaction: discord.Interaction) -> bool:
+        from . import helper_functions as hf
+
+        if hf.admin_check(interaction):
+            return True
+        role_id = self.state.helper_role_id
+        if role_id and interaction.guild and hf.submod_check(interaction):
+            role = interaction.guild.get_role(role_id)
+            if role and role in interaction.user.roles:
+                return True
+        await interaction.response.send_message(
+            "You need permission to moderate this ban to edit its log.", ephemeral=True,
+        )
+        return False
+
+
 class PaginationView(discord.ui.View):
     """Generic paginated embed view with ◄/►/✖ buttons."""
 

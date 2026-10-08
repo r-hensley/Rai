@@ -2,6 +2,7 @@ import asyncio
 import re
 import os
 from collections import Counter
+from contextlib import nullcontext
 from typing import Optional, List, Union
 from datetime import timedelta, datetime, timezone
 
@@ -576,6 +577,8 @@ class Submod(commands.Cog):
         
         flags = {}
         any_flags = False
+        edit_state = None
+        clear_pending_edit = None
         if view.confirmed:
             successes = []
             failures = []
@@ -586,56 +589,87 @@ class Submod(commands.Cog):
                     except discord.Forbidden:
                         await utils.safe_send(ctx, f"The user {target.mention} has "
                                                    f"DMs blocked. Defaulting to silent ban.")
+                if len(user_ids) == len(targets) == 1:
+                    embed = discord.Embed(
+                        title="Ban Successful", description=f"Successfully banned {target.mention}",
+                        color=0x00FF00, timestamp=discord.utils.utcnow(),
+                    )
+                    embed.add_field(name="Reason", value=reason, inline=False)
+                    if length:
+                        embed.add_field(name="Temporary ban length", value=f"{length[0]}d{length[1]}h")
+                    embed.set_footer(text=f"Banned by {ctx.author} ({ctx.author.id})")
+                    helper_role_id = None
+                    if getattr(target, "joined_at", None) and \
+                            discord.utils.utcnow() - target.joined_at < timedelta(days=30):
+                        helper_role_id = {
+                            JP_SERVER_ID: 543721608506900480,
+                            SP_SERV_ID: 258819531193974784,
+                        }.get(ctx.guild.id)
+                    edit_state = view_utils.BanLogEditState(
+                        base_embed=embed, current_reason=reason, helper_role_id=helper_role_id,
+                    )
+                    clear_pending_edit = view_utils.register_pending_ban_edit(
+                        self.bot, ctx.guild.id, target.id, edit_state,
+                    )
+
                 # Capture the timeout before the ban removes the member from the guild.
                 was_muted = hf.is_muted(ctx.guild, target)
-                try:
-                    await ctx.guild.ban(target, reason=ban_reason,
-                                        delete_message_seconds=view.delete_message_seconds)
-                    successes.append(target)
-                except Exception as e:
-                    await utils.safe_send(ctx, f"I couldn't ban {target.mention}: `{e}`")
-                    failures.append(target)
-                else:
-                    # Preserve the mute history if Discord rejects the ban.
-                    if was_muted:
-                        hf.remove_last_mute_log(ctx.guild, target)
+                # The event logger waits until the ban result and saved record are ready.
+                async with edit_state.lock if edit_state is not None else nullcontext():
+                    try:
+                        await ctx.guild.ban(target, reason=ban_reason,
+                                            delete_message_seconds=view.delete_message_seconds)
+                        successes.append(target)
+                    except Exception as e:
+                        if clear_pending_edit is not None:
+                            clear_pending_edit()
+                        await utils.safe_send(ctx, f"I couldn't ban {target.mention}: `{e}`")
+                        failures.append(target)
+                    else:
+                        # Preserve the mute history if Discord rejects the ban.
+                        if was_muted:
+                            hf.remove_last_mute_log(ctx.guild, target)
 
-                    # calculate length of temporary ban
-                    if length:
-                        default_config = {'enable': False, 'channel': None, 'timed_bans': {}}
-                        config = self.bot.db['bans'].setdefault(str(ctx.guild.id), default_config)
-                        timed_bans = config.setdefault('timed_bans', {})
-                        timed_bans[str(target.id)] = time_string
-                    else:
-                        # if the user was already scheduled to be unbanned at some point,
-                        # delete the entry, changing it to a permanent ban
-                        try:
-                            g_id = str(ctx.guild.id)
-                            if str(target.id) in self.bot.db['bans'][g_id]['timed_bans']:
-                                del self.bot.db['bans'][g_id]['timed_bans'][str(target.id)]
-                        except KeyError:
-                            pass
+                        # calculate length of temporary ban
+                        if length:
+                            default_config = {'enable': False, 'channel': None, 'timed_bans': {}}
+                            config = self.bot.db['bans'].setdefault(str(ctx.guild.id), default_config)
+                            timed_bans = config.setdefault('timed_bans', {})
+                            timed_bans[str(target.id)] = time_string
+                        else:
+                            # if the user was already scheduled to be unbanned at some point,
+                            # delete the entry, changing it to a permanent ban
+                            try:
+                                g_id = str(ctx.guild.id)
+                                if str(target.id) in self.bot.db['bans'][g_id]['timed_bans']:
+                                    del self.bot.db['bans'][g_id]['timed_bans'][str(target.id)]
+                            except KeyError:
+                                pass
                     
-                    # format length string and add to modlog
-                    if length:
-                        length_str = f"{length[0]}d{length[1]}h"
-                    else:
-                        length_str = None
-                    if reason.startswith("*by*"):
-                        reason = reason.replace(
-                            f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
-                    modlog_entry = hf.ModlogEntry(event="Ban", user=target,
-                                                  guild=ctx.guild, ctx=ctx,
-                                                  length=length_str, reason=reason,
-                                                  silent=view.silent)
-                    modlog_entry.add_to_modlog()
-                    
-                    # check for user account flags
-                    flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
-                    flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
-                    if flag_one or flag_two:
-                        any_flags = True
-                    flags[target.id] = (flag_one, flag_two)
+                        # format length string and add to modlog
+                        if length:
+                            length_str = f"{length[0]}d{length[1]}h"
+                        else:
+                            length_str = None
+                        if reason.startswith("*by*"):
+                            reason = reason.replace(
+                                f"*by* {ctx.author.mention} ({ctx.author.name})\n**Reason:** ", '')
+                        modlog_entry = hf.ModlogEntry(event="Ban", user=target,
+                                                      guild=ctx.guild, ctx=ctx,
+                                                      length=length_str, reason=reason,
+                                                      silent=view.silent)
+                        modlog_entry.add_to_modlog()
+                        if edit_state is not None:
+                            edit_state.modlog_entry = modlog_entry
+                            edit_state.current_reason = reason
+                            edit_state.base_embed.set_field_at(0, name="Reason", value=reason, inline=False)
+
+                        # check for user account flags
+                        flag_one = bool(await hf.suspected_spam_activity_flag(ctx.guild.id, target.id))
+                        flag_two = bool(await hf.excessive_dm_activity(ctx.guild.id, target.id))
+                        if flag_one or flag_two:
+                            any_flags = True
+                        flags[target.id] = (flag_one, flag_two)
             
             # check for if any of the users have flags for spamming or excessive DM activity
             if successes:
@@ -666,10 +700,24 @@ class Submod(commands.Cog):
                         name="Failed to Ban",
                         value=", ".join(user.mention for user in failures),
                         inline=False)
-                try:
-                    await confirmation_msg.edit(embed=embed, view=None)
-                except discord.NotFound:
-                    pass
+                if edit_state is not None:
+                    async with edit_state.lock:
+                        edit_view = view_utils.BanLogEditView(
+                            state=edit_state, modal_title="Edit Ban Reason",
+                        )
+                        try:
+                            await confirmation_msg.edit(
+                                content=None, embed=edit_state.base_embed, view=edit_view,
+                            )
+                        except discord.NotFound:
+                            edit_view.stop()
+                        else:
+                            edit_view.message = confirmation_msg
+                else:
+                    try:
+                        await confirmation_msg.edit(embed=embed, view=None)
+                    except discord.NotFound:
+                        pass
                 
                 return
         

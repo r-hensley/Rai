@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
+from .utils import views as view_utils
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
 
@@ -2259,6 +2260,11 @@ class Logger(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, member):
+        edit_state = getattr(self.bot, "pending_ban_edits", {}).pop((guild.id, member.id), None)
+        if edit_state is not None:
+            # The gateway event can arrive before the command's ban request finishes.
+            async with edit_state.lock:
+                pass
         if not isinstance(member, discord.Member):
             recently_removed_member_list = self.bot.recently_removed_members.get(str(guild.id), [])
             id_to_member_dict = {m.id: m for m in recently_removed_member_list}
@@ -2275,7 +2281,16 @@ class Logger(commands.Cog):
                 return
             if guild_config['enable']:
                 channel = self.bot.get_channel(guild_config["channel"])
-                await utils.safe_send(channel, member.id, embed=ban_emb)
+                if edit_state is not None and edit_state.modlog_entry is not None:
+                    async with edit_state.lock:
+                        edit_view = view_utils.BanLogEditView(
+                            state=edit_state, modal_title="Edit Ban Reason",
+                        )
+                        edit_view.message = await utils.safe_send(
+                            channel, member.id, embed=edit_state.base_embed, view=edit_view,
+                        )
+                else:
+                    await utils.safe_send(channel, member.id, embed=ban_emb)
 
             if 'crosspost' in guild_config and member.id not in self.bot.db['bansub']['ignore']:
                 # ⁣ is a flag to *skip* crossposting
