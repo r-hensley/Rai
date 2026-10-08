@@ -1015,6 +1015,47 @@ class ModlogEntry:
         return config
 
 
+def is_muted(guild: discord.Guild, user: Union[discord.Member, discord.User]) -> bool:
+    """Returns True if `user` currently has an active mute in `guild`.
+
+    Mutes are implemented using Discord's native timeout feature (see
+    ChannelMods.mute()/.unmute()), so this checks Member.is_timed_out().
+    `user` may be passed as either a discord.Member or discord.User (some
+    callers, like Actions.ban(), can receive either) - it's resolved against
+    the guild's member cache rather than trusting the passed-in type, since a
+    stale/plain User object would otherwise never register as muted even if
+    the person is a timed-out member of the guild.
+    """
+    member = user if isinstance(user, discord.Member) and user.guild.id == guild.id \
+        else guild.get_member(user.id)
+    if not member:
+        return False
+    return member.is_timed_out()
+
+
+def remove_last_mute_log(guild: discord.Guild, user: Union[discord.Member, discord.User]) -> bool:
+    """Removes the most recent 'Mute' modlog entry for `user` in `guild`, if any.
+
+    Only the single most recent 'Mute' entry is removed; older mutes and all
+    other modlog entries (bans, warns, unmutes, etc.) are left untouched.
+    Returns True if an entry was found and removed, False otherwise.
+    """
+    guild_modlogs = here.bot.db['modlog'].get(str(guild.id))
+    if not guild_modlogs:
+        return False
+
+    user_modlog = guild_modlogs.get(str(user.id))
+    if not user_modlog:
+        return False
+
+    for index in range(len(user_modlog) - 1, -1, -1):
+        if user_modlog[index].get('type') == 'Mute':
+            del user_modlog[index]
+            return True
+
+    return False
+
+
 @dataclass
 class Args:
     def __init__(self,

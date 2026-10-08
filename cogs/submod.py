@@ -586,6 +586,8 @@ class Submod(commands.Cog):
                     except discord.Forbidden:
                         await utils.safe_send(ctx, f"The user {target.mention} has "
                                                    f"DMs blocked. Defaulting to silent ban.")
+                # Capture the timeout before the ban removes the member from the guild.
+                was_muted = hf.is_muted(ctx.guild, target)
                 try:
                     await ctx.guild.ban(target, reason=ban_reason,
                                         delete_message_seconds=view.delete_message_seconds)
@@ -594,6 +596,10 @@ class Submod(commands.Cog):
                     await utils.safe_send(ctx, f"I couldn't ban {target.mention}: `{e}`")
                     failures.append(target)
                 else:
+                    # Preserve the mute history if Discord rejects the ban.
+                    if was_muted:
+                        hf.remove_last_mute_log(ctx.guild, target)
+
                     # calculate length of temporary ban
                     if length:
                         default_config = {'enable': False, 'channel': None, 'timed_bans': {}}
