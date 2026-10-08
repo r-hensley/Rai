@@ -1,3 +1,6 @@
+import asyncio
+from copy import deepcopy
+
 import discord
 from discord.ext import commands
 
@@ -189,6 +192,10 @@ class EditReasonModal(discord.ui.Modal):
         super().__init__(title=modal_title)
         self.log_view = log_view
         self.field_label = field_label
+        self.original_reason = log_view.current_reason
+        # Views sent before a utility reload can still use the old single-message class.
+        state = getattr(log_view, "state", None)
+        self.expected_revision = state.revision if state is not None else None
 
         self.new_reason = discord.ui.TextInput(
             label=field_label,
@@ -207,12 +214,15 @@ class EditReasonModal(discord.ui.Modal):
             description="Review the change below. Nothing has been updated yet.",
             color=0x5865F2,
         )
-        old_display = self.log_view.current_reason if self.log_view.current_reason else "—"
+        old_display = self.original_reason or "—"
         new_display = new_reason_value if new_reason_value else "—"
         preview_embed.add_field(name="Current Message", value=old_display[:1024], inline=False)
         preview_embed.add_field(name="New Message", value=new_display[:1024], inline=False)
 
-        confirm_view = ConfirmEditView(log_view=self.log_view, new_reason=new_reason_value)
+        confirm_view = ConfirmEditView(
+            log_view=self.log_view, new_reason=new_reason_value,
+            expected_revision=self.expected_revision,
+        )
 
         await interaction.response.send_message(
             embed=preview_embed,
@@ -224,14 +234,20 @@ class EditReasonModal(discord.ui.Modal):
 class ConfirmEditView(discord.ui.View):
     """Shown after the modal is submitted; nothing is changed until Confirm is pressed."""
 
-    def __init__(self, log_view: "LogEditView", new_reason: str):
+    def __init__(self, log_view: "LogEditView", new_reason: str, *, expected_revision: int = None):
         super().__init__(timeout=300)
         self.log_view = log_view
         self.new_reason = new_reason
+        self.expected_revision = expected_revision
 
     @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green, custom_id="modlog_edit_confirm")
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.log_view.apply_edit(interaction, self.new_reason)
+        if self.expected_revision is None:
+            await self.log_view.apply_edit(interaction, self.new_reason)
+        else:
+            await self.log_view.apply_edit(
+                interaction, self.new_reason, expected_revision=self.expected_revision,
+            )
         self.stop()
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey, custom_id="modlog_edit_cancel")
@@ -241,29 +257,46 @@ class ConfirmEditView(discord.ui.View):
         self.stop()
 
 
+class LogEditState:
+    """One moderation record shared by its confirmation and summary views."""
+
+    def __init__(self, *, modlog_entry, base_embed: discord.Embed, current_reason: str):
+        self.modlog_entry = modlog_entry
+        self.base_embed = discord.Embed.from_dict(deepcopy(base_embed.to_dict()))
+        self.current_reason = current_reason
+        self.views: list[LogEditView] = []
+        self.lock = asyncio.Lock()
+        self.revision = 0
+
+
 class LogEditView(discord.ui.View):
     """
     Attached below a sent modlog embed (warn, mute, or any future command that
     builds an embed with a "Reason" field). Lets a moderator open a modal to
     edit the reason, preview the change, and only apply it on explicit Confirm.
 
-    - modlog_entry: anything with an update_reason(new_reason) method, e.g.
-      hf.ModlogEntry or a ModlogDictEntryRef wrapping a raw modlog dict.
+    - state: the moderation record and embed shared by all its message copies.
     - field_label: the embed field name to treat as the editable reason
       (defaults to "Reason"; a "<field_label> (cont.)" field is handled too).
     - modal_title: the title shown on the edit modal.
     """
 
-    def __init__(self, *, modlog_entry, message: discord.Message,
-                base_embed: discord.Embed, current_reason: str,
+    def __init__(self, *, state: LogEditState, message: discord.Message = None,
                 field_label: str = "Reason", modal_title: str = "Edit Reason"):
         super().__init__(timeout=None)
-        self.modlog_entry = modlog_entry
+        self.state = state
         self.message = message
-        self.base_embed = base_embed
-        self.current_reason = current_reason
         self.field_label = field_label
         self.modal_title = modal_title
+        state.views.append(self)
+
+    @property
+    def base_embed(self):
+        return self.state.base_embed
+
+    @property
+    def current_reason(self):
+        return self.state.current_reason
 
     async def check_edit_permission(self, interaction: discord.Interaction) -> bool:
         # Match the authorization policy used by the warning command.
@@ -285,10 +318,25 @@ class LogEditView(discord.ui.View):
             EditReasonModal(self, modal_title=self.modal_title, field_label=self.field_label)
         )
 
-    async def apply_edit(self, interaction: discord.Interaction, new_reason: str):
+    async def apply_edit(self, interaction: discord.Interaction, new_reason: str,
+                         *, expected_revision: int = None):
         """Called only after the moderator clicks Confirm on the preview."""
         if not await self.check_edit_permission(interaction):
             return
+
+        await interaction.response.defer()
+        async with self.state.lock:
+            if expected_revision is not None and expected_revision != self.state.revision:
+                await interaction.edit_original_response(
+                    content="This log changed while you were editing it. "
+                            "Click Edit again to review the latest reason.",
+                    embed=None, view=None,
+                )
+                return
+            await self._apply_edit(interaction, new_reason)
+
+    async def _apply_edit(self, interaction: discord.Interaction, new_reason: str):
+        """Update the linked messages while holding the record's lock."""
 
         # Remove old "<field_label>" / "<field_label> (cont.)" fields, then insert
         # the new one(s) back in the same position.
@@ -303,7 +351,7 @@ class LogEditView(discord.ui.View):
         if insert_at is None:
             insert_at = len(fields_to_keep)
 
-        rebuilt = discord.Embed.from_dict(self.base_embed.to_dict())
+        rebuilt = discord.Embed.from_dict(deepcopy(self.base_embed.to_dict()))
         rebuilt.clear_fields()
         for field in fields_to_keep[:insert_at]:
             rebuilt.add_field(name=field.name, value=field.value, inline=field.inline)
@@ -314,7 +362,7 @@ class LogEditView(discord.ui.View):
             rebuilt.add_field(name=self.field_label, value=new_reason[:1024], inline=False)
             rebuilt.add_field(name=f"{self.field_label} (cont.)", value=new_reason[1024:2048], inline=False)
         else:
-            await interaction.response.edit_message(
+            await interaction.edit_original_response(
                 content=f"That {self.field_label.lower()} is too long ({len(new_reason)} characters). "
                         f"Please edit again with a message under 2048 characters.",
                 embed=None, view=None,
@@ -324,22 +372,51 @@ class LogEditView(discord.ui.View):
         for field in fields_to_keep[insert_at:]:
             rebuilt.add_field(name=field.name, value=field.value, inline=field.inline)
 
-        await interaction.response.defer()
-        try:
-            await self.message.edit(embed=rebuilt, view=self)
-        except discord.HTTPException:
+        updated = []
+        seen = set()
+        for linked_view in list(self.state.views):
+            message = linked_view.message
+            if message is None or message.id in seen:
+                continue
+            seen.add(message.id)
+            try:
+                # Preserve each message's distinct view and Discord registration.
+                await message.edit(embed=rebuilt)
+            except discord.NotFound:
+                self.state.views.remove(linked_view)
+                linked_view.stop()
+            except discord.HTTPException:
+                rollback_failed = False
+                for previous_view in updated:
+                    try:
+                        await previous_view.message.edit(embed=self.base_embed)
+                    except discord.NotFound:
+                        self.state.views.remove(previous_view)
+                        previous_view.stop()
+                    except discord.HTTPException:
+                        rollback_failed = True
+                content = "I couldn't update every log message. The saved reason was not changed."
+                if rollback_failed:
+                    content += " I also couldn't restore some messages; their displayed reasons may be out of sync."
+                await interaction.edit_original_response(content=content, embed=None, view=None)
+                return
+            else:
+                updated.append(linked_view)
+
+        if not updated:
             await interaction.edit_original_response(
-                content="I couldn't update the log message. The saved reason was not changed.",
+                content="No log messages could be updated. The saved reason was not changed.",
                 embed=None, view=None,
             )
             return
 
-        # Commit the new reason only after Discord accepts the message edit.
-        if hasattr(self.modlog_entry, "update_reason"):
-            self.modlog_entry.update_reason(new_reason)
+        # Commit only after all remaining copies have accepted the edit.
+        if hasattr(self.state.modlog_entry, "update_reason"):
+            self.state.modlog_entry.update_reason(new_reason)
 
-        self.current_reason = new_reason
-        self.base_embed = rebuilt
+        self.state.current_reason = new_reason
+        self.state.base_embed = rebuilt
+        self.state.revision += 1
 
         await interaction.edit_original_response(
             content="✅ The log has been updated.", embed=None, view=None

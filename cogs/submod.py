@@ -1010,38 +1010,28 @@ class Submod(commands.Cog):
             except KeyError:
                 pass
             
-            # Send notification to modlog channel if the modlog channel isn't current channel,
-            # attaching an Edit button so the reason can be revised later.
-            log_message = None
-            if modlog_channel:
-                if modlog_channel != ctx.channel:
-                    log_message = await utils.safe_send(modlog_channel, user.id, embed=emb)
-            
-            # Send notification (confirmation) to current channel
-            if ephemeral:  # True if this came from context command
-                return emb  # send the embed back to be used in the ephemeral followup send
-            else:
-                if log_message is not None:
-                    # The modlog entry already went to a separate channel above;
-                    # this confirmation is just informational and stays plain.
-                    await utils.safe_send(ctx, embed=emb)
-                else:
-                    # Only a confirmation in the configured modlog channel is
-                    # editable; other channel confirmations stay informational.
-                    log_message = await utils.safe_send(ctx, embed=emb)
-            
-            if isinstance(log_message, discord.Message) and log_message.channel == modlog_channel:
-                log_view = view_utils.LogEditView(
-                    modlog_entry=modlog_entry,
-                    message=log_message,
-                    base_embed=emb,
-                    current_reason=reason,
-                    modal_title="Edit Warning Reason",
+            edit_state = view_utils.LogEditState(
+                modlog_entry=modlog_entry, base_embed=emb, current_reason=reason,
+            )
+            # Keep early button clicks waiting until both copies are registered.
+            async with edit_state.lock:
+                if modlog_channel and modlog_channel != ctx.channel:
+                    summary_view = view_utils.LogEditView(
+                        state=edit_state, modal_title="Edit Warning Reason",
+                    )
+                    summary_view.message = await utils.safe_send(
+                        modlog_channel, user.id, embed=emb, view=summary_view,
+                    )
+
+                if ephemeral:  # The context-menu caller sends its own followup embed.
+                    return emb
+
+                confirmation_view = view_utils.LogEditView(
+                    state=edit_state, modal_title="Edit Warning Reason",
                 )
-                try:
-                    await log_message.edit(view=log_view)
-                except discord.HTTPException:
-                    pass
+                confirmation_view.message = await utils.safe_send(
+                    ctx, embed=emb, view=confirmation_view,
+                )
     
     @warn.command(name="set")
     @hf.is_submod()
