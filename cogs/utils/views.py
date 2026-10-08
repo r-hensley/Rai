@@ -282,12 +282,16 @@ class LogEditView(discord.ui.View):
     """
 
     def __init__(self, *, state: LogEditState, message: discord.Message = None,
-                field_label: str = "Reason", modal_title: str = "Edit Reason"):
+                field_label: str = "Reason", modal_title: str = "Edit Reason",
+                permission_check=None,
+                permission_error="You need permission to issue warnings to edit this log."):
         super().__init__(timeout=None)
         self.state = state
         self.message = message
         self.field_label = field_label
         self.modal_title = modal_title
+        self.permission_check = permission_check
+        self.permission_error = permission_error
         state.views.append(self)
 
     @property
@@ -299,13 +303,17 @@ class LogEditView(discord.ui.View):
         return self.state.current_reason
 
     async def check_edit_permission(self, interaction: discord.Interaction) -> bool:
-        # Match the authorization policy used by the warning command.
+        # Other commands can supply their own authorization policy.
         from . import helper_functions as hf
 
-        if hf.trial_helper_check(interaction):
+        if self.permission_check:
+            allowed = await self.permission_check(interaction)
+        else:
+            allowed = hf.trial_helper_check(interaction)
+        if allowed:
             return True
         await interaction.response.send_message(
-            "You need permission to issue warnings to edit this log.",
+            self.permission_error,
             ephemeral=True,
         )
         return False

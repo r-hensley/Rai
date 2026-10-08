@@ -1,6 +1,6 @@
 import os
 import re
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import Optional, Union, List
 from datetime import datetime, timedelta, timezone
 
@@ -1771,9 +1771,9 @@ class ChannelMods(commands.Cog):
                 emb.add_field(name="Reason", value=reason_field,
                               inline=False)
             else:
-                emb.add_field(name="Reason", value=reason_field[:1021] + "...",
+                emb.add_field(name="Reason", value=reason_field[:1024],
                               inline=False)
-                emb.add_field(name="Reason (cont.)", value="..." + reason_field[1021:],
+                emb.add_field(name="Reason (cont.)", value=reason_field[1024:],
                               inline=False)
 
             if ctx.message:
@@ -1789,22 +1789,58 @@ class ChannelMods(commands.Cog):
                 additonal_text = str(target.id)
             else:
                 additonal_text = ""
-            if ctx.author != self.bot.user and "Nitro" not in reason:
-                await utils.safe_send(ctx, additonal_text, embed=emb)
-
             # Add mute info to modlog
             modlog_config = hf.add_to_modlog(
                 ctx, target, 'Mute', reason, silent, time_arg)
+            await self._send_timeout_log(
+                ctx, target, emb, modlog_config, action="mute", content=additonal_text,
+                send_confirmation=ctx.author != self.bot.user and "Nitro" not in reason,
+            )
 
-            # Add info about mute to modlog channel
-            modlog_channel = self.bot.get_channel(modlog_config['channel'])
+    async def _send_timeout_log(self, ctx, target, embed, config, *, action,
+                                content="", send_confirmation=True):
+        # Capture the exact entry just appended, before sending either message.
+        entry = config[str(target.id)][-1]
+        state = view_utils.LogEditState(
+            modlog_entry=view_utils.ModlogDictEntryRef(entry),
+            base_embed=embed, current_reason=entry['reason'] or "",
+        )
+        source_ctx = copy(ctx)
 
-            try:
-                if modlog_channel:
-                    if modlog_channel != ctx.channel:
-                        await utils.safe_send(modlog_channel, target.id, embed=emb)
-            except AttributeError:
-                await utils.safe_send(ctx, embed=emb)
+        async def can_edit(interaction):
+            if not interaction.guild or interaction.guild.id != source_ctx.guild.id:
+                return False
+            if action == "unmute":
+                return bool(hf.admin_check(interaction))
+            if str(interaction.guild.id) not in self.bot.db.get('mod_channel', {}):
+                return False
+            if hf.submod_check(interaction):
+                return True
+            # Channel-scoped staff must still have access to the original command channel,
+            # even when clicking the summary copy somewhere else.
+            channel = interaction.guild.get_channel_or_thread(source_ctx.channel.id)
+            if not channel or not channel.permissions_for(interaction.user).view_channel:
+                return False
+            check_ctx = copy(source_ctx)
+            check_ctx.guild, check_ctx.channel = interaction.guild, channel
+            check_ctx.author, check_ctx.user = interaction.user, interaction.user
+            check_ctx.command = self.mute
+            return bool(await self.cog_check(check_ctx))
+
+        async def send(destination, text):
+            view = view_utils.LogEditView(
+                state=state, modal_title=f"Edit {action.title()} Reason",
+                permission_check=can_edit,
+                permission_error=f"You need permission to {action} users to edit this log.",
+            )
+            view.message = await utils.safe_send(destination, text, embed=embed, view=view)
+
+        async with state.lock:
+            if send_confirmation:
+                await send(ctx, content)
+            modlog_channel = self.bot.get_channel(config['channel'])
+            if modlog_channel and modlog_channel != ctx.channel:
+                await send(modlog_channel, target.id)
 
     @commands.command()
     @hf.is_admin()
@@ -1822,27 +1858,32 @@ class ChannelMods(commands.Cog):
             guild = self.bot.get_guild(int(guild))
             target: discord.Member = guild.get_member(int(target_in))
 
-        failed = True
-        if target:
-            if target.is_timed_out():
-                try:
-                    await target.edit(timed_out_until=None)
-                except (discord.Forbidden, discord.HTTPException):
-                    await utils.safe_send(ctx, "I failed to remove the "
-                                               "timeout from the user.")
-                else:
-                    failed = False
-                    # add to modlog
-                    hf.add_to_modlog(ctx, target, 'Unmute', '',
-                                     False, None)
+        if not target:
+            if ctx.author != ctx.bot.user:
+                await utils.safe_send(ctx, "I couldn't find that user.")
+            return
+        if not target.is_timed_out():
+            if ctx.author != ctx.bot.user:
+                await utils.safe_send(ctx, f"{target} is not currently timed out.")
+            return
+        try:
+            await target.edit(timed_out_until=None)
+        except discord.HTTPException:
+            await utils.safe_send(ctx, "I failed to remove the timeout from the user.")
+            return
+
+        config = hf.add_to_modlog(ctx, target, 'Unmute', '', False, None)
 
         if ctx.author != ctx.bot.user:
-            emb = discord.Embed(description=f"**{str(target)}** has been unmuted.",
+            emb = discord.Embed(title="Unmute", description=f"**{str(target)}** has been unmuted.",
                                 color=discord.Color(int('00ffaa', 16)))
-            await utils.safe_send(ctx, embed=emb)
-
-        if not failed:
-            return True
+            emb.add_field(name="User", value=f"{target} ({target.id})", inline=False)
+            emb.add_field(name="Reason", value="(No given reason)", inline=False)
+            if ctx.message:
+                emb.add_field(name="Jump URL", value=ctx.message.jump_url, inline=False)
+            emb.set_footer(text=f"Unmuted by {ctx.author.name} ({ctx.author.id})")
+            await self._send_timeout_log(ctx, target, emb, config, action="unmute")
+        return True
 
     compare = app_commands.Group(
         name="compare", description="Compare two things", guild_ids=[SP_SERV])

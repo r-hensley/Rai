@@ -388,7 +388,7 @@ async def test_mute_dm_failure_only_offers_human_invoker_fallback(monkeypatch, a
     monkeypatch.setattr(
         channel_mods_module.hf,
         'add_to_modlog',
-        Mock(return_value={'channel': None}),
+        Mock(return_value={'channel': None, str(target.id): [{'reason': parsed_args.reason}]}),
     )
     offer_fallback = AsyncMock()
     monkeypatch.setattr(
