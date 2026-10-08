@@ -1020,11 +1020,11 @@ class Submod(commands.Cog):
                     # this confirmation is just informational and stays plain.
                     await utils.safe_send(ctx, embed=emb)
                 else:
-                    # ctx.channel IS the modlog channel (or none is configured), so this
-                    # confirmation message doubles as the actual log entry.
+                    # Only a confirmation in the configured modlog channel is
+                    # editable; other channel confirmations stay informational.
                     log_message = await utils.safe_send(ctx, embed=emb)
             
-            if isinstance(log_message, discord.Message):
+            if isinstance(log_message, discord.Message) and log_message.channel == modlog_channel:
                 log_view = view_utils.LogEditView(
                     modlog_entry=modlog_entry,
                     message=log_message,

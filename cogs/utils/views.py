@@ -194,7 +194,7 @@ class EditReasonModal(discord.ui.Modal):
             label=field_label,
             style=discord.TextStyle.paragraph,
             default=log_view.current_reason,
-            max_length=2000,
+            max_length=2048,
             required=True,
         )
         self.add_item(self.new_reason)
@@ -265,14 +265,31 @@ class LogEditView(discord.ui.View):
         self.field_label = field_label
         self.modal_title = modal_title
 
+    async def check_edit_permission(self, interaction: discord.Interaction) -> bool:
+        # Match the authorization policy used by the warning command.
+        from . import helper_functions as hf
+
+        if hf.trial_helper_check(interaction):
+            return True
+        await interaction.response.send_message(
+            "You need permission to issue warnings to edit this log.",
+            ephemeral=True,
+        )
+        return False
+
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.blurple, custom_id="modlog_log_edit_button")
     async def edit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.check_edit_permission(interaction):
+            return
         await interaction.response.send_modal(
             EditReasonModal(self, modal_title=self.modal_title, field_label=self.field_label)
         )
 
     async def apply_edit(self, interaction: discord.Interaction, new_reason: str):
         """Called only after the moderator clicks Confirm on the preview."""
+        if not await self.check_edit_permission(interaction):
+            return
+
         # Remove old "<field_label>" / "<field_label> (cont.)" fields, then insert
         # the new one(s) back in the same position.
         insert_at = None
@@ -307,19 +324,24 @@ class LogEditView(discord.ui.View):
         for field in fields_to_keep[insert_at:]:
             rebuilt.add_field(name=field.name, value=field.value, inline=field.inline)
 
-        # Persist the new reason to the modlog storage, if the entry supports it.
+        await interaction.response.defer()
+        try:
+            await self.message.edit(embed=rebuilt, view=self)
+        except discord.HTTPException:
+            await interaction.edit_original_response(
+                content="I couldn't update the log message. The saved reason was not changed.",
+                embed=None, view=None,
+            )
+            return
+
+        # Commit the new reason only after Discord accepts the message edit.
         if hasattr(self.modlog_entry, "update_reason"):
             self.modlog_entry.update_reason(new_reason)
 
         self.current_reason = new_reason
         self.base_embed = rebuilt
 
-        try:
-            await self.message.edit(embed=rebuilt, view=self)
-        except discord.HTTPException:
-            pass
-
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             content="✅ The log has been updated.", embed=None, view=None
         )
 
