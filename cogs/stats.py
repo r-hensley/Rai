@@ -715,16 +715,31 @@ class Stats(commands.Cog):
         saved_msgs = []
 
         if args == '-a':
+            # Static emojis first, then a blank line, then animated emojis.
+            static_additions = []
+            animated_additions = []
             for emoji_name, count in top_emojis:
                 count: int
                 if emoji_name in emoji_dict:
                     emoji_obj = emoji_dict[emoji_name]
                     addition = f"{str(emoji_obj)}: {count}\n"
-                    if len(msg + addition) < 2000:
-                        msg += addition
+                    if emoji_obj.animated:
+                        animated_additions.append(addition)
                     else:
-                        saved_msgs.append(msg)
-                        msg = addition
+                        static_additions.append(addition)
+
+            additions = static_additions
+            if static_additions and animated_additions:
+                additions = additions + ["\n"]
+            additions = additions + animated_additions
+
+            for addition in additions:
+                if len(msg + addition) < 2000:
+                    msg += addition
+                else:
+                    saved_msgs.append(msg)
+                    msg = addition
+
             if saved_msgs:
                 if saved_msgs[-1] != msg:
                     saved_msgs.append(msg)
