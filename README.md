@@ -58,6 +58,7 @@ These are usable by anyone, mostly just for fun or light general utility.
 - **`;randomWalk`** <number> Generates a random walk plot, try it
 - **`;ryan`** Posts an invite link to this page/my testing server
 - **`;u`** Shows your profile information
+- **`;ul`** Shows only your language usage percentages from the last 30 days in a compact embed.
 
 ## Admin Commands
 
@@ -193,6 +194,7 @@ Will keep track of the top posters in a server, and also per channel. Give users
 - **`;stats`** Enable/disable the stats module
 - **`;stats hide`** Type this in your mod channels. It hides these channels from showing up in the `;u` command in public channels. Typing `;u` in one of the specified mod channels will include all the information for the mod channels.
 - **`;u (member)`** Shows your profile information. Leave the `member` field blank to look up yourself.
+- **`;ul`** Shows only your language usage percentages from the last 30 days in a compact embed, e.g. **Spanish**: 60.1% | **English**: 39.9%. Like `;u`, only recognized languages above 2.5% are shown. If none are available, the embed says there is no language data to show.
 - **`;lb`** Shows the guild leaderboard.
 - **`;chlb (#other_channel_name)`** Shows the leaderboard for the current channel (or another channel if you specify one)
 - **`;vc|v|vclb|vlb|voicechat`** Lots of names for this command. Prints a leaderboard of who has the most time in voice.
