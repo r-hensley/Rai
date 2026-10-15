@@ -90,7 +90,7 @@ async def test_ul_shows_separate_month_and_rolling_day(language_stats, monkeypat
     assert embed.title == 'Your languages'
     assert embed.description == (
         '__Last 30 days__\n**English**: 89.4% | **Spanish**: 10.6%\n\n'
-        '__Last 24 hours__\n**English**: 60.0% | **Spanish**: 40.0%'
+        '__Last 24 hours__\n**English**: 60.0% (3) | **Spanish**: 40.0% (2)'
     )
     assert embed.footer.text is None
 

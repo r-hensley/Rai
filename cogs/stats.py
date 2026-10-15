@@ -245,6 +245,7 @@ class Stats(commands.Cog):
             lang_count, _, lang_percentages = hf.get_language_stats(ctx.author.id, ctx.guild, since=since)
             languages = [
                 f"**{self.lang_codes_dict[lang]}**: {lang_percentages[lang]}%"
+                + (f" ({lang_count[lang]})" if since is not None else "")
                 for lang in sorted(lang_count, key=lang_count.get, reverse=True)
                 if lang in self.lang_codes_dict and lang_percentages.get(lang, 0.0) > 2.5
             ]
