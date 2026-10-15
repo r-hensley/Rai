@@ -311,9 +311,25 @@ def get_language_percentage(member_id: int, guild: discord.Guild, language: str)
     return percentages.get(language, 0.0)
 
 
-def get_language_stats(member_id: int, guild: discord.Guild) -> tuple[dict[str, int], int, dict[str, float]]:
-    """Returns (language_counts, total_classified, language_percentages) over the last 30 days."""
-    lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
+def get_language_stats(
+        member_id: int, guild: discord.Guild, *, since: Optional[datetime] = None
+) -> tuple[dict[str, int], int, dict[str, float]]:
+    """Return counts, total and percentages for daily totals or queued messages since a cutoff.
+
+    The recent window uses stored language labels and message creation times.
+    Its coverage is limited to the messages retained in the queue.
+    """
+    if since is None:
+        lang_count = get_stats_per_channel(member_id, guild, desired_stat='lang')
+    else:
+        now = discord.utils.utcnow()
+        lang_count = {}
+        for message in getattr(here.bot, 'message_queue', ()):
+            if message.guild_id != guild.id or message.author_id != member_id:
+                continue
+            language = getattr(message, 'detected_lang', None)
+            if language and since <= message.created_at <= now:
+                lang_count[language] = lang_count.get(language, 0) + 1
     if not lang_count:
         return {}, 0, {}
     total = sum(lang_count.values())
@@ -1406,6 +1422,7 @@ class MiniMessage:
         channel_id (int): The ID of the channel where the message was sent.
         guild_id (Optional[int]): The ID of the guild (server), if applicable.
         attachments (List[dict]): A list of attachment dictionaries containing only URLs.
+        detected_lang (Optional[str]): The original language classification, if available.
         
     Properties:
         created_at: The creation timestamp of the message.
@@ -1424,7 +1441,8 @@ class MiniMessage:
         channel_id: int,
         guild_id: Optional[int] = None,
         attachments: Optional[List[dict]] = None,
-        embeds: Optional[List[dict]] = None
+        embeds: Optional[List[dict]] = None,
+        detected_lang: Optional[str] = None,
     ):
         """
         A minimal message object for reduced memory usage.
@@ -1442,6 +1460,7 @@ class MiniMessage:
         self.author_id = int(author_id)
         self.channel_id = int(channel_id)
         self.guild_id = int(guild_id) if guild_id else None
+        self.detected_lang = detected_lang
         if not self.guild_id:
             channel = here.bot.get_channel(self.channel_id)
             if channel:
@@ -1478,6 +1497,7 @@ class MiniMessage:
             "guild_id": self.guild_id,
             "attachments": self.attachments,
             "embeds": self.embeds,
+            "detected_lang": getattr(self, 'detected_lang', None),
         }
 
     def to_discord_message(self) -> discord.Message:
@@ -1593,7 +1613,8 @@ class MiniMessage:
             channel_id=message.channel.id,
             guild_id=message.guild.id if message.guild else None,
             attachments=attachments,
-            embeds=embeds
+            embeds=embeds,
+            detected_lang=getattr(message, 'detected_lang', None),
         )
     
     @classmethod
@@ -1606,6 +1627,8 @@ class MiniMessage:
             channel_id=message.channel_id,
             guild_id=message.guild_id,
             attachments=message.attachments,
+            embeds=getattr(message, 'embeds', None),
+            detected_lang=getattr(message, 'detected_lang', None),
         )
 
     def __eq__(self, other):

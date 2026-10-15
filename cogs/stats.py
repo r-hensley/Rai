@@ -238,16 +238,20 @@ class Stats(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def ul(self, ctx):
-        """Shows just your language usage percentages over the last 30 days."""
-        lang_count, _, lang_percentages = hf.get_language_stats(ctx.author.id, ctx.guild)
-        languages = [
-            f"**{self.lang_codes_dict[lang]}**: {lang_percentages[lang]}%"
-            for lang in sorted(lang_count, key=lang_count.get, reverse=True)
-            if lang in self.lang_codes_dict and lang_percentages.get(lang, 0.0) > 2.5
-        ]
+        """Shows your language usage percentages over the last 30 days and 24 hours."""
+        now = discord.utils.utcnow()
+        sections = []
+        for label, since in [('Last 30 days', None), ('Last 24 hours', now - timedelta(hours=24))]:
+            lang_count, _, lang_percentages = hf.get_language_stats(ctx.author.id, ctx.guild, since=since)
+            languages = [
+                f"**{self.lang_codes_dict[lang]}**: {lang_percentages[lang]}%"
+                for lang in sorted(lang_count, key=lang_count.get, reverse=True)
+                if lang in self.lang_codes_dict and lang_percentages.get(lang, 0.0) > 2.5
+            ]
+            sections.append(f"__{label}__\n" + (" | ".join(languages) or "No language data to show."))
         emb = discord.Embed(
-            title="Your languages (last 30 days)",
-            description=" | ".join(languages) or "No language data to show.",
+            title="Your languages",
+            description="\n\n".join(sections),
             color=discord.Color(int('00ccFF', 16)),
         )
         await utils.safe_send(ctx, embed=emb)
