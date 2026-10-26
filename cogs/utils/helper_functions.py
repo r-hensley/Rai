@@ -70,6 +70,7 @@ HACKED_ACCOUNT_BAN_REASON = (
     "3) Removed all authorized apps from your Discord profile settings\n\n"
     "-# If this was a mistake, please submit an appeal ticket: https://discord.gg/pnHEGPah8X"
 )
+AUTO_BAN_DM_TIMEOUT_SECONDS = 10
 
 
 def setup(bot, loop: asyncio.AbstractEventLoop):
@@ -531,11 +532,9 @@ async def auto_ban(
     if evidence_msg:
         modlog_reason += f"\n- [Evidence](<{evidence_msg.jump_url}>)"
 
-    guild_modlogs = here.bot.db['modlog'].get(str(member.guild.id), {})
-    this_user_modlog = guild_modlogs.get(str(member.id), [])
-    for entry in this_user_modlog:
-        if entry[1] == modlog_reason:
-            return
+    # Modlog entries are dictionaries, and a historical ban does not mean the
+    # member is currently banned (they may have been unbanned and rejoined).
+    # The image-spam caller serializes concurrent attempts for this member.
 
     if not silent:
         embed = discord.Embed(
@@ -544,9 +543,12 @@ async def auto_ban(
             color=discord.Color.blue()
         )
         try:
-            await member.send(embed=embed)
-        except discord.Forbidden:
-            pass
+            await asyncio.wait_for(member.send(embed=embed), AUTO_BAN_DM_TIMEOUT_SECONDS)
+        except (discord.HTTPException, asyncio.TimeoutError):
+            logging.getLogger(__name__).warning(
+                'Auto-ban DM failed for guild %s member %s; continuing with ban',
+                member.guild.id, member.id, exc_info=True,
+            )
 
     await member.ban(reason=modlog_reason, delete_message_days=delete_message_days)
 

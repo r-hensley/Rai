@@ -5,11 +5,18 @@ from discord import app_commands
 import time
 import asyncio
 import io
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import datetime, timedelta
 
 from PIL import Image
 from io import BytesIO
 from .utils import helper_functions as hf
+
+log = logging.getLogger(__name__)
+EVIDENCE_TIMEOUT_SECONDS = 60
+EVIDENCE_DELAY_SECONDS = 1.5
+BAN_TIMEOUT_SECONDS = 60
+ALERT_TIMEOUT_SECONDS = 10
 
 class ImageSpam(commands.Cog):
     """
@@ -81,6 +88,55 @@ class ImageSpam(commands.Cog):
         final.save(buffer, format="PNG")
         buffer.seek(0)
         return buffer
+
+    async def collect_evidence(self, alert_msg, alert_channel, member, entries, top_channel, state):
+        """Collect evidence under the caller's deadline; keep partial threads on failure."""
+        files = []
+        seen = set()
+        try:
+            for _, ch, _, att in entries:
+                if ch != top_channel or att.filename in seen:
+                    continue
+                seen.add(att.filename)
+                try:
+                    data = await att.read()
+                except (discord.NotFound, discord.HTTPException):
+                    continue
+                files.append(discord.File(io.BytesIO(data), filename=att.filename))
+
+            thread = await alert_msg.create_thread(name=f"Spam by {member.name} - {member.id}")
+            state['thread'] = thread
+            for file in files:
+                await thread.send(file=file)
+
+            # Multiple attachments can belong to one message. Delete it only once.
+            for ch, msg_id in dict.fromkeys((ch, msg_id) for _, ch, msg_id, _ in entries):
+                channel = self.bot.get_channel(ch)
+                if channel:
+                    try:
+                        msg = await channel.fetch_message(msg_id)
+                        await msg.delete()
+                    except discord.HTTPException:
+                        log.warning('Could not delete image-spam message %s', msg_id, exc_info=True)
+
+            await asyncio.sleep(EVIDENCE_DELAY_SECONDS)
+            evidence = await self.thread_to_image(thread)
+            if evidence:
+                file = discord.File(evidence, filename=f"{member.id}_evidence_spam.png", spoiler=True)
+                try:
+                    state['evidence_msg'] = await alert_channel.send(content="-# Evidence", file=file)
+                finally:
+                    file.close()
+        finally:
+            for file in files:
+                file.close()
+
+    async def update_alert(self, alert_msg, embed, status):
+        embed.set_field_at(0, name="Status", value=status, inline=True)
+        try:
+            await asyncio.wait_for(alert_msg.edit(embed=embed), ALERT_TIMEOUT_SECONDS)
+        except (discord.HTTPException, asyncio.TimeoutError):
+            log.warning('Could not update image-spam alert %s to %s', alert_msg.id, status, exc_info=True)
 
     @app_commands.command(
         name="spam_enable",
@@ -208,6 +264,17 @@ class ImageSpam(commands.Cog):
             if self.active_alerts[key]["lock_alert"]:
                 return
 
+            # Earlier listeners may have finished handling and cleared these
+            # entries while this listener waited for the per-member lock.
+            entries = tuple(self.image_spam.get(key, ()))
+            if not entries:
+                return
+            channels_used = {}
+            for _, ch, _, _ in entries:
+                channels_used[ch] = channels_used.get(ch, 0) + 1
+            if len(entries) < config["limit"] or len(channels_used) <= 1:
+                return
+
             alert_channel = self.bot.get_channel(config["channel"])
             if not alert_channel:
                 return
@@ -215,15 +282,15 @@ class ImageSpam(commands.Cog):
             bot_member = message.guild.me
 
             timeout_seconds = 7 * 24 * 60 * 60  # Timeout 1 week
-            until = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
-
+            timeout_applied = False
             try:
                 if bot_member.guild_permissions.moderate_members and member.top_role < bot_member.top_role:
-                    await member.timeout(timedelta(seconds=timeout_seconds))
+                    await asyncio.wait_for(member.timeout(timedelta(seconds=timeout_seconds)), ALERT_TIMEOUT_SECONDS)
+                    timeout_applied = True
             except Exception:
-                pass
+                log.warning('Image-spam timeout failed for %s', key, exc_info=True)
 
-            total_images = len(self.image_spam[key])
+            total_images = len(entries)
             top_channels = sorted(channels_used.items(), key=lambda x: x[1], reverse=True)
             top_channels_mentions = "\n".join(
                 f"・<#{ch_id}> ({(count / total_images) * 100:.1f}%)" for ch_id, count in top_channels
@@ -234,10 +301,11 @@ class ImageSpam(commands.Cog):
 
             embed = discord.Embed(
                 title="⚠️ Image Spam Detected",
-                description=f"-# {message.author.mention} was timed out <t:{timed_time}:R> for 1 week.",
+                description=(f"-# {member.mention} was timed out <t:{timed_time}:R> for 1 week."
+                             if timeout_applied else f"-# No timeout was confirmed for {member.mention}."),
                 color=discord.Color.blue()
             )
-            embed.add_field(name="Status", value="⌛ Banning...", inline=True)
+            embed.add_field(name="Status", value="⌛ Collecting evidence...", inline=True)
             embed.add_field(name="Rate", value=f"{total_images} images / {config['timeframe']} seconds", inline=True)
             embed.add_field(name="Top Spammed", value=top_channels_mentions, inline=True)
             embed.set_footer(
@@ -247,66 +315,55 @@ class ImageSpam(commands.Cog):
 
             alert_msg = await alert_channel.send(content=str(message.author.id), embed=embed)
 
-            files = []
-            seen = set()
-            top_channel = top_channels[0][0]
-            for _, ch, _, att in self.image_spam[key]:
-                if ch == top_channel and att.filename not in seen:
-                    seen.add(att.filename)
-                    try:
-                        data = await att.read()
-                    except (discord.NotFound, discord.HTTPException):
-                        continue
-                    files.append(discord.File(io.BytesIO(data), filename=att.filename))
-
-            thread = await alert_msg.create_thread(name=f"Spam by {message.author.name} - {message.author.id}")
-            await asyncio.gather(*(thread.send(file=f) for f in files))
-
-            # Delete spam messages
-            for _, ch, msg_id, _ in self.image_spam[key]:
-                try:
-                    channel = self.bot.get_channel(ch)
-                    if channel:
-                        msg = await channel.fetch_message(msg_id)
-                        await msg.delete()
-                except:
-                    pass
-
-            # Send evidence
-            try:
-                evidence_msg = None
-                await asyncio.sleep(1.5)
-                evidence = await self.thread_to_image(thread)
-                if evidence:
-                    evidence_msg = await alert_channel.send(
-                        content="-# Evidence",
-                        file=discord.File(
-                            evidence,
-                            filename=f"{message.author.id}_evidence_spam.png",
-                            spoiler=True,
-                        ),
-                    )
-            except Exception as e:
-                print("Evidence generation failed:", e)
-
-            # Ban user
-            try: 
-                if bot_member.guild_permissions.moderate_members and member.top_role < bot_member.top_role: 
-                    await hf.auto_ban(member=member, evidence_msg=evidence_msg)
-            except Exception as e:
-                print("Banned failed:", e)
-
-            # Delete thread
-            try:
-                await thread.delete()
-            except Exception:
-                pass
-
-            embed.set_field_at(0, name="Status", value=f"✅ Banned")
-            await alert_msg.edit(embed=embed)
-
             self.active_alerts[key]["lock_alert"] = alert_msg.id
-            self.image_spam[key] = []
+            evidence_state = {'thread': None, 'evidence_msg': None}
+            try:
+                try:
+                    await asyncio.wait_for(
+                        self.collect_evidence(
+                            alert_msg, alert_channel, member, entries, top_channels[0][0], evidence_state,
+                        ),
+                        EVIDENCE_TIMEOUT_SECONDS,
+                    )
+                except Exception:
+                    log.exception('Image-spam evidence collection failed for %s', key)
+                    embed.add_field(name="Evidence", value="Collection incomplete; partial thread retained.", inline=False)
+
+                banned = False
+                if not bot_member.guild_permissions.ban_members:
+                    status = "❌ Not banned: Rai needs the Ban Members permission."
+                elif member.id == message.guild.owner_id or member.top_role >= bot_member.top_role:
+                    status = "❌ Not banned: this member is above Rai in the role hierarchy or owns the server."
+                else:
+                    await self.update_alert(alert_msg, embed, "⌛ Banning...")
+                    try:
+                        await asyncio.wait_for(
+                            hf.auto_ban(member=member, evidence_msg=evidence_state['evidence_msg']),
+                            BAN_TIMEOUT_SECONDS,
+                        )
+                    except asyncio.TimeoutError:
+                        status = "⚠️ Ban unconfirmed: request timed out. Check the server audit log."
+                        log.warning('Image-spam ban timed out for %s', key)
+                    except discord.HTTPException as exc:
+                        status = f"❌ Ban failed: Discord HTTP {exc.status} (code {exc.code}). Check permissions and role hierarchy."
+                        log.exception('Image-spam ban failed for %s', key)
+                    except Exception:
+                        status = "⚠️ Ban unconfirmed: an internal error occurred. Check the server audit log."
+                        log.exception('Image-spam ban failed for %s', key)
+                    else:
+                        banned = True
+                        status = "✅ Banned"
+
+                # Report the result before optional cleanup can fail or stall.
+                await self.update_alert(alert_msg, embed, status)
+                if banned and evidence_state['evidence_msg'] and evidence_state['thread']:
+                    try:
+                        await asyncio.wait_for(evidence_state['thread'].delete(), ALERT_TIMEOUT_SECONDS)
+                    except (discord.HTTPException, asyncio.TimeoutError):
+                        log.warning('Image-spam evidence thread cleanup failed for %s', key, exc_info=True)
+            finally:
+                self.image_spam[key] = []
+                self.active_alerts[key]["lock_alert"] = None
 
 async def setup(bot: commands.Bot):
     """
