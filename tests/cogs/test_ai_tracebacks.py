@@ -1,7 +1,8 @@
 import asyncio
 import re
+import sqlite3
 import traceback
-from contextlib import suppress
+from contextlib import closing, suppress
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,6 +14,8 @@ import pytest
 from cogs.utils import helper_functions as _helper_functions  # noqa: F401
 from cogs import ai as ai_module
 from cogs.ai import AI
+from cogs.utils.traceback_store import TracebackStore
+from Rai import Rai
 from cogs.background import Background
 from cogs.utils.BotUtils import bot_utils as utils
 from tests.discord_fakes import (
@@ -57,11 +60,19 @@ def _forum_with_thread(*, thread_send: AsyncMock | None = None):
     return forum, thread
 
 
-def _cog(*, forum=None):
+@pytest.fixture
+def store(tmp_path):
+    archive = TracebackStore(tmp_path / "tracebacks.db")
+    archive.initialize()
+    return archive
+
+
+def _cog(store, *, forum=None):
     guild = make_guild(guild_id=1)
     bot_user = make_member(member_id=999, bot=True, guild=guild)
     bot = make_bot(
         user=bot_user,
+        traceback_store=store,
         db={"ai_features": {"enabled": True}},
         openai=object(),
         get_channel=MagicMock(return_value=forum),
@@ -101,8 +112,9 @@ def _configure_source_channel(monkeypatch):
     monkeypatch.setenv("ERROR_CHANNEL_ID", str(SOURCE_CHANNEL_ID))
 
 
-def _dedupe_entries(bot) -> list[str]:
-    return bot.db.get("rai_tracebacks", [])
+def _published(store):
+    with closing(sqlite3.connect(store.filename)) as db:
+        return db.execute("SELECT forum_thread_id FROM error_groups WHERE forum_thread_id IS NOT NULL").fetchall()
 
 
 def _assert_mentions_disabled(allowed_mentions):
@@ -110,9 +122,9 @@ def _assert_mentions_disabled(allowed_mentions):
 
 
 @pytest.mark.asyncio
-async def test_self_authored_traceback_is_dispatched_before_general_bot_filter(monkeypatch):
+async def test_self_authored_traceback_is_dispatched_before_general_bot_filter(monkeypatch, store):
     _configure_source_channel(monkeypatch)
-    cog, bot = _cog()
+    cog, bot = _cog(store)
     msg = _message(bot)
     cog.log_rai_tracebacks = AsyncMock()
     cog.mods_ping = AsyncMock()
@@ -130,9 +142,9 @@ async def test_self_authored_traceback_is_dispatched_before_general_bot_filter(m
 
 
 @pytest.mark.asyncio
-async def test_self_authored_message_outside_traceback_channel_is_ignored(monkeypatch):
+async def test_self_authored_message_outside_traceback_channel_is_ignored(monkeypatch, store):
     _configure_source_channel(monkeypatch)
-    cog, bot = _cog()
+    cog, bot = _cog(store)
     msg = _message(bot, channel_id=SOURCE_CHANNEL_ID + 1)
     cog.log_rai_tracebacks = AsyncMock()
     cog.mods_ping = AsyncMock()
@@ -150,7 +162,7 @@ async def test_self_authored_message_outside_traceback_channel_is_ignored(monkey
 
 
 @pytest.mark.asyncio
-async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeypatch):
+async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeypatch, store):
     _configure_source_channel(monkeypatch)
     sent_source_messages = []
 
@@ -181,7 +193,8 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
         channel_id=SOURCE_CHANNEL_ID,
         send=AsyncMock(side_effect=capture_source_send),
     )
-    producer_bot = make_bot(channels=[source_channel])
+    producer_bot = make_bot(channels=[source_channel], traceback_store=store)
+    producer_bot.record_traceback = Rai.record_traceback.__get__(producer_bot)
     long_error_text = "TRACEBACK-START-雪🚨-" + ("detail-line\n" * 450) + "TRACEBACK-END"
 
     try:
@@ -221,7 +234,7 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
         return SimpleNamespace(thread=thread)
 
     forum.create_thread.side_effect = capture_forum_create
-    cog, bot = _cog(forum=forum)
+    cog, bot = _cog(store, forum=forum)
 
     for source_message in sent_source_messages:
         attachments = []
@@ -240,6 +253,9 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
         msg.content = source_message.content
         await cog.log_rai_tracebacks(msg)
 
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT sample_traceback FROM caller_paths").fetchall() == [(full_traceback,)]
+        assert db.execute("SELECT source_message_id, origin FROM events").fetchall() == [(msg.id, "long_trace_event")]
     cog.chat_completion_text.assert_awaited_once()
     forum.create_thread.assert_awaited_once()
     prompt_messages = cog.chat_completion_text.await_args.kwargs["messages"]
@@ -267,10 +283,10 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_concurrent_identical_tracebacks_publish_once(monkeypatch):
+async def test_concurrent_identical_tracebacks_publish_once(monkeypatch, store):
     _configure_source_channel(monkeypatch)
     forum, _thread = _forum_with_thread()
-    cog, bot = _cog(forum=forum)
+    cog, bot = _cog(store, forum=forum)
     msg = _message(bot)
     completion_started = asyncio.Event()
     release_completion = asyncio.Event()
@@ -290,106 +306,27 @@ async def test_concurrent_identical_tracebacks_publish_once(monkeypatch):
 
     assert cog.chat_completion_text.await_count == 1
     assert forum.create_thread.await_count == 1
-    assert len(_dedupe_entries(bot)) == 1
+    assert len(_published(store)) == 1
 
 
 @pytest.mark.asyncio
-async def test_complete_legacy_fingerprint_suppresses_repost(monkeypatch):
+async def test_fresh_archive_ignores_historical_db_list(monkeypatch, store):
     _configure_source_channel(monkeypatch)
-    forum, _thread = _forum_with_thread()
-    cog, bot = _cog(forum=forum)
-    body = (
-        'Traceback (most recent call last):\n'
-        + ''.join(
-            f'  File "/old/Rai/cogs/example.py", line {line}, in handler\n'
-            f'    await operation_{line}()\n'
-            for line in range(5)
-        )
-        + 'RuntimeError: legacy failure 123456\n'
-    )
-    msg = _message(bot, body=body)
-    traceback_text = await cog.traceback_text_from_message(msg)
-    legacy_segments = utils.split_text_into_segments(
-        utils.compact_traceback_for_discord(traceback_text),
-        1900,
-    )
-    assert len(legacy_segments) == 1
-    bot.db["rai_tracebacks"] = [
-        cog.traceback_fingerprint(f"\n{segment}")
-        for segment in legacy_segments
-    ]
+    forum, thread = _forum_with_thread()
+    cog, bot = _cog(store, forum=forum)
+    msg = _message(bot)
+    old_entries = [await cog.traceback_text_from_message(msg)]
+    bot.db["rai_tracebacks"] = old_entries.copy()
 
     await cog.log_rai_tracebacks(msg)
 
-    cog.chat_completion_text.assert_not_awaited()
-    forum.create_thread.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_flat_legacy_segments_do_not_suppress_new_composite_traceback(monkeypatch):
-    _configure_source_channel(monkeypatch)
-    forum, _thread = _forum_with_thread()
-    cog, bot = _cog(forum=forum)
-    body = (
-        'Traceback (most recent call last):\n'
-        + ''.join(
-            f'  File "/old/Rai/cogs/example.py", line {line}, in handler\n'
-            f'    await operation_{line}()\n'
-            for line in range(80)
-        )
-        + 'RuntimeError: legacy failure 123456\n'
-    )
-    msg = _message(bot, body=body)
-    traceback_text = await cog.traceback_text_from_message(msg)
-    legacy_segments = utils.split_text_into_segments(
-        utils.compact_traceback_for_discord(traceback_text),
-        1900,
-    )
-    assert len(legacy_segments) > 1
-    bot.db["rai_tracebacks"] = [
-        cog.traceback_fingerprint(f"\n{segment}")
-        for segment in legacy_segments
-    ]
-
-    await cog.log_rai_tracebacks(msg)
-
-    cog.chat_completion_text.assert_awaited_once()
-    forum.create_thread.assert_awaited_once()
-    assert cog.traceback_fingerprint(traceback_text) in _dedupe_entries(bot)
-
-
-@pytest.mark.asyncio
-async def test_lossy_legacy_chain_fingerprint_does_not_suppress_new_outer_error(monkeypatch):
-    _configure_source_channel(monkeypatch)
-    forum, _thread = _forum_with_thread()
-    cog, bot = _cog(forum=forum)
-    body = (
-        'Traceback (most recent call last):\n'
-        '  File "/old/Rai/cogs/example.py", line 10, in inner\n'
-        'ValueError: shared inner failure\n\n'
-        f'{utils.TRACEBACK_CAUSE_SEPARATOR}\n\n'
-        'Traceback (most recent call last):\n'
-        '  File "/old/Rai/cogs/example.py", line 20, in outer\n'
-        'RuntimeError: materially different outer failure\n'
-    )
-    msg = _message(bot, body=body)
-    traceback_text = await cog.traceback_text_from_message(msg)
-    legacy_inner = utils.compact_traceback_for_discord(traceback_text)
-    assert len(utils.split_text_into_segments(legacy_inner, 1900)) == 1
-    bot.db["rai_tracebacks"] = [
-        cog.traceback_fingerprint(f"\n{legacy_inner}")
-    ]
-
-    await cog.log_rai_tracebacks(msg)
-
-    cog.chat_completion_text.assert_awaited_once()
-    forum.create_thread.assert_awaited_once()
-    assert cog.traceback_fingerprint(traceback_text) in _dedupe_entries(bot)
+    assert _published(store) == [(thread.id,)]
+    assert bot.db["rai_tracebacks"] == old_entries
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure_stage", ["create_thread", "ai_comment"])
-async def test_transient_discord_failure_is_retried_in_place(monkeypatch, failure_stage):
+async def test_transient_discord_failure_is_retried_in_place(monkeypatch, store, failure_stage):
     _configure_source_channel(monkeypatch)
     monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
     thread = make_thread(send=AsyncMock(), delete=AsyncMock())
@@ -404,10 +341,10 @@ async def test_transient_discord_failure_is_retried_in_place(monkeypatch, failur
         forum.create_thread = AsyncMock(return_value=SimpleNamespace(thread=thread))
         thread.send.side_effect = [_http_error(), None]
 
-    cog, bot = _cog(forum=forum)
+    cog, bot = _cog(store, forum=forum)
     await cog.log_rai_tracebacks(_message(bot))
 
-    assert len(_dedupe_entries(bot)) == 1
+    assert len(_published(store)) == 1
     thread.delete.assert_not_awaited()
     if failure_stage == "create_thread":
         assert forum.create_thread.await_count == 2
@@ -419,7 +356,7 @@ async def test_transient_discord_failure_is_retried_in_place(monkeypatch, failur
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure_stage", ["create_thread", "ai_comment"])
-async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeypatch, failure_stage):
+async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeypatch, store, failure_stage):
     _configure_source_channel(monkeypatch)
     monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
     failed_thread = make_thread(send=AsyncMock(), delete=AsyncMock())
@@ -433,13 +370,13 @@ async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeyp
         failed_thread.send.side_effect = _http_error()
         forum.create_thread = AsyncMock(return_value=SimpleNamespace(thread=failed_thread))
 
-    cog, bot = _cog(forum=forum)
+    cog, bot = _cog(store, forum=forum)
     msg = _message(bot)
 
     with suppress(discord.HTTPException):
         await cog.log_rai_tracebacks(msg)
 
-    assert _dedupe_entries(bot) == []
+    assert _published(store) == []
     if failure_stage == "ai_comment":
         failed_thread.delete.assert_awaited_once()
     else:
@@ -449,7 +386,7 @@ async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeyp
     forum.create_thread.return_value = SimpleNamespace(thread=successful_thread)
     await cog.log_rai_tracebacks(msg)
 
-    assert len(_dedupe_entries(bot)) == 1
+    assert len(_published(store)) == 1
     expected_create_count = 3 if failure_stage == "create_thread" else 2
     assert forum.create_thread.await_count == expected_create_count
     assert successful_thread.send.await_count >= 1
@@ -457,15 +394,15 @@ async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeyp
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_kind", ["missing", "wrong_type"])
-async def test_missing_or_wrong_type_traceback_forum_is_quietly_ignored(monkeypatch, target_kind):
+async def test_missing_or_wrong_type_traceback_forum_is_quietly_ignored(monkeypatch, store, target_kind):
     _configure_source_channel(monkeypatch)
     forum = None if target_kind == "missing" else MagicMock(spec=discord.TextChannel)
-    cog, bot = _cog(forum=forum)
+    cog, bot = _cog(store, forum=forum)
 
     await cog.log_rai_tracebacks(_message(bot))
 
     cog.chat_completion_text.assert_not_awaited()
-    assert _dedupe_entries(bot) == []
+    assert _published(store) == []
 
 
 @pytest.mark.asyncio
@@ -480,3 +417,42 @@ async def test_background_error_uses_shared_traceback_sender(monkeypatch):
     await cog.handle_error(error)
 
     send_error_embed.assert_awaited_once_with(bot, "Background task", error)
+
+
+@pytest.mark.asyncio
+async def test_shared_reporter_archives_without_discord_or_ai(monkeypatch, store):
+    monkeypatch.setenv("TRACEBACK_LOGGING_CHANNEL", "0")
+    monkeypatch.setenv("ERROR_CHANNEL_ID", "0")
+    bot = make_bot(traceback_store=store, openai=None)
+    bot.record_traceback = Rai.record_traceback.__get__(bot)
+    for _ in range(3):
+        try:
+            raise ValueError("Google Translate returned an empty response")
+        except ValueError as error:
+            await utils.send_error_embed(bot, "translation", error)
+
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT occurrences, caller_paths, forum_thread_id FROM group_summary").fetchall() == [
+            (3, 1, None)]
+        assert db.execute("SELECT DISTINCT origin, source_message_id FROM events").fetchall() == [("translation", None)]
+        assert "Google Translate returned an empty response" in db.execute(
+            "SELECT sample_traceback FROM caller_paths").fetchone()[0]
+
+
+@pytest.mark.asyncio
+async def test_source_delivery_with_ai_disabled_links_existing_event_without_downloading(monkeypatch, store):
+    _configure_source_channel(monkeypatch)
+    cog, bot = _cog(store)
+    bot.db["ai_features"]["enabled"] = False
+    error = ValueError("failure")
+    event_id = await store.record_exception(error, "example", "".join(traceback.format_exception(error)))
+    msg = _message(bot)
+    msg.content = f"{utils.TRACEBACK_MESSAGE_MARKER}\nTraceback event: {event_id}\n```py\npreview```"
+    cog.traceback_text_from_message = AsyncMock(side_effect=AssertionError("unexpected attachment read"))
+
+    await cog.on_message(msg)
+    await cog.on_message(msg)
+
+    cog.chat_completion_text.assert_not_awaited()
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT id, source_message_id FROM events").fetchall() == [(event_id, msg.id)]

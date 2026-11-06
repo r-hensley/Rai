@@ -27,6 +27,7 @@ except ImportError as exc:
     raise
 from cogs.utils import helper_functions as hf
 from cogs.database import create_database_tables
+from cogs.utils.traceback_store import TracebackStore
 
 
 # noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
@@ -133,7 +134,15 @@ class Rai(Bot):
             json.dump({}, db)
             db.close()
 
+    async def record_traceback(self, error, ctx_or_event, sample):
+        origin = ctx_or_event if isinstance(ctx_or_event, str) else getattr(
+            getattr(ctx_or_event, "command", None), "qualified_name", type(ctx_or_event).__name__
+        )
+        return await self.traceback_store.record_exception(error, origin, sample)
+
     async def setup_hook(self):
+        self.traceback_store = TracebackStore(os.path.join(dir_path, "tracebacks.db"))
+        await asyncio.to_thread(self.traceback_store.initialize)
         utils.load_db(self, 'db')
         utils.load_db(self, 'stats')
         utils.load_db(self, 'message_queue')

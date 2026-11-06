@@ -748,9 +748,6 @@ class AI(commands.Cog):
         if not msg_in.guild:
             return
         msg = hf.RaiMessage(msg_in)
-        if not self.ai_features_enabled():
-            return
-
         traceback_channel_id = utils.get_traceback_logging_channel_id()
         if msg_in.author == self.bot.user and msg_in.channel.id == traceback_channel_id:
             try:
@@ -759,6 +756,8 @@ class AI(commands.Cog):
                 print("Exception in log_rai_tracebacks:\n", e, traceback.format_exc())
             return
 
+        if not self.ai_features_enabled():
+            return
         if msg_in.author == self.bot.user:
             return
         if msg_in.author.bot:
@@ -789,40 +788,6 @@ class AI(commands.Cog):
         return msg.content[traceback_start:codeblock_end]
 
     @staticmethod
-    def traceback_fingerprint(traceback_text: str) -> str:
-        traceback_text = re.sub(r"\d{17,22}", "ID", traceback_text)
-        traceback_text = re.sub(r"line \d+", "line LINE", traceback_text)
-        traceback_text = re.sub(r"File \".+?\"", "File \"FILE\"", traceback_text)
-        traceback_text = re.sub(r"0x\w+", "0xHEX", traceback_text)
-        return re.sub(r"\d", "#", traceback_text)
-
-    def traceback_seen_before(self, traceback_text: str, known_tracebacks: list[str]) -> bool:
-        canonical_fingerprint = self.traceback_fingerprint(traceback_text)
-        if canonical_fingerprint in known_tracebacks:
-            return True
-
-        legacy_raw_fingerprints = (
-            self.traceback_fingerprint(f"\n{traceback_text}"),
-            self.traceback_fingerprint(f"\n{traceback_text}\n"),
-        )
-        if any(fingerprint in known_tracebacks for fingerprint in legacy_raw_fingerprints):
-            return True
-
-        # Legacy BotUtils stored one fingerprint per Discord-sized segment and
-        # did not record which segments belonged to one incident. Only migrate a
-        # complete single-segment traceback; combining independent legacy keys
-        # could otherwise suppress a new error. Explicit exception chains were
-        # also truncated by the legacy producer, so they need one canonical post.
-        if utils.TRACEBACK_CAUSE_SEPARATOR in traceback_text:
-            return False
-        compact_traceback = utils.compact_traceback_for_discord(traceback_text)
-        legacy_segments = utils.split_text_into_segments(compact_traceback, 1900)
-        if len(legacy_segments) != 1:
-            return False
-        legacy_fingerprint = self.traceback_fingerprint(f"\n{legacy_segments[0]}")
-        return legacy_fingerprint in known_tracebacks
-
-    @staticmethod
     def traceback_forum_segments(traceback_text: str, segment_length: int = 1900) -> list[str]:
         if not traceback_text:
             return ["```py\n```"]
@@ -840,15 +805,6 @@ class AI(commands.Cog):
             segments.append(f"```py\n{remaining}```")
         return segments
 
-    def traceback_dedupe_state(self) -> tuple[asyncio.Lock, set[str]]:
-        lock = getattr(self, "_rai_tracebacks_lock", None)
-        if lock is None:
-            lock = self._rai_tracebacks_lock = asyncio.Lock()
-        in_flight = getattr(self, "_rai_tracebacks_in_flight", None)
-        if in_flight is None:
-            in_flight = self._rai_tracebacks_in_flight = set()
-        return lock, in_flight
-
     @staticmethod
     async def retry_traceback_discord_operation(operation):
         for attempt in range(TRACEBACK_DISCORD_RETRY_ATTEMPTS):
@@ -862,31 +818,36 @@ class AI(commands.Cog):
                 await asyncio.sleep(TRACEBACK_DISCORD_RETRY_DELAY_SECONDS)
 
     async def log_rai_tracebacks(self, msg: hf.RaiMessage):
-        old_traceback_channel_id = utils.get_traceback_logging_channel_id()
-        if msg.channel.id != old_traceback_channel_id:
+        if msg.channel.id != utils.get_traceback_logging_channel_id():
             return
-        if not msg.author == self.bot.user:
+        if msg.author != self.bot.user:
             return
-        if not self.bot.openai:
-            return
-
-        new_tracebacks_channel = self.bot.get_channel(1360884895957651496)
-        if not isinstance(new_tracebacks_channel, discord.ForumChannel):
-            return
-
-        traceback_text = await self.traceback_text_from_message(msg)
-        if traceback_text is None:
-            return
-
-        traceback_msg = self.traceback_fingerprint(traceback_text)
-        lock, in_flight = self.traceback_dedupe_state()
-        async with lock:
-            known_tracebacks = self.bot.db.setdefault("rai_tracebacks", [])
-            if self.traceback_seen_before(traceback_text, known_tracebacks) or traceback_msg in in_flight:
+        store = self.bot.traceback_store
+        marker = re.match(re.escape(utils.TRACEBACK_MESSAGE_MARKER) + r"\nTraceback event: (\d+)\n", msg.content)
+        traceback_text = None
+        group = None
+        async with store.forum_lock:
+            if marker:
+                group = await asyncio.to_thread(store.lookup_event, int(marker[1]), msg.id)
+            if group is None:
+                traceback_text = await self.traceback_text_from_message(msg)
+                if traceback_text is None:
+                    return
+                event_id = await asyncio.to_thread(store.record_text, traceback_text, msg.created_at.isoformat(), msg.id)
+                group = await asyncio.to_thread(store.lookup_event, event_id, msg.id)
+            group_id, thread_id = group
+            if thread_id or group_id in store.publishing or not self.ai_features_enabled() or not self.bot.openai:
                 return
-            in_flight.add(traceback_msg)
+            new_tracebacks_channel = self.bot.get_channel(1360884895957651496)
+            if not isinstance(new_tracebacks_channel, discord.ForumChannel):
+                return
+            store.publishing.add(group_id)
 
         try:
+            if traceback_text is None:
+                traceback_text = await self.traceback_text_from_message(msg)
+                if traceback_text is None:
+                    return
             messages = [{"role": "system", "content": "Please summarize the following Python traceback to be parsed "
                          "with a bot. All errors will be things happening in a Discord bot, "
                          "so you don't need to state that in the post title:\n"
@@ -953,6 +914,7 @@ class AI(commands.Cog):
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                     )
+                await asyncio.to_thread(store.mark_published, group_id, thread.id)
             except Exception:
                 try:
                     await thread.delete(reason="Incomplete automated traceback post")
@@ -960,13 +922,9 @@ class AI(commands.Cog):
                     pass
                 raise
 
-            async with lock:
-                known_tracebacks = self.bot.db.setdefault("rai_tracebacks", [])
-                if traceback_msg not in known_tracebacks:
-                    known_tracebacks.append(traceback_msg)
         finally:
-            async with lock:
-                in_flight.discard(traceback_msg)
+            async with store.forum_lock:
+                store.publishing.discard(group_id)
 
     async def mods_ping(self, msg: hf.RaiMessage):
         if str(msg.guild.id) not in self.bot.db["staff_ping"]:

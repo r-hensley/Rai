@@ -269,3 +269,24 @@ I have various commands that I've built over time to help Japanese studiers:
 - `;diff <word1> <word2>` Gives google search results which will probably show the difference between two words you input. This literally just does a Google search so use it for people who ask the question "what's the difference between X and Y", and encourage them to do their own Google searches in the future before coming to ask the simple question.
 
 - `;sc <word1> <word2> ...` Does a _search compare_ lookup for two or more exact phrases and tells you the number of hits from different websites.
+
+### Investigating Rai tracebacks
+
+Rai creates `tracebacks.db` beside `Rai.py` on startup. The error reporter records events before it sends them to Discord. The archive starts with the first report after rollout. The historical entries in `db.json` are outside this archive.
+
+Open the SQLite file read-only while Rai is running. This query shows the most frequent errors and when each last occurred.
+
+```sql
+SELECT id, exception_class, failure_site, occurrences, caller_paths, last_seen
+FROM group_summary ORDER BY occurrences DESC;
+```
+
+For example, this query shows a full sample and occurrence count for every caller path in group 7.
+
+```sql
+SELECT p.id, COUNT(*) AS occurrences, p.sample_traceback
+FROM caller_paths p JOIN events e ON e.caller_path_id = p.id
+WHERE p.group_id = 7 GROUP BY p.id ORDER BY occurrences DESC;
+```
+
+Each caller path retains its first complete traceback, including chained exceptions. The `frames` column holds its ordered call stacks as JSON. `error_groups.signature` shows the exact grouping criteria. Each row in `events` gives the UTC time, caller path, event or command name, and Discord traceback message ID when available.
