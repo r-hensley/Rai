@@ -152,3 +152,143 @@ async def test_shared_rai_site_retains_different_library_and_feature_stacks(tmp_
         samples = db.execute("SELECT sample_traceback FROM caller_paths WHERE group_id=?", (rows[0][0],)).fetchall()
         assert any("in welcome" in sample and "in send_message" in sample for sample, in samples)
         assert any("in mute" in sample and "in create_dm" in sample for sample, in samples)
+
+
+def test_upgrade_preserves_events_and_displays_underlying_rai_error(tmp_path):
+    from cogs.utils.traceback_store import SCHEMA
+
+    filename = tmp_path / "tracebacks.db"
+    site = ["cogs/owner.py", "Owner.raise_error", "x = 1 / 0", 0, 12]
+    error = {"class": "discord.CommandInvokeError", "site": ["discord.core", "wrapped", "raise outer", 0, 4],
+             "cause": {"class": "builtins.ZeroDivisionError", "site": site}}
+    with closing(sqlite3.connect(filename)) as db, db:
+        # The original on-disk schema, including a view with the old labels.
+        db.executescript(SCHEMA + "CREATE VIEW group_summary AS SELECT * FROM error_groups;")
+        db.execute("INSERT INTO error_groups VALUES (1, 'discord.CommandInvokeError', 'outer site', ?, 123)",
+                   (json.dumps(error),))
+        db.execute("INSERT INTO caller_paths VALUES (1, 1, '{}', 'original sample')")
+        db.executemany("INSERT INTO events VALUES (?, 1, '2026-11-06', 'raise_error', ?)", [(1, 11), (2, 12)])
+
+    for _ in range(2):
+        TracebackStore(filename).initialize()
+    with closing(sqlite3.connect(filename)) as db:
+        assert db.execute("SELECT exception_class, failure_site, occurrences, caller_paths, forum_thread_id "
+                          "FROM group_summary").fetchone() == (
+            "ZeroDivisionError", "cogs/owner.py / Owner.raise_error / x = 1 / 0", 2, 1, 123)
+        assert db.execute("SELECT exception_class, signature FROM error_groups").fetchone() == (
+            "discord.CommandInvokeError", json.dumps(error))
+        assert db.execute("SELECT sample_traceback FROM caller_paths").fetchone() == ("original sample",)
+        assert db.execute("SELECT id, source_message_id, rai_revision, botutils_revision, module_revisions "
+                          "FROM events ORDER BY id").fetchall() == [(1, 11, None, None, None), (2, 12, None, None, None)]
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+@pytest.mark.asyncio
+async def test_loaded_revisions_follow_code_loads_instead_of_pulls(tmp_path, monkeypatch):
+    import importlib
+    import sys
+    from types import ModuleType
+
+    import cogs
+    from cogs.utils import traceback_store
+    from cogs.utils.loaded_revisions import LoadedRevisions
+
+    monkeypatch.setattr(traceback_store, "ROOT", tmp_path)
+    heads = ["rai-before", "utils-before"]
+    monkeypatch.setattr(LoadedRevisions, "heads", lambda self: tuple(heads))
+    store = TracebackStore(tmp_path / "archive.db")
+    store.initialize()
+    directory = tmp_path / "cogs"
+    directory.mkdir()
+    monkeypatch.setattr(cogs, "__path__", [str(directory), *cogs.__path__])
+    failure_file = directory / "_traceback_test_failure.py"
+    failure_file.write_text("def fail():\n    raise ValueError('failure')\n")
+    (directory / "_traceback_test_caller.py").write_text("def call(func):\n    func()\n")
+    name = "cogs._traceback_test_failure"
+    caller_name = "cogs._traceback_test_caller"
+    old_module = importlib.import_module(name)
+    caller_module = importlib.import_module(caller_name)
+
+    async def record(module):
+        try:
+            caller_module.call(module.fail)
+        except ValueError as exc:
+            return await store.record_exception(exc, "test", "".join(traceback.format_exception(exc)))
+
+    try:
+        await record(old_module)
+        heads[:] = ["rai-after", "utils-after"]
+        await record(old_module)  # pull alone
+        async with store.revisions.loading():
+            del sys.modules[name]  # discord.py replaces the module on cog reload
+            new_module = importlib.import_module(name)
+        await record(new_module)
+        await record(old_module)  # a command still running with the old globals
+
+        async with store.revisions.loading():
+            reporter_name = "cogs.utils.BotUtils.bot_utils"
+            reporter = ModuleType(reporter_name)
+            reporter.__file__ = str(directory / "utils" / "BotUtils" / "bot_utils.py")
+            monkeypatch.setitem(sys.modules, reporter_name, reporter)
+        await record(new_module)
+
+        with closing(sqlite3.connect(store.filename)) as db:
+            rows = db.execute("SELECT rai_revision, botutils_revision, module_revisions FROM events ORDER BY id").fetchall()
+            assert [row[:2] for row in rows] == [
+                ("rai-before", "utils-before"), ("rai-before", "utils-before"), ("rai-after", "utils-before"),
+                ("rai-before", "utils-before"), ("rai-after", "utils-after")]
+            assert json.loads(rows[2][2]) == [["cogs/_traceback_test_caller.py", "rai-before"]]
+            assert db.execute("SELECT occurrences, caller_paths FROM group_summary").fetchall() == [(5, 1)]
+
+        old_function = new_module.fail
+        failure_file.write_text("def fail():\n    raise ValueError('different failure')\n")
+        async with store.revisions.loading():
+            importlib.reload(new_module)  # support-module reload reuses globals
+        try:
+            old_function()
+        except ValueError as exc:
+            await store.record_exception(exc, "old callback", "".join(traceback.format_exception(exc)))
+        await record(new_module)
+        with closing(sqlite3.connect(store.filename)) as db:
+            assert db.execute("SELECT rai_revision FROM events ORDER BY id DESC LIMIT 2").fetchall() == [
+                ("rai-after",), (None,)]
+    finally:
+        sys.modules.pop(name, None)
+        sys.modules.pop(caller_name, None)
+
+
+def test_git_revision_requires_its_own_clean_python_checkout(tmp_path):
+    import subprocess
+    from cogs.utils.loaded_revisions import _revision
+
+    def git(*args):
+        return subprocess.check_output(["git", "-C", tmp_path, *args], text=True).strip()
+
+    git("init", "--quiet")
+    source = tmp_path / "bot.py"
+    source.write_text("pass\n")
+    git("add", "bot.py")
+    git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "initial")
+    assert _revision(tmp_path) == git("rev-parse", "HEAD")
+    child = tmp_path / "missing-submodule"
+    child.mkdir()
+    assert _revision(child) is None
+    (child / "untracked.py").write_text("pass\n")
+    assert _revision(tmp_path) is None
+    (child / "untracked.py").unlink()
+    source.write_text("x = 1\n")
+    assert _revision(tmp_path) is None
+
+
+def test_summary_pairs_library_cause_with_rai_call_site_and_handles_text_only(tmp_path):
+    store = TracebackStore(tmp_path / "archive.db")
+    store.initialize()
+    error = {"class": "RuntimeError", "site": ["cogs/example.py", "run", "request()", 0, 4],
+             "context": {"class": "builtins.TimeoutError", "site": ["http", "read", "recv()", 0, 4]}}
+    store._insert(error, {}, "saved", "2026-11-06", "command")
+    store.record_text("ValueError: example", "2026-11-06", 123)
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT exception_class, failure_site FROM group_summary ORDER BY id").fetchall() == [
+            ("TimeoutError", "cogs/example.py / run / request()"), ("ValueError", "(no source site)")]
+        assert db.execute("SELECT rai_revision, botutils_revision FROM events WHERE source_message_id=123").fetchone() == (
+            None, None)

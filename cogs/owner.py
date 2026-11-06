@@ -14,7 +14,7 @@ from collections import Counter, deque
 from ast import literal_eval
 from datetime import datetime, timedelta, timezone
 from subprocess import PIPE, run, TimeoutExpired
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from typing import Union
 
 import discord
@@ -420,6 +420,11 @@ class Owner(commands.Cog):
         else:
             await utils.safe_send(ctx, '**`SUCCESS`**')
 
+    async def _reload_support_module(self, module):
+        revisions = getattr(getattr(self.bot, "traceback_store", None), "revisions", None)
+        async with revisions.loading() if revisions else nullcontext():
+            return importlib.reload(module)
+
     @commands.command(hidden=True)
     async def reload(self, ctx, *, cogs: str):
         try:
@@ -428,10 +433,10 @@ class Owner(commands.Cog):
             pass
         for cog in cogs.split():
             if cog == 'database':
-                importlib.reload(sys.modules['cogs.database'])
+                await self._reload_support_module(sys.modules['cogs.database'])
             elif cog in ['hf', 'helper_function']:
                 try:
-                    importlib.reload(
+                    await self._reload_support_module(
                         sys.modules['cogs.utils.helper_functions'])
                 except Exception as e:
                     await self.reload_error(ctx, cog, e)
@@ -463,12 +468,12 @@ class Owner(commands.Cog):
                     git_utils_module = sys.modules.get(
                         'cogs.utils.BotUtils.git_utils')
                     if git_utils_module is not None:
-                        importlib.reload(git_utils_module)
-                    importlib.reload(
+                        await self._reload_support_module(git_utils_module)
+                    await self._reload_support_module(
                         sys.modules['cogs.utils.BotUtils.bot_utils'])
                     utils.setup(bot=self.bot, loop=asyncio.get_event_loop())
                     views_module = importlib.import_module('cogs.utils.views')
-                    importlib.reload(views_module)
+                    await self._reload_support_module(views_module)
                 except Exception as e:
                     await self.reload_error(ctx, cog, e)
                 else:

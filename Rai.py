@@ -134,6 +134,14 @@ class Rai(Bot):
             json.dump({}, db)
             db.close()
 
+    async def load_extension(self, name, *, package=None):
+        # Startup takes one baseline for all initial extensions. discord.py also
+        # routes reload_extension through this method when it loads the new cog.
+        if self.database_tables_ready:
+            async with self.traceback_store.revisions.loading():
+                return await super().load_extension(name, package=package)
+        return await super().load_extension(name, package=package)
+
     async def record_traceback(self, error, ctx_or_event, sample):
         origin = ctx_or_event if isinstance(ctx_or_event, str) else getattr(
             getattr(ctx_or_event, "command", None), "qualified_name", type(ctx_or_event).__name__

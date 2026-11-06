@@ -290,3 +290,7 @@ WHERE p.group_id = 7 GROUP BY p.id ORDER BY occurrences DESC;
 ```
 
 Each caller path retains its first complete traceback, including chained exceptions. The `frames` column holds its ordered call stacks as JSON. `error_groups.signature` shows the exact grouping criteria. Each row in `events` gives the UTC time, caller path, event or command name, and Discord traceback message ID when available.
+
+The group list shows the underlying exception at the deepest Rai-owned site in its cause or context chain. The full outer exception and its signature are still available in `error_groups`. Exception groups retain their branches in that signature.
+
+Native events record `rai_revision` and `botutils_revision` as Git commit hashes. Each points to the innermost implicated file in that repository, or to the startup Rai revision and loaded BotUtils reporter when the respective repository has no frame. After a partial cog reload, `module_revisions` lists any other traced files running a different revision as JSON pairs of file and hash. A pull alone does not change loaded revisions. Historical events, text-only reports, and code whose revision could not be established have NULL revision fields. Revisions are excluded from grouping.

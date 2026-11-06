@@ -14,6 +14,8 @@ import sqlite3
 import sys
 import traceback
 
+from .loaded_revisions import LoadedRevisions, event_revisions, frame_revision
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,12 +42,36 @@ CREATE TABLE IF NOT EXISTS events (
     source_message_id INTEGER UNIQUE
 );
 CREATE INDEX IF NOT EXISTS event_path ON events(caller_path_id);
-CREATE VIEW IF NOT EXISTS group_summary AS
-    SELECT g.id, g.exception_class, g.failure_site, COUNT(*) AS occurrences,
+"""
+
+GROUP_SUMMARY = """
+CREATE VIEW group_summary AS
+    WITH RECURSIVE chain(id, node, depth) AS (
+        SELECT id, signature, 0 FROM error_groups
+        UNION ALL
+        SELECT id, coalesce(json_extract(node, '$.cause'), json_extract(node, '$.context')), depth + 1
+        FROM chain WHERE json_type(node, '$.cause') = 'object' OR json_type(node, '$.context') = 'object'
+    ), sites AS (
+        SELECT id, depth, json_extract(node, '$.class') AS class,
+               json_extract(node, '$.site[0]') AS file, json_extract(node, '$.site[1]') AS function,
+               json_extract(node, '$.site[2]') AS statement
+        FROM chain WHERE json_extract(node, '$.cycle') IS NULL
+    ), ranked AS (
+        SELECT *, first_value(class) OVER (PARTITION BY id ORDER BY depth DESC) AS cause_class,
+               row_number() OVER (
+            PARTITION BY id ORDER BY (file GLOB 'cogs/*' OR file = 'Rai.py') DESC,
+                                     (file IS NOT NULL) DESC, depth DESC
+        ) AS preference FROM sites
+    )
+    SELECT g.id, CASE WHEN r.cause_class LIKE 'builtins.%' THEN substr(r.cause_class, 10)
+                      ELSE coalesce(r.cause_class, g.exception_class) END AS exception_class,
+           coalesce(r.file || ' / ' || r.function || ' / ' || r.statement, g.failure_site) AS failure_site,
+           COUNT(*) AS occurrences,
            COUNT(DISTINCT p.id) AS caller_paths, MIN(e.occurred_at) AS first_seen,
            MAX(e.occurred_at) AS last_seen, g.forum_thread_id
     FROM error_groups g JOIN caller_paths p ON p.group_id = g.id
-    JOIN events e ON e.caller_path_id = p.id GROUP BY g.id;
+    JOIN events e ON e.caller_path_id = p.id
+    LEFT JOIN ranked r ON r.id = g.id AND r.preference = 1 GROUP BY g.id;
 """
 
 
@@ -105,7 +131,7 @@ def _statement_number(code, lineno, source):
     return sum(linecache.getline(code.co_filename, ln).strip() == source for ln in earlier_lines)
 
 
-def _stack(error):
+def _stack(error, revisions, versions):
     frames = []
     site = None
     tb = error.__traceback__
@@ -126,17 +152,20 @@ def _stack(error):
         occurrence = _statement_number(code, lineno, source)
         location = [file, code.co_qualname, source, occurrence, summary.colno]
         frames.append(location)
+        if owned or (local and relative.parts[0] == "web_admin"):
+            name = relative.as_posix()
+            versions.append((name, frame_revision(frame, name, revisions)))
         if owned:
             site = location
     return frames, site or (frames[-1] if frames else None)
 
 
-def _describe(error, ancestors=frozenset()):
+def _describe(error, revisions, versions, ancestors=frozenset()):
     cls = f"{type(error).__module__}.{type(error).__qualname__}"
     if id(error) in ancestors:
         return {"class": cls, "cycle": True}, {}
     ancestors = ancestors | {id(error)}
-    frames, site = _stack(error)
+    frames, site = _stack(error, revisions, versions)
     previous = error.__cause__
     link = "cause"
     if previous is None and not error.__suppress_context__:
@@ -145,9 +174,9 @@ def _describe(error, ancestors=frozenset()):
     identity = {"class": cls, "site": site, "diagnostic": _diagnostic(error, previous)}
     path = {"frames": frames}
     if previous is not None:
-        identity[link], path[link] = _describe(previous, ancestors)
+        identity[link], path[link] = _describe(previous, revisions, versions, ancestors)
     if isinstance(error, BaseExceptionGroup):
-        members = [_describe(child, ancestors) for child in error.exceptions]
+        members = [_describe(child, revisions, versions, ancestors) for child in error.exceptions]
         identity["exceptions"] = [key for key, _ in members]
         path["exceptions"] = [calls for _, calls in members]
     return identity, path
@@ -156,6 +185,7 @@ def _describe(error, ancestors=frozenset()):
 class TracebackStore:
     def __init__(self, filename):
         self.filename = filename
+        self.revisions = None
         # Survive cog reloads while a forum post is in flight.
         self.forum_lock = asyncio.Lock()
         self.publishing: set[int] = set()
@@ -168,20 +198,33 @@ class TracebackStore:
     def initialize(self):
         # Full samples can contain the input or URL that triggered the error.
         os.close(os.open(self.filename, os.O_CREAT | os.O_RDWR, 0o600))
-        with closing(self._connect()) as db:
+        if self.revisions is None:
+            self.revisions = LoadedRevisions(ROOT)
+        with closing(self._connect()) as db, db:
             # A long investigation can read a snapshot while the bot keeps writing.
             db.execute("PRAGMA journal_mode = WAL")
-            db.executescript(SCHEMA)
+            # Hold the write lock through the whole migration, including the view swap.
+            db.executescript("BEGIN IMMEDIATE;\n" + SCHEMA)
+            if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+                db.execute("ALTER TABLE events ADD COLUMN rai_revision TEXT")
+                db.execute("ALTER TABLE events ADD COLUMN botutils_revision TEXT")
+                db.execute("ALTER TABLE events ADD COLUMN module_revisions TEXT")
+                db.execute("DROP VIEW IF EXISTS group_summary")
+                db.execute(GROUP_SUMMARY)
+                db.execute("PRAGMA user_version=1")
 
     async def record_exception(self, error, origin, sample):
         occurred_at = datetime.now(timezone.utc).isoformat()
-        return await asyncio.to_thread(self._record_exception, error, origin, sample, occurred_at)
+        revisions = self.revisions.snapshot()
+        return await asyncio.to_thread(self._record_exception, error, origin, sample, occurred_at, revisions)
 
-    def _record_exception(self, error, origin, sample, occurred_at):
-        signature, frames = _describe(error)
+    def _record_exception(self, error, origin, sample, occurred_at, revisions):
+        versions = []
+        signature, frames = _describe(error, revisions, versions)
         if not signature["site"]:
             signature["origin"] = origin
-        return self._insert(signature, frames, sample, occurred_at, origin)
+        return self._insert(signature, frames, sample, occurred_at, origin,
+                            revisions=event_revisions(versions, revisions))
 
     def record_text(self, text, occurred_at, message_id):
         # Older senders have no exception object. Keep an exact-text group in
@@ -192,7 +235,7 @@ class TracebackStore:
                      "class": name if re.fullmatch(r"[\w.]+", name) else "unclassified"}
         return self._insert(signature, {}, text, occurred_at, None, message_id)
 
-    def _insert(self, signature, frames, sample, occurred_at, origin, message_id=None):
+    def _insert(self, signature, frames, sample, occurred_at, origin, message_id=None, revisions=None):
         key = _json(signature)
         stack = _json(frames)
         site = signature.get("site")
@@ -210,8 +253,12 @@ class TracebackStore:
                        "ON CONFLICT(group_id, frames) DO NOTHING", (group_id, stack, sample))
             path_id, = db.execute("SELECT id FROM caller_paths WHERE group_id=? AND frames=?",
                                   (group_id, stack)).fetchone()
-            return db.execute("INSERT INTO events(caller_path_id, occurred_at, origin, source_message_id) "
-                              "VALUES (?,?,?,?)", (path_id, occurred_at, origin, message_id)).lastrowid
+            rai, botutils, modules = revisions or (None, None, None)
+            return db.execute(
+                "INSERT INTO events(caller_path_id, occurred_at, origin, source_message_id, "
+                "rai_revision, botutils_revision, module_revisions) VALUES (?,?,?,?,?,?,?)",
+                (path_id, occurred_at, origin, message_id, rai, botutils, modules),
+            ).lastrowid
 
     def lookup_event(self, event_id, message_id):
         """Attach a Discord message to the original event and find its forum group."""
