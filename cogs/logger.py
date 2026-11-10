@@ -837,12 +837,16 @@ class Logger(commands.Cog):
             await self.log_delete_event(old_message_dmsg, logging_channel)
             
         elif event_type == "edits":
-            # get the new message from the cache
             message_guild = self.bot.get_guild(payload.guild_id)
-            message_channel = message_guild.get_channel_or_thread(payload.channel_id) if message_guild else None
+            if message_guild is None:
+                return
+            message_channel = message_guild.get_channel_or_thread(payload.channel_id)
             try:
+                # Archived or uncached threads can still have accessible messages.
+                if message_channel is None:
+                    message_channel = await message_guild.fetch_channel(payload.channel_id)
                 new_message = await message_channel.fetch_message(payload.message_id)
-            except discord.NotFound:
+            except (discord.NotFound, discord.Forbidden):
                 return
             distance_limit = guild_config.get("distance_limit", 3)
             levenshtein_distance = LDist(old_message.content, new_message.content)

@@ -221,6 +221,98 @@ async def test_false_alarm_cannot_run_while_ban_is_in_progress():
 
 
 @pytest.mark.asyncio
+async def test_false_alarm_defers_before_removing_timeout_and_updates_original_message():
+    target = make_target()
+    interaction = make_scam_interaction()
+    entry = {"type": "AutoMod Timeout", "reason": "reported **content**"}
+    other = {"type": "Warning", "reason": "reported content"}
+    bot = make_bot(db={"modlog": {"1": {"42": [other, entry]}}})
+    view = message_module.ScamBanPromptView(bot, target, "reported content")
+
+    async def edit_after_ack(**kwargs):
+        interaction.response.defer.assert_awaited_once_with()
+        assert view.ban_in_progress is True
+        assert kwargs["timed_out_until"] is None
+
+    target.edit.side_effect = edit_after_ack
+    await view.false_alarm.callback(interaction)
+
+    assert bot.db["modlog"]["1"]["42"] == [other]
+    interaction.edit_original_response.assert_awaited_once()
+    assert "Marked as false alarm" in interaction.edit_original_response.await_args.kwargs["content"]
+    assert all(item.disabled for item in view.children)
+    assert view.is_finished()
+    interaction.response.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_false_alarm_timeout_removal_failure_uses_followup_and_allows_retry():
+    target = make_target()
+    target.edit.side_effect = discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"),
+        {"code": 50013, "message": "Missing Permissions"},
+    )
+    interaction = make_scam_interaction()
+    entry = {"type": "AutoMod Timeout", "reason": "reported content"}
+    bot = make_bot(db={"modlog": {"1": {"42": [entry]}}})
+    view = message_module.ScamBanPromptView(bot, target, "reported content")
+
+    await view.false_alarm.callback(interaction)
+
+    interaction.response.defer.assert_awaited_once_with()
+    interaction.followup.send.assert_awaited_once()
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    assert "couldn't remove the timeout" in interaction.followup.send.await_args.args[0]
+    assert bot.db["modlog"]["1"]["42"] == [entry]
+    assert view.ban_in_progress is False
+    assert not view.is_finished()
+    assert not any(item.disabled for item in view.children)
+    interaction.edit_original_response.assert_not_awaited()
+    interaction.response.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_false_alarm_expired_ack_leaves_moderation_state_available():
+    target = make_target()
+    interaction = make_scam_interaction()
+    interaction.response.defer.side_effect = discord.NotFound(
+        SimpleNamespace(status=404, reason="Not Found"),
+        {"code": 10062, "message": "Unknown interaction"},
+    )
+    bot = make_bot(db={"modlog": {}})
+    view = message_module.ScamBanPromptView(bot, target, "reported content")
+
+    with pytest.raises(discord.NotFound):
+        await view.false_alarm.callback(interaction)
+
+    target.edit.assert_not_awaited()
+    assert bot.db["modlog"] == {}
+    assert view.ban_in_progress is False
+    assert not view.is_finished()
+
+
+@pytest.mark.asyncio
+async def test_false_alarm_completed_action_stays_finished_if_confirmation_edit_fails():
+    target = make_target()
+    interaction = make_scam_interaction()
+    interaction.edit_original_response.side_effect = discord.NotFound(
+        SimpleNamespace(status=404, reason="Not Found"),
+        {"code": 10008, "message": "Unknown Message"},
+    )
+    entry = {"type": "AutoMod Timeout", "reason": "reported content"}
+    bot = make_bot(db={"modlog": {"1": {"42": [entry]}}})
+    view = message_module.ScamBanPromptView(bot, target, "reported content")
+
+    with pytest.raises(discord.NotFound):
+        await view.false_alarm.callback(interaction)
+
+    target.edit.assert_awaited_once()
+    assert bot.db["modlog"]["1"]["42"] == []
+    assert view.is_finished()
+    assert all(item.disabled for item in view.children)
+
+
+@pytest.mark.asyncio
 async def test_timeout_followup_prompt_has_no_hacked_account_default():
     prompt_message = make_message()
     msg = make_message(

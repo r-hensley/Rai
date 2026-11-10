@@ -785,7 +785,16 @@ class AI(commands.Cog):
         traceback_start = codeblock_start + len("```py")
         if msg.content[traceback_start:traceback_start + 1] == "\n":
             traceback_start += 1
-        return msg.content[traceback_start:codeblock_end]
+        traceback_text = msg.content[traceback_start:codeblock_end]
+        # Owner eval replies also use Python code blocks in this channel.
+        # Legacy reports need a traceback header; tagged attachments above
+        # also support exception objects that have no stack attached.
+        if not re.search(
+            r"(?m)^[ +|]*(?:Exception Group )?Traceback \(most recent call last\):\r?$",
+            traceback_text,
+        ):
+            return None
+        return traceback_text
 
     @staticmethod
     def traceback_forum_segments(traceback_text: str, segment_length: int = 1900) -> list[str]:

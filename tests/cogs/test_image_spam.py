@@ -11,7 +11,7 @@ from cogs import image_spam
 from cogs.utils import helper_functions as hf
 from tests.discord_fakes import (
     make_attachment, make_bot, make_channel, make_guild, make_member,
-    make_message, make_thread,
+    make_interaction, make_message, make_thread,
 )
 
 
@@ -20,6 +20,40 @@ def http_error(status=403):
         SimpleNamespace(status=status, reason='Test failure'),
         {'code': 50013, 'message': 'Test failure'},
     )
+
+
+@pytest.mark.asyncio
+async def test_spam_disable_without_guild_preserves_configuration():
+    bot = make_bot(db={"image_spam": {"123": {"enabled": True}}})
+    cog = image_spam.ImageSpam(bot)
+    interaction = make_interaction()
+    interaction.guild = None
+
+    await cog.spam_disable.callback(cog, interaction)
+
+    assert cog.spam_disable.guild_only
+    assert bot.db["image_spam"] == {"123": {"enabled": True}}
+    interaction.response.send_message.assert_awaited_once_with(
+        "Use this command in a server to disable image spam detection.", ephemeral=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_spam_disable_only_disables_current_guild():
+    guild = make_guild()
+    config = {"enabled": True, "channel": 123, "limit": 3}
+    bot = make_bot(guilds=[guild], db={"image_spam": {
+        str(guild.id): config, "other": {"enabled": True},
+    }})
+    cog = image_spam.ImageSpam(bot)
+    interaction = make_interaction(guild=guild)
+
+    await cog.spam_disable.callback(cog, interaction)
+
+    assert config == {"enabled": False, "channel": 123, "limit": 3}
+    assert bot.db["image_spam"]["other"]["enabled"]
+    interaction.response.send_message.assert_awaited_once()
+    assert interaction.response.send_message.await_args.kwargs["ephemeral"]
 
 
 @pytest.fixture

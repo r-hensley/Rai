@@ -433,13 +433,19 @@ class ScamBanPromptView(utils.RaiView):
 
         self.ban_in_progress = True
         try:
+            await interaction.response.defer()
+        except Exception:
+            self.ban_in_progress = False
+            raise
+
+        try:
             await self.target.edit(
                 timed_out_until=None,
                 reason="False alarm on AutoMod scam timeout"
             )
         except (discord.Forbidden, discord.HTTPException) as e:
             self.ban_in_progress = False
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"I couldn't remove the timeout from {self.target.mention}: `{e}`",
                 ephemeral=True
             )
@@ -461,13 +467,13 @@ class ScamBanPromptView(utils.RaiView):
         for item in self.children:
             item.disabled = True
 
-        await interaction.response.edit_message(
+        self.stop()
+        await interaction.edit_original_response(
             content=f"Marked as false alarm. I've removed the timeout from {self.target.mention} "
                     f"and deleted that modlog entry.\n"
                     f"-# Incident handled by {interaction.user.mention}",
             view=self
         )
-        self.stop()
 
 
 class ScamBanReasonModal(utils.RaiModal, title="Ban User"):

@@ -191,11 +191,18 @@ class ImageSpam(commands.Cog):
         name="spam_disable",
         description="Disable image spam detection"
     )
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
     async def spam_disable(self, interaction: discord.Interaction):
         """
         Disables image spam detection for the current guild.
         """
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "Use this command in a server to disable image spam detection.",
+                ephemeral=True,
+            )
+            return
         g_id = str(interaction.guild.id)
         config = self.bot.db.get("image_spam", {})
 

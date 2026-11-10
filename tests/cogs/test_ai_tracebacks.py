@@ -87,7 +87,12 @@ def _cog(store, *, forum=None):
 
 def _message(
         bot,
-        body="Traceback\nRuntimeError: boom",
+        body=(
+            'Traceback (most recent call last):\n'
+            '  File "example.py", line 1, in run\n'
+            '    raise RuntimeError("boom")\n'
+            'RuntimeError: boom'
+        ),
         *,
         channel_id=SOURCE_CHANNEL_ID,
         embeds=None,
@@ -119,6 +124,64 @@ def _published(store):
 
 def _assert_mentions_disabled(allowed_mentions):
     assert allowed_mentions.to_dict() == {"parse": []}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [
+    "Translator probe armed for three failures or two hours.",
+    "{'active': True, 'saved': 904, 'missed': 0}",
+    "print('Traceback (most recent call last):')",
+])
+async def test_ordinary_python_output_is_not_archived(monkeypatch, store, body):
+    _configure_source_channel(monkeypatch)
+    forum, _thread = _forum_with_thread()
+    cog, bot = _cog(store, forum=forum)
+
+    await cog.on_message(_message(bot, body))
+
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT COUNT(*) FROM events").fetchone() == (0,)
+        assert db.execute("SELECT COUNT(*) FROM error_groups").fetchone() == (0,)
+    cog.chat_completion_text.assert_not_awaited()
+    forum.create_thread.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["normal", "chain", "group"])
+async def test_legacy_formatted_tracebacks_are_preserved(monkeypatch, store, kind):
+    _configure_source_channel(monkeypatch)
+    cog, bot = _cog(store)
+    bot.db["ai_features"]["enabled"] = False
+    try:
+        if kind == "group":
+            raise ExceptionGroup("failures", [ValueError("first"), RuntimeError("second")])
+        if kind == "chain":
+            raise RuntimeError("outer") from ValueError("inner without stack")
+        raise RuntimeError("boom")
+    except Exception as error:
+        body = "".join(traceback.format_exception(error))
+
+    msg = _message(bot, body)
+    await cog.on_message(msg)
+
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT sample_traceback FROM caller_paths").fetchall() == [(body + "\n",)]
+        assert db.execute("SELECT COUNT(*) FROM events").fetchone() == (1,)
+
+
+@pytest.mark.asyncio
+async def test_tagged_attachment_without_stack_is_still_archived(monkeypatch, store):
+    _configure_source_channel(monkeypatch)
+    cog, bot = _cog(store)
+    bot.db["ai_features"]["enabled"] = False
+    body = "ValueError: exception without stack\n"
+    msg = _message(bot, attachments=[make_attachment(filename=_attachment_filename(), data=body.encode())])
+    msg.content = utils.TRACEBACK_MESSAGE_MARKER
+
+    await cog.on_message(msg)
+
+    with closing(sqlite3.connect(store.filename)) as db:
+        assert db.execute("SELECT sample_traceback FROM caller_paths").fetchall() == [(body,)]
 
 
 @pytest.mark.asyncio
