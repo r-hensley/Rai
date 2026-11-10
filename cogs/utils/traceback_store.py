@@ -44,6 +44,21 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS event_path ON events(caller_path_id);
 """
 
+TRIAGE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS group_triage (
+    id INTEGER PRIMARY KEY,
+    group_id INTEGER NOT NULL REFERENCES error_groups(id),
+    triaged_at TEXT NOT NULL,
+    reviewer TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('triaged', 'monitoring', 'archived')),
+    notes TEXT NOT NULL,
+    fix_commit TEXT,
+    fix_confidence INTEGER CHECK (fix_confidence BETWEEN 1 AND 5),
+    deployment_confirmed_at TEXT,
+    reviewed_through_event_id INTEGER NOT NULL
+);
+"""
+
 GROUP_SUMMARY = """
 CREATE VIEW group_summary AS
     WITH RECURSIVE chain(id, node, depth) AS (
@@ -68,10 +83,23 @@ CREATE VIEW group_summary AS
            coalesce(r.file || ' / ' || r.function || ' / ' || r.statement, g.failure_site) AS failure_site,
            COUNT(*) AS occurrences,
            COUNT(DISTINCT p.id) AS caller_paths, MIN(e.occurred_at) AS first_seen,
-           MAX(e.occurred_at) AS last_seen, g.forum_thread_id
+           MAX(e.occurred_at) AS last_seen, g.forum_thread_id,
+           CASE WHEN t.status = 'archived' AND MAX(e.id) > t.reviewed_through_event_id
+                THEN 'needs_review' ELSE coalesce(t.status, 'untriaged') END AS status,
+           t.triaged_at, t.reviewer, t.notes, t.fix_commit, t.fix_confidence,
+           t.deployment_confirmed_at, t.reviewed_through_event_id,
+           CASE WHEN t.id IS NOT NULL THEN
+               SUM(e.id > t.reviewed_through_event_id) END AS events_since_triage,
+           CASE WHEN t.deployment_confirmed_at IS NOT NULL THEN
+               SUM(julianday(e.occurred_at) >= julianday(t.deployment_confirmed_at))
+               END AS events_since_deployment,
+           CASE WHEN t.status = 'archived' THEN t.triaged_at END AS archived_at
     FROM error_groups g JOIN caller_paths p ON p.group_id = g.id
     JOIN events e ON e.caller_path_id = p.id
-    LEFT JOIN ranked r ON r.id = g.id AND r.preference = 1 GROUP BY g.id;
+    LEFT JOIN ranked r ON r.id = g.id AND r.preference = 1
+    LEFT JOIN group_triage t ON t.id = (
+        SELECT MAX(latest.id) FROM group_triage latest WHERE latest.group_id = g.id
+    ) GROUP BY g.id;
 """
 
 
@@ -205,13 +233,60 @@ class TracebackStore:
             db.execute("PRAGMA journal_mode = WAL")
             # Hold the write lock through the whole migration, including the view swap.
             db.executescript("BEGIN IMMEDIATE;\n" + SCHEMA)
-            if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version == 0:
                 db.execute("ALTER TABLE events ADD COLUMN rai_revision TEXT")
                 db.execute("ALTER TABLE events ADD COLUMN botutils_revision TEXT")
                 db.execute("ALTER TABLE events ADD COLUMN module_revisions TEXT")
+            if version < 2:
+                db.execute(TRIAGE_SCHEMA)
+                db.execute("CREATE INDEX IF NOT EXISTS triage_group ON group_triage(group_id, id)")
                 db.execute("DROP VIEW IF EXISTS group_summary")
                 db.execute(GROUP_SUMMARY)
-                db.execute("PRAGMA user_version=1")
+                db.execute("PRAGMA user_version=2")
+
+    def triage_group(self, group_id, *, notes, status="triaged", fix_commit=None,
+                     fix_confidence=None, deployment_confirmed_at=None, reviewer="codex"):
+        """Append a complete review snapshot; retain all prior reviews and events.
+
+        Confidence rates the proposed fix, not proof from quiet observation.
+        Deployment confirmation marks when we know the fix was loaded, which
+        can be later than the actual deployment. Archive state is reversible
+        through another review; any later event makes it need review again.
+        """
+        if status not in ("triaged", "monitoring", "archived"):
+            raise ValueError("Invalid triage status")
+        if not isinstance(notes, str) or not notes.strip():
+            raise ValueError("Triage notes are required")
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            raise ValueError("A reviewer is required")
+        if fix_confidence is not None and (
+            type(fix_confidence) is not int or not 1 <= fix_confidence <= 5
+        ):
+            raise ValueError("Fix confidence must be an integer from 1 to 5, or None")
+        if deployment_confirmed_at is not None:
+            confirmed = deployment_confirmed_at
+            if isinstance(confirmed, str):
+                confirmed = datetime.fromisoformat(confirmed)
+            if not isinstance(confirmed, datetime) or confirmed.utcoffset() is None:
+                raise ValueError("Deployment confirmation must include a timezone")
+            deployment_confirmed_at = confirmed.astimezone(timezone.utc).isoformat()
+        with closing(self._connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM error_groups WHERE id=?", (group_id,)).fetchone():
+                raise ValueError(f"Unknown error group {group_id}")
+            watermark, = db.execute(
+                "SELECT coalesce(MAX(e.id), 0) FROM events e "
+                "JOIN caller_paths p ON p.id=e.caller_path_id WHERE p.group_id=?",
+                (group_id,),
+            ).fetchone()
+            return db.execute(
+                "INSERT INTO group_triage(group_id, triaged_at, reviewer, status, notes, "
+                "fix_commit, fix_confidence, deployment_confirmed_at, reviewed_through_event_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (group_id, datetime.now(timezone.utc).isoformat(), reviewer, status, notes,
+                 fix_commit, fix_confidence, deployment_confirmed_at, watermark),
+            ).lastrowid
 
     async def record_exception(self, error, origin, sample):
         occurred_at = datetime.now(timezone.utc).isoformat()
