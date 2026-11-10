@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 import string
 import time
@@ -49,11 +50,12 @@ ANTISPAM_REVIEW_TIMEOUT_SECONDS = 60 * 60
 ANTISPAM_TIMEOUT_MATCH_TOLERANCE_SECONDS = 5
 MAX_LANGUAGE_LINKS_PER_DAY = 25
 GOOGLE_TRANSLATE_ENDPOINT = "https://clients5.google.com/translate_a/t"
+GOOGLE_TRANSLATE_BLANK_RETRY_DELAY = 0.5
 on_message_functions = []
 
 
-def translate_text(text: str, target: str) -> str:
-    """Translate text with Google's compact JSON endpoint.
+def _google_translation_row(text: str, target: str) -> list:
+    """Fetch the result row from Google's compact JSON endpoint.
 
     deep-translator scrapes the mobile HTML page, which can return an HTTP 200
     response containing Google's Error 500 page. The scraper mistakes that page
@@ -85,9 +87,35 @@ def translate_text(text: str, target: str) -> str:
         or not isinstance(payload[0][0], str)
     ):
         raise ValueError("Google Translate returned an invalid response")
-    translated = payload[0][0]
-    if not translated.strip():
-        raise ValueError("Google Translate returned an empty response")
+    return payload[0]
+
+
+def translate_text(text: str, target: str) -> str:
+    row = _google_translation_row(text, target)
+    retried = not row[0].strip()
+    if retried:
+        # This synchronous function runs in a worker. Retry only the blank target.
+        time.sleep(GOOGLE_TRANSLATE_BLANK_RETRY_DELAY)
+        try:
+            row = _google_translation_row(text, target)
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Google translation retry target=%s outcome=error exception=%s",
+                target, type(exc).__name__,
+            )
+            raise
+    translated = row[0].strip()
+    if not translated:
+        logging.getLogger(__name__).warning("Google translation retry target=%s outcome=blank", target)
+        source = row[1] if len(row) > 1 else None
+        if not isinstance(source, str) or not re.fullmatch(r"[a-zA-Z]{2,3}(?:-[a-zA-Z]{2,8})?", source):
+            source = "unknown"
+        error = ValueError("Google Translate returned an empty response")
+        error.add_note(
+            f"Both attempts returned a blank translation. Target={target}, "
+            f"detected source={source}, input characters={len(text)}."
+        )
+        raise error
 
     normalized = translated.casefold().replace("’", "'")
     if (
@@ -95,9 +123,13 @@ def translate_text(text: str, target: str) -> str:
         and "please try again later" in normalized
         and "that's all we know" in normalized
     ):
+        if retried:
+            logging.getLogger(__name__).warning("Google translation retry target=%s outcome=error_page", target)
         raise ValueError("Google Translate returned an error page")
 
-    return translated.strip()
+    if retried:
+        logging.getLogger(__name__).warning("Google translation retry target=%s outcome=recovered", target)
+    return translated
 
 
 def forced_hardcore_applies(msg: discord.Message, config: object) -> bool:
@@ -2612,17 +2644,17 @@ class Message(commands.Cog):
             msg.author).read_messages
 
         try:
-            translated, translated_2 = await asyncio.gather(
-                utils.asyncio_task(translate_text, content, 'en'),
-                utils.asyncio_task(translate_text, content, 'es'),
-            )
+            translated = await utils.asyncio_task(translate_text, content, 'en')
+            if not translated:
+                return
+            eng_dist = LDist(re.sub(r'\W', '', translated),
+                             re.sub(r'\W', '', content))
+            if eng_dist < 3:
+                return
+            translated_2 = await utils.asyncio_task(translate_text, content, 'es')
         except (gaierror, requests.exceptions.RequestException, ValueError):
             return
-        if not translated or not translated_2:
-            return
-        eng_dist = LDist(re.sub(r'\W', '', translated),
-                         re.sub(r'\W', '', content))
-        if eng_dist < 3:
+        if not translated_2:
             return
         if LDist(re.sub(r'\W', '', translated_2),
                  re.sub(r'\W', '', content)) < 3:

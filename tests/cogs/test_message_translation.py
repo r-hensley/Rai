@@ -64,10 +64,17 @@ def test_translate_text_rejects_invalid_response_shapes(monkeypatch, payload):
 
 @pytest.mark.parametrize("translated", ["", " ", "\n\t"])
 def test_translate_text_rejects_blank_translation(monkeypatch, translated):
-    monkeypatch.setattr(message_module.requests, "get", Mock(return_value=make_response([[translated, "fr"]])))
+    get = Mock(return_value=make_response([[translated, "fr"]]))
+    monkeypatch.setattr(message_module.requests, "get", get)
+    monkeypatch.setattr(message_module, "GOOGLE_TRANSLATE_BLANK_RETRY_DELAY", 0)
 
-    with pytest.raises(ValueError, match="empty response"):
+    with pytest.raises(ValueError, match="empty response") as failure:
         message_module.translate_text("bonjour", "en")
+
+    assert get.call_count == 2
+    assert failure.value.__notes__ == [
+        "Both attempts returned a blank translation. Target=en, detected source=fr, input characters=7."
+    ]
 
 
 def test_translate_text_rejects_non_json_response(monkeypatch):
@@ -165,3 +172,66 @@ async def test_translation_success_posts_original_and_english(monkeypatch):
     assert msg.content in posted
     assert translations["en"] in posted
     assert translations["es"] not in posted
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blank_target", ["en", "es"])
+async def test_blank_target_retries_and_handler_still_posts(monkeypatch, caplog, blank_target):
+    cog, msg, log_channel = make_translation_handler()
+    targets = {"en": "Everything will be fine", "es": "Todo va a salir bien"}
+    attempts = {"en": 0, "es": 0}
+    reporter = AsyncMock()
+    monkeypatch.setattr(message_module.utils, "send_error_embed", reporter)
+    monkeypatch.setattr(message_module, "GOOGLE_TRANSLATE_BLANK_RETRY_DELAY", 0)
+
+    def get_response(*args, params, **kwargs):
+        target = params["tl"]
+        attempts[target] += 1
+        value = "" if target == blank_target and attempts[target] == 1 else targets[target]
+        return make_response([[value, "pt"]])
+
+    monkeypatch.setattr(message_module.requests, "get", Mock(side_effect=get_response))
+    await message_module.Message.translate_other_lang_channel.__wrapped__(cog, msg)
+
+    assert attempts == {target: 2 if target == blank_target else 1 for target in targets}
+    reporter.assert_not_awaited()
+    log_channel.send.assert_awaited_once()
+    assert targets["en"] in log_channel.send.await_args.args[0]
+    assert f"target={blank_target} outcome=recovered" in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["identical", "punctuation", "two_letters"])
+async def test_english_skip_avoids_spanish_request(monkeypatch, change):
+    cog, msg, log_channel = make_translation_handler()
+    values = {"identical": msg.content, "punctuation": msg.content + "!!!",
+              "two_letters": msg.content + "ab"}
+    get = Mock(return_value=make_response([[values[change], "pt"]]))
+    monkeypatch.setattr(message_module.requests, "get", get)
+
+    await message_module.Message.translate_other_lang_channel.__wrapped__(cog, msg)
+
+    get.assert_called_once()
+    assert get.call_args.kwargs["params"]["tl"] == "en"
+    log_channel.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("second", ["blank", "timeout", "invalid", "recovered"])
+def test_production_blank_shape_retries_once_and_logs_outcome(monkeypatch, caplog, second):
+    responses = {"blank": make_response([[""]]), "timeout": requests.Timeout("private text"),
+                 "invalid": make_response([]), "recovered": make_response([["hello", "fr"]])}
+    get = Mock(side_effect=[make_response([[""]]), responses[second]])
+    sleep = Mock()
+    monkeypatch.setattr(message_module.requests, "get", get)
+    monkeypatch.setattr(message_module.time, "sleep", sleep)
+    if second == "recovered":
+        assert message_module.translate_text("bonjour", "en") == "hello"
+    else:
+        with pytest.raises((ValueError, requests.Timeout)):
+            message_module.translate_text("bonjour", "en")
+    assert get.call_count == 2
+    sleep.assert_called_once_with(0.5)
+    outcome = second if second in ("blank", "recovered") else "error"
+    assert f"target=en outcome={outcome}" in caplog.text
+    assert "private text" not in caplog.text
+    assert "bonjour" not in caplog.text
