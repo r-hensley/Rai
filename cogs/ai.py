@@ -6,7 +6,6 @@ import re
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from random import choice
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Union
 
@@ -301,7 +300,7 @@ class AI(commands.Cog):
     async def responses_text(
             self, *,
             input: str,
-            model: str = 'gpt-4o-mini',
+            model: str = 'gpt-6-luna',
             instructions: str = "",
             previous_response_id: int | None = None,
             log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID,
@@ -344,7 +343,7 @@ class AI(commands.Cog):
             self,
             *,
             messages: list[dict[str, Any]],
-            model: str = "gpt-4o-mini",
+            model: str = "gpt-6-luna",
             log_channel_id: int | None = SUMMARY_LOG_CHANNEL_ID,
             return_completion_object: bool = False,
             **kwargs
@@ -1092,7 +1091,6 @@ class AI(commands.Cog):
             response_text = await self.chat_completion_text(
                 messages=messages,
                 log_channel_id=None,
-                temperature=0.2,
             )
         except Exception as e:
             await utils.safe_reply(notif, f"Failed to summarize logs. Sorry!\n`{e}`")
@@ -1333,7 +1331,7 @@ class AI(commands.Cog):
 
         await hf.send_to_test_channel(messages)
         try:
-            response_text = await self.chat_completion_text(model="gpt-4o", messages=messages,
+            response_text = await self.chat_completion_text(messages=messages,
                                                             log_channel_id=None)
         except Exception as e:
             await hf.send_to_test_channel(f"Error: `{e}`\n{messages}")
@@ -1477,12 +1475,8 @@ class AI(commands.Cog):
         input: soy un persona  →  {"corrected":"soy **una** persona","explanation":"Changed 'un' to 'una' so the article agrees with feminine noun 'persona'."}
         input: 私は人間でし  →  {"corrected":"私は人間で**す**","explanation":"Changed でし to です to use the correct copula ending."}
         """
-        model_choices = [
-            ('gpt-4o-mini', None),
-            ('gpt-5-mini', {'effort': 'minimal'})
-        ]
-        model = choice(model_choices)
-        
+        model = "gpt-6-luna"
+
         ai_input = utils.rem_emoji_url(msg.content)
         ai_input = re.sub(r'<..\d+>', '', ai_input).strip()
         
@@ -1490,12 +1484,12 @@ class AI(commands.Cog):
             return
         
         response = await self.responses_text(
-            model=model[0],
+            model=model,
             input=ai_input,
             instructions=dedent(GRAMMAR_CHECK_SYSTEM),
             return_response=True,
             store=False,
-            reasoning=model[1],
+            reasoning={"effort": "low"},
             # previous_response_id=self.previous_response_id  # don't use right now
         )
         
@@ -1534,7 +1528,7 @@ class AI(commands.Cog):
             explanation = explanation[:MAX_GRAMMAR_EXPLANATION_LENGTH - 3].rstrip() + "..."
 
         await utils.safe_send(msg.author,
-                               f"{model[0]}: Here's a grammar correction for your message:\n"
+                               f"{model}: Here's a grammar correction for your message:\n"
                                f">>> Before:\n{ai_input}\nAfter:\n{corrected_text}\nWhy:\n{explanation}")
 
 
