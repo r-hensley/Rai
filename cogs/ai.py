@@ -1,5 +1,4 @@
 import asyncio
-import io
 import json
 import os
 import re
@@ -42,8 +41,6 @@ STAFF_PING_NO_SUMMARY = "No summary available."
 STAFF_PING_SUMMARY_CHANNEL_ID = 913886469809115206
 STAFF_PING_AI_FOOTER = "-# This summary of the incident was made by AI. It could be wrong."
 MAX_GRAMMAR_EXPLANATION_LENGTH = 200
-TRACEBACK_DISCORD_RETRY_ATTEMPTS = 2
-TRACEBACK_DISCORD_RETRY_DELAY_SECONDS = 1.0
 CHANNEL_SUMMARY_DEVELOPER_PROMPT = (
     "You summarize a Discord channel every 4 hours for people who want a quick index of worthwhile topics, "
     "not a detailed recap of everything said. Use a high threshold for inclusion.\n"
@@ -795,144 +792,21 @@ class AI(commands.Cog):
             return None
         return traceback_text
 
-    @staticmethod
-    def traceback_forum_segments(traceback_text: str, segment_length: int = 1900) -> list[str]:
-        if not traceback_text:
-            return ["```py\n```"]
-        segments = []
-        remaining = traceback_text
-        while len(remaining) > segment_length:
-            split_index = remaining.rfind("\n", 0, segment_length + 1)
-            if split_index == -1:
-                split_index = segment_length
-            else:
-                split_index += 1
-            segments.append(f"```py\n{remaining[:split_index]}```")
-            remaining = remaining[split_index:]
-        if remaining:
-            segments.append(f"```py\n{remaining}```")
-        return segments
-
-    @staticmethod
-    async def retry_traceback_discord_operation(operation):
-        for attempt in range(TRACEBACK_DISCORD_RETRY_ATTEMPTS):
-            try:
-                return await operation()
-            except (discord.Forbidden, discord.NotFound):
-                raise
-            except discord.HTTPException:
-                if attempt == TRACEBACK_DISCORD_RETRY_ATTEMPTS - 1:
-                    raise
-                await asyncio.sleep(TRACEBACK_DISCORD_RETRY_DELAY_SECONDS)
-
     async def log_rai_tracebacks(self, msg: hf.RaiMessage):
+        """Link delivered error reports or import legacy reports into the local archive."""
         if msg.channel.id != utils.get_traceback_logging_channel_id():
             return
         if msg.author != self.bot.user:
             return
         store = self.bot.traceback_store
         marker = re.match(re.escape(utils.TRACEBACK_MESSAGE_MARKER) + r"\nTraceback event: (\d+)\n", msg.content)
-        traceback_text = None
-        group = None
-        async with store.forum_lock:
-            if marker:
-                group = await asyncio.to_thread(store.lookup_event, int(marker[1]), msg.id)
-            if group is None:
-                traceback_text = await self.traceback_text_from_message(msg)
-                if traceback_text is None:
-                    return
-                event_id = await asyncio.to_thread(store.record_text, traceback_text, msg.created_at.isoformat(), msg.id)
-                group = await asyncio.to_thread(store.lookup_event, event_id, msg.id)
-            group_id, thread_id = group
-            if thread_id or group_id in store.publishing or not self.ai_features_enabled() or not self.bot.openai:
+        if marker:
+            group = await asyncio.to_thread(store.lookup_event, int(marker[1]), msg.id)
+            if group is not None:
                 return
-            new_tracebacks_channel = self.bot.get_channel(1360884895957651496)
-            if not isinstance(new_tracebacks_channel, discord.ForumChannel):
-                return
-            store.publishing.add(group_id)
-
-        try:
-            if traceback_text is None:
-                traceback_text = await self.traceback_text_from_message(msg)
-                if traceback_text is None:
-                    return
-            messages = [{"role": "system", "content": "Please summarize the following Python traceback to be parsed "
-                         "with a bot. All errors will be things happening in a Discord bot, "
-                         "so you don't need to state that in the post title:\n"
-                         "1) A title for the post for the error "
-                         "(100 characters max, plain text)\n"
-                         "(New line)"
-                         "2) A summary for why the error happened, and which file / line the "
-                         "error happened on. Recommendations for fixing "
-                         "the error are not needed (2000 characters max, "
-                         "new lines and Discord formatting allowed)"},
-                        {"role": "user", "content": "< assume traceback content here >"},
-                        {"role": "assistant", "content": "HTTPException in on_raw_message_delete from malformed footer URL"
-                                                         "\nThis bug comes from an HTTPException in ... "
-                                                         "(response continues). It occurred in cogs/modlog.py, line 1234"},
-                        {"role": "user", "content": f"```py\n{traceback_text}```"}]
-
-            response_text = await self.chat_completion_text(messages=messages, log_channel_id=None)
-            post_name = response_text.split("\n")[0]
-            if len(post_name) > 100:
-                post_name = post_name[:100]
-            post_content = "\n".join(response_text.split("\n")[1:])
-            post_content_split = utils.split_text_into_segments(post_content, 1990)
-            traceback_segments = self.traceback_forum_segments(traceback_text)
-
-            try:
-                async def create_traceback_thread():
-                    traceback_file = discord.File(
-                        io.BytesIO(traceback_text.encode("utf-8")),
-                        filename=utils.TRACEBACK_ATTACHMENT_FILENAME,
-                    )
-                    return await new_tracebacks_channel.create_thread(
-                        name=post_name,
-                        content=traceback_segments[0],
-                        embeds=msg.embeds,
-                        file=traceback_file,
-                        allowed_mentions=discord.AllowedMentions.none(),
-                    )
-
-                thread_message = await self.retry_traceback_discord_operation(
-                    create_traceback_thread,
-                )
-                thread = thread_message.thread
-            except discord.Forbidden as e:
-                errmsg = f"Permission denied while creating thread in channel {new_tracebacks_channel.id}"
-                e.add_note(errmsg)
-                raise
-            except discord.HTTPException as e:
-                errmsg = f"HTTP error while creating thread: {e}"
-                e.add_note(errmsg)
-                raise
-
-            try:
-                for traceback_segment in traceback_segments[1:]:
-                    await self.retry_traceback_discord_operation(
-                        lambda segment=traceback_segment: thread.send(
-                            segment,
-                            allowed_mentions=discord.AllowedMentions.none(),
-                        )
-                    )
-                for msg_split in post_content_split:
-                    await self.retry_traceback_discord_operation(
-                        lambda segment=msg_split: thread.send(
-                            segment,
-                            allowed_mentions=discord.AllowedMentions.none(),
-                        )
-                    )
-                await asyncio.to_thread(store.mark_published, group_id, thread.id)
-            except Exception:
-                try:
-                    await thread.delete(reason="Incomplete automated traceback post")
-                except (discord.Forbidden, discord.NotFound, discord.HTTPException):
-                    pass
-                raise
-
-        finally:
-            async with store.forum_lock:
-                store.publishing.discard(group_id)
+        traceback_text = await self.traceback_text_from_message(msg)
+        if traceback_text is not None:
+            await asyncio.to_thread(store.record_text, traceback_text, msg.created_at.isoformat(), msg.id)
 
     async def mods_ping(self, msg: hf.RaiMessage):
         if str(msg.guild.id) not in self.bot.db["staff_ping"]:

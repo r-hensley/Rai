@@ -1,8 +1,6 @@
-import asyncio
-import re
 import sqlite3
 import traceback
-from contextlib import closing, suppress
+from contextlib import closing
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -42,11 +40,6 @@ def _attachment_filename() -> str:
             if value := getattr(module, name, None):
                 return value
     return "rai-traceback.txt"
-
-
-def _http_error() -> discord.HTTPException:
-    response = SimpleNamespace(status=500, reason="Server Error")
-    return discord.HTTPException(response, {"code": 0, "message": "temporary failure"})
 
 
 def _forum_with_thread(*, thread_send: AsyncMock | None = None):
@@ -120,10 +113,6 @@ def _configure_source_channel(monkeypatch):
 def _published(store):
     with closing(sqlite3.connect(store.filename)) as db:
         return db.execute("SELECT forum_thread_id FROM error_groups WHERE forum_thread_id IS NOT NULL").fetchall()
-
-
-def _assert_mentions_disabled(allowed_mentions):
-    assert allowed_mentions.to_dict() == {"parse": []}
 
 
 @pytest.mark.asyncio
@@ -225,7 +214,7 @@ async def test_self_authored_message_outside_traceback_channel_is_ignored(monkey
 
 
 @pytest.mark.asyncio
-async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeypatch, store):
+async def test_long_traceback_is_archived_without_ai_or_forum_post(monkeypatch, store):
     _configure_source_channel(monkeypatch)
     sent_source_messages = []
 
@@ -285,18 +274,6 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
     assert "TRACEBACK-END" in full_traceback
 
     forum, thread = _forum_with_thread()
-    forum_attachment = {}
-
-    async def capture_forum_create(**kwargs):
-        file = kwargs["file"]
-        original_position = file.fp.tell()
-        file.fp.seek(0)
-        forum_attachment["bytes"] = file.fp.read()
-        file.fp.seek(original_position)
-        forum_attachment["filename"] = file.filename
-        return SimpleNamespace(thread=thread)
-
-    forum.create_thread.side_effect = capture_forum_create
     cog, bot = _cog(store, forum=forum)
 
     for source_message in sent_source_messages:
@@ -319,152 +296,9 @@ async def test_long_traceback_attachment_creates_one_complete_forum_post(monkeyp
     with closing(sqlite3.connect(store.filename)) as db:
         assert db.execute("SELECT sample_traceback FROM caller_paths").fetchall() == [(full_traceback,)]
         assert db.execute("SELECT source_message_id, origin FROM events").fetchall() == [(msg.id, "long_trace_event")]
-    cog.chat_completion_text.assert_awaited_once()
-    forum.create_thread.assert_awaited_once()
-    prompt_messages = cog.chat_completion_text.await_args.kwargs["messages"]
-    assert any(full_traceback in str(message.get("content", "")) for message in prompt_messages)
-
-    posted_parts = [str(forum.create_thread.await_args.kwargs.get("content", ""))]
-    posted_parts.extend(str(call.args[0]) for call in thread.send.await_args_list if call.args)
-    posted_text = "\n".join(posted_parts)
-    assert "TRACEBACK-START-" in posted_text
-    assert "TRACEBACK-END" in posted_text
-    posted_traceback_chunks = [
-        match.group(1)
-        for part in posted_parts
-        for match in re.finditer(r"```(?:py|python)\n(.*?)```", part, flags=re.DOTALL)
-    ]
-    assert "".join(posted_traceback_chunks) == full_traceback
-    assert forum_attachment == {
-        "bytes": final_source_message.attachment_bytes,
-        "filename": _attachment_filename(),
-    }
-    _assert_mentions_disabled(forum.create_thread.await_args.kwargs["allowed_mentions"])
-    assert thread.send.await_count >= 1
-    for send_call in thread.send.await_args_list:
-        _assert_mentions_disabled(send_call.kwargs["allowed_mentions"])
-
-
-@pytest.mark.asyncio
-async def test_concurrent_identical_tracebacks_publish_once(monkeypatch, store):
-    _configure_source_channel(monkeypatch)
-    forum, _thread = _forum_with_thread()
-    cog, bot = _cog(store, forum=forum)
-    msg = _message(bot)
-    completion_started = asyncio.Event()
-    release_completion = asyncio.Event()
-
-    async def gated_completion(**_kwargs):
-        completion_started.set()
-        await release_completion.wait()
-        return "Parsed traceback\nAI diagnosis"
-
-    cog.chat_completion_text.side_effect = gated_completion
-    first = asyncio.create_task(cog.log_rai_tracebacks(msg))
-    await asyncio.wait_for(completion_started.wait(), timeout=1)
-    second = asyncio.create_task(cog.log_rai_tracebacks(msg))
-    await asyncio.sleep(0)
-    release_completion.set()
-    await asyncio.gather(first, second)
-
-    assert cog.chat_completion_text.await_count == 1
-    assert forum.create_thread.await_count == 1
-    assert len(_published(store)) == 1
-
-
-@pytest.mark.asyncio
-async def test_fresh_archive_ignores_historical_db_list(monkeypatch, store):
-    _configure_source_channel(monkeypatch)
-    forum, thread = _forum_with_thread()
-    cog, bot = _cog(store, forum=forum)
-    msg = _message(bot)
-    old_entries = [await cog.traceback_text_from_message(msg)]
-    bot.db["rai_tracebacks"] = old_entries.copy()
-
-    await cog.log_rai_tracebacks(msg)
-
-    assert _published(store) == [(thread.id,)]
-    assert bot.db["rai_tracebacks"] == old_entries
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("failure_stage", ["create_thread", "ai_comment"])
-async def test_transient_discord_failure_is_retried_in_place(monkeypatch, store, failure_stage):
-    _configure_source_channel(monkeypatch)
-    monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
-    thread = make_thread(send=AsyncMock(), delete=AsyncMock())
-    forum = MagicMock(spec=discord.ForumChannel)
-    forum.id = FORUM_CHANNEL_ID
-
-    if failure_stage == "create_thread":
-        forum.create_thread = AsyncMock(
-            side_effect=[_http_error(), SimpleNamespace(thread=thread)],
-        )
-    else:
-        forum.create_thread = AsyncMock(return_value=SimpleNamespace(thread=thread))
-        thread.send.side_effect = [_http_error(), None]
-
-    cog, bot = _cog(store, forum=forum)
-    await cog.log_rai_tracebacks(_message(bot))
-
-    assert len(_published(store)) == 1
-    thread.delete.assert_not_awaited()
-    if failure_stage == "create_thread":
-        assert forum.create_thread.await_count == 2
-        assert thread.send.await_count == 1
-    else:
-        assert forum.create_thread.await_count == 1
-        assert thread.send.await_count == 2
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("failure_stage", ["create_thread", "ai_comment"])
-async def test_persistent_publish_failure_is_not_committed_and_can_retry(monkeypatch, store, failure_stage):
-    _configure_source_channel(monkeypatch)
-    monkeypatch.setattr(ai_module, "TRACEBACK_DISCORD_RETRY_DELAY_SECONDS", 0)
-    failed_thread = make_thread(send=AsyncMock(), delete=AsyncMock())
-    successful_thread = make_thread(send=AsyncMock(), delete=AsyncMock())
-    forum = MagicMock(spec=discord.ForumChannel)
-    forum.id = FORUM_CHANNEL_ID
-
-    if failure_stage == "create_thread":
-        forum.create_thread = AsyncMock(side_effect=_http_error())
-    else:
-        failed_thread.send.side_effect = _http_error()
-        forum.create_thread = AsyncMock(return_value=SimpleNamespace(thread=failed_thread))
-
-    cog, bot = _cog(store, forum=forum)
-    msg = _message(bot)
-
-    with suppress(discord.HTTPException):
-        await cog.log_rai_tracebacks(msg)
-
-    assert _published(store) == []
-    if failure_stage == "ai_comment":
-        failed_thread.delete.assert_awaited_once()
-    else:
-        failed_thread.delete.assert_not_awaited()
-
-    forum.create_thread.side_effect = None
-    forum.create_thread.return_value = SimpleNamespace(thread=successful_thread)
-    await cog.log_rai_tracebacks(msg)
-
-    assert len(_published(store)) == 1
-    expected_create_count = 3 if failure_stage == "create_thread" else 2
-    assert forum.create_thread.await_count == expected_create_count
-    assert successful_thread.send.await_count >= 1
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("target_kind", ["missing", "wrong_type"])
-async def test_missing_or_wrong_type_traceback_forum_is_quietly_ignored(monkeypatch, store, target_kind):
-    _configure_source_channel(monkeypatch)
-    forum = None if target_kind == "missing" else MagicMock(spec=discord.TextChannel)
-    cog, bot = _cog(store, forum=forum)
-
-    await cog.log_rai_tracebacks(_message(bot))
-
     cog.chat_completion_text.assert_not_awaited()
+    forum.create_thread.assert_not_awaited()
+    thread.send.assert_not_awaited()
     assert _published(store) == []
 
 
