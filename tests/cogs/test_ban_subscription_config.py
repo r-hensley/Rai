@@ -110,8 +110,7 @@ async def test_button_toggles_existing_ban_subscription(monkeypatch):
         guild=SimpleNamespace(id=GUILD_ID),
         message=SimpleNamespace(id=MESSAGE_ID, edit=AsyncMock()),
         user=SimpleNamespace(id=USER_ID),
-        response=SimpleNamespace(send_message=AsyncMock(), defer=AsyncMock()),
-        followup=SimpleNamespace(send=AsyncMock()),
+        response=SimpleNamespace(send_message=AsyncMock()),
     )
     view = persistent_embeds.BanSubscriptionView(bot)
 
@@ -120,31 +119,10 @@ async def test_button_toggles_existing_ban_subscription(monkeypatch):
     await view.children[0].callback(interaction)
     assert persistent_embeds.ban_subscribers(bot, GUILD_ID) == []
     assert str(USER_ID) not in bot.db['bansub']['user_to_role']
-    assert save.await_count == 2
-    assert interaction.response.defer.await_count == 2
-    assert interaction.followup.send.await_args.kwargs['ephemeral'] is True
+    save.assert_not_awaited()
+    assert interaction.response.send_message.await_count == 2
+    assert interaction.response.send_message.await_args.kwargs['ephemeral'] is True
     assert "No one yet." in interaction.message.edit.await_args.kwargs['embed'].description
-
-
-@pytest.mark.asyncio
-async def test_button_save_failure_keeps_subscription_unchanged(monkeypatch):
-    bot, _ = make_bot()
-    bot.db['persistent_embeds'] = {'ban_subscriptions': {
-        str(GUILD_ID): {'channel_id': CHANNEL_ID, 'message_id': MESSAGE_ID}}}
-    monkeypatch.setattr(persistent_embeds.utils, 'dump_json', AsyncMock(side_effect=OSError('disk full')))
-    interaction = SimpleNamespace(
-        guild=SimpleNamespace(id=GUILD_ID),
-        message=SimpleNamespace(id=MESSAGE_ID, edit=AsyncMock()),
-        user=SimpleNamespace(id=USER_ID),
-        response=SimpleNamespace(send_message=AsyncMock(), defer=AsyncMock()),
-        followup=SimpleNamespace(send=AsyncMock()),
-    )
-
-    await persistent_embeds.BanSubscriptionView(bot).children[0].callback(interaction)
-
-    assert persistent_embeds.ban_subscribers(bot, GUILD_ID) == []
-    interaction.message.edit.assert_not_awaited()
-    assert "couldn't save" in interaction.followup.send.await_args.args[0]
 
 
 @pytest.mark.asyncio

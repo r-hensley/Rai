@@ -63,9 +63,7 @@ class BanSubscriptionView(discord.ui.View):
         users = subscriptions.setdefault('user_to_role', {})
         user_id = str(interaction.user.id)
         roles = users.setdefault(user_id, [])
-        await interaction.response.defer(ephemeral=True)
-        subscribing = role_id not in roles
-        if not subscribing:
+        if role_id in roles:
             roles.remove(role_id)
             if not roles:
                 del users[user_id]
@@ -74,22 +72,13 @@ class BanSubscriptionView(discord.ui.View):
             roles.append(role_id)
             result = "You will be pinged for cross-server ban alerts here."
         try:
-            await utils.dump_json('db')
-        except Exception:
-            logging.exception("Could not save ban subscription for user %s", user_id)
-            if subscribing:
-                roles.remove(role_id)
-                if not roles:
-                    users.pop(user_id, None)
-            else:
-                users.setdefault(user_id, []).append(role_id)
-            await interaction.followup.send("I couldn't save your subscription. Please try again.", ephemeral=True)
-            return
+            await interaction.response.send_message(result, ephemeral=True)
+        except discord.HTTPException:
+            logging.exception("Could not acknowledge ban subscription for user %s", user_id)
         try:
             await interaction.message.edit(embed=ban_config_embed(self.bot, guild.id))
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             logging.exception("Could not refresh ban subscription config for guild %s", guild.id)
-        await interaction.followup.send(result, ephemeral=True)
 
 
 def restore_views(bot):

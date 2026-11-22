@@ -1474,9 +1474,8 @@ class Logger(commands.Cog):
         if str(member.id) in self.bot.db['banlog']:
             config = self.bot.db['banlog'][str(member.id)]  # a list of lists of: [guild.id, crosspost_msg.id]
             bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-            emb = utils.red_embed(f"WARNING: The user **{str(member)}** ({member.id}) has joined **{member.guild.name}**"
-                               f"\n\nThey were banned before on the following servers:\n")
-            emb.color = 0x8013E0
+            summary = f"WARNING: The user **{member}** ({member.id}) has joined **{member.guild.name}**"
+            history = "They were banned before on the following servers:\n"
 
             for entry in config:
                 banned_guild = self.bot.get_guild(entry[0])
@@ -1499,17 +1498,54 @@ class Logger(commands.Cog):
                     continue
 
                 date_str = message.created_at.strftime("%Y/%m/%d")
-                emb.description += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
-                emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
+                history += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
+                history += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
+
+            description = f"{summary}\n\n{history}"
 
             if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:
                 if not config:
                     del self.bot.db['banlog'][str(member.id)]  # cleanup
                 else:
                     config_url = await ensure_ban_config_message(self.bot, member.guild.id)
-                    if config_url:
-                        emb.description += f"\n-# [Subscribe or unsubscribe from these pings]({config_url})"
-                    pings = "".join(f" <@{user_id}> " for user_id in ban_subscribers(self.bot, member.guild.id))
+                    subscribers = ban_subscribers(self.bot, member.guild.id)
+
+                    async def send_alert(channel, *, ping_subscribers, ping_here=False):
+                        recipients = [member.mention]
+                        user_ids = [member.id]
+                        if ping_subscribers:
+                            recipients.extend(f"<@{user_id}>" for user_id in subscribers)
+                            user_ids.extend(subscribers)
+                        if ping_here:
+                            recipients.append("(@here)")
+                        heading = f"### Cross-server ban alert\n{' '.join(recipients)}"
+                        footer = (
+                            f"-# [Subscribe or unsubscribe from these pings]({config_url})"
+                            if config_url else ""
+                        )
+                        details = description.rstrip()
+                        detail_limit = 4000 - len(heading) - len(footer)
+                        if len(details) > detail_limit:
+                            details = details[:detail_limit - 1].rstrip() + "…"
+                        card = discord.ui.Container(
+                            discord.ui.TextDisplay(heading),
+                            discord.ui.Separator(),
+                            discord.ui.TextDisplay(details),
+                            accent_colour=0x8013E0,
+                        )
+                        if footer:
+                            card.add_item(discord.ui.Separator())
+                            card.add_item(discord.ui.TextDisplay(footer))
+                        view = discord.ui.LayoutView()
+                        view.add_item(card)
+                        await channel.send(
+                            view=view,
+                            allowed_mentions=discord.AllowedMentions(
+                                users=[discord.Object(id=user_id) for user_id in user_ids],
+                                roles=False, everyone=ping_here,
+                            ),
+                        )
+
                     sent_to_mod_channel = False  # default to False unless it sends it below
                     # The point of this is: if you can send to mod_channel, ping the mods there.
                     # Otherwise, ping them in the mod server
@@ -1517,25 +1553,21 @@ class Logger(commands.Cog):
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
                         if mod_channel:
                             try:
-                                await utils.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
+                                await send_alert(mod_channel, ping_subscribers=True, ping_here=True)
                                 sent_to_mod_channel = True
                             except (discord.Forbidden, discord.HTTPException):
                                 pass
 
-                    if sent_to_mod_channel:
-                        msg = f"{member.mention}"
-                    else:
-                        msg = f"{member.mention}\n{pings}"
-                    await utils.safe_send(bans_channel, msg, embed=emb)
+                    await send_alert(bans_channel, ping_subscribers=not sent_to_mod_channel)
 
             # check if this modlog entry doesn't already exist in the user's modlog
             # only do hf.add_to_modlog if it wasn't already there with that emb.description
             this_user_modlog = self.bot.db['modlog'].get(str(member.id), [])
             if this_user_modlog:
                 for entry in this_user_modlog:
-                    if entry[1] == emb.description:
+                    if entry[1].partition("\n-# [Subscribe or unsubscribe from these pings]")[0] == description:
                         return
-            hf.add_to_modlog(None, [member, member.guild], 'Log', emb.description, False, None)
+            hf.add_to_modlog(None, [member, member.guild], 'Log', description, False, None)
 
     # ############### leaves #####################
 
