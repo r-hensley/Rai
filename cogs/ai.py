@@ -1328,7 +1328,7 @@ class AI(commands.Cog):
         - Return valid JSON only.
         - If the message is in English, return exactly: {"corrected":"ignored","explanation":""}
         - If the message has no grammar errors, return exactly: {"corrected":"ignored","explanation":""}
-        - Only correct real grammar errors (wrong word forms, wrong particles, wrong conjugations, etc.).
+        - Correct clear errors in grammar, tense, or word choice when the intended meaning is evident. Leave casual phrasing and stylistic preferences alone.
         - Do NOT correct missing capitalization, missing punctuation, or missing accents.
         - If there are errors:
           - corrected: corrected text with changed parts wrapped in **double asterisks**
