@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice channel participants · Rai</title>
+<style>
+  :root { color-scheme: dark; font: 1rem system-ui, sans-serif; background: #171922; color: #ecedf5; }
+  main { max-width: 34rem; margin: 2.5rem auto; padding: 0 1rem; }
+  h1 { font-size: clamp(1.6rem, 6vw, 2.25rem); margin: 0 0 .5rem; }
+  p, .username { color: #c0c4d4; }
+  ul { list-style: none; padding: 0; }
+  li { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: 1rem; padding: 1rem 0; border-top: 1px solid #484c5e; }
+  img { width: 4rem; height: 4rem; object-fit: cover; border-radius: .75rem; background: #282b37; }
+  .name { display: block; font-size: 1.15rem; }
+  .name, .username, code { overflow-wrap: anywhere; }
+  code { display: block; margin: .5rem 0; font-size: 1rem; color: #e0e4f3; user-select: all; }
+  button { min-height: 44px; padding: .5rem .9rem; border: 0; border-radius: .5rem; background: #aebdff; color: #151b38; font: inherit; font-weight: 700; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #ecedf5; outline-offset: 3px; }
+  .status { display: block; color: #c0c4d4; margin-top: .25rem; font-size: .9rem; }
+</style>
+<main>
+  <h1>Voice channel participants</h1>
+  <p id="summary">Open Copy IDs from a Rai voice log to see its participants.</p>
+  <ul id="participants" aria-label="Participants"></ul>
+</main>
+<script>
+  const summary = document.getElementById("summary");
+  const list = document.getElementById("participants");
+  const snowflake = /^[0-9]{15,20}$/;
+  const avatarRef = /^(?:[0-5]|g?(?:a_)?[a-f0-9]{32})$/;
+  const validName = value => typeof value === "string" && value.length > 0 && value.length <= 80;
+
+  function addParticipant(guild, [id, displayName, username, avatar]) {
+    const cdn = "https://cdn.discordapp.com/";
+    const image = document.createElement("img");
+    image.alt = "";
+    image.src = avatar.length === 1 ? cdn + "embed/avatars/" + avatar + ".png"
+      : avatar.startsWith("g") ? cdn + "guilds/" + guild + "/users/" + id + "/avatars/" + avatar.slice(1) + ".png?size=128"
+      : cdn + "avatars/" + id + "/" + avatar + ".png?size=128";
+    image.addEventListener("error", () => { image.style.visibility = "hidden"; });
+
+    const name = document.createElement("strong");
+    name.className = "name";
+    name.textContent = displayName;
+    const handle = document.createElement("div");
+    handle.className = "username";
+    handle.textContent = "@" + username;
+    const digits = document.createElement("code");
+    digits.textContent = id;
+    const button = document.createElement("button");
+    button.textContent = "Copy ID";
+    button.setAttribute("aria-label", "Copy ID for " + displayName);
+    const status = document.createElement("span");
+    status.className = "status";
+    status.setAttribute("role", "status");
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(id);
+        status.textContent = "Copied.";
+      } catch {
+        status.textContent = "Touch and hold the number to copy it.";
+      }
+    });
+    const details = document.createElement("div");
+    details.append(name, handle, digits, button, status);
+    const row = document.createElement("li");
+    row.append(image, details);
+    list.append(row);
+  }
+
+  function render() {
+    list.replaceChildren();
+    const fragment = location.hash.slice(1);
+    if (!fragment) {
+      summary.textContent = "Open Copy IDs from a Rai voice log to see its participants.";
+      return;
+    }
+    try {
+      if (fragment.length > 1024 || !/^[A-Za-z0-9_-]+$/.test(fragment)) throw new Error("Invalid link");
+      const binary = atob(fragment.replaceAll("-", "+").replaceAll("_", "/"));
+      const json = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, char => char.charCodeAt(0)));
+      const data = JSON.parse(json);
+      if (!Array.isArray(data) || data.length !== 2) throw new Error("Invalid payload");
+      const [guild, participants] = data;
+      if (typeof guild !== "string" || !snowflake.test(guild) || !Array.isArray(participants) ||
+          !participants.length || !participants.every(row => Array.isArray(row) && row.length === 4 &&
+            typeof row[0] === "string" && snowflake.test(row[0]) && validName(row[1]) && validName(row[2]) &&
+            typeof row[3] === "string" && avatarRef.test(row[3]))) throw new Error("Invalid roster");
+      summary.textContent = participants.length === 1 ? "1 participant" : participants.length + " participants";
+      for (const participant of participants) addParticipant(guild, participant);
+    } catch {
+      summary.textContent = "This link is incomplete or invalid. Try opening it again from the voice log.";
+    }
+  }
+  addEventListener("hashchange", render);
+  render();
+</script>
+</html>

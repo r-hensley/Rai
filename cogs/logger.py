@@ -13,6 +13,7 @@ from .utils import views as view_utils
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
 from .persistent_embeds import ban_subscribers, ensure_ban_config_message, restore_views
+from web_admin.public import add_copy_ids_link
 
 from typing import Optional, List, Tuple, Dict, Union
 
@@ -352,6 +353,7 @@ class Logger(commands.Cog):
         if voice_channel:
             users_in_voice = ""
             needed_two_fields = False
+            participants = []
 
             if before.channel and not after.channel:
                 name_text = "Users remaining in channel"
@@ -381,11 +383,15 @@ class Logger(commands.Cog):
                         emb.add_field(name=name_text, value=users_in_voice)
                     users_in_voice = text_to_add
                     needed_two_fields = True
+                participants.append(user)
 
             if needed_two_fields:
                 emb.add_field(name="User list (cont.)", value=users_in_voice)
             else:
                 emb.add_field(name=name_text, value=users_in_voice)
+            web_admin = self.bot.get_cog("WebAdmin") if guild_config else None
+            if web_admin and getattr(web_admin, "public", None) and web_admin.public.runner:
+                add_copy_ids_link(emb, guild, participants)
                 
         """Voice logging"""
         if guild_config:

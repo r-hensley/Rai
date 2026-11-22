@@ -336,6 +336,9 @@ async def test_discord_cog_only_delegates_site_lifecycle(monkeypatch):
     events = []
 
     class FakeSite:
+        web_ready = True
+        public_base_url = "https://admin.raidiscord.com"
+
         def __init__(self, bot):
             events.append(("init", bot))
 
@@ -345,14 +348,25 @@ async def test_discord_cog_only_delegates_site_lifecycle(monkeypatch):
         async def stop(self):
             events.append(("stop", None))
 
+    class FakePublic:
+        async def start(self):
+            events.append(("public_start", None))
+
+        async def stop(self):
+            events.append(("public_stop", None))
+
     bot = DummyBot()
     monkeypatch.setattr(web_admin_cog, "WebAdminSite", FakeSite)
+    monkeypatch.setattr(web_admin_cog, "PublicWeb", FakePublic)
     cog = web_admin_cog.WebAdmin(bot)
 
     await cog.cog_load()
     await cog.cog_unload()
 
-    assert events == [("init", bot), ("start", None), ("stop", None)]
+    assert events == [
+        ("init", bot), ("start", None), ("public_start", None),
+        ("public_stop", None), ("stop", None),
+    ]
 
 
 @pytest.mark.asyncio

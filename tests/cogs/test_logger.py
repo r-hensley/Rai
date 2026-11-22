@@ -1,3 +1,5 @@
+import base64
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -6,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import discord
 
 from cogs.logger import Logger, _audit_entry_starts_active_timeout
+from web_admin.public import add_copy_ids_link
 from tests.discord_fakes import discord_not_found, make_bot, make_channel, make_guild, make_thread
 
 
@@ -147,6 +150,26 @@ class TestLogger(unittest.IsolatedAsyncioTestCase):
         entry = SimpleNamespace(before=SimpleNamespace(), after=SimpleNamespace())
 
         self.assertFalse(_audit_entry_starts_active_timeout(entry, now))
+
+    def test_voice_log_copy_link_carries_roster_and_preserves_overflow_fallback(self):
+        guild_id = "100000000000000099"
+        member = SimpleNamespace(
+            id=100000000000000012, display_name="💚 Life", name="life_demo",
+            display_avatar=SimpleNamespace(key="a" * 32), guild_avatar=True,
+        )
+        embed = discord.Embed()
+        embed.add_field(name="Participants", value="Classic participant links")
+        add_copy_ids_link(embed, guild_id, [member] * 20)
+        self.assertEqual(len(embed.fields), 1)
+
+        add_copy_ids_link(embed, guild_id, [member])
+        link = embed.fields[1].value
+        self.assertNotIn(str(member.id), link)
+        fragment = link.split("#", 1)[1][:-1]
+        self.assertEqual(
+            json.loads(base64.urlsafe_b64decode(fragment + "=" * (-len(fragment) % 4))),
+            [guild_id, [[str(member.id), member.display_name, member.name, "g" + "a" * 32]]],
+        )
 
     async def test_voice_log_rate_limit_starts_channel_cooldown(self):
         logger = Logger.__new__(Logger)
