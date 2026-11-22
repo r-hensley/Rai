@@ -12,6 +12,7 @@ from .utils import helper_functions as hf
 from .utils import views as view_utils
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
+from .persistent_embeds import ban_subscribers, ensure_ban_config_message, restore_views
 
 from typing import Optional, List, Tuple, Dict, Union
 
@@ -53,6 +54,9 @@ class Logger(commands.Cog):
 
     def cog_unload(self):
         self.flush_delete_log_queue.cancel()
+
+    def cog_load(self):
+        restore_views(self.bot)
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -1492,34 +1496,31 @@ class Logger(commands.Cog):
                 emb.description += f"　　・[{banned_guild.name}]({message.jump_url}) ({date_str})\n"
                 emb.description += f"　　　__Reason__: {message.embeds[0].description.split('__Reason__: ')[1]}\n\n"
 
-            pings = ""
             if str(member.guild.id) in self.bot.db['bansub']['guild_to_role']:
-                role_id: int = self.bot.db['bansub']['guild_to_role'][str(member.guild.id)]
-                for user_id in self.bot.db['bansub']['user_to_role']:  # type: Dict[str: List[int]]
-                    if role_id in self.bot.db['bansub']['user_to_role'][user_id]:
-                        pings += f" <@{user_id}> "
+                if not config:
+                    del self.bot.db['banlog'][str(member.id)]  # cleanup
+                else:
+                    config_url = await ensure_ban_config_message(self.bot, member.guild.id)
+                    if config_url:
+                        emb.description += f"\n-# [Subscribe or unsubscribe from these pings]({config_url})"
+                    pings = "".join(f" <@{user_id}> " for user_id in ban_subscribers(self.bot, member.guild.id))
+                    sent_to_mod_channel = False  # default to False unless it sends it below
+                    # The point of this is: if you can send to mod_channel, ping the mods there.
+                    # Otherwise, ping them in the mod server
+                    if str(member.guild.id) in self.bot.db['mod_channel']:
+                        mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
+                        if mod_channel:
+                            try:
+                                await utils.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
+                                sent_to_mod_channel = True
+                            except (discord.Forbidden, discord.HTTPException):
+                                pass
 
-                sent_to_mod_channel = False  # default to False unless it sends it below
-                # The point of this is: if you can send to mod_channel, ping the mods there.
-                # Otherwise, ping them in the mod server
-                if str(member.guild.id) in self.bot.db['mod_channel']:
-                    mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
-                    if mod_channel:
-                        try:
-                            await utils.safe_send(mod_channel, f"{member.mention}\n{pings} (@here)", embed=emb)
-                            sent_to_mod_channel = True
-                        except (discord.Forbidden, discord.HTTPException):
-                            pass
-
-                if config:  # this will be False if the last entry in config was deleted above from the NotFound error
                     if sent_to_mod_channel:
                         msg = f"{member.mention}"
                     else:
                         msg = f"{member.mention}\n{pings}"
                     await utils.safe_send(bans_channel, msg, embed=emb)
-
-                else:
-                    del (self.bot.db['banlog'][str(member.id)])  # cleanup
 
             # check if this modlog entry doesn't already exist in the user's modlog
             # only do hf.add_to_modlog if it wasn't already there with that emb.description
