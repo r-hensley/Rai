@@ -375,7 +375,6 @@ class Owner(commands.Cog):
         """Restarts bot"""
         await ctx.message.add_reaction('💀')
         await ctx.invoke(self.flush)
-        await ctx.invoke(self.savedatabase)
         self.bot.restart = True
         await self.bot.close()
 
@@ -385,8 +384,6 @@ class Owner(commands.Cog):
         try:
             await ctx.message.add_reaction('💀')
             await ctx.invoke(self.flush)
-            await ctx.invoke(self.savedatabase)
-            await self.bot.close()
             await self.bot.close()
         except Exception as e:
             await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')

@@ -34,6 +34,7 @@ from cogs.utils.traceback_store import TracebackStore
 
 logger = logging.getLogger(__name__)
 
+JSON_STATE = ('db', 'stats', 'message_queue')
 INITIAL_EXTENSIONS = (
     'main', 'owner', 'admin', 'channel_mods', 'general', 'logger',
     'math', 'questions', 'stats', 'submod', 'events', 'interactions',
@@ -125,6 +126,8 @@ class Rai(Bot):
         self.language_detection: bool = False
         self.database_tables_ready = False
         self.control = None
+        self._json_state_loaded = False
+        self._shutdown_task = None
         self.t_start = t_start
         self.t_start_monotonic = time.monotonic()
         print('starting loading of jsons')
@@ -191,9 +194,8 @@ class Rai(Bot):
     async def setup_hook(self):
         self.traceback_store = TracebackStore(os.path.join(dir_path, "tracebacks.db"))
         await asyncio.to_thread(self.traceback_store.initialize)
-        utils.load_db(self, 'db')
-        utils.load_db(self, 'stats')
-        utils.load_db(self, 'message_queue')
+        loaded = [utils.load_db(self, name) for name in JSON_STATE]
+        self._json_state_loaded = all(loaded)
 
         # this is to define here.bot in the hf file
         hf.setup(bot=self, loop=asyncio.get_event_loop())
@@ -225,12 +227,29 @@ class Rai(Bot):
             else:
                 self.control = control
 
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        # discord.py can finish closing its connection before Rai's final save.
+        await self.close()
+
     async def close(self):
+        if self._shutdown_task is None:
+            self._shutdown_task = asyncio.create_task(self._close_and_save())
+        await asyncio.shield(self._shutdown_task)
+
+    async def _close_and_save(self):
         try:
-            if self.control is not None:
-                await self.control.close()
+            try:
+                if self.control is not None:
+                    await self.control.close()
+            finally:
+                await super().close()
         finally:
-            await super().close()
+            if self._json_state_loaded:
+                for name in JSON_STATE:
+                    try:
+                        await utils.dump_json(name, bot=self)
+                    except Exception:
+                        logger.exception('Could not save %s.json during shutdown', name)
 
 
 def run_bot():
