@@ -13,7 +13,7 @@ from .utils import views as view_utils
 from .utils.blacklist import BANS_CHANNEL_ID, vote_view
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
-from .persistent_embeds import ban_subscribers, ensure_ban_config_message, restore_views
+from .persistent_embeds import ban_here_enabled, ban_subscribers, ensure_ban_config_message, restore_views
 from web_admin.public import add_copy_ids_link
 
 from typing import Optional, List, Tuple, Dict, Union
@@ -1520,7 +1520,8 @@ class Logger(commands.Cog):
                             recipients.append("(@here)")
                         heading = f"### Cross-server ban alert\n{' '.join(recipients)}"
                         footer = (
-                            f"-# [Subscribe or unsubscribe from these pings]({config_url})"
+                            f"-# [Subscribe or unsubscribe from these pings]({config_url}) ・ "
+                            f"[Enable or disable the `@here` ping]({config_url})"
                             if config_url else ""
                         )
                         details = description.rstrip()
@@ -1553,7 +1554,8 @@ class Logger(commands.Cog):
                         mod_channel = self.bot.get_channel(self.bot.db['mod_channel'][str(member.guild.id)])
                         if mod_channel:
                             try:
-                                await send_alert(mod_channel, ping_subscribers=True, ping_here=True)
+                                await send_alert(mod_channel, ping_subscribers=True,
+                                                 ping_here=ban_here_enabled(self.bot, member.guild.id))
                                 sent_to_mod_channel = True
                             except (discord.Forbidden, discord.HTTPException):
                                 pass

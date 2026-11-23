@@ -27,13 +27,18 @@ def ban_config_url(bot, guild_id: int) -> str | None:
     return f"https://discord.com/channels/{guild_id}/{config['channel_id']}/{config['message_id']}"
 
 
+def ban_here_enabled(bot, guild_id: int) -> bool:
+    return bot.db['bansub'].get('here_enabled', {}).get(str(guild_id), True)
+
+
 def ban_config_embed(bot, guild_id: int) -> discord.Embed:
     subscribers = ban_subscribers(bot, guild_id)
     names = " ".join(f"<@{user_id}>" for user_id in subscribers) or "No one yet."
+    here_status = "On" if ban_here_enabled(bot, guild_id) else "Off"
     return discord.Embed(
         title="Cross-server ban alerts",
         description="Use the button below to add or remove yourself from the pings when someone banned "
-                    f"in another server joins this server.\n\n**Currently pinged:** {names}",
+                    f"in another server joins this server.\n\n**Currently pinged:** {names}\n**`@here` ping:** {here_status}",
         color=0x8013E0,
     )
 
@@ -81,6 +86,26 @@ class BanSubscriptionView(discord.ui.View):
             logging.exception("Could not refresh ban subscription config for guild %s", guild.id)
 
 
+    @discord.ui.button(label="Enable / disable @here", style=discord.ButtonStyle.secondary,
+                       custom_id="rai:ban_subscriptions:toggle_here")
+    async def toggle_here(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        config = (self.bot.db.get('persistent_embeds', {}).get('ban_subscriptions', {})
+                  .get(str(guild.id)) if guild else None)
+        if not config or interaction.message.id != config['message_id']:
+            await interaction.response.send_message("This subscription message is no longer active.", ephemeral=True)
+            return
+        if not interaction.permissions.manage_guild:
+            await interaction.response.send_message("You need Manage Server to change this setting.", ephemeral=True)
+            return
+
+        enabled = not ban_here_enabled(self.bot, guild.id)
+        self.bot.db['bansub'].setdefault('here_enabled', {})[str(guild.id)] = enabled
+        status = "enabled" if enabled else "disabled"
+        await interaction.response.send_message(f"The `@here` ping is now {status}.", ephemeral=True)
+        await interaction.message.edit(embed=ban_config_embed(self.bot, guild.id))
+
+
 def restore_views(bot):
     for config in bot.db.get('persistent_embeds', {}).get('ban_subscriptions', {}).values():
         bot.add_view(BanSubscriptionView(bot), message_id=config['message_id'])
@@ -101,7 +126,13 @@ async def ensure_ban_config_message(bot, guild_id: int) -> str | None:
         current = configs.get(key)
         if current and current['channel_id'] == channel.id:
             try:
-                await channel.fetch_message(current['message_id'])
+                message = await channel.fetch_message(current['message_id'])
+                if not any(
+                    getattr(button, 'custom_id', None) == 'rai:ban_subscriptions:toggle_here'
+                    for row in message.components for button in row.children
+                ):
+                    await message.edit(embed=ban_config_embed(bot, guild_id), view=BanSubscriptionView(bot),
+                                       allowed_mentions=discord.AllowedMentions.none())
                 return ban_config_url(bot, guild_id)
             except discord.NotFound:
                 pass

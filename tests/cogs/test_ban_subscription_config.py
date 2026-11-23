@@ -22,7 +22,9 @@ def make_bot():
         id=CHANNEL_ID,
         guild=SimpleNamespace(id=GUILD_ID),
         send=AsyncMock(return_value=SimpleNamespace(id=MESSAGE_ID)),
-        fetch_message=AsyncMock(return_value=SimpleNamespace(id=MESSAGE_ID)),
+        fetch_message=AsyncMock(return_value=SimpleNamespace(
+            id=MESSAGE_ID, components=[], edit=AsyncMock(),
+        )),
     )
     bot = SimpleNamespace(
         db={'bansub': {'guild_to_role': {str(GUILD_ID): ROLE_ID}, 'user_to_role': {}},
