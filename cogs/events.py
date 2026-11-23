@@ -9,7 +9,7 @@ from discord.ext import commands
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
-from .utils.catchup import DiscordGuildSearch
+from .utils.catchup import DiscordGuildSearch, extract_search_payloads
 
 
 logger = logging.getLogger(__name__)
@@ -544,6 +544,20 @@ class Events(commands.Cog):
                     60 + today[member_id][1]
             today[member_id] += hours * 60 + minutes
 
+    async def _first_message_before(self, guild_id: int, author_id: int, before: datetime) -> datetime | None:
+        cutoff = discord.utils.time_snowflake(before)
+        data = await DiscordGuildSearch(self.bot.http)._request_page(guild_id, [
+            ('author_id', str(author_id)),
+            ('max_id', str(cutoff)),
+            ('limit', '1'),
+            ('sort_by', 'timestamp'),
+            ('sort_order', 'asc'),
+            ('include_nsfw', 'true'),
+        ])
+        matches = extract_search_payloads(data, lambda msg: (msg.get('author') or {}).get('id') == str(author_id))
+        ids = [int(msg['id']) for msg in matches if str(msg.get('id', '')).isdigit()]
+        return min((discord.utils.snowflake_time(mid) for mid in ids if 0 < mid < cutoff), default=None)
+
     async def previous_voice_join_timestamp(self, member: discord.Member) -> Optional[float]:
         joindates = self.bot.db.setdefault('joindates', {})
         user_id = str(member.id)
@@ -554,7 +568,7 @@ class Events(commands.Cog):
 
         try:
             first_message = await asyncio.wait_for(
-                DiscordGuildSearch(self.bot.http).first_message_before(member.guild.id, member.id, member.joined_at),
+                self._first_message_before(member.guild.id, member.id, member.joined_at),
                 timeout=4,
             )
         except (discord.HTTPException, RuntimeError, TimeoutError):

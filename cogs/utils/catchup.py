@@ -217,20 +217,6 @@ class DiscordGuildSearch:
                 await asyncio.sleep(retry_after)
         raise SearchIndexNotReady(retry_after)
 
-    async def first_message_before(self, guild_id: int, author_id: int, before: datetime) -> datetime | None:
-        cutoff = discord.utils.time_snowflake(before)
-        data = await self._request_page(guild_id, [
-            ('author_id', str(author_id)),
-            ('max_id', str(cutoff)),
-            ('limit', '1'),
-            ('sort_by', 'timestamp'),
-            ('sort_order', 'asc'),
-            ('include_nsfw', 'true'),
-        ])
-        matches = extract_search_payloads(data, lambda msg: (msg.get('author') or {}).get('id') == str(author_id))
-        ids = [int(msg['id']) for msg in matches if str(msg.get('id', '')).isdigit()]
-        return min((discord.utils.snowflake_time(mid) for mid in ids if 0 < mid < cutoff), default=None)
-
     async def search(
         self,
         *,
