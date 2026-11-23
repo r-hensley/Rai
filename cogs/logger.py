@@ -1,3 +1,4 @@
+import importlib
 import time
 from collections import deque
 
@@ -13,7 +14,7 @@ from .utils import views as view_utils
 from .utils.blacklist import BANS_CHANNEL_ID, vote_view
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
-from .persistent_embeds import ban_here_enabled, ban_subscribers, ensure_ban_config_message, restore_views
+from . import persistent_embeds
 from web_admin.public import add_copy_ids_link
 
 from typing import Optional, List, Tuple, Dict, Union
@@ -21,6 +22,10 @@ from typing import Optional, List, Tuple, Dict, Union
 import os
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+# An existing process may have imported the version from before the @here control.
+if not hasattr(persistent_embeds, 'ban_here_enabled'):
+    importlib.reload(persistent_embeds)
+
 JP_SERV_ID = 189571157446492161
 SPAN_SERV_ID = 243838819743432704
 M_SERVER = 257984339025985546
@@ -57,7 +62,7 @@ class Logger(commands.Cog):
         self.flush_delete_log_queue.cancel()
 
     def cog_load(self):
-        restore_views(self.bot)
+        persistent_embeds.restore_views(self.bot)
 
     async def cog_check(self, ctx):
         if not ctx.guild:
@@ -1507,8 +1512,8 @@ class Logger(commands.Cog):
                 if not config:
                     del self.bot.db['banlog'][str(member.id)]  # cleanup
                 else:
-                    config_url = await ensure_ban_config_message(self.bot, member.guild.id)
-                    subscribers = ban_subscribers(self.bot, member.guild.id)
+                    config_url = await persistent_embeds.ensure_ban_config_message(self.bot, member.guild.id)
+                    subscribers = persistent_embeds.ban_subscribers(self.bot, member.guild.id)
 
                     async def send_alert(channel, *, ping_subscribers, ping_here=False):
                         recipients = [member.mention]
@@ -1555,7 +1560,7 @@ class Logger(commands.Cog):
                         if mod_channel:
                             try:
                                 await send_alert(mod_channel, ping_subscribers=True,
-                                                 ping_here=ban_here_enabled(self.bot, member.guild.id))
+                                                 ping_here=persistent_embeds.ban_here_enabled(self.bot, member.guild.id))
                                 sent_to_mod_channel = True
                             except (discord.Forbidden, discord.HTTPException):
                                 pass
