@@ -569,6 +569,7 @@ class General(commands.Cog):
 
         # User is just adding simple hardcore (no threshold): add the role simply
         else:
+            users_config.pop(str(ctx.author.id), None)
             await ctx.author.add_roles(role)
             await utils.safe_send(
                 ctx,

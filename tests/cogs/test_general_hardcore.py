@@ -147,3 +147,36 @@ async def test_self_service_hardcore_removes_nightmare_without_adding_standard_r
     author.remove_roles.assert_awaited_once_with(nightmare_role)
     author.add_roles.assert_not_awaited()
     safe_send.assert_awaited_once_with(ctx, "I've removed hardcore from you.")
+
+
+@pytest.mark.asyncio
+async def test_bare_hardcore_starts_without_a_stale_threshold(monkeypatch):
+    roles = make_role_map(
+        *general_module.SP_HARDCORE_ROLE_IDS,
+        LEARNING_ENGLISH_ROLE_ID,
+    )
+    standard_role = roles[general_module.SP_HARDCORE_ROLE_ID]
+    learning_role = roles[LEARNING_ENGLISH_ROLE_ID]
+    guild = make_guild(guild_id=SP_SERVER_ID, roles=roles.values())
+    author = make_member(
+        member_id=42,
+        guild=guild,
+        roles=[learning_role],
+        add_roles=AsyncMock(),
+        remove_roles=AsyncMock(),
+    )
+    ctx = make_context(author=author, guild=guild)
+    users = {str(author.id): {"threshold": 90, "target_lang": "en"}}
+    cog = object.__new__(general_module.General)
+    cog.bot = make_bot(db={"hardcore": {str(SP_SERVER_ID): {"users": users}}})
+    monkeypatch.setattr(general_module.utils, "safe_send", AsyncMock())
+
+    await general_module.General.hardcore.callback(cog, ctx)
+
+    author.add_roles.assert_awaited_once_with(standard_role)
+    assert str(author.id) not in users
+
+    author.roles.append(standard_role)
+    await general_module.General.hardcore.callback(cog, ctx)
+
+    author.remove_roles.assert_awaited_once_with(standard_role)
