@@ -29,12 +29,9 @@ from .utils.hardcore import (
     SP_SUPER_HARDCORE_ROLE_ID,
     SP_ULTRA_HARDCORE_ROLE_ID,
 )
-from .utils import views as view_utils
+from .utils.role_members import RoleMembersView, recent_role_counts
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
-MEMBERS_PER_PAGE = 20
-
 
 MODCHAT_SERVER_ID = 257984339025985546
 JP_SERVER_ID = 189571157446492161
@@ -376,7 +373,7 @@ class General(commands.Cog):
     @commands.command()
     @commands.guild_only()
     async def inrole(self, ctx, *, role_name):
-        """Type `;inrole <role_name>` to see a list of users in a role. Add `--count` to just see the number."""
+        """List users in a role by their activity over the last 30 days. Add `--count` for the member total."""
         count_only = "--count" in role_name
         role_name = role_name.replace("--count", "").strip()
         role: Optional[discord.Role] = None
@@ -398,27 +395,15 @@ class General(commands.Cog):
         if not role:
             await utils.safe_send(ctx, "I couldn't find the role you specified.")
             return
+        members = role.members
         if count_only:
-            await utils.safe_send(ctx, f"**{role.name}** has **{len(role.members)}** members.")
+            await utils.safe_send(ctx, f"**{role.name}** has **{len(members)}** members.")
             return
-        members = sorted(role.members, key=lambda m: m.name.casefold())
-        pages = [members[i:i + MEMBERS_PER_PAGE] for i in range(0, len(members), MEMBERS_PER_PAGE)]
-        if not pages:
-            pages = [[]]
-        embeds = []
-        for idx, page in enumerate(pages):
-            emb = discord.Embed(
-                title=f"**List of members in {role.name} role - {len(members)}**",
-                description="\n".join(str(m) for m in page) or "No members.",
-                color=0x00FF00)
-            emb.set_footer(text=f"Page {idx + 1}/{len(pages)}")
-            embeds.append(emb)
-        if len(embeds) == 1:
-            await utils.safe_send(ctx, embed=embeds[0])
-        else:
-            view = view_utils.PaginationView(embeds, ctx.author)
-            msg = await utils.safe_send(ctx, embed=embeds[0], view=view)
-            view.message = msg
+
+        stats = self.bot.stats.get(str(ctx.guild.id), {})
+        counts = recent_role_counts(members, stats)
+        view = RoleMembersView(role.name, members, counts, ctx.author)
+        view.message = await utils.safe_send(ctx, embed=view.embeds[0], view=view if view.children else None)
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
     @commands.guild_only()
