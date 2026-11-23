@@ -18,6 +18,7 @@ from cogs import events
         ('too_recent', 1, False),
         ('no_match', 1, False),
         ('index_unavailable', 1, False),
+        ('search_timeout', 1, True),
         ('new_account', 0, False),
     ],
 )
@@ -46,6 +47,8 @@ async def test_spanish_voice_gate_uses_earlier_membership(monkeypatch, evidence,
     if evidence == 'index_unavailable':
         data = {'code': 110000, 'retry_after': 60}
     request = AsyncMock(return_value=data)
+    if evidence == 'search_timeout':
+        request.side_effect = TimeoutError
     bot = SimpleNamespace(
         db={'voice_lock': {str(guild.id): {'categories': {'1': True}}},
             'joindates': joindates, 'timed_voice_role': {}},

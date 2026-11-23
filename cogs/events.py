@@ -571,7 +571,7 @@ class Events(commands.Cog):
                 self._first_message_before(member.guild.id, member.id, member.joined_at),
                 timeout=4,
             )
-        except (discord.HTTPException, RuntimeError, TimeoutError):
+        except (discord.HTTPException, RuntimeError):
             logger.debug("Couldn't check earlier message history for the voice gate", exc_info=True)
             return joindates.get(user_id)
 
@@ -759,7 +759,10 @@ class Events(commands.Cog):
                 now = discord.utils.utcnow()
                 if member.joined_at is not None and now - member.joined_at >= required_age:
                     return
-                previous_join = await self.previous_voice_join_timestamp(member)
+                try:
+                    previous_join = await self.previous_voice_join_timestamp(member)
+                except TimeoutError:
+                    return
                 now = discord.utils.utcnow()
                 if previous_join is not None and now.timestamp() - previous_join >= required_age.total_seconds():
                     return
