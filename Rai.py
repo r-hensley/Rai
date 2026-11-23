@@ -1,5 +1,7 @@
 # -*- coding: utf8 -*-
 import asyncio
+import importlib
+import logging
 import sys
 import traceback
 import json
@@ -20,6 +22,7 @@ if sys.version_info < (3, 11):
 # check to make sure this submodule is initialized
 try:
     from cogs.utils.BotUtils import bot_utils as utils
+    from cogs.utils.BotUtils.bot_control import BotControl
 except ImportError as exc:
     ERRMSG = ("The BotUtils submodule is not initialized.\n"
               "Please run 'git submodule update --init --recursive' to initialize it.")
@@ -28,6 +31,27 @@ except ImportError as exc:
 from cogs.utils import helper_functions as hf
 from cogs.database import create_database_tables
 from cogs.utils.traceback_store import TracebackStore
+
+logger = logging.getLogger(__name__)
+
+INITIAL_EXTENSIONS = (
+    'main', 'owner', 'admin', 'channel_mods', 'general', 'logger',
+    'math', 'questions', 'stats', 'submod', 'events', 'interactions',
+    'clubs', 'jpserv', 'message', 'user_interactions', 'dictionary',
+    'damer', 'heartbeat', 'dropdown', 'image_spam', 'cnserver',
+    'english_dictionary', 'quotes', 'ai', 'web_admin',
+)
+
+
+def _clear_web_admin_package():
+    # discord.py only clears cogs.web_admin and its children during a reload.
+    removed = {
+        name: sys.modules.pop(name)
+        for name in tuple(sys.modules)
+        if name == 'web_admin' or name.startswith('web_admin.')
+    }
+    importlib.invalidate_caches()
+    return removed
 
 
 # noinspection lines to fix pycharm error saying Intents doesn't have members and Intents is read-only
@@ -100,6 +124,7 @@ class Rai(Bot):
         self.stats: dict = {}
         self.language_detection: bool = False
         self.database_tables_ready = False
+        self.control = None
         self.t_start = t_start
         self.t_start_monotonic = time.monotonic()
         print('starting loading of jsons')
@@ -142,6 +167,21 @@ class Rai(Bot):
                 return await super().load_extension(name, package=package)
         return await super().load_extension(name, package=package)
 
+    async def reload_extension(self, name, *, package=None):
+        full_name = importlib.util.resolve_name(name, package) if package else name
+        previous_web_admin = None
+        if full_name == 'cogs.web_admin' and full_name in self.extensions:
+            previous_web_admin = _clear_web_admin_package()
+        try:
+            await super().reload_extension(name, package=package)
+        except Exception:
+            if previous_web_admin is not None:
+                _clear_web_admin_package()
+                sys.modules.update(previous_web_admin)
+            raise
+        if full_name == 'cogs.interactions' and self.is_ready():
+            await self.get_cog('Interactions').sync_main()
+
     async def record_traceback(self, error, ctx_or_event, sample):
         origin = ctx_or_event if isinstance(ctx_or_event, str) else getattr(
             getattr(ctx_or_event, "command", None), "qualified_name", type(ctx_or_event).__name__
@@ -159,20 +199,9 @@ class Rai(Bot):
         hf.setup(bot=self, loop=asyncio.get_event_loop())
         utils.setup(bot=self, loop=asyncio.get_event_loop())
 
-        initial_extensions = [
-            # 'cogs.memory_profile',
-            'cogs.main', 'cogs.owner',
-            'cogs.admin', 'cogs.channel_mods', 'cogs.general', 'cogs.logger',
-            'cogs.math', 'cogs.questions', 'cogs.stats', 'cogs.submod',
-            'cogs.events', 'cogs.interactions', 'cogs.clubs', 'cogs.jpserv', 'cogs.message',
-            'cogs.user_interactions',
-            'cogs.dictionary', 'cogs.damer', 'cogs.heartbeat', 'cogs.dropdown', 'cogs.image_spam',
-            'cogs.cnserver', 'cogs.english_dictionary', 'cogs.quotes',
-            'cogs.ai', 'cogs.web_admin',
-        ]
-
         # cogs.background is loaded in main.py
-        for extension in initial_extensions:
+        for name in INITIAL_EXTENSIONS:
+            extension = f'cogs.{name}'
             print(f"Loading extension {extension}... ", end="")
             try:
                 await self.load_extension(extension)
@@ -184,6 +213,24 @@ class Rai(Bot):
         
         await create_database_tables()
         self.database_tables_ready = True
+
+        if socket_path := os.getenv('RAI_CONTROL_SOCKET'):
+            control = BotControl(self, socket_path, extensions={
+                name: f'cogs.{name}' for name in (*INITIAL_EXTENSIONS, 'background', 'modview')
+            })
+            try:
+                await control.start()
+            except (OSError, ValueError, NotImplementedError):
+                logger.exception('Could not start the local bot control socket')
+            else:
+                self.control = control
+
+    async def close(self):
+        try:
+            if self.control is not None:
+                await self.control.close()
+        finally:
+            await super().close()
 
 
 def run_bot():

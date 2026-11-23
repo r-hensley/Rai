@@ -19,6 +19,37 @@ A guide on effective moderation is here: https://github.com/ryry013/Rai/wiki/How
 
 Questions to my Discord account: Ryry013#9234
 
+## Local bot controls
+
+Rai can accept `status`, `load`, `reload`, and `unload` from a private Unix
+socket on the bot host. Update the `cogs/utils/BotUtils` submodule when installing
+this version. To enable the socket, set `RAI_CONTROL_SOCKET` in Rai's `.env` or
+under `[Service]` in the systemd unit. For a checkout at `/disk2/etc/Rai`, use
+this for systemd:
+
+```ini
+[Service]
+Environment=RAI_CONTROL_SOCKET=/disk2/etc/Rai/.control/control.sock
+KillSignal=SIGINT
+```
+
+Rai creates `.control` with mode `0700` and the socket with mode `0600`. With
+`KillSignal=SIGINT`, Python runs Rai's shutdown cleanup on a normal service stop.
+Reload systemd's unit definitions after a unit edit and restart Rai once to start
+the listener. From the checkout, run these as the OS user that runs Rai, with
+Rai's Python environment:
+
+```bash
+python3 -m cogs.utils.BotUtils.bot_control --socket .control/control.sock status
+python3 -m cogs.utils.BotUtils.bot_control --socket .control/control.sock reload logger web_admin
+```
+
+`load` and `unload` take the same short cog names. The socket accepts only
+Rai's configured cogs. `;reload hf`, `;reload utils`, and `;reload database`
+remain available through the Discord owner command. After a forced stop, remove
+a stale socket file only after confirming Rai has stopped. A graceful stop
+removes the socket automatically.
+
 # Commands
 
 List of commands for Rai bot.

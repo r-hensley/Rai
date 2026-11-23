@@ -179,7 +179,10 @@ class Interactions(commands.Cog):
     async def sync(self, ctx: Optional[commands.Context]):
         """Syncs app commands"""
         await self.sync_main()
+        await self.send_sync_confirmation(ctx)
 
+    @staticmethod
+    async def send_sync_confirmation(ctx):
         try:
             await ctx.message.add_reaction("♻")
         except (discord.HTTPException, discord.Forbidden, discord.NotFound):

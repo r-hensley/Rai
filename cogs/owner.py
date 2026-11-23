@@ -41,15 +41,6 @@ RYRY_RAI_BOT_ID = 270366726737231884
 RAI_TEST_BOT_ID = 536170400871219222
 
 
-def _clear_imported_package(package_name: str, module_cache: dict | None = None) -> None:
-    module_cache = sys.modules if module_cache is None else module_cache
-    package_prefix = f'{package_name}.'
-    for module_name in tuple(module_cache):
-        if module_name == package_name or module_name.startswith(package_prefix):
-            module_cache.pop(module_name, None)
-    importlib.invalidate_caches()
-
-
 class Owner(commands.Cog):
     # various code from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py in here, thanks
     SQL_MAX_ROWS = 20
@@ -400,12 +391,17 @@ class Owner(commands.Cog):
         except Exception as e:
             await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
 
+    def _extension_control_lock(self):
+        control = getattr(self.bot, 'control', None)
+        return control.lock if control else nullcontext()
+
     @commands.command(hidden=True)
     async def load(self, ctx, *, cog: str):
         """Command which loads a module."""
 
         try:
-            await self.bot.load_extension(f'cogs.{cog}')
+            async with self._extension_control_lock():
+                await self.bot.load_extension(f'cogs.{cog}')
         except Exception as e:
             await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
@@ -414,7 +410,8 @@ class Owner(commands.Cog):
     @commands.command(hidden=True)
     async def unload(self, ctx, *, cog: str):
         try:
-            await self.bot.unload_extension(f'cogs.{cog}')
+            async with self._extension_control_lock():
+                await self.bot.unload_extension(f'cogs.{cog}')
         except Exception as e:
             await utils.safe_send(ctx, f'**`ERROR:`** {type(e).__name__} - {e}')
         else:
@@ -431,7 +428,11 @@ class Owner(commands.Cog):
             await ctx.message.delete()
         except discord.Forbidden:
             pass
-        for cog in cogs.split():
+        async with self._extension_control_lock():
+            await self._reload_cogs(ctx, cogs.split())
+
+    async def _reload_cogs(self, ctx, cogs):
+        for cog in cogs:
             if cog == 'database':
                 await self._reload_support_module(sys.modules['cogs.database'])
             elif cog in ['hf', 'helper_function']:
@@ -481,13 +482,9 @@ class Owner(commands.Cog):
 
             else:
                 try:
-                    if cog == 'web_admin':
-                        # reload_extension does not clear the separate top-level support package.
-                        _clear_imported_package('web_admin')
                     await self.bot.reload_extension(f'cogs.{cog}')
                     if cog == 'interactions':
-                        sync = self.bot.get_command('sync')
-                        await ctx.invoke(sync)
+                        await self.bot.get_cog('Interactions').send_sync_confirmation(ctx)
                 except Exception as e:
                     print(ctx, cog, e)
                     await self.reload_error(ctx, cog, e)
