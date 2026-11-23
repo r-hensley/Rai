@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from datetime import timedelta, datetime
 from typing import Optional
@@ -8,6 +9,10 @@ from discord.ext import commands
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.catchup import DiscordGuildSearch
+
+
+logger = logging.getLogger(__name__)
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 MODCHAT_SERVER_ID = 257984339025985546
@@ -539,6 +544,32 @@ class Events(commands.Cog):
                     60 + today[member_id][1]
             today[member_id] += hours * 60 + minutes
 
+    async def previous_voice_join_timestamp(self, member: discord.Member) -> Optional[float]:
+        joindates = self.bot.db.setdefault('joindates', {})
+        user_id = str(member.id)
+        if user_id in joindates:
+            return joindates[user_id]
+        if member.joined_at is None:
+            return None
+
+        try:
+            first_message = await asyncio.wait_for(
+                DiscordGuildSearch(self.bot.http).first_message_before(member.guild.id, member.id, member.joined_at),
+                timeout=4,
+            )
+        except (discord.HTTPException, RuntimeError, TimeoutError):
+            logger.debug("Couldn't check earlier message history for the voice gate", exc_info=True)
+            return joindates.get(user_id)
+
+        # Preserve a date entered by staff or discovered by another voice join during the search.
+        if first_message is not None and user_id not in joindates:
+            joindates[user_id] = first_message.timestamp()
+            try:
+                await utils.dump_json('db', bot=self.bot)
+            except OSError:
+                logger.exception("Couldn't save the voice gate's new join date")
+        return joindates.get(user_id)
+
     @commands.Cog.listener()
     async def on_voice_state_update(self,
                                     member: discord.Member,
@@ -667,13 +698,8 @@ class Events(commands.Cog):
 
         async def sp_serv_new_user_voice_lock():
             """
-            This command prevents users who are new to the server from joining voice.
-
-            They are required to either be in the server for two hours, or have 100 messages in the server.
-
-            If a user has left and rejoined the server, hopefully the 100 message requirement gets them into voice.
-
-            There will also be a "voice approved" role which can override this.
+            Gate voice in configured Spanish server categories by account age and server tenure.
+            Returning users can use a saved join date or an earlier message as evidence of tenure.
             """
             # uncomment below for testing
             # if member.id in [202995638860906496, 414873201349361664, 416452861816340497 ]:  # ryry, abelian, hermitian
@@ -696,7 +722,8 @@ class Events(commands.Cog):
             # If voice lock not enabled on current server
             config = self.bot.db['voice_lock'].get(str(member.guild.id), {})
             joined_to = after.channel
-            if not config.get('categories', {}).get(str(joined_to.category.id), None):
+            categories = config.get('categories', {})
+            if not categories.get(str(getattr(joined_to.category, 'id', None))):
                 return
 
             # A role which exempts the user from any requirements on joining voice
@@ -714,10 +741,18 @@ class Events(commands.Cog):
                 # If user has been in the server for more than three hours, let them into voice
                 hours_for_users = config.get('hours_for_users', 3)
                 time = hours_for_users
-                if (discord.utils.utcnow() - member.joined_at).total_seconds() > hours_for_users * 60 * 60:
+                required_age = timedelta(hours=hours_for_users)
+                now = discord.utils.utcnow()
+                if member.joined_at is not None and now - member.joined_at >= required_age:
+                    return
+                previous_join = await self.previous_voice_join_timestamp(member)
+                now = discord.utils.utcnow()
+                if previous_join is not None and now.timestamp() - previous_join >= required_age.total_seconds():
+                    return
+                if member.joined_at is not None and now - member.joined_at >= required_age:
                     return
 
-                # If user has more than 100 messages in the last month, let them into voice
+                # Keep the existing exemption for members with enough recent messages.
                 messages_for_users = config.get('messages_for_users', 50)
                 if hf.count_messages(member.id, member.guild) > messages_for_users:
                     return
@@ -726,8 +761,11 @@ class Events(commands.Cog):
 
             # If the code has reached this point, it's failed all the checks, so Rai disconnects user from voice
 
-            # Disconnect user from voice
+            # Search can finish after the member has left or moved out of a restricted category.
             voice_channel_joined = after.channel
+            if (member.voice is not after or voice_channel_joined is None or role in member.roles
+                    or not categories.get(str(getattr(voice_channel_joined.category, 'id', None)))):
+                return
             try:
                 await member.edit(voice_channel=None)
             except (discord.Forbidden, discord.HTTPException):
@@ -773,7 +811,7 @@ class Events(commands.Cog):
                 await one_minute_voice_lock()
             except Exception:
                 try:
-                    await after.channel.set_permissions(member, overwrite=None)
+                    await voice_channel_joined.set_permissions(member, overwrite=None)
                 except (discord.Forbidden, discord.NotFound, AttributeError):
                     pass
                 raise
