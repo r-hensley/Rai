@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 from datetime import timedelta, datetime
 from typing import Optional
 
@@ -11,8 +10,6 @@ from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-BLACKLIST_CHANNEL_ID = 533863928263082014
-BANS_CHANNEL_ID = 329576845949534208
 MODCHAT_SERVER_ID = 257984339025985546
 RYRY_SPAM_CHAN = 275879535977955330
 JP_SERVER_ID = 189571157446492161
@@ -306,62 +303,6 @@ class Events(commands.Cog):
     async def on_raw_reaction_add(self, payload):
         if payload.user_id == self.bot.user.id:
             return
-
-        if payload.emoji.name == '⬆':
-            if payload.channel_id == BLACKLIST_CHANNEL_ID:  # votes on blacklist
-                channel = self.bot.get_channel(payload.channel_id)
-                message = await channel.fetch_message(payload.message_id)
-                ctx = await self.bot.get_context(message)
-                ctx.author = self.bot.get_user(payload.user_id)
-                ctx.reacted_user_id = payload.user_id
-                user_id = message.embeds[0].title.split(' ')[0]
-                config = self.bot.db['global_blacklist']
-                if user_id not in config['votes']:
-                    return
-                if str(payload.user_id) in config['residency']:
-                    voting_guild_id = config['residency'][str(payload.user_id)]
-                    if voting_guild_id not in config['votes'][user_id]['votes']:
-                        if message.embeds[0].color != discord.Color(int('ff0000', 16)):
-                            blacklist_add: commands.Command = self.bot.get_command(
-                                "global_blacklist add")
-                            # ignore below error in pycharm "Expected Type"
-                            # noinspection PyTypeChecker
-                            await ctx.invoke(blacklist_add, args=user_id)
-                else:
-                    print('not in residency')
-                    try:
-                        await utils.safe_send(ctx.author, "Please claim residency on a server first with "
-                                              "`;global_blacklist residency`")
-                    except discord.Forbidden:
-                        await utils.safe_send(ctx, "Please claim residency on a server first with `;global_blacklist "
-                                              "residency`.")
-                    return
-
-            elif payload.channel_id == BANS_CHANNEL_ID:
-                channel = self.bot.get_channel(BANS_CHANNEL_ID)
-                message = await channel.fetch_message(payload.message_id)
-                ctx = await self.bot.get_context(message)
-                ctx.author = self.bot.get_user(payload.user_id)
-                ctx.reacted_user_id = payload.user_id
-                user_id = re.search(
-                    r'^.*\n\((\d{17,22})\)', message.embeds[0].description).group(1)
-                try:
-                    reason = re.search(
-                        '__Reason__: (.*)$', message.embeds[0].description, flags=re.S).group(1)
-                except AttributeError:
-                    await utils.safe_send(channel, "I couldn't find the reason attached to the ban log for addition to "
-                                          "the GBL.")
-                    return
-                config = self.bot.db['global_blacklist']
-                if str(payload.user_id) in config['residency']:
-                    if user_id not in config['blacklist'] and str(user_id) not in config['votes']:
-                        blacklist_add: commands.Command = self.bot.get_command(
-                            "global_blacklist add")
-                        await ctx.invoke(blacklist_add,
-                                         args=f"{user_id} {reason}\n[Ban Entry]({message.jump_url})")
-                else:
-                    await utils.safe_send(ctx.author, "Please claim residency on a server first with `;gbl residency`")
-                    return
 
         if payload.emoji.name == '✅':  # captcha
             if str(payload.guild_id) in self.bot.db['captcha']:

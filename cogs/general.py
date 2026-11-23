@@ -18,6 +18,10 @@ from cogs.utils.helper_functions import format_interval
 
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
+from .utils.blacklist import (
+    BANS_CHANNEL_ID, BLACKLIST_CHANNEL_ID, VOTE_CUSTOM_ID, VOTES_REQUIRED,
+    entry_user_id, set_vote_status, vote_view,
+)
 from .utils.hardcore import (
     SP_HARDCORE_ROLE_ID,
     SP_HARDCORE_ROLE_IDS,
@@ -32,7 +36,6 @@ dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 MEMBERS_PER_PAGE = 20
 
 
-BLACKLIST_CHANNEL_ID = 533863928263082014
 MODCHAT_SERVER_ID = 257984339025985546
 JP_SERVER_ID = 189571157446492161
 SP_SERVER_ID = 243838819743432704
@@ -54,6 +57,7 @@ ENG_ROLE = {
     320439136236601344: 474825178204078081  # r/CL Learning English Role
 }
 RYRY_RAI_BOT_ID = 270366726737231884
+BLACKLIST_RESIDENCY_REQUIRED = "Claim residency in a server you moderate with `;gbl residency` before voting."
 
 
 def hardcore_staff_check(ctx: commands.Context) -> bool:
@@ -173,6 +177,7 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ignored_characters = []
+        self.blacklist_lock = asyncio.Lock()
 
     @commands.command(hidden=True)
     @commands.bot_has_permissions(send_messages=True)
@@ -928,25 +933,32 @@ class General(commands.Cog):
     async def blacklist_reason(self, ctx, entry_message_id, *, reason):
         """Add a reason to a blacklist entry: `;gbl reason <message_id> <reason>`"""
         blacklist_channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-        
+
         # convert entry_message_id to int, including case if it's a message link
         entry_message_id_match = re.search(r'\d{17,22}$', entry_message_id)
-        if not entry_message_id:
+        if not entry_message_id_match:
             await utils.safe_send(ctx, "Please input a valid message ID or link to the message you want to edit.")
             return
-        entry_message_id = entry_message_id_match.group()
-        
-        try:
-            entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
-        except discord.NotFound:
-            await utils.safe_send(ctx, "I couldn't find the message you were trying to edit. Make sure you link to "
-                                  f"the message ID in the {blacklist_channel.mention}.")
+        if len(reason) > 1024:
+            await utils.safe_send(ctx, "The reason must be 1,024 characters or fewer.")
             return
-        emb = entry_message.embeds[0]
-        old_reason = emb.fields[1].value
-        emb.set_field_at(1, name=emb.fields[1].name, value=reason)
-        await entry_message.edit(embed=emb)
-        await utils.safe_send(ctx, f"Changed reason of {entry_message.jump_url}\nOld reason: ```{old_reason}```")
+
+        async with self.blacklist_lock:
+            try:
+                entry_message = await blacklist_channel.fetch_message(int(entry_message_id_match.group()))
+            except discord.NotFound:
+                await utils.safe_send(ctx, f"I couldn't find that message in {blacklist_channel.mention}.")
+                return
+            if entry_message.embeds:
+                embed = entry_message.embeds[0]
+                for index, field in enumerate(embed.fields):
+                    if field.name == 'Reason':
+                        embed.set_field_at(index, name=field.name, value=reason, inline=field.inline)
+                        await entry_message.edit(embed=embed)
+                        await utils.safe_send(ctx, f"Changed reason of {entry_message.jump_url}\n"
+                                              f"Old reason: ```{field.value}```")
+                        return
+            await utils.safe_send(ctx, "I couldn't find a reason on that blacklist entry.")
 
     @global_blacklist.command(name='remove', alias=['delete'])
     @blacklist_check()
@@ -956,43 +968,34 @@ class General(commands.Cog):
         
         # convert entry_message_id to int, including case if it's a message link
         entry_message_id_match = re.search(r'\d{17,22}$', entry_message_id)
-        if not entry_message_id:
+        if not entry_message_id_match:
             await utils.safe_send(ctx, "Please input a valid message ID or link to the message you want to edit.")
             return
-        entry_message_id = entry_message_id_match.group()
-        
-        try:
-            entry_message = await blacklist_channel.fetch_message(int(entry_message_id))
-        except discord.NotFound:
-            await utils.safe_send(ctx,
-                                  f"Message not found corresponding to ID "
-                                  f"{entry_message_id}. If you inputted the ID of a user, "
-                                  "please input the message ID of the entry in the "
-                                  "blacklist instead.")
-            return
-        emb = entry_message.embeds[0]
-        target_id = emb.title.split(' ')[0]
 
-        try:
-            self.bot.db['global_blacklist']['blacklist'].remove(str(target_id))
-        except ValueError:
-            pass
-        except KeyError:
-            await utils.safe_send(ctx, "This user is not currently in the GBL.")
+        async with self.blacklist_lock:
+            try:
+                entry_message = await blacklist_channel.fetch_message(int(entry_message_id_match.group()))
+            except discord.NotFound:
+                await utils.safe_send(ctx, f"I couldn't find that message in {blacklist_channel.mention}.")
+                return
+            embed = entry_message.embeds[0] if entry_message.embeds else None
+            target_id = entry_user_id(embed) if embed else None
+            if not target_id or entry_message.author.id != self.bot.user.id:
+                await utils.safe_send(ctx, "That message is not a blacklist entry.")
+                return
 
-        try:
-            del self.bot.db['global_blacklist']['votes'][str(target_id)]
-        except ValueError:
-            pass
-        except KeyError:
-            await utils.safe_send(ctx, "This user is not currently under consideration for votes.")
+            config = self.bot.db['global_blacklist']
+            pending = config['votes'].get(target_id)
+            if pending and pending['message'] != entry_message.id:
+                await utils.safe_send(ctx, "Please use the message ID for the active blacklist entry.")
+                return
+            await entry_message.delete()
+            config['blacklist'][:] = [user_id for user_id in config['blacklist'] if str(user_id) != target_id]
+            config['votes'].pop(target_id, None)
 
-        await entry_message.delete()
-
-        emb.color = discord.Color(int('ff00', 16))
-        emb.set_field_at(0, name="Entry removed by",
-                         value=f"{str(ctx.author)}")
-        await blacklist_channel.send(embed=emb)
+        embed.colour = 0x00FF00
+        embed.description = f'**Entry removed by {discord.utils.escape_markdown(str(ctx.author))}**'
+        await blacklist_channel.send(embed=embed)
 
         await ctx.message.add_reaction('✅')
 
@@ -1036,96 +1039,152 @@ class General(commands.Cog):
     @global_blacklist.command(aliases=['vote'], name="add")
     async def blacklist_add(self, ctx, *, args):
         """Add people to the blacklist"""
-        args = args.replace('\n', ' ').split()
-        list_of_ids = []
-        reason = "None"
-        for arg_index, arg in enumerate(args):
-            potential_id = re.search(r'\d{17,22}$', arg)
-            if potential_id:
-                # using regex, add to list_of_ids just the ID digits (ignore characters around it)
-                list_of_ids.append(potential_id.group())
-            else:
-                reason = ' '.join(args)
+        targets = []
+        reason = "None given"
+        args = args.split()
+        for index, arg in enumerate(args):
+            match = re.fullmatch(r'(?:<@!?([0-9]{17,22})>|([0-9]{17,22}))', arg)
+            if not match:
+                reason = ' '.join(args[index:])
                 break
-        channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
-        config = self.bot.db['global_blacklist']
-        if not list_of_ids:
-            await utils.safe_send(ctx.author, "No valid ID found in command")
+            targets.append(match[1] or match[2])
+        if not targets:
+            await utils.safe_send(ctx, "Provide a Discord user ID or mention to vote.")
             return
-        for user in list_of_ids:
-            user_obj = self.bot.get_user(user)
-            if not user_obj:
-                try:
-                    user = user.replace(
-                        '<@!', '').replace('<@', '').replace('>', '')
-                    user_obj = await self.bot.fetch_user(user)
-                except (discord.NotFound, discord.HTTPException):
-                    user_obj = None
+        if len(reason) > 1024:
+            await utils.safe_send(ctx, "The reason must be 1,024 characters or fewer.")
+            return
+        for target_id in targets:
+            result = await self.cast_blacklist_vote(ctx.author, target_id, reason)
+            await utils.safe_send(ctx, result, allowed_mentions=discord.AllowedMentions.none())
 
-            async def post_vote_notification(target_user, reason):
-                try:
-                    await ctx.message.add_reaction('✅')
-                except discord.Forbidden:
-                    await ctx.send("User added to blacklist ✅")
-                if not target_user:
-                    target_user = ''
-                emb = discord.Embed(
-                    title=f"{user} {target_user} (1 vote)", color=discord.Color(int('ffff00', 16)))
-                emb.add_field(name='Voters', value=ctx.author.name)
-                emb.add_field(name='Reason', value=reason)
-                msg = await utils.safe_send(channel, embed=emb)
-                await msg.add_reaction('⬆')
-                return msg
+    async def cast_blacklist_vote(self, voter, target_id, reason=None, *, entry_id=None, source_url=None):
+        config = self.bot.db['global_blacklist']
+        voter_guild = config['residency'].get(str(voter.id))
+        if voter.bot or not voter_guild:
+            return BLACKLIST_RESIDENCY_REQUIRED
 
-            try:  # the guild ID that the person trying to add a vote belongs to
-                user_residency = config['residency'][str(
-                    ctx.author.id)]  # a guild id
-            except KeyError:
-                await utils.safe_send(ctx.author,
-                                      "Please claim residency on a server first with `;global_blacklist residency`")
-                return
+        channel = self.bot.get_channel(BLACKLIST_CHANNEL_ID)
+        async with self.blacklist_lock:
+            if any(str(user_id) == target_id for user_id in config['blacklist']):
+                return f"Account {target_id} is already blacklisted."
 
-            if user in config['blacklist']:  # already blacklisted
-                await utils.safe_send(ctx, f"{user} is already on the blacklist")
-                continue
+            pending = config['votes'].get(target_id)
+            if entry_id is not None and (not pending or pending['message'] != entry_id):
+                return "Voting has closed on this blacklist entry."
 
-            if user not in config['votes']:  # 0 votes
-                config['votes'][user] = {
-                    'votes': [user_residency], 'message': 0}
-                msg = await post_vote_notification(user_obj, reason)
-                config['votes'][user]['message'] = msg.id
-                continue
-
-            if user in config['votes']:  # 1, 2, or 3 votes
-                list_of_votes = config['votes'][user]['votes']
-                if user_residency in list_of_votes:
+            voter_name = discord.utils.escape_markdown(voter.name)
+            if not pending:
+                target = self.bot.get_user(int(target_id))
+                if not target:
                     try:
-                        await utils.safe_send(ctx.author, f"{user} - Someone from your server already voted")
-                    except discord.Forbidden:
-                        await utils.safe_send(ctx, f"{user} - Someone from your server already voted")
-                    continue
+                        target = await self.bot.fetch_user(int(target_id))
+                    except discord.HTTPException:
+                        pass
+                embed = discord.Embed(title=str(target) if target else 'Unknown account')
+                set_vote_status(embed, 1)
+                embed.add_field(name='Account ID', value=f'`{target_id}`', inline=False)
+                embed.add_field(name='Reason', value=reason or 'None given', inline=False)
+                if source_url:
+                    embed.add_field(name='Source', value=f'[Ban crosspost]({source_url})', inline=False)
+                embed.add_field(name='Voters', value=voter_name, inline=False)
+                message = await channel.send(embed=embed, view=vote_view())
+                config['votes'][target_id] = {'votes': [voter_guild], 'message': message.id}
+                return f"Vote recorded. [Open the blacklist entry]({message.jump_url})."
 
-                message = await channel.fetch_message(config['votes'][user]['message'])
-                emb = message.embeds[0]
-                title_str = emb.title
-                result = re.search(r'(\((.*)\))? \((.) votes?\)', title_str)
-                # target_username = result.group(2)
-                num_of_votes = result.group(3)
-                emb.title = re.sub(
-                    '(.) vote', f'{int(num_of_votes) + 1} vote', emb.title)
-                if num_of_votes in '1':  # 1-->2
-                    emb.title = emb.title.replace('vote', 'votes')
-                if num_of_votes in '12':  # 1-->2 or 2-->3
-                    config['votes'][user]['votes'].append(user_residency)
-                if num_of_votes == '3':  # 2-->3
-                    emb.color = discord.Color(int('ff0000', 16))
-                    del config['votes'][user]
-                    config['blacklist'].append(int(user))
-                emb.set_field_at(
-                    0, name=emb.fields[0].name, value=emb.fields[0].value + f', {ctx.author.name}')
-                await message.edit(embed=emb)
-                
-                
+            servers = pending['votes']
+            recorded_servers = {str(server_id) for server_id in servers}
+            if str(voter_guild) in recorded_servers:
+                return f"Someone from your server already voted on account {target_id}."
+
+            message = await channel.fetch_message(pending['message'])
+            embed = message.embeds[0].copy() if message.embeds else None
+            if not embed or message.author.id != self.bot.user.id or entry_user_id(embed) != target_id:
+                return "Rai couldn't read the active blacklist entry."
+
+            count = len(recorded_servers) + 1
+            complete = count >= VOTES_REQUIRED
+            for index, field in enumerate(embed.fields):
+                if field.name == 'Voters':
+                    embed.set_field_at(index, name=field.name, value=f'{field.value}, {voter_name}', inline=field.inline)
+                    break
+            if any(field.name == 'Account ID' for field in embed.fields):
+                set_vote_status(embed, count)
+            else:
+                # Older cards could display a third vote without recording its server.
+                tally = re.search(r'\((\d+) votes?\)$', embed.title)
+                displayed_count = int(tally[1]) + 1
+                embed.title = f'{embed.title[:tally.start()]}({displayed_count} votes)'
+                if complete:
+                    embed.colour = 0xFF0000
+
+            if complete:
+                await message.edit(embed=embed, view=None)
+                del config['votes'][target_id]
+                config['blacklist'].append(int(target_id))
+                return f"Vote recorded. Account {target_id} is now blacklisted."
+
+            await message.edit(embed=embed)
+            servers.append(voter_guild)
+            return f"Vote recorded for account {target_id} ({count}/{VOTES_REQUIRED} servers)."
+
+    async def vote_from_message(self, message, voter):
+        if not message or message.author.id != self.bot.user.id or not message.embeds:
+            return "This message is not a Rai blacklist entry or ban crosspost."
+
+        embed = message.embeds[0]
+        if message.channel.id == BLACKLIST_CHANNEL_ID:
+            target_id = entry_user_id(embed)
+            if target_id:
+                return await self.cast_blacklist_vote(voter, target_id, entry_id=message.id)
+        elif message.channel.id == BANS_CHANNEL_ID:
+            description = embed.description or ''
+            target = re.match(r'[^\n]+\n\(([0-9]{17,22})\)\n', description)
+            reason = re.search(r'^__Reason__: (.+)\Z', description, flags=re.MULTILINE | re.DOTALL)
+            if target and reason:
+                return await self.cast_blacklist_vote(voter, target[1], reason[1][:1024], source_url=message.jump_url)
+
+        return "Voting is unavailable on this message."
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if (interaction.type != discord.InteractionType.component
+                or interaction.channel_id not in (BLACKLIST_CHANNEL_ID, BANS_CHANNEL_ID)
+                or (interaction.data or {}).get('custom_id') != VOTE_CUSTOM_ID):
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            result = await self.vote_from_message(interaction.message, interaction.user)
+        except discord.NotFound:
+            result = "Rai couldn't find the active blacklist entry."
+        except discord.HTTPException:
+            await interaction.followup.send("Discord couldn't update the blacklist vote. Try again in a moment.",
+                                            ephemeral=True)
+            raise
+        await interaction.followup.send(result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if (payload.channel_id not in (BLACKLIST_CHANNEL_ID, BANS_CHANNEL_ID) or payload.emoji.name != '⬆'
+                or not payload.member or payload.member.bot):
+            return
+
+        channel = self.bot.get_channel(payload.channel_id)
+        if not channel:
+            return
+        try:
+            message = await channel.fetch_message(payload.message_id)
+            await self.vote_from_message(message, payload.member)
+        except discord.NotFound:
+            return
+        if (message.author.id == self.bot.user.id
+                and str(payload.user_id) not in self.bot.db['global_blacklist']['residency']):
+            try:
+                await payload.member.send(BLACKLIST_RESIDENCY_REQUIRED)
+            except discord.Forbidden:
+                pass
+
     @global_blacklist.command(name='list')
     @blacklist_check()
     async def blacklist_list(self, ctx):

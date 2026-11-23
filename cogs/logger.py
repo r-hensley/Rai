@@ -10,6 +10,7 @@ from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
 from .utils import views as view_utils
+from .utils.blacklist import BANS_CHANNEL_ID, vote_view
 from cogs.utils.BotUtils import bot_utils as utils
 from .database import fetch_readd_role_entry, delete_readd_role_entry, store_readd_role_entry
 from .persistent_embeds import ban_subscribers, ensure_ban_config_message, restore_views
@@ -26,7 +27,6 @@ M_SERVER = 257984339025985546
 NADEKO_ID = 116275390695079945
 SPAN_WELCOME_CHAN_ID = 243838819743432704
 JP_SERV_JHO_ID = 189571157446492161
-BANS_CHANNEL_ID = 329576845949534208
 ABELIAN_ID = 414873201349361664
 VOICE_LOG_RATE_LIMIT_COOLDOWN_SECONDS = 60
 
@@ -2342,7 +2342,7 @@ class Logger(commands.Cog):
                 if (guild_config['crosspost'] and not ban_emb.description.startswith('⁣')) or \
                         (ban_emb.description.startswith(special_invis_char)):
                     bans_channel = self.bot.get_channel(BANS_CHANNEL_ID)
-                    crosspost_msg = await bans_channel.send(member.mention, embed=crosspost_emb)
+                    crosspost_msg = await bans_channel.send(member.mention, embed=crosspost_emb, view=vote_view())
                     mod_channel = self.bot.get_channel(self.bot.db['mod_channel'].get(guild, 0))
                     if mod_channel:
                         try:
@@ -2357,8 +2357,6 @@ class Logger(commands.Cog):
                     if member not in bans_channel.guild.members:
                         await hf.ban_check_servers(self.bot, bans_channel, member,
                                                    ping=True, embed=crosspost_emb)
-
-                    await crosspost_msg.add_reaction('⬆')
 
                     # if member not in bans_channel.guild.members:
                     if member not in bans_channel.guild.members:
@@ -2405,7 +2403,7 @@ class Logger(commands.Cog):
                     if not self.bot.db['banlog'][str(user.id)]:
                         del (self.bot.db['banlog'][str(user.id)])  # if the list is now empty
                     try:
-                        crosspost_msg = await (self.bot.get_channel(329576845949534208)
+                        crosspost_msg = await (self.bot.get_channel(BANS_CHANNEL_ID)
                                                .fetch_message(entry[1]))
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                         pass
@@ -2416,7 +2414,7 @@ class Logger(commands.Cog):
                         unban_time_str = discord.utils.utcnow().strftime('%y/%m/%d %H:%M:%S UTC')
                         emb.description = (f"UNBANNED {unban_time_str}\n"
                                            f"~~{emb.description}~~")
-                        await crosspost_msg.edit(embed=emb)
+                        await crosspost_msg.edit(embed=emb, view=None)
 
         if guild_id in self.bot.db['bans']:
             guild_config: dict = self.bot.db['bans'][guild_id]
