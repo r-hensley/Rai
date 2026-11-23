@@ -80,7 +80,7 @@ class RoleMembersView(utils.RaiView):
         pages = [page]
         page_members = 0
         page_text = 0
-        separator = ', '
+        separator = '\n'
         for heading, labels in groups.items():
             for label in labels:
                 label_size = len(label.encode('utf-16-le')) // 2

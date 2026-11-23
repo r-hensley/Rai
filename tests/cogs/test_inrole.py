@@ -13,7 +13,7 @@ from tests.discord_fakes import make_bot, make_context, make_guild, make_member,
 @pytest.mark.asyncio
 async def test_inrole_groups_members_using_the_last_30_utc_dates(monkeypatch):
     members = [
-        make_member(member_id=101, name='zulu', nick='Z'),
+        make_member(member_id=101, name='zulu', nick='Z, the Third'),
         make_member(member_id=102, name='alpha', nick=None),
         make_member(member_id=103, name='delta', nick=None),
         make_member(member_id=104, name='echo', nick=None),
@@ -40,8 +40,8 @@ async def test_inrole_groups_members_using_the_last_30_utc_dates(monkeypatch):
     await cog.inrole.callback(cog, ctx, role_name='welcoming party')
     embed = sent.call_args.kwargs['embed']
     assert [(field.name, field.value) for field in embed.fields] == [
-        ('11+ messages', 'alpha, zulu (Z)'),
-        ('1–10 messages', 'delta, echo'),
+        ('11+ messages', 'alpha\nzulu (Z, the Third)'),
+        ('1–10 messages', 'delta\necho'),
         ('0 messages', 'unused'),
     ]
     assert [option.label for option in sent.call_args.kwargs['view'].actions.options] == [
@@ -78,12 +78,12 @@ async def test_inrole_menu_updates_pages_and_keeps_long_nicknames_compact():
     await select('next')
     await select('nicknames')
     assert view.current_page == 0
-    assert len(view.embeds[0].fields[0].value.split(', ')) == 20
-    assert view.embeds[0].fields[0].value.startswith('member000, member001, ')
+    assert len(view.embeds[0].fields[0].value.splitlines()) == 20
+    assert view.embeds[0].fields[0].value.startswith('member000\nmember001\n')
     await select('nicknames')
-    assert view.embeds[0].fields[0].value.startswith(f"member000 ({'🌸' * 30}), ")
+    assert view.embeds[0].fields[0].value.startswith(f"member000 ({'🌸' * 30})\n")
     await select('sort')
-    assert view.embeds[0].fields[0].value.startswith(f"member044 ({'🌸' * 30}) [55], ")
+    assert view.embeds[0].fields[0].value.startswith(f"member044 ({'🌸' * 30}) [55]\n")
 
     all_entries = []
     for embed in view.embeds:
@@ -91,7 +91,7 @@ async def test_inrole_menu_updates_pages_and_keeps_long_nicknames_compact():
         page_entries = []
         for field in embed.fields:
             parts.extend([field.name, field.value])
-            page_entries.extend(entry.split()[0] for entry in field.value.split(', '))
+            page_entries.extend(entry.split()[0] for entry in field.value.splitlines())
         assert 0 < len(page_entries) < 20
         assert sum(len(part.encode('utf-16-le')) // 2 for part in parts) <= 700
         all_entries.extend(page_entries)
@@ -99,7 +99,7 @@ async def test_inrole_menu_updates_pages_and_keeps_long_nicknames_compact():
 
     await select('nicknames')
     await select('sort')
-    assert view.embeds[0].fields[0].value.startswith('member000, member001, ')
+    assert view.embeds[0].fields[0].value.startswith('member000\nmember001\n')
     interaction.user = make_member(member_id=999)
     assert not await view.interaction_check(interaction)
     interaction.response.send_message.assert_awaited_once_with('You cannot control this menu.', ephemeral=True)

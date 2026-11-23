@@ -1,3 +1,4 @@
+import importlib
 import json
 from datetime import timedelta
 import os
@@ -29,7 +30,7 @@ from .utils.hardcore import (
     SP_SUPER_HARDCORE_ROLE_ID,
     SP_ULTRA_HARDCORE_ROLE_ID,
 )
-from .utils.role_members import RoleMembersView, recent_role_counts
+from .utils import role_members
 
 dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -401,8 +402,8 @@ class General(commands.Cog):
             return
 
         stats = self.bot.stats.get(str(ctx.guild.id), {})
-        counts = recent_role_counts(members, stats)
-        view = RoleMembersView(role.name, members, counts, ctx.author)
+        counts = role_members.recent_role_counts(members, stats)
+        view = role_members.RoleMembersView(role.name, members, counts, ctx.author)
         view.message = await utils.safe_send(ctx, embed=view.embeds[0], view=view if view.children else None)
 
     @commands.group(aliases=['hc'], invoke_without_command=True)
@@ -2072,4 +2073,6 @@ class General(commands.Cog):
     
 
 async def setup(bot):
+    # The control socket reloads this extension and leaves its dependencies cached.
+    importlib.reload(role_members)
     await bot.add_cog(General(bot))
