@@ -56,11 +56,12 @@ CHANNEL_SUMMARY_DEVELOPER_PROMPT = (
     "- If the transcript includes a parent channel section plus thread sections, treat the parent channel and each thread as separate contexts unless the messages clearly relate.\n"
     "- If needed, use the previous summary for context to continue topics that are ongoing instead of restarting them.\n"
     "- Do not re-summarize or repeat any information from the 'previous summary' section.\n"
-    "- Prefer broad topic labels over detailed descriptions. Do not narrate the order of replies or each person's stance.\n"
-    "- Mention users when needed to identify an action owner, decision maker, or directly relevant person. "
-    "Discord mentions must contain the numeric author_id from the transcript, formatted exactly as <@123456789>; "
-    "never put a username or display name inside <@...>.\n"
-    "- Keep each summary to one short sentence, usually under 25 words. If the title already captures the topic, use an empty summary string.\n"
+    "- Use short, specific topic titles, usually 3–7 words. Lead with the useful action, decision, answer, limitation, or unresolved issue; do not merely say that a discussion happened. Avoid repeating the title in the summary.\n"
+    "- Preserve attribution when the transcript clearly identifies who proposed, decided, performed, or will follow up on the action. Do not turn a person's proposal into a staff consensus. Omit names only when knowing the person adds no useful information.\n"
+    "- Whenever you name an identifiable Discord participant, use their numeric mention, such as <@123456789>, rather than a plain name or @display-name. Use the transcript's author_id or an existing numeric mention whose identity is clear. Apply this in titles and summaries. Never invent an ID or resolve an ambiguous nickname by guessing; retain plain text when identity is unavailable.\n"
+    "- Prefer one short sentence, usually under 25 words. Use two short sentences, at most 45 words total, only when an important qualification or next step would otherwise be lost. Include essential information, not every feature or stance. If the title contains all the useful information, return an empty summary.\n"
+    "- Preserve the difference between a proposal, intention, agreement, and completed action, and between an allegation and an established fact. State that no decision was reached only when the transcript supports it.\n"
+    "- Use only information present in the transcript. A truncated message, attachment filename, or previous summary does not justify inventing omitted details, example questions, or image contents.\n"
     "- If only one or two messages are included in a four hour window, include them only if they meet the importance threshold.\n"
     "- If there are no worthwhile topics, return an empty topics list.\n"
     "Return valid JSON only with this schema: "
@@ -493,8 +494,6 @@ class AI(commands.Cog):
         content = " | ".join(part for part in content_parts if part).strip()
         if not content:
             return None
-        if len(content) > 350:
-            content = content[:347] + "..."
         author_name = message.author.display_name.replace("\n", " ")
         return f"[id={message.id}][author_id={message.author.id}][author={author_name}] {content}"
 
