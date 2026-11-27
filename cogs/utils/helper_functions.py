@@ -1,6 +1,7 @@
 import asyncio
 import cProfile
 import csv
+import hashlib
 import importlib
 import io
 import logging
@@ -11,7 +12,6 @@ import sys
 import time
 import unittest
 from collections import deque, defaultdict
-
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -26,6 +26,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
 from cogs.utils.BotUtils import bot_utils as utils
+from .hardcore_audit import HardcoreEvaluation
 
 if TYPE_CHECKING:
     from Rai import Rai
@@ -946,6 +947,7 @@ def _pre_load_language_detection_model():
         return  # Ask Ryry013 for the language files needed to make this work
     logging.info("Loading language detection corpus from %s", corpus_directory)
 
+    corpus_digest = hashlib.sha256()
     for csv_name in LANGUAGE_CORPUS_FILENAMES:
         with open(
             os.path.join(corpus_directory, csv_name),
@@ -953,12 +955,15 @@ def _pre_load_language_detection_model():
             encoding='utf-8',
         ) as csvfile:
             reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-            if csv_name in ['principiante.csv', 'avanzado.csv']:
-                for row in reader:
-                    spanish.append(row[2])
-            else:
-                for row in reader:
-                    english.append(row[2])
+            corpus_digest.update(csv_name.encode('ascii') + b'\0')
+            messages = spanish if csv_name in ('principiante.csv', 'avanzado.csv') else english
+            for row in reader:
+                text = row[2]
+                messages.append(text)
+                encoded = text.encode('utf-8')
+                corpus_digest.update(len(encoded).to_bytes(8, 'big'))
+                corpus_digest.update(encoded)
+            corpus_digest.update(b'\xff' * 8)  # End of this training file's rows.
 
     training_messages = english + spanish
     training_labels = ['en'] * len(english) + ['sp'] * len(spanish)
@@ -973,6 +978,8 @@ def _pre_load_language_detection_model():
         ('model', MultinomialNB()),
     ])
     pipeline.fit(training_messages, training_labels)
+    corpus_name = os.path.relpath(corpus_directory, dir_path)
+    pipeline.rai_corpus_identity = f"{corpus_name}:sha256:{corpus_digest.hexdigest()}"
     here.bot.langdetect = pipeline
 
 
@@ -1373,6 +1380,7 @@ class RaiMessage(discord.Message):
         self._error_fetching_ctx = False
         self.detected_lang: Optional[str] = None  # en, sp, None
         self.hardcore: Optional[bool] = None
+        self.hardcore_evaluation: HardcoreEvaluation | None = None
 
     def __getattr__(self, name):
         """

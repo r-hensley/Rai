@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
 import discord
@@ -279,3 +280,97 @@ async def test_spanish_hardcore_deletes_the_non_target_language(
     await message_module.Message.spanish_server_hardcore.__wrapped__(cog, msg)
 
     msg.delete.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "prediction, content, mode, outcome",
+    [
+        ("es", "Este mensaje está escrito en español.", "personal", "kept"),
+        (None, "An ambiguous test message.", "forced", "abstained"),
+        ("en", "This is a message with holi.", "personal", "exempt"),
+        ("en", "This is a long English sentence. https://example.com", "forced", "deleted"),
+        ("en", "This message was already deleted.", "forced", "delete_raced"),
+        ("en", "This message could not be deleted.", "forced", "delete_failed"),
+        ("en", "Short text", "forced", None),
+        ("en", 'This message is in an excluded channel.', "forced", None),
+    ],
+)
+async def test_spanish_hardcore_audit_through_message_listener(
+    monkeypatch, tmp_path, prediction, content, mode, outcome,
+):
+    channel_id = (
+        next(iter(message_module.DELETE_LOG_EXCLUDED_CHANNEL_IDS))
+        if outcome is None and len(content) > 15 else TARGET_CHANNEL_ID
+    )
+    raw = make_hardcore_message(
+        channel_id=channel_id,
+        role_ids=[STANDARD_HARDCORE_ROLE_ID, 297415063302832128],
+        content=content,
+    )
+    raw.author = Mock(spec=discord.Member, roles=raw.author.roles, id=42, bot=False)
+    raw.webhook_id = None
+    raw.id = 1234
+    raw.type = discord.MessageType.default
+    raw.delete = AsyncMock()
+    raw._state = types.SimpleNamespace(http=types.SimpleNamespace(delete_message=raw.delete))
+    http_response = Mock(status=404, reason="Not Found")
+    if outcome == "delete_raced":
+        raw.delete.side_effect = discord.NotFound(http_response, "gone")
+    if outcome == "delete_failed":
+        raw.delete.side_effect = discord.Forbidden(Mock(status=403, reason="Forbidden"), "denied")
+
+    cog = make_message_cog(forcehardcore=[channel_id] if mode == "forced" else [])
+    cog.bot.owner_id = 43
+    cog.bot.langdetect = types.SimpleNamespace(rai_corpus_identity=f"corpus-{mode}")
+    async def run_hardcore(cog, msg):
+        task = await message_module.Message.spanish_server_hardcore(cog, msg)
+        await task
+
+    cog.all_tasks = {run_hardcore}
+    monkeypatch.setattr(message_module.utils, "asyncio_task_done_callback", lambda _: None)
+    audit = message_module.HardcoreAudit(tmp_path / "private" / "audit.sqlite")
+    cog.hardcore_audit = audit
+    detector = Mock(return_value=prediction)
+    monkeypatch.setattr(message_module.hf, "detect_language", detector)
+    notify = AsyncMock()
+    monkeypatch.setattr(message_module.hf, "long_deleted_msg_notification", notify)
+
+    if outcome == "delete_failed":
+        with pytest.raises(discord.Forbidden):
+            await cog.on_message(raw)
+    else:
+        await cog.on_message(raw)
+
+    expected_delete = outcome in {"deleted", "delete_raced", "delete_failed"} or (
+        channel_id != TARGET_CHANNEL_ID
+    )
+    assert raw.delete.await_count == int(expected_delete)
+    assert notify.await_count == int(outcome == "deleted" or channel_id != TARGET_CHANNEL_ID)
+    counts = list(audit.read("summary"))
+    deletions = list(audit.read("deletions"))
+    if outcome is None:
+        assert not counts and not deletions
+        if channel_id == TARGET_CHANNEL_ID:
+            detector.assert_not_called()
+        return
+
+    assert len(counts) == 1
+    row = counts[0]
+    assert (row["version"], row["target"], row["mode"], row["corpus"], row["outcome"], row["count"]) == (
+        "v1.0.0", "es", mode, f"corpus-{mode}", outcome, 1,
+    )
+    if outcome == "deleted":
+        assert len(deletions) == 1
+        deletion = deletions[0]
+        assert deletion["message_id"] == raw.id
+        assert deletion["detected_language"] == prediction
+        assert deletion["original_text"] == content
+        assert deletion["classifier_input"] == detector.call_args.args[0]
+        assert deletion["classifier_input"] != content
+        audit.expire(datetime.now(timezone.utc) + timedelta(days=91))
+        assert not list(audit.read("deletions"))
+        assert list(audit.read("summary")) == counts
+        assert audit.path.stat().st_mode & 0o077 == 0
+    else:
+        assert not deletions

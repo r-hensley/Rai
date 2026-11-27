@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from Levenshtein import distance as LDist
 import re
 from .utils import helper_functions as hf
+from .utils.hardcore_audit import DELETE_LOG_EXCLUDED_CHANNEL_IDS
 from .utils import views as view_utils
 from .utils.blacklist import BANS_CHANNEL_ID, vote_view
 from cogs.utils.BotUtils import bot_utils as utils
@@ -677,7 +678,7 @@ class Logger(commands.Cog):
             return
 
         # exempt a certain channel from logging by the request of the mods of that server
-        if message.channel.id == 243858886266847233:
+        if message.channel.id in DELETE_LOG_EXCLUDED_CHANNEL_IDS:
             return
 
         try:

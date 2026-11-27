@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import sqlite3
 import string
 import time
 import traceback
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING, Optional, Callable
 from urllib.error import HTTPError
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from emoji import is_emoji
 from lingua import Language, LanguageDetectorBuilder
 
@@ -23,6 +24,9 @@ from socket import gaierror
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 from .utils.hardcore import SP_HARDCORE_ROLE_IDS, SP_NIGHTMARE_HARDCORE_ROLE_ID
+from .utils.hardcore_audit import (
+    AUDIT_PATH, DELETE_LOG_EXCLUDED_CHANNEL_IDS, HardcoreAudit, HardcoreEvaluation,
+)
 
 if TYPE_CHECKING:
     from Rai import Rai
@@ -1182,6 +1186,7 @@ class Message(commands.Cog):
         self.bot = bot
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
+        self.hardcore_audit = HardcoreAudit(AUDIT_PATH)
 
         global on_message_functions
         self.all_tasks = {func['func'] for func in on_message_functions}
@@ -1193,6 +1198,19 @@ class Message(commands.Cog):
             *lingua_languages_one).build()
         self.lingua_detector_full = LanguageDetectorBuilder.from_languages(
             *(lingua_languages_one + lingua_languages_two)).build()
+
+    def cog_load(self):
+        self.expire_hardcore_audit.start()
+
+    def cog_unload(self):
+        self.expire_hardcore_audit.cancel()
+
+    @tasks.loop(hours=1)
+    async def expire_hardcore_audit(self):
+        try:
+            await asyncio.to_thread(self.hardcore_audit.expire)
+        except (OSError, sqlite3.Error):
+            logging.warning("Could not expire hardcore audit records", exc_info=True)
 
     @commands.Cog.listener()
     @hf.basic_timer(5)
@@ -1307,6 +1325,16 @@ class Message(commands.Cog):
                     if hasattr(self.bot, 'langdetect'):
                         detected_lang: Optional[str] = hf.detect_language(
                             stripped_msg)
+                        if hardcore and not (
+                            DELETE_LOG_EXCLUDED_CHANNEL_IDS
+                            & {msg.channel.id, channel_id}
+                        ):
+                            msg.hardcore_evaluation = HardcoreEvaluation(
+                                mode="forced" if forced_hardcore else "personal",
+                                original_text=msg.content,
+                                classifier_input=stripped_msg,
+                                corpus=getattr(self.bot.langdetect, "rai_corpus_identity", "unknown"),
+                            )
                     else:
                         return None, False
                 else:
@@ -2176,24 +2204,39 @@ class Message(commands.Cog):
             else:
                 delete = 'spanish'
 
-        if delete == 'spanish':  # learning English, delete all Spanish
-            if msg.detected_lang == 'es':
-                try:
-                    await msg.delete()
-                except discord.NotFound:
-                    return
-                if len(msg.content) > 30:
-                    await hf.long_deleted_msg_notification(msg)
-        else:  # learning Spanish, delete all English
-            if 'holi' in msg.content.casefold():
-                return
-            if msg.detected_lang == 'en':
-                try:
-                    await msg.delete()
-                except discord.NotFound:
-                    return
-                if len(msg.content) > 30:
-                    await hf.long_deleted_msg_notification(msg)
+        target, blocked = ("en", "es") if delete == "spanish" else ("es", "en")
+        if target == "es" and "holi" in msg.content.casefold():
+            await self._record_hardcore_outcome(msg, target, "exempt")
+            return
+        if msg.detected_lang != blocked:
+            outcome = "abstained" if msg.detected_lang is None else "kept"
+            await self._record_hardcore_outcome(msg, target, outcome)
+            return
+        try:
+            await msg.delete()
+        except discord.NotFound:
+            await self._record_hardcore_outcome(msg, target, "delete_raced")
+            return
+        except (discord.HTTPException, OSError):
+            await self._record_hardcore_outcome(msg, target, "delete_failed")
+            raise
+        await self._record_hardcore_outcome(msg, target, "deleted", detected=blocked)
+        if len(msg.content) > 30:
+            await hf.long_deleted_msg_notification(msg)
+
+    async def _record_hardcore_outcome(
+        self, msg: hf.RaiMessage, target: str, outcome: str, *, detected: str | None = None,
+    ):
+        evaluation = getattr(msg, "hardcore_evaluation", None)
+        if evaluation is None:
+            return
+        deletion = (msg.id, detected) if detected is not None else None
+        try:
+            await asyncio.to_thread(
+                self.hardcore_audit.record, evaluation, target, outcome, deletion=deletion,
+            )
+        except (OSError, sqlite3.Error):
+            logging.warning("Could not record hardcore audit outcome", exc_info=True)
 
     @on_message_function()
     async def no_filter_hc(self, msg: hf.RaiMessage):

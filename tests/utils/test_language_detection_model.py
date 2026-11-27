@@ -128,6 +128,9 @@ def test_language_model_loader_uses_all_cleaned_rows_in_one_25gram_fit(
     hf._pre_load_language_detection_model()
 
     pipeline = bot.langdetect
+    assert pipeline.rai_corpus_identity.startswith(
+        f"{cleaned.relative_to(tmp_path)}:sha256:"
+    )
     vectorizer = pipeline.named_steps["vectorizer"]
     model = pipeline.named_steps["model"]
     assert vectorizer.ngram_range == (2, 5)
@@ -167,6 +170,9 @@ def test_language_model_loader_fits_only_legacy_rows_after_partial_upload(
         hf._pre_load_language_detection_model()
 
     vectorizer = bot.langdetect.named_steps["vectorizer"]
+    assert bot.langdetect.rai_corpus_identity.startswith(
+        f"{legacy.relative_to(tmp_path)}:sha256:"
+    )
     model = bot.langdetect.named_steps["model"]
     features = set(vectorizer.get_feature_names_out())
     assert Path(hf._language_corpus_directory()) == legacy
