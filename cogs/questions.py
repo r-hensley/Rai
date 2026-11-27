@@ -235,7 +235,6 @@ class Questions(commands.Cog):
             'date': date.today().strftime("%Y/%m/%d"),
             'thread': thread_id,
         }
-        config['questions'][question_key] = question
 
         # assign a unique color to questions from each channel for logs with multiple channels
         color = self.get_color_from_name(ctx)  # returns a RGB tuple unique to every channel
@@ -264,40 +263,37 @@ class Questions(commands.Cog):
         if ctx.author != target_message.author:
             emb.set_footer(text=f"Question added by {ctx.author.name}")
 
-        # update ;q list at bottom of log channel
-        log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
-
-        if not log_channel:
-            log_channel = await find_and_unarchive_thread(ctx)
-
-        if isinstance(log_channel, discord.Thread):
-            # The above find_and_unarchive_thread() function should attempt to unarchive the thread too, so this
-            # code is potentially repetitive. Note also if a bot lacks `Manage Threads` permission,
-            # it's possible thread.edit(archived=False) may work a first time, but it'll fail when you try
-            # a second time to unarchive a thread that is already unarchived. If the bot has `Manage Threads`,
-            # then you can try again to unarchive the already-unarchived thread, it'll just pass by
-            # with no action/error
-            if log_channel.archived:
+        # Reserve the number while sending the log, then release it if the send fails.
+        config['questions'][question_key] = question
+        try:
+            log_channel = ctx.guild.get_channel_or_thread(config['log_channel'])
+            if not log_channel:
+                log_channel = await find_and_unarchive_thread(ctx)
+            if not log_channel:
+                await utils.safe_send(ctx, "I couldn't find the questions log channel. The question wasn't saved.")
+                return
+            if isinstance(log_channel, discord.Thread) and log_channel.archived:
                 try:
                     log_channel = await log_channel.edit(archived=False)
                 except discord.Forbidden:
-                    try:
-                        await utils.safe_send(ctx, "The questions log thread associated with this channel is **archived** "
-                                                "and I don't have permission to unarchive it. Please either unarchive "
-                                                f"the log channel thread {log_channel.mention} or give me the "
-                                                f"permission to `Manage Threads` in that channel.")
-                    except (discord.HTTPException, discord.Forbidden):
-                        pass
+                    await utils.safe_send(ctx, f"Please unarchive {log_channel.mention} or give me the "
+                                               "Manage Threads permission. The question wasn't saved.")
                     return
-
-        try:
             log_message = await utils.safe_send(log_channel, embed=emb)
+            if log_message is None:
+                await utils.safe_send(ctx, "I couldn't post the question in the log channel. The question wasn't saved.")
+                return
+            question['log_message'] = log_message.id
         except discord.Forbidden:
-            config['questions'].pop(question_key, None)
             await utils.safe_send(ctx, "I lack the ability to send messages in the log channel.")
             return
+        except discord.NotFound:
+            await utils.safe_send(ctx, "The questions log channel is unavailable. The question wasn't saved.")
+            return
+        finally:
+            if 'log_message' not in question and config['questions'].get(question_key) is question:
+                config['questions'].pop(question_key)
 
-        question['log_message'] = log_message.id
         try:
             await self._delete_log(ctx)
             await self._post_log(ctx)
@@ -308,7 +304,8 @@ class Questions(commands.Cog):
                 await utils.safe_send(ctx, "I didn't have permissions to post in that channel")
             else:
                 raise
-            config['questions'].pop(question_key, None)
+            if config['questions'].get(question_key) is question:
+                config['questions'].pop(question_key)
             return
 
         if config['questions'].get(question_key) is not question:
@@ -1260,26 +1257,22 @@ class Questions(commands.Cog):
                 pass
 
     @staticmethod
-    async def get_number_google_results(ctx, site, engine_id, search_term) -> str:
-        """
-        Returns number of Google results for a search term.
-        site: Can limit search results to a certain site. Input URL like https://twitter.com
-        """
-        with open(f'{dir_path}/gcse_api.txt', 'r') as read_file:
-            url = f'https://www.googleapis.com/customsearch/v1' \
-                  f'?exactTerms={search_term}' \
-                  f'&key={read_file.read()}' \
-                  f'&cx={engine_id}'  # %22 is quotation mark
-            if site:
-                url += f"&siteSearch={site}"
-
-        data = await utils.aiohttp_get_text(url, ctx)
-
-        num_of_results = data.split('"formattedTotalResults": "')[1].split('"')[0]
+    async def get_number_google_results(site, engine_id, search_term) -> str | None:
+        """Return the formatted Google result count, or None when unavailable."""
         try:
-            return num_of_results
-        except ValueError:
-            return "0"
+            with open(f'{dir_path}/gcse_api.txt', encoding='utf-8') as read_file:
+                params = {'exactTerms': search_term, 'key': read_file.read().strip(), 'cx': engine_id}
+            if site:
+                params['siteSearch'] = site
+            data = await utils.aiohttp_get_json('https://www.googleapis.com/customsearch/v1', params=params)
+        except (aiohttp.ClientError, OSError, ValueError):
+            return None
+
+        info = data.get('searchInformation') if isinstance(data, dict) else None
+        count = info.get('totalResults') if isinstance(info, dict) else None
+        if isinstance(count, str) and re.fullmatch(r'[0-9]{1,19}', count):
+            return f'{int(count):,}'
+        return None
 
     @commands.command(aliases=['sc'])
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
@@ -1311,24 +1304,25 @@ class Questions(commands.Cog):
             site = None
 
         # ### Call the search ###
-        results = {}
         s = ''
         for search_term in search_terms:
             s += f"__{search_term}__\n"
 
             # Normal google results
             engine_id = 'c7afcd4ef85db31a2'
-            num_of_google_results = await self.get_number_google_results(ctx, site, engine_id, search_term) or "0"
+            num_of_google_results = await self.get_number_google_results(site, engine_id, search_term)
             url = f'https://cse.google.com/cse?cx=c7afcd4ef85db31a2#gsc.tab=0&gsc.q=%22{quote(search_term)}%22'  # %22 --> "
             if site:
                 url += f"%20site:{site}"
-            s += f"[google.jp]({url}): 約{num_of_google_results}件\n"
+            count = f"約{num_of_google_results}件" if num_of_google_results is not None else "Unavailable"
+            s += f"[google.jp]({url}): {count}\n"
 
             # News sites
             engine_id = 'cbbca2d78e3d9fb2d'
-            num_of_news_results = await self.get_number_google_results(ctx, site, engine_id, search_term) or "0"
+            num_of_news_results = await self.get_number_google_results(site, engine_id, search_term)
             url = f"https://cse.google.com/cse?cx=cbbca2d78e3d9fb2d#gsc.tab=0&gsc.q=%22{quote(search_term)}%22"
-            s += f"[News sites]({url}): 約{num_of_news_results}件\n"
+            count = f"約{num_of_news_results}件" if num_of_news_results is not None else "Unavailable"
+            s += f"[News sites]({url}): {count}\n"
 
             # Massif
             massif_result = await self.get_massif_results(ctx, search_term)

@@ -919,10 +919,14 @@ class Interactions(commands.Cog):
 
     @app_commands.default_permissions()
     async def context_view_modlog(self, interaction: discord.Interaction, member: discord.Member):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         modlog = self.bot.get_command("modlog")
         ctx = await commands.Context.from_interaction(interaction)
         embed = await ctx.invoke(modlog, str(member.id), post_embed=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        if embed is None:
+            await interaction.edit_original_response(content="No modlog available for this member.")
+            return
+        await interaction.edit_original_response(embed=embed)
 
     @app_commands.default_permissions()
     async def context_view_user_stats(self, interaction: discord.Interaction, member: discord.Member):
