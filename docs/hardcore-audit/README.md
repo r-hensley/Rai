@@ -12,7 +12,11 @@ Counts are stored by UTC day, workflow version, target language, enforcement mod
 and corpus identity. Corpus identity includes the selected directory and a SHA-256
 fingerprint of the training text actually supplied to the model. Report cleaned,
 fallback, and unknown corpus identities separately. An already-loaded model
-without provenance appears as `unknown`.
+without a fingerprint appears as `unknown` unless its startup selection has
+been verified and attributed in the private `corpus-attribution.json` file.
+Labels ending in `:startup-log` record the selected directory from the startup
+log. The file applies to the identified process, and a model fingerprint takes
+precedence whenever available.
 
 | Outcome | Meaning |
 | --- | --- |

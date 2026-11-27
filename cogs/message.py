@@ -24,6 +24,7 @@ from socket import gaierror
 from cogs.utils.BotUtils import bot_utils as utils
 from .utils import helper_functions as hf
 from .utils.hardcore import SP_HARDCORE_ROLE_IDS, SP_NIGHTMARE_HARDCORE_ROLE_ID
+from .utils.hardcore_attribution import session_corpus
 from .utils.hardcore_audit import (
     AUDIT_PATH, DELETE_LOG_EXCLUDED_CHANNEL_IDS, HardcoreAudit, HardcoreEvaluation,
 )
@@ -1187,6 +1188,7 @@ class Message(commands.Cog):
         self.ignored_characters = []
         self.sid = SentimentIntensityAnalyzer()
         self.hardcore_audit = HardcoreAudit(AUDIT_PATH)
+        self.hardcore_session_corpus = session_corpus(AUDIT_PATH.with_name("corpus-attribution.json"))
 
         global on_message_functions
         self.all_tasks = {func['func'] for func in on_message_functions}
@@ -1333,7 +1335,11 @@ class Message(commands.Cog):
                                 mode="forced" if forced_hardcore else "personal",
                                 original_text=msg.content,
                                 classifier_input=stripped_msg,
-                                corpus=getattr(self.bot.langdetect, "rai_corpus_identity", "unknown"),
+                                corpus=(
+                                    getattr(self.bot.langdetect, "rai_corpus_identity", None)
+                                    or getattr(self, "hardcore_session_corpus", None)
+                                    or "unknown"
+                                ),
                             )
                     else:
                         return None, False
